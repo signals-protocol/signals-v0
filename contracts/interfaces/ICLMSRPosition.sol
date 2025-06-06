@@ -10,7 +10,7 @@ interface ICLMSRPosition {
     // ========================================
     
     /// @notice Position data structure
-    struct PositionData {
+    struct Position {
         uint256 marketId;               // Market identifier
         uint32 lowerTick;               // Lower tick bound (inclusive)
         uint32 upperTick;               // Upper tick bound (inclusive)
@@ -178,8 +178,8 @@ interface ICLMSRPosition {
     /// @notice Get position data
     /// @param positionId Position identifier
     /// @return data Position data structure
-    function getPositionData(uint256 positionId) 
-        external view returns (PositionData memory data);
+    function getPosition(uint256 positionId) 
+        external view returns (Position memory data);
 
     /// @notice Get all positions owned by an address
     /// @param owner Address to query

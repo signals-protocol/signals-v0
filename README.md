@@ -12,8 +12,9 @@ _Production-ready codebase with comprehensive test coverage_
 | **Lazy Mul Segment Tree**   | Instead of pre-allocating 65k leaves (gas-bomb), we store only the nodes actually touched with lazy multiplication; each trade modifies ≤ log₂N ≈ 17 nodes.                                                                  |
 | **Market life-cycle**       | _Open_ 14 days in advance → users trade 24 h → keeper pushes oracle price → **close** & settle → after claim, positions stay for reference.                                                                                  |
 | **Per-market α**            | Liquidity can differ by day, so `alpha` lives inside `Market` struct, not as a global immutable.                                                                                                                             |
-| **Short selling disabled**  | A user cannot drive any tick position below 0; checking is `oldPos + dq < 0 ⇒ revert`.                                                                                                                                       |
-| **Separation of concerns**  | Core = irreversible money/math; Manager = changeable governance/keeper logic; Router = UX; View = lightweight read only.                                                                                                     |
+| **Long-Only System**        | Users can only hold positive positions (uint128); partial selling via negative quantityDelta in adjustments.                                                                                                                 |
+| **Position NFTs**           | Each range position is an ERC721 token with metadata, enabling composability and secondary markets.                                                                                                                          |
+| **Separation of concerns**  | Core = immutable money/math; Manager = upgradeable governance; Router = thin call proxy for UX; Position = NFT management.                                                                                                   |
 
 ---
 
@@ -31,7 +32,8 @@ signals-v0/
 │   │     ├─ CLMSRMarketManager.sol
 │   │     └─ CLMSRMarketManagerProxy.sol
 │   ├─ periphery/
-│   │     ├─ CLMSRMarketRouter.sol
+│   │     ├─ CLMSRRouter.sol
+│   │     ├─ CLMSRPosition.sol
 │   │     ├─ CLMSRMarketOracleAdapter.sol
 │   │     └─ CLMSRMarketView.sol
 │   ├─ libraries/
@@ -43,8 +45,8 @@ signals-v0/
 │   └─ interfaces/
 │         ICLMSRMarketCore.sol
 │         ICLMSRMarketManager.sol
-│         ICLMSRMarketRouter.sol
-│         ICLMSRMarketView.sol
+│         ICLMSRRouter.sol
+│         ICLMSRPosition.sol
 ├─ test/
 │   ├─ LazyMulSegmentTree.test.ts      # ✅ 79 TESTS PASSING
 │   └─ FixedPointMath.test.ts          # ✅ 52 TESTS PASSING
@@ -65,80 +67,111 @@ struct Node {
 }
 
 struct Market {
-    /* period */
-    uint64  startTs;       // epoch start (UTC)
-    uint64  endTs;         // start + 24 h
-    bool    settled;
-    uint32  settleTick;    // winning tick after oracle
+    bool isActive;         // Market is active
+    bool settled;          // Market is settled
+    uint64 startTimestamp; // Market start time
+    uint64 endTimestamp;   // Market end time
+    uint32 settlementTick; // Winning tick (only if settled)
+    uint32 tickCount;      // Number of ticks in market
+    uint256 liquidityParameter; // Alpha parameter (1e18 scale)
+    uint256 totalVolume;   // Total trading volume
+}
 
-    /* immutable per market */
-    uint32  nLeaves;       // 32 768 recommended
-    uint256 alpha;         // liquidity parameter (1e18 scale)
+struct Position {
+    uint256 marketId;      // Market identifier
+    uint32 lowerTick;      // Lower tick bound (inclusive)
+    uint32 upperTick;      // Upper tick bound (inclusive)
+    uint128 quantity;      // Position quantity (always positive, Long-Only)
+    uint64 createdAt;      // Creation timestamp
+}
 
-    /* dynamic state */
-    uint256 rootSumExp;    // Σ exp(q/α)
-    uint256 volume;        // Σ |ΔC|  (optional analytics)
-    mapping(uint => Node) tree;                       // sparse seg-tree
-    mapping(address => mapping(uint32 => int128)) pos;// user positions
+struct TradeParams {
+    uint256 marketId;      // Market identifier
+    uint32 lowerTick;      // Lower tick bound (inclusive)
+    uint32 upperTick;      // Upper tick bound (inclusive)
+    uint128 quantity;      // Position quantity (always positive, Long-Only)
+    uint256 maxCost;       // Maximum cost willing to pay
 }
 ```
 
 ---
 
-
 ### 3. Contract-level API / internal checks
 
 _(no events / no errors listed – those are implementation details)_
 
-| Contract                        | Public functions (✔ write, 🔍 view)                     | Key checks & actions                                                                                                                                                                                                                                                                   |     |     |
-| ------------------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- | --- |
-| **CLMSRMarketCore** (immutable) | ✔ `coreOpenMarket(day,nLeaves,start,end,alpha,initExp)` | - day must not exist; initialize `Market`, `rootSumExp = initExp*nLeaves`.                                                                                                                                                                                                             |     |     |
-|                                 | ✔ `coreCloseMarket(day,settleTick)`                     | - must not be settled; flag `settled=true`.                                                                                                                                                                                                                                            |     |     |
-|                                 | ✔ `coreTradeRange(day,trader,lo,hi,dq,maxCost)`         | 1. `lo ≤ hi` 2. if `dq < 0` loop all ticks: `old+ dq ≥0` (no short) 3. compute f = `exp(dq/α)`; `tree.mulRange(lo,hi,f)`; update `rootSumExp` 4. ΔC = `alpha * ln(new/root)` ; ensure `ΔC ≤ maxCost` 5. ERC-20 `transferFrom(trader, core, ΔC)` 6. loop ticks `pos += dq`; \`volume += | ΔC  | \`. |
-|                                 | ✔ `coreClaim(day,trader,ticks[])`                       | allowed only if market `settled`; pay out only tick = `settleTick`; zero the pos.                                                                                                                                                                                                      |     |     |
-|                                 | 🔍 `metaOf(day)`                                        | returns settled flag, times, settleTick, alpha, rootSumExp, volume.                                                                                                                                                                                                                    |     |     |
-|                                 | 🔍 `rawLeaf(day,tick)`                                  | missing node → returns `1e18`.                                                                                                                                                                                                                                                         |     |     |
-| **CLMSRMarketManager** (UUPS)   | ✔ `openMarket(...)` _(onlyKeeper, notPaused)_           | calls `coreOpenMarket`; push day into `_active`; if > 14 → `_autoClose(oldest)`.                                                                                                                                                                                                       |     |     |
-|                                 | ✔ `closeMarket(...)` _(onlyKeeper)_                     | calls `coreCloseMarket`; remove from `_active`.                                                                                                                                                                                                                                        |     |     |
-|                                 | ✔ `pause/unpause`, ✔ `setKeeper(addr)`                  | flip flags / update keeper.                                                                                                                                                                                                                                                            |     |     |
-|                                 | 🔍 `activeEpochs()`                                     | copy of `_active`.                                                                                                                                                                                                                                                                     |     |     |
-| **CLMSRMarketRouter**           | ✔ `tradeRange(day,lo,hi,dq,maxCost)`                    | passthrough to `coreTradeRange`; single tick = lo==hi.                                                                                                                                                                                                                                 |     |     |
-|                                 | ✔ `tradeRangeWithPermit(...)`                           | permit + approve + `tradeRange`.                                                                                                                                                                                                                                                       |     |     |
-|                                 | ✔ `claim(day,ticks[])`                                  | passthrough to `coreClaim`.                                                                                                                                                                                                                                                            |     |     |
-| **CLMSRMarketOracleAdapter**    | ✔ `pushPriceAndSettle(day,price)` _(onlyKeeper)_        | translate price→tick; call `manager.closeMarket`.                                                                                                                                                                                                                                      |     |     |
-| **CLMSRMarketView**             | 🔍 `activeMarkets()`                                    | return `manager.activeEpochs()`.                                                                                                                                                                                                                                                       |     |     |
-|                                 | 🔍 `snapshot(day)` / `snapshotMany(days[])`             | wrap `core.metaOf`.                                                                                                                                                                                                                                                                    |     |     |
-|                                 | 🔍 `getAllLeaf(day)` _(optional)_                       | returns 32 768 × `exp(q/α)` array (for full on-chain dump).                                                                                                                                                                                                                            |     |     |
+| Contract                        | Public functions (✔ write, 🔍 view)                       | Key checks & actions                                                                                                                   |
+| ------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| **CLMSRMarketCore** (immutable) | ✔ `createMarket(id,ticks,start,end,alpha,initVal)`        | - marketId must not exist; initialize Market with tick values; check max active markets limit.                                         |
+|                                 | ✔ `settleMarket(id,winningTick)`                          | - must not be settled; set settlementTick and settled=true.                                                                            |
+|                                 | ✔ `executeTradeRange(trader,params)`                      | 1. Validate tick range 2. Calculate cost using CLMSR 3. Check maxCost 4. Transfer payment 5. Mint position NFT 6. Update market state. |
+|                                 | ✔ `executePositionAdjust(posId,quantityDelta,maxCost)`    | 1. Validate position ownership 2. Check Long-Only constraint 3. Calculate cost 4. Update position quantity 5. Handle payment/refund.   |
+|                                 | ✔ `executePositionClose(posId)`                           | Close entire position and return proceeds.                                                                                             |
+|                                 | ✔ `executePositionClaim(posId)`                           | Claim payout from settled market position.                                                                                             |
+|                                 | ✔ `pause(reason)` / ✔ `unpause()`                         | Emergency pause/unpause for oracle/settlement errors.                                                                                  |
+|                                 | 🔍 `getMarket(id)` / 🔍 `getTickValue(id,tick)`           | Market data and tick values.                                                                                                           |
+| **CLMSRMarketManager** (UUPS)   | ✔ `createMarket(params)` _(onlyKeeper)_                   | Delegates to Core; enforces max active markets; emits MarketCreated.                                                                   |
+|                                 | ✔ `settleMarket(id,winningTick)` _(onlyKeeper)_           | Delegates to Core; removes from active list; emits MarketSettled.                                                                      |
+|                                 | ✔ `pause(reason)` / ✔ `unpause()` _(onlyKeeper)_          | Emergency controls delegated to Core.                                                                                                  |
+|                                 | ✔ `setKeeper(addr)` / ✔ `setCoreContract(addr)`           | Governance functions.                                                                                                                  |
+|                                 | 🔍 `getActiveMarkets()` / 🔍 `isKeeper(addr)`             | Query active markets and keeper status.                                                                                                |
+| **CLMSRRouter** (thin proxy)    | ✔ `tradeWithPermit(...,permitParams)`                     | EIP-2612 permit + token transfer + delegate to Core.                                                                                   |
+|                                 | ✔ `trade(id,lo,hi,quantity,maxCost)`                      | Simple trade wrapper (requires pre-approval).                                                                                          |
+|                                 | ✔ `adjustPosition(posId,quantityDelta,maxCost)`           | Position adjustment wrapper.                                                                                                           |
+|                                 | ✔ `closePosition(posId)` / ✔ `claimPosition(posId)`       | Position management wrappers.                                                                                                          |
+|                                 | ✔ `multicall(calls[])` / ✔ `batchClosePositions(...)`     | Batch operations for gas optimization.                                                                                                 |
+|                                 | 🔍 `calculateTradeCost(...)` / 🔍 `getPositionValue(...)` | Calculation functions delegated to Core.                                                                                               |
+| **CLMSRPosition** (ERC721)      | ✔ `mintPosition(to,marketId,lo,hi,quantity)`              | Mint new position NFT (Core-only).                                                                                                     |
+|                                 | ✔ `setPositionQuantity(posId,newQuantity)`                | Update position quantity to absolute value (Core-only).                                                                                |
+|                                 | ✔ `burnPosition(posId)`                                   | Burn position NFT (Core-only).                                                                                                         |
+|                                 | 🔍 `getPosition(posId)` / 🔍 `tokenURI(posId)`            | Position data and NFT metadata.                                                                                                        |
 
 ---
 
 ### 4. External interaction flow
 
 ```
-          ┌─ USER ─ tradeRange ───────────────────┐
-          │                                       │
-ERC-20 → Router --> Core.coreTradeRange           │
-                event TradeRange ───────────► Front-end chart
-          │                                       │
-Keeper → OracleAdapter.pushPrice ──► Manager.closeMarket ─► Core.coreCloseMarket
-                                          event MarketClosed ─► Front-end list
+          ┌─ USER ─ tradeWithPermit ──────────────────┐
+          │                                           │
+ERC-20 → Router --> Core.executeTradeRange --> Position.mintPosition
+                event TradeExecuted ───────────► Front-end chart
+          │                                           │
+Keeper → Manager.createMarket ──► Core.createMarket
+Keeper → Manager.settleMarket ──► Core.settleMarket
+                event MarketCreated/Settled ──► Front-end list
 ```
 
-_Data rendering_ – Front-end calls `View.snapshotMany` once per page load, then listens to events for real-time deltas.
+_Data rendering_ – Front-end calls Router query functions and listens to events for real-time updates.
+
+---
+
+### 5. Key Design Decisions
+
+| Decision                 | Rationale                                                                                        |
+| ------------------------ | ------------------------------------------------------------------------------------------------ |
+| **Long-Only System**     | Simplified math and security; positions are uint128, partial selling via negative quantityDelta. |
+| **Position NFTs**        | Enables composability, secondary markets, and clear ownership tracking.                          |
+| **Router as Thin Proxy** | No delegatecall to avoid storage collision; simple call forwarding with UX enhancements.         |
+| **Manager-Core Split**   | Manager handles governance (upgradeable), Core handles immutable logic and state.                |
+| **Emergency Pause**      | Critical for prediction markets due to oracle/settlement error risks.                            |
+| **Max Active Markets**   | Prevents unbounded gas costs and ensures system stability.                                       |
+| **Segment Tree Limits**  | Max ~1M ticks for stack depth and gas safety.                                                    |
 
 ---
 
 ### 6. Development Status & Next Steps
 
-| Component                | Status          | Notes                         |
-| ------------------------ | --------------- | ----------------------------- |
-| **LazyMulSegmentTree**   | ✅ **Complete** | 79 tests passing              |
-| **FixedPointMath**       | ✅ **Complete** | 52 tests passing              |
-| **CLMSRMarketCore**      | 🔄 To implement | Core trading logic            |
-| **Manager & Governance** | 🔄 To implement | UUPS proxy pattern            |
-| **Router & Periphery**   | 🔄 To implement | User-facing contracts         |
-| **Integration Tests**    | 🔄 To implement | End-to-end scenarios          |
-| **Deployment Scripts**   | 🔄 To implement | Mainnet deployment            |
+| Component                | Status          | Notes                      |
+| ------------------------ | --------------- | -------------------------- |
+| **LazyMulSegmentTree**   | ✅ **Complete** | 79 tests passing           |
+| **FixedPointMath**       | ✅ **Complete** | 52 tests passing           |
+| **Interface Design**     | ✅ **Complete** | v0.1 interfaces finalized  |
+| **CLMSRMarketCore**      | 🔄 To implement | Core trading logic         |
+| **CLMSRPosition**        | 🔄 To implement | ERC721 position management |
+| **Manager & Governance** | 🔄 To implement | UUPS proxy pattern         |
+| **Router & Periphery**   | 🔄 To implement | User-facing contracts      |
+| **Integration Tests**    | 🔄 To implement | End-to-end scenarios       |
+| **Deployment Scripts**   | 🔄 To implement | Mainnet deployment         |
 
 ### 7. Testing & Quality Assurance
 
@@ -161,30 +194,56 @@ LOG_GAS=1 npm test
 - ✅ **Gas optimization** verified
 - ✅ **Edge cases** comprehensively covered
 - ✅ **CI-stable** tests (no flaky failures)
+- ✅ **Interface design** v0.1 finalized and reviewed
 
 ---
 
 ### 8. Repository roles & current progress
 
-| File/Folder                          | Status      | Engineer role                                                  |
-| ------------------------------------ | ----------- | -------------------------------------------------------------- |
-| `contracts/libraries/*.sol`          | ✅ **DONE** | LazyMulSegmentTree & FixedPointMath fully implemented & tested |
-| `test/LazyMulSegmentTree.test.ts`    | ✅ **DONE** | 79 comprehensive tests covering all critical paths             |
-| `test/FixedPointMath.test.ts`        | ✅ **DONE** | Mathematical operations thoroughly validated                   |
-| `contracts/core/CLMSRMarketCore.sol` | 🔄 TODO     | implement open/close/trade/claim logic & anti-short check      |
-| `contracts/manager/*.sol`            | 🔄 TODO     | implement keeper gating, UUPS upgrade, 14-slot active array    |
-| `contracts/periphery/*.sol`          | 🔄 TODO     | thin wrappers: Router UX, Oracle adapter, View                 |
-| **Integration & E2E tests**          | 🔄 TODO     | Full system testing & deployment verification                  |
+| File/Folder                             | Status      | Engineer role                                                  |
+| --------------------------------------- | ----------- | -------------------------------------------------------------- |
+| `contracts/libraries/*.sol`             | ✅ **DONE** | LazyMulSegmentTree & FixedPointMath fully implemented & tested |
+| `contracts/interfaces/*.sol`            | ✅ **DONE** | v0.1 interfaces finalized with clean architecture              |
+| `test/LazyMulSegmentTree.test.ts`       | ✅ **DONE** | 79 comprehensive tests covering all critical paths             |
+| `test/FixedPointMath.test.ts`           | ✅ **DONE** | Mathematical operations thoroughly validated                   |
+| `contracts/core/CLMSRMarketCore.sol`    | 🔄 TODO     | Implement trading logic with Position NFT integration          |
+| `contracts/periphery/CLMSRPosition.sol` | 🔄 TODO     | Implement ERC721 position management with metadata             |
+| `contracts/manager/*.sol`               | 🔄 TODO     | Implement keeper gating, UUPS upgrade, emergency controls      |
+| `contracts/periphery/CLMSRRouter.sol`   | 🔄 TODO     | Implement thin call proxy with permit & batch operations       |
+| **Integration & E2E tests**             | 🔄 TODO     | Full system testing & deployment verification                  |
 
 ---
 
-**🚀 Ready for Production**: The core mathematical foundation (LazyMulSegmentTree) is production-ready with audit-grade test coverage. The remaining work focuses on business logic implementation using these proven primitives.
+### 9. Architecture Highlights
 
-With this updated document, every engineer has:
+**🎯 Clean Separation of Concerns**:
 
-1. **Clear implementation status** – know what's done vs. what's next
+- **Core**: Immutable business logic and state management
+- **Manager**: Upgradeable governance and emergency controls
+- **Router**: Thin proxy for enhanced UX (permit, batch operations)
+- **Position**: ERC721 NFT management with metadata
+
+**🔒 Security Features**:
+
+- Long-Only system prevents complex short-selling attacks
+- Emergency pause functionality for oracle/settlement errors
+- ReentrancyGuard protection across all entry points
+- Max active markets limit prevents unbounded gas costs
+
+**⚡ Gas Optimizations**:
+
+- Lazy segment tree for efficient tick updates
+- Batch operations in Router for multiple positions
+- Immutable Core contract avoids proxy overhead for core logic
+
+**🚀 Ready for Production**: The core mathematical foundation (LazyMulSegmentTree) is production-ready with audit-grade test coverage. The interface design is finalized and ready for implementation.
+
+With this updated architecture, every engineer has:
+
+1. **Clear implementation roadmap** – know what's done vs. what's next
 2. **Proven mathematical foundation** – LazyMulSegmentTree ready for mainnet
-3. **Comprehensive test coverage** – 79 tests ensuring correctness
-4. **Quality assurance** – audit-ready codebase with overflow protection
+3. **Finalized interface design** – v0.1 interfaces ready for implementation
+4. **Comprehensive test coverage** – 79 tests ensuring correctness
+5. **Quality assurance** – audit-ready codebase with overflow protection
 
 **signals-v0** now has a rock-solid foundation for CLMSR implementation! 🎯
