@@ -51,9 +51,9 @@ library LazyMulSegmentTree {
     // CONSTANTS
     // ========================================
     
-    uint256 private constant WAD = 1e18;
-    uint256 private constant MIN_FACTOR = 0.01e18;  // 1% minimum - allow wide range for CLMSR
-    uint256 private constant MAX_FACTOR = 100e18;   // 100x maximum - allow wide range for CLMSR
+    uint256 public constant WAD = 1e18;
+    uint256 public constant MIN_FACTOR = 0.01e18;  // 1% minimum - allow wide range for CLMSR
+    uint256 public constant MAX_FACTOR = 100e18;   // 100x maximum - allow wide range for CLMSR
 
     // ========================================
     // HELPER FUNCTIONS

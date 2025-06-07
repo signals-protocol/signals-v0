@@ -18,7 +18,6 @@ interface ICLMSRMarketCore {
         uint32 settlementTick;          // Winning tick (only if settled)
         uint32 tickCount;               // Number of ticks in market
         uint256 liquidityParameter;    // Alpha parameter (1e18 scale)
-        uint256 totalVolume;            // Total trading volume
     }
     
     /// @notice Trade parameters structure
@@ -61,6 +60,7 @@ interface ICLMSRMarketCore {
         uint256 indexed positionId,
         address indexed trader,
         int128 quantityDelta,
+        uint128 newQuantity,
         uint256 cost
     );
 
@@ -76,11 +76,7 @@ interface ICLMSRMarketCore {
         uint256 payout
     );
 
-    event AccessUpdated(
-        address indexed who,
-        bool indexed isAuthorized,
-        string role
-    );
+
 
     event EmergencyPaused(
         address indexed by,
@@ -89,6 +85,10 @@ interface ICLMSRMarketCore {
 
     event EmergencyUnpaused(
         address indexed by
+    );
+
+    event RouterSet(
+        address indexed routerContract
     );
 
     // ========================================
@@ -108,7 +108,7 @@ interface ICLMSRMarketCore {
     error InsufficientBalance(address account, uint256 required, uint256 available);
     error TransferFailed(address token, address from, address to, uint256 amount);
     error InvalidMarketParameters(string reason);
-    error MaxActiveMarketsExceeded(uint256 current, uint256 max);
+
     error ContractPaused();
     error TickCountExceedsLimit(uint32 tickCount, uint32 maxAllowed); // Max ~1M for segment-tree safety
 
@@ -117,20 +117,18 @@ interface ICLMSRMarketCore {
     // ========================================
     
     /// @notice Create a new market (only callable by Manager)
-    /// @dev Stores market data and initializes tick values
+    /// @dev Stores market data and initializes all tick values to WAD (1e18)
     /// @param marketId Market identifier
     /// @param tickCount Number of ticks in market
     /// @param startTimestamp Market start time
     /// @param endTimestamp Market end time
     /// @param liquidityParameter Alpha parameter (1e18 scale)
-    /// @param initialTickValue Initial value for all ticks
     function createMarket(
         uint256 marketId,
         uint32 tickCount,
         uint64 startTimestamp,
         uint64 endTimestamp,
-        uint256 liquidityParameter,
-        uint256 initialTickValue
+        uint256 liquidityParameter
     ) external;
     
     /// @notice Settle a market (only callable by Manager)
