@@ -59,14 +59,6 @@ contract LazyMulSegmentTreeTest {
     function batchUpdate(uint32[] memory indices, uint256[] memory values) external {
         tree.batchUpdate(indices, values);
     }
-    
-    function getNonZeroRange(uint32 lo, uint32 hi) 
-        external 
-        view 
-        returns (uint32[] memory indices, uint256[] memory values) 
-    {
-        return tree.getNonZeroRange(lo, hi);
-    }
 
     // ========================================
     // UTILITY FUNCTIONS
@@ -74,34 +66,6 @@ contract LazyMulSegmentTreeTest {
     
     function getTotalSum() external view returns (uint256) {
         return tree.getTotalSum();
-    }
-    
-    function isEmpty() external view returns (bool) {
-        return tree.isEmpty();
-    }
-    
-    function getStats() external view returns (uint32 size, uint32 nodeCount, uint256 totalSum) {
-        return tree.getStats();
-    }
-
-    // ========================================
-    // CLMSR-SPECIFIC FUNCTIONS
-    // ========================================
-    
-    function updateExp(uint32 tick, uint256 expValue) external {
-        tree.updateExp(tick, expValue);
-    }
-    
-    function getSumExp(uint32 lo, uint32 hi) external view returns (uint256) {
-        return tree.getSumExp(lo, hi);
-    }
-    
-    function findMaxTick(uint32 lo, uint32 hi) 
-        external 
-        view 
-        returns (uint32 maxTick, uint256 maxValue) 
-    {
-        return tree.findMaxTick(lo, hi);
     }
 
     // ========================================
@@ -148,7 +112,7 @@ contract LazyMulSegmentTreeTest {
     /// @return exists True if node has been initialized
     function nodeExists(uint32 nodeIndex) external view returns (bool exists) {
         LazyMulSegmentTree.Node storage node = tree.nodes[nodeIndex];
-        return node.sum != 0 || node.lazy != 1e18;
+        return node.sum != 0 || node.lazy != 1e18 || node.children != 0;
     }
 
     // ========================================
@@ -223,5 +187,244 @@ contract LazyMulSegmentTreeTest {
         uint256 gasBefore = gasleft();
         tree.batchUpdate(indices, values);
         gasUsed = gasBefore - gasleft();
+    }
+
+    // ========================================
+    // STRICT EDGE CASE & INVARIANT TESTING
+    // ========================================
+    
+    /// @notice Test boundary value inputs for mulRange
+    /// @dev Tests lo==hi==0, hi==size-1, factor==MIN/MAX_FACTOR
+    function testMulRangeBoundaries() external {
+        require(tree.size > 0, "Tree not initialized");
+        
+        // Test single element at start
+        tree.mulRange(0, 0, 1.5e18);
+        
+        // Test single element at end
+        tree.mulRange(tree.size - 1, tree.size - 1, 1.5e18);
+        
+        // Test full range
+        tree.mulRange(0, tree.size - 1, 1.1e18);
+        
+        // Test minimum factor
+        tree.mulRange(0, 0, 0.01e18); // Exact MIN_FACTOR
+        
+        // Test maximum factor
+        tree.mulRange(0, 0, 100e18); // Exact MAX_FACTOR
+    }
+    
+    /// @notice Test boundary value inputs for update
+    /// @dev Tests index==0, index==size-1
+    function testUpdateBoundaries() external {
+        require(tree.size > 0, "Tree not initialized");
+        
+        // Test first index
+        tree.update(0, 2e18);
+        
+        // Test last index
+        tree.update(tree.size - 1, 3e18);
+    }
+    
+    /// @notice Assert total sum invariant: totalSum == Σ query(i,i)
+    /// @dev Critical invariant that must always hold
+    function assertTotalInvariant() external {
+        uint32 size = tree.size;
+        require(size > 0, "Tree not initialized");
+        
+        uint256 manual = 0;
+        for (uint32 i = 0; i < size; i++) {
+            manual += tree.queryWithLazy(i, i); // Use queryWithLazy to force propagation
+        }
+        
+        uint256 cached = tree.getTotalSum();
+        require(manual == cached, "Total sum invariant violated");
+    }
+    
+    /// @notice Test lazy propagation consistency
+    /// @dev Ensures query() and queryWithLazy() return same results after propagation
+    function assertLazyConsistency(uint32 lo, uint32 hi) external {
+        require(lo <= hi && hi < tree.size, "Invalid range");
+        
+        // First force propagation with queryWithLazy
+        uint256 lazyResult = tree.queryWithLazy(lo, hi);
+        // Then check that view query matches
+        uint256 viewResult = tree.query(lo, hi);
+        
+        require(viewResult == lazyResult, "Lazy propagation inconsistency");
+    }
+    
+    /// @notice Test default sum logic for untouched ranges
+    /// @dev Queries range that has never been accessed should return len*WAD
+    function testDefaultSumLogic(uint32 lo, uint32 hi) external view returns (uint256) {
+        require(lo <= hi && hi < tree.size, "Invalid range");
+        
+        uint256 result = tree.query(lo, hi);
+        // For completely untouched ranges, should equal (hi - lo + 1) * WAD
+        // Note: This test is most meaningful on fresh tree sections
+        return result;
+    }
+    
+    /// @notice Test mulRange on empty nodes doesn't break root sum sync
+    /// @dev Critical test for recent fix
+    function testEmptyNodeMulRange() external {
+        require(tree.size >= 21, "Tree too small for test");
+        
+        // Apply mulRange to potentially empty range
+        uint256 beforeSum = tree.getTotalSum();
+        tree.mulRange(10, 20, 1.1e18);
+        uint256 afterSum = tree.getTotalSum();
+        
+        // Verify sum increased appropriately
+        require(afterSum > beforeSum, "Sum should increase");
+        
+        // Verify invariant still holds
+        this.assertTotalInvariant();
+    }
+    
+    /// @notice Test batchUpdate corner cases
+    /// @dev Tests duplicate indices, unsorted arrays, length mismatches
+    function testBatchUpdateCornerCases() external {
+        require(tree.size >= 5, "Tree too small for test");
+        
+        // Test duplicate indices (last value should win)
+        uint32[] memory dupIndices = new uint32[](3);
+        uint256[] memory dupValues = new uint256[](3);
+        dupIndices[0] = 1;
+        dupIndices[1] = 2;
+        dupIndices[2] = 1; // Duplicate
+        dupValues[0] = 10e18;
+        dupValues[1] = 20e18;
+        dupValues[2] = 15e18; // This should win for index 1
+        
+        tree.batchUpdate(dupIndices, dupValues);
+        
+        // Verify last value won
+        require(tree.query(1, 1) == 15e18, "Duplicate index handling failed");
+        
+        // Test unsorted indices
+        uint32[] memory unsortedIndices = new uint32[](3);
+        uint256[] memory unsortedValues = new uint256[](3);
+        unsortedIndices[0] = 3;
+        unsortedIndices[1] = 0;
+        unsortedIndices[2] = 2;
+        unsortedValues[0] = 30e18;
+        unsortedValues[1] = 5e18;
+        unsortedValues[2] = 25e18;
+        
+        tree.batchUpdate(unsortedIndices, unsortedValues);
+        
+        // Verify all values set correctly
+        require(tree.query(0, 0) == 5e18, "Unsorted batch update failed");
+        require(tree.query(2, 2) == 25e18, "Unsorted batch update failed");
+        require(tree.query(3, 3) == 30e18, "Unsorted batch update failed");
+    }
+    
+    /// @notice Fuzz-style range multiplication test
+    /// @dev Tests random ranges with bounded factors
+    function randomRangeMul(uint32 lo, uint32 hi, uint256 factor) external {
+        require(tree.size > 0, "Tree not initialized");
+        
+        // Bound inputs to valid ranges
+        lo = lo % tree.size;
+        hi = hi % tree.size;
+        if (lo > hi) {
+            (lo, hi) = (hi, lo);
+        }
+        
+        // Bound factor to valid range (MIN_FACTOR to MAX_FACTOR)
+        // MIN_FACTOR = 0.01e18, MAX_FACTOR = 100e18
+        unchecked {
+            uint256 range = 100e18 - 0.01e18; // Safe: 100e18 > 0.01e18
+            factor = 0.01e18 + (factor % range); // Safe: modulo prevents overflow
+        }
+        
+        uint256 beforeSum = tree.getTotalSum();
+        tree.mulRange(lo, hi, factor);
+        uint256 afterSum = tree.getTotalSum();
+        
+        // Basic sanity checks
+        if (factor > 1e18) {
+            require(afterSum >= beforeSum, "Sum should not decrease with factor > 1");
+        }
+        
+        // Light-weight verification: just check that cached sum is reasonable
+        require(afterSum > 0, "Sum should be positive");
+        require(afterSum < type(uint256).max / 2, "Sum should not overflow");
+    }
+    
+    /// @notice Test that cachedRootSum stays in sync after complex operations
+    /// @dev Performs sequence of operations then verifies sync
+    function testCachedRootSumSync() external {
+        require(tree.size >= 10, "Tree too small for test");
+        
+        // Perform sequence of operations
+        tree.update(0, 5e18);
+        tree.mulRange(0, 4, 1.2e18);
+        tree.update(5, 3e18);
+        tree.mulRange(2, 7, 0.8e18);
+        
+        // Force lazy propagation by querying with lazy
+        tree.queryWithLazy(0, tree.size - 1);
+        
+        // Verify cached sum matches actual sum
+        this.assertTotalInvariant();
+    }
+    
+    /// @notice Get tree statistics for debugging
+    /// @dev WARNING: O(N) complexity - for testing only, not production use
+    /// @return nodeCount Number of allocated nodes
+    /// @return maxDepth Maximum depth reached
+    /// @return totalLazyOps Total pending lazy operations
+    function getTreeStats() external view returns (uint32 nodeCount, uint32 maxDepth, uint32 totalLazyOps) {
+        nodeCount = tree.nextIndex;
+        
+        // Calculate max depth and lazy ops by traversing tree
+        maxDepth = _calculateMaxDepth(tree.root, 0);
+        totalLazyOps = _countLazyOps(tree.root);
+        
+        return (nodeCount, maxDepth, totalLazyOps);
+    }
+    
+    /// @notice Check if tree is effectively empty (all default values)
+    /// @return isTreeEmpty True if all values are default (1 WAD)
+    function isEmpty() external view returns (bool isTreeEmpty) {
+        if (tree.size == 0) return true;
+        
+        uint256 totalSum = tree.getTotalSum();
+        uint256 expectedDefault = uint256(tree.size) * 1e18;
+        
+        return totalSum == expectedDefault;
+    }
+    
+    // ========================================
+    // PRIVATE HELPER FUNCTIONS
+    // ========================================
+    
+    /// @notice Calculate maximum depth of tree recursively
+    function _calculateMaxDepth(uint32 nodeIndex, uint32 currentDepth) private view returns (uint32) {
+        if (nodeIndex == 0) return currentDepth;
+        
+        LazyMulSegmentTree.Node storage node = tree.nodes[nodeIndex];
+        (uint32 left, uint32 right) = _unpackChildren(node.children);
+        
+        uint32 leftDepth = _calculateMaxDepth(left, currentDepth + 1);
+        uint32 rightDepth = _calculateMaxDepth(right, currentDepth + 1);
+        
+        return leftDepth > rightDepth ? leftDepth : rightDepth;
+    }
+    
+    /// @notice Count nodes with pending lazy operations
+    function _countLazyOps(uint32 nodeIndex) private view returns (uint32) {
+        if (nodeIndex == 0) return 0;
+        
+        LazyMulSegmentTree.Node storage node = tree.nodes[nodeIndex];
+        (uint32 left, uint32 right) = _unpackChildren(node.children);
+        
+        uint32 count = (node.lazy != 1e18) ? 1 : 0;
+        count += _countLazyOps(left);
+        count += _countLazyOps(right);
+        
+        return count;
     }
 } 

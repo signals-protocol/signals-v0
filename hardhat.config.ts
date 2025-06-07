@@ -9,16 +9,13 @@ const config: HardhatUserConfig = {
       viaIR: true,
       optimizer: {
         enabled: true,
-        runs: 200,
+        runs: 100, // Lower runs for smaller code size
       },
     },
   },
   gasReporter: {
     enabled: process.env.REPORT_GAS !== undefined,
     currency: "USD",
-    gasPrice: 20,
-    showTimeSpent: true,
-    showMethodSig: true,
   },
 };
 

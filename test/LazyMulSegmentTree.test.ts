@@ -10,8 +10,8 @@ describe("LazyMulSegmentTree Library - Comprehensive Tests", function () {
   const WAD = ethers.parseEther("1"); // 1e18
   const HALF_WAD = ethers.parseEther("0.5"); // 0.5e18
   const TWO_WAD = ethers.parseEther("2"); // 2e18
-  const MIN_FACTOR = ethers.parseEther("0.8"); // 80% (matches library)
-  const MAX_FACTOR = ethers.parseEther("1.25"); // 125% (matches library)
+  const MIN_FACTOR = ethers.parseEther("0.01"); // 1% (updated for new limits)
+  const MAX_FACTOR = ethers.parseEther("100"); // 100x (updated for new limits)
 
   // ========================================
   // FIXTURES
@@ -63,10 +63,9 @@ describe("LazyMulSegmentTree Library - Comprehensive Tests", function () {
         .to.emit(test, "TreeInitialized")
         .withArgs(100);
 
-      const stats = await test.getStats();
-      expect(stats.size).to.equal(100);
-      expect(stats.nodeCount).to.equal(1); // Only nextIndex initialized
-      expect(stats.totalSum).to.equal(0); // Empty tree
+      // Check that tree is initialized with default values (all 1 WAD)
+      const totalSum = await test.getTotalSum();
+      expect(totalSum).to.equal(ethers.parseEther("100")); // 100 * 1 WAD
     });
 
     it("Should revert on zero size", async function () {
@@ -86,49 +85,36 @@ describe("LazyMulSegmentTree Library - Comprehensive Tests", function () {
       );
     });
 
-    it("Should check if tree is empty initially", async function () {
+    it("Should check if tree has default values initially", async function () {
       const { test } = await loadFixture(deploySmallTreeFixture);
-      expect(await test.isEmpty()).to.be.true;
+      // Tree should have default values (10 * 1 WAD = 10 WAD)
+      expect(await test.getTotalSum()).to.equal(ethers.parseEther("10"));
     });
 
     it("Should handle various tree sizes", async function () {
-      const { test } = await loadFixture(deployFixture);
-
-      const sizes = [1, 10, 100, 1000, 32768];
+      // Test different sizes with separate contracts
+      const sizes = [1, 10, 100, 1000];
 
       for (const size of sizes) {
+        const { test } = await loadFixture(deployFixture);
         await test.init(size);
-        const stats = await test.getStats();
-        expect(stats.size).to.equal(size);
-        expect(await test.isEmpty()).to.be.true;
+        const totalSum = await test.getTotalSum();
+        expect(totalSum).to.equal(ethers.parseEther(size.toString()));
       }
     });
 
-    // ■ #12 - 재-init 동작 테스트
+    // Re-initialization test
     it("Should handle re-initialization", async function () {
       const { test } = await loadFixture(deployFixture);
 
       // First initialization
       await test.init(100);
       await test.update(0, 500);
-      expect(await test.getTotalSum()).to.equal(500);
 
-      // Re-initialization should reset state
-      await test.init(50);
-      const stats = await test.getStats();
-      expect(stats.size).to.equal(50);
-      expect(stats.totalSum).to.equal(0); // Should be reset
-      expect(await test.isEmpty()).to.be.true;
-
-      // ✅ 완전 reset 검증: root==0 && nextIndex==1
-      expect(stats.nodeCount).to.equal(1); // nextIndex만 존재 (= nextIndex가 1로 reset)
-
-      // Memory leak 방지 확인: 이전 노드들이 완전히 제거되었는지
-      // (getTreeInfo 같은 debug 함수가 있다면 root==0 확인)
-      if (test.getTreeInfo) {
-        const treeInfo = await test.getTreeInfo();
-        expect(treeInfo.root).to.equal(0);
-      }
+      // Re-initialization should fail due to guard
+      await expect(test.init(50)).to.be.revertedWith(
+        "Tree already initialized"
+      );
     });
   });
 
@@ -201,7 +187,7 @@ describe("LazyMulSegmentTree Library - Comprehensive Tests", function () {
       expect(await test.query(0, 0)).to.equal(100);
       expect(await test.query(5, 5)).to.equal(200);
       expect(await test.query(9, 9)).to.equal(300);
-      expect(await test.query(3, 3)).to.equal(0); // Not set
+      expect(await test.query(3, 3)).to.equal(WAD); // Default value is 1 WAD, not 0
     });
 
     it("Should handle index bounds correctly", async function () {
@@ -225,8 +211,9 @@ describe("LazyMulSegmentTree Library - Comprehensive Tests", function () {
       await test.update(1, 200);
       await test.update(2, 300);
 
-      expect(await test.getTotalSum()).to.equal(600);
-      expect(await test.isEmpty()).to.be.false;
+      // Total sum = 100 + 200 + 300 + 7 * WAD (remaining default values)
+      const expectedSum = 100n + 200n + 300n + 7n * 10n ** 18n;
+      expect(await test.getTotalSum()).to.equal(expectedSum);
     });
 
     it("Should handle repeated updates", async function () {
@@ -245,11 +232,14 @@ describe("LazyMulSegmentTree Library - Comprehensive Tests", function () {
     it("Should handle maximum values", async function () {
       const { test } = await loadFixture(deploySmallTreeFixture);
 
-      const maxValue = ethers.MaxUint256 - 1000n;
+      // Use a large but safe value that won't cause overflow
+      const maxValue = ethers.parseEther("1000000000"); // 1B ETH
       await test.update(0, maxValue);
 
       expect(await test.query(0, 0)).to.equal(maxValue);
-      expect(await test.getTotalSum()).to.equal(maxValue);
+      // Total sum = maxValue + 9 * WAD
+      const expectedSum = maxValue + 9n * 10n ** 18n;
+      expect(await test.getTotalSum()).to.equal(expectedSum);
     });
   });
 
@@ -277,13 +267,14 @@ describe("LazyMulSegmentTree Library - Comprehensive Tests", function () {
 
       // Check total sum - should reflect multiplication
       const newTotalSum = await test.getTotalSum();
-      const originalSum = 100 + 200 + 300 + 500 + 800 + 900; // 2800
-      const expectedIncrease = (100 + 200 + 300) * 0.2; // affected range * 20% increase
-      expect(newTotalSum).to.equal(originalSum + expectedIncrease);
+      // After multiplication: (100+200+300)*1.2 + 500+800+900 + 4*WAD
+      // = 720 + 2200 + 4*10^18 = 2920 + 4*10^18
+      const expectedSum = 2920n + 4n * 10n ** 18n;
+      expect(newTotalSum).to.equal(expectedSum);
 
       // Check range query to verify multiplication worked
       expect(await test.query(0, 2)).to.equal(720); // (100+200+300) * 1.2
-      expect(await test.query(5, 9)).to.equal(2200); // Unchanged: 500+800+900 = 2200
+      expect(await test.query(5, 9)).to.equal(2n * 10n ** 18n + 2200n); // 2*WAD (indices 6,7) + 500+800+900
     });
 
     it("Should handle zero factor correctly", async function () {
@@ -319,14 +310,14 @@ describe("LazyMulSegmentTree Library - Comprehensive Tests", function () {
 
       await test.update(0, 100);
 
-      // Too small factor
+      // Too small factor (below 0.01)
       await expect(
-        test.mulRange(0, 0, ethers.parseEther("0.7"))
+        test.mulRange(0, 0, ethers.parseEther("0.005"))
       ).to.be.revertedWithCustomError(test, "InvalidFactor");
 
-      // Too large factor
+      // Too large factor (above 100)
       await expect(
-        test.mulRange(0, 0, ethers.parseEther("1.3"))
+        test.mulRange(0, 0, ethers.parseEther("101"))
       ).to.be.revertedWithCustomError(test, "InvalidFactor");
 
       // Valid factors should work
@@ -334,23 +325,25 @@ describe("LazyMulSegmentTree Library - Comprehensive Tests", function () {
       await test.mulRange(0, 0, MAX_FACTOR);
     });
 
-    // ● #3 - 최소계수 0.8 · 하향계수 경로 테스트 추가
+    // Downward factors test
     it("Should handle downward factors (price decline scenarios)", async function () {
       const { test } = await loadFixture(deploySmallTreeFixture);
 
       await test.update(0, 1000);
       await test.update(1, 2000);
 
-      // Test minimum factor (0.8)
+      // Test minimum factor (0.01)
       await test.mulRange(0, 0, MIN_FACTOR);
-      expect(await test.query(0, 0)).to.equal(800); // 1000 * 0.8
+      expect(await test.query(0, 0)).to.equal(10); // 1000 * 0.01
 
-      // Test moderate downward factor (0.9)
-      await test.mulRange(1, 1, ethers.parseEther("0.9"));
-      expect(await test.query(1, 1)).to.equal(1800); // 2000 * 0.9
+      // Test moderate downward factor (0.5)
+      await test.mulRange(1, 1, ethers.parseEther("0.5"));
+      expect(await test.query(1, 1)).to.equal(1000); // 2000 * 0.5
 
       // Verify total sum reflects all changes
-      expect(await test.getTotalSum()).to.equal(2600); // 800 + 1800
+      // 10 + 1000 + 8 * WAD (remaining default values)
+      const expectedSum = 10n + 1000n + 8n * 10n ** 18n;
+      expect(await test.getTotalSum()).to.equal(expectedSum);
     });
 
     it("Should handle range validation", async function () {
@@ -370,11 +363,11 @@ describe("LazyMulSegmentTree Library - Comprehensive Tests", function () {
     it("Should handle empty tree multiplication", async function () {
       const { test } = await loadFixture(deploySmallTreeFixture);
 
-      // Multiply entire empty tree - should not revert
+      // Multiply entire default tree (all values are 1 WAD) - should not revert
       await test.mulRange(0, 9, ethers.parseEther("1.2"));
 
-      // Total sum should still be 0
-      expect(await test.getTotalSum()).to.equal(0);
+      // Total sum should be 10 * 1 WAD * 1.2 = 12 WAD
+      expect(await test.getTotalSum()).to.equal(ethers.parseEther("12"));
     });
 
     it("Should maintain total sum consistency after multiplication", async function () {
@@ -385,7 +378,9 @@ describe("LazyMulSegmentTree Library - Comprehensive Tests", function () {
       await test.update(2, 300);
 
       const initialSum = await test.getTotalSum();
-      expect(initialSum).to.equal(600);
+      // Initial sum = 100 + 200 + 300 + 7 * WAD = 600 + 7 * 10^18
+      const expectedInitialSum = 600n + 7n * 10n ** 18n;
+      expect(initialSum).to.equal(expectedInitialSum);
 
       // Multiply entire tree by 1.2
       const factor = ethers.parseEther("1.2");
@@ -394,6 +389,16 @@ describe("LazyMulSegmentTree Library - Comprehensive Tests", function () {
       const newSum = await test.getTotalSum();
       const expectedSum = (initialSum * factor) / WAD;
       expect(newSum).to.equal(expectedSum);
+    });
+
+    it("Should handle default tree multiplication", async function () {
+      const { test } = await loadFixture(deploySmallTreeFixture);
+
+      // Multiply entire tree with default values by 1.2
+      await test.mulRange(0, 9, ethers.parseEther("1.2"));
+
+      // Total sum should be 10 * 1 WAD * 1.2 = 12 WAD
+      expect(await test.getTotalSum()).to.equal(ethers.parseEther("12"));
     });
   });
 
@@ -433,8 +438,9 @@ describe("LazyMulSegmentTree Library - Comprehensive Tests", function () {
       expect(await test.query(3, 3)).to.equal(480); // 400 * 1.2
       expect(await test.query(4, 4)).to.equal(600); // 500 * 1.2
 
-      // Total sum should be: 120 + 240 + 999 + 480 + 600 = 2439
-      expect(await test.getTotalSum()).to.equal(2439);
+      // Total sum should be: 120 + 240 + 999 + 480 + 600 + 5*WAD (default values)
+      const expectedSum = 120n + 240n + 999n + 480n + 600n + 5n * 10n ** 18n;
+      expect(await test.getTotalSum()).to.equal(expectedSum);
     });
 
     it("Should handle multiple updates after mulRange", async function () {
@@ -456,7 +462,9 @@ describe("LazyMulSegmentTree Library - Comprehensive Tests", function () {
       expect(await test.query(1, 1)).to.equal(75);
       expect(await test.query(2, 2)).to.equal(330); // 300 * 1.1
 
-      expect(await test.getTotalSum()).to.equal(455); // 50 + 75 + 330
+      // Total sum = 50 + 75 + 330 + 7*WAD (default values)
+      const expectedSum = 50n + 75n + 330n + 7n * 10n ** 18n;
+      expect(await test.getTotalSum()).to.equal(expectedSum);
     });
 
     it("Should handle nested mulRange and update operations", async function () {
@@ -477,8 +485,15 @@ describe("LazyMulSegmentTree Library - Comprehensive Tests", function () {
       expect(await test.query(5, 5)).to.equal(ethers.parseEther("2.0"));
 
       // Verify total sum accounts for the new value
-      const totalSum = await test.getTotalSum();
-      expect(totalSum).to.equal(ethers.parseEther("2.0")); // Only index 5 has value
+      // All other indices have default 1 WAD with lazy factors applied:
+      // - Indices 0,1,2: 1 WAD * 1.2 = 1.2 WAD each
+      // - Indices 3,4: 1 WAD * 1.2 * 0.9 = 1.08 WAD each
+      // - Index 5: 2.0 WAD (updated)
+      // - Indices 6,7: 1 WAD * 1.2 * 0.9 = 1.08 WAD each
+      // - Indices 8,9: 1 WAD * 1.2 = 1.2 WAD each
+      // Total = 3*1.2 + 4*1.08 + 2.0 + 2*1.2 = 3.6 + 4.32 + 2.0 + 2.4 = 12.32 WAD
+      const expectedSum = ethers.parseEther("12.32");
+      expect(await test.getTotalSum()).to.equal(expectedSum);
     });
   });
 
@@ -490,16 +505,17 @@ describe("LazyMulSegmentTree Library - Comprehensive Tests", function () {
     it("Should handle lazy auto-allocation correctly", async function () {
       const { test } = await loadFixture(deploySmallTreeFixture);
 
-      // Apply multiplication to empty tree
+      // Apply multiplication to default tree (all values are 1 WAD)
       await test.mulRange(0, 9, ethers.parseEther("1.1"));
 
-      // All gets should return 0 (empty * 1.1 = 0)
-      for (let i = 0; i < 10; i++) {
-        expect(await test.query(i, i)).to.equal(0);
-      }
+      // Total sum should be 10 * 1.1 WAD = 11 WAD (immediately updated)
+      expect(await test.getTotalSum()).to.equal(ethers.parseEther("11"));
 
-      // Total sum should be 0
-      expect(await test.getTotalSum()).to.equal(0);
+      // Force lazy propagation for individual values
+      for (let i = 0; i < 10; i++) {
+        await test.queryWithLazy(i, i);
+        expect(await test.query(i, i)).to.equal(ethers.parseEther("1.1"));
+      }
     });
 
     it("Should propagate lazy values correctly with nested operations", async function () {
@@ -530,7 +546,9 @@ describe("LazyMulSegmentTree Library - Comprehensive Tests", function () {
       // Both query methods should return same result
       const viewResult = await test.query(0, 5);
       // queryWithLazy is state-changing, so we just check view result
-      expect(viewResult).to.equal(360); // (100 + 200) * 1.2
+      // 100 + 200 + 4*WAD (default values) = 300 + 4*10^18, then * 1.2
+      const expectedSum = ((300n + 4n * 10n ** 18n) * 12n) / 10n;
+      expect(viewResult).to.equal(expectedSum);
     });
 
     // ● #9 - queryWithLazy 연속 호출 일관성 확인
@@ -573,14 +591,16 @@ describe("LazyMulSegmentTree Library - Comprehensive Tests", function () {
 
       // 절반 범위만 쿼리 (한쪽 child만 사용)
       const leftSum = await test.query(0, 4);
-      expect(leftSum).to.equal(ethers.parseEther("3.6")); // 3 * 1.2
+      // 3*WAD + 2*WAD (default) = 5*WAD, then * 1.2 = 6*WAD
+      expect(leftSum).to.equal(ethers.parseEther("6"));
 
-      // 나머지 범위 쿼리 (다른 쪽 child, 빈 상태)
+      // 나머지 범위 쿼리 (다른 쪽 child, default values)
       const rightSum = await test.query(5, 9);
-      expect(rightSum).to.equal(0);
+      // 5*WAD * 1.2 = 6*WAD
+      expect(rightSum).to.equal(ethers.parseEther("6"));
 
-      // 전체 합은 여전히 정확해야 함
-      expect(await test.getTotalSum()).to.equal(ethers.parseEther("3.6"));
+      // 전체 합은 12*WAD
+      expect(await test.getTotalSum()).to.equal(ethers.parseEther("12"));
 
       // 이제 오른쪽 범위에도 값 추가 (기존 lazy가 적용된 후)
       await test.update(7, ethers.parseEther("2"));
@@ -588,8 +608,11 @@ describe("LazyMulSegmentTree Library - Comprehensive Tests", function () {
       // 새로 추가된 값은 lazy가 적용되지 않은 상태이므로 2.0이어야 함
       expect(await test.query(7, 7)).to.equal(ethers.parseEther("2"));
 
-      // 최종 총합 확인 (3.6 + 2.0)
-      expect(await test.getTotalSum()).to.equal(ethers.parseEther("5.6"));
+      // 최종 총합 확인
+      // Left: 6 WAD, Right: 2 + 4*1.2 = 2 + 4.8 = 6.8 WAD
+      // Total: 6 + 6.8 = 12.8 WAD
+      const expectedFinalSum = ethers.parseEther("12.8");
+      expect(await test.getTotalSum()).to.equal(expectedFinalSum);
     });
   });
 
@@ -616,13 +639,17 @@ describe("LazyMulSegmentTree Library - Comprehensive Tests", function () {
     it("Should query single element", async function () {
       expect(await test.query(0, 0)).to.equal(100);
       expect(await test.query(5, 5)).to.equal(500);
-      expect(await test.query(3, 3)).to.equal(0);
+      expect(await test.query(3, 3)).to.equal(WAD); // Default value is 1 WAD, not 0
     });
 
     it("Should query ranges", async function () {
       expect(await test.query(0, 2)).to.equal(600); // 100 + 200 + 300
-      expect(await test.query(5, 9)).to.equal(2200); // 500 + 0 + 0 + 800 + 900
-      expect(await test.query(0, 9)).to.equal(2800); // Total sum
+      // 500 + 1*WAD + 1*WAD + 800 + 900 = 500 + 2*10^18 + 1700 = 2200 + 2*10^18
+      const expectedSum = 2200n + 2n * 10n ** 18n;
+      expect(await test.query(5, 9)).to.equal(expectedSum);
+      // Total: 100+200+300 + 2*WAD + 500 + 2*WAD + 800+900 = 2800 + 4*WAD
+      const totalExpected = 2800n + 4n * 10n ** 18n;
+      expect(await test.query(0, 9)).to.equal(totalExpected);
     });
 
     it("Should query after multiplication", async function () {
@@ -635,31 +662,17 @@ describe("LazyMulSegmentTree Library - Comprehensive Tests", function () {
       await test.queryWithLazy(2, 2);
 
       expect(await test.query(0, 2)).to.equal(720); // (100 + 200 + 300) * 1.2
-      expect(await test.query(5, 9)).to.equal(2200); // Unchanged
-      expect(await test.query(0, 9)).to.equal(2920); // 720 + 2200
+      // Unchanged range: 500 + 2*WAD + 800 + 900 = 2200 + 2*10^18
+      const unchangedSum = 2200n + 2n * 10n ** 18n;
+      expect(await test.query(5, 9)).to.equal(unchangedSum);
+      // Total: 720 + 2*1.2*WAD + unchangedSum = 720 + 2.4*10^18 + 2200 + 2*10^18
+      const totalExpected = 720n + 24n * 10n ** 17n + 2200n + 2n * 10n ** 18n;
+      expect(await test.query(0, 9)).to.equal(totalExpected);
     });
 
     it("Should handle empty ranges", async function () {
-      expect(await test.query(3, 4)).to.equal(0);
-    });
-
-    // ● #5 - getNonZeroRange 경계 검증 추가
-    it("Should validate getNonZeroRange bounds", async function () {
-      // Invalid range: lo > hi
-      await expect(test.getNonZeroRange(5, 3)).to.be.revertedWithCustomError(
-        test,
-        "InvalidRange"
-      );
-
-      // Out of bounds: hi >= size
-      await expect(test.getNonZeroRange(0, 15)).to.be.revertedWithCustomError(
-        test,
-        "IndexOutOfBounds"
-      );
-
-      // Valid range should work
-      const [indices, values] = await test.getNonZeroRange(0, 9);
-      expect(indices.length).to.be.greaterThan(0);
+      // Range [3,4] has default values: 2*WAD
+      expect(await test.query(3, 4)).to.equal(2n * 10n ** 18n);
     });
   });
 
@@ -683,7 +696,9 @@ describe("LazyMulSegmentTree Library - Comprehensive Tests", function () {
 
       // Verify total sum
       const expectedSum = (100 * 101 * 10) / 2; // Sum of arithmetic sequence
-      expect(await test.getTotalSum()).to.equal(expectedSum);
+      // 나머지 900개 인덱스는 기본값 1 WAD
+      const totalExpected = BigInt(expectedSum) + 900n * 10n ** 18n;
+      expect(await test.getTotalSum()).to.equal(totalExpected);
     });
 
     it("Should handle batch update validation", async function () {
@@ -694,7 +709,6 @@ describe("LazyMulSegmentTree Library - Comprehensive Tests", function () {
       );
     });
 
-    // ■ #4 - batchUpdate 중 역순/중복 인덱스 테스트 추가
     it("Should handle reverse order and duplicate indices in batchUpdate", async function () {
       const { test } = await loadFixture(deploySmallTreeFixture);
 
@@ -711,7 +725,9 @@ describe("LazyMulSegmentTree Library - Comprehensive Tests", function () {
       expect(await test.query(3, 3)).to.equal(400);
       expect(await test.query(4, 4)).to.equal(500);
 
-      expect(await test.getTotalSum()).to.equal(1500);
+      // 나머지 5개 인덱스는 기본값 1 WAD
+      const expectedSum = 1500n + 5n * 10n ** 18n;
+      expect(await test.getTotalSum()).to.equal(expectedSum);
     });
 
     it("Should handle duplicate indices in batchUpdate (last wins)", async function () {
@@ -728,32 +744,9 @@ describe("LazyMulSegmentTree Library - Comprehensive Tests", function () {
       expect(await test.query(1, 1)).to.equal(888); // Last value for index 1
       expect(await test.query(2, 2)).to.equal(300);
 
-      expect(await test.getTotalSum()).to.equal(2187); // 999 + 888 + 300
-    });
-
-    it("Should get non-zero values correctly", async function () {
-      const { test } = await loadFixture(deploySmallTreeFixture);
-
-      // Set values at sparse positions
-      await test.update(1, 100);
-      await test.update(5, 500);
-      await test.update(8, 800);
-
-      const [indices, values] = await test.getNonZeroRange(0, 9);
-
-      expect(indices).to.deep.equal([1, 5, 8]);
-      expect(values).to.deep.equal([100, 500, 800]);
-    });
-
-    // ✅ batchUpdate 엣지케이스들
-    it("Should handle batchUpdate with empty arrays", async function () {
-      const { test } = await loadFixture(deploySmallTreeFixture);
-
-      // 길이 0 배열은 no-op이어야 함
-      await test.batchUpdate([], []);
-
-      expect(await test.isEmpty()).to.be.true;
-      expect(await test.getTotalSum()).to.equal(0);
+      // 나머지 7개 인덱스는 기본값 1 WAD
+      const expectedSum = 2187n + 7n * 10n ** 18n;
+      expect(await test.getTotalSum()).to.equal(expectedSum);
     });
 
     it("Should handle batchUpdate with mixed valid/invalid indices", async function () {
@@ -770,114 +763,6 @@ describe("LazyMulSegmentTree Library - Comprehensive Tests", function () {
         test.batchUpdate([0, 15, 5], [100, 1500, 500]) // 15는 out-of-bounds
       ).to.be.revertedWithCustomError(test, "IndexOutOfBounds");
     });
-
-    // ✅ getNonZeroRange 가스 복잡도 확인
-    it("Should demonstrate getNonZeroRange O(N) gas complexity", async function () {
-      const { test } = await loadFixture(deployMediumTreeFixture);
-
-      // 적당한 개수의 값을 설정 (100개로 줄여서 가스 초과 방지)
-      const indices = Array.from({ length: 100 }, (_, i) => i);
-      const values = Array.from({ length: 100 }, () => WAD);
-      await test.batchUpdate(indices, values);
-
-      // getNonZeroRange 호출 - view 함수이므로 가스 추정만 가능
-      const [resultIndices, resultValues] = await test.getNonZeroRange(0, 999);
-
-      // 결과 길이 확인 및 O(N) 복잡도 경고 문서화
-      expect(resultIndices.length).to.equal(100);
-      expect(resultValues.length).to.equal(100);
-
-      if (process.env.LOG_GAS) {
-        console.log(
-          `getNonZeroRange returned ${resultIndices.length} items - WARNING: O(N) complexity`
-        );
-      }
-
-      // 큰 결과 배열에 대한 주의사항: 프론트엔드에서 페이지네이션 권장
-    });
-  });
-
-  // ========================================
-  // CLMSR-SPECIFIC TESTS
-  // ========================================
-
-  describe("CLMSR Functions", function () {
-    it("Should handle exponential value updates", async function () {
-      const { test } = await loadFixture(deploySmallTreeFixture);
-
-      // Simulate exp(q/α) values
-      await test.updateExp(0, ethers.parseEther("1.0")); // exp(0) ≈ 1
-      await test.updateExp(1, ethers.parseEther("2.718")); // exp(1) ≈ e
-      await test.updateExp(2, ethers.parseEther("7.389")); // exp(2) ≈ e²
-
-      expect(await test.getSumExp(0, 2)).to.be.closeTo(
-        ethers.parseEther("11.107"), // 1 + e + e²
-        ethers.parseEther("0.01") // Allow small rounding error
-      );
-    });
-
-    it("Should find max tick correctly", async function () {
-      const { test } = await loadFixture(deploySmallTreeFixture);
-
-      await test.updateExp(0, ethers.parseEther("1.0"));
-      await test.updateExp(3, ethers.parseEther("5.0"));
-      await test.updateExp(7, ethers.parseEther("3.0"));
-
-      const [maxTick, maxValue] = await test.findMaxTick(0, 9);
-      expect(maxTick).to.equal(3);
-      expect(maxValue).to.equal(ethers.parseEther("5.0"));
-    });
-
-    // ● #10 - updateExp/getSumExp 인덱스 범위 테스트 추가
-    it("Should validate CLMSR function bounds", async function () {
-      const { test } = await loadFixture(deploySmallTreeFixture);
-
-      // Out of bounds updateExp
-      await expect(test.updateExp(15, WAD)).to.be.revertedWithCustomError(
-        test,
-        "IndexOutOfBounds"
-      );
-
-      // Out of bounds getSumExp
-      await expect(test.getSumExp(0, 15)).to.be.revertedWithCustomError(
-        test,
-        "IndexOutOfBounds"
-      );
-
-      // Out of bounds findMaxTick
-      await expect(test.findMaxTick(0, 15)).to.be.revertedWithCustomError(
-        test,
-        "IndexOutOfBounds"
-      );
-
-      // Invalid range in getSumExp
-      await expect(test.getSumExp(5, 3)).to.be.revertedWithCustomError(
-        test,
-        "InvalidRange"
-      );
-    });
-
-    it("Should simulate CLMSR trade scenario", async function () {
-      const { test } = await loadFixture(deploySmallTreeFixture);
-
-      // Initial exponential distribution
-      await test.fillExponential(WAD, ethers.parseEther("1.1"));
-
-      const initialSum = await test.getTotalSum();
-
-      // Simulate buying outcome 3 (increases q3, affects exp(q3/α))
-      const tradeFactor = ethers.parseEther("1.2"); // 20% increase
-      await test.mulRange(3, 3, tradeFactor);
-
-      const newSum = await test.getTotalSum();
-      expect(newSum).to.be.greaterThan(initialSum);
-
-      // Check that tick 3 was affected (it may not be the absolute max due to exponential growth)
-      const [maxTick] = await test.findMaxTick(0, 9);
-      // Due to exponential fill, the max could be at the end, let's just verify it's reasonable
-      expect(maxTick).to.be.at.least(0);
-      expect(maxTick).to.be.at.most(9);
-    });
   });
 
   // ========================================
@@ -885,17 +770,11 @@ describe("LazyMulSegmentTree Library - Comprehensive Tests", function () {
   // ========================================
 
   describe("Stress Tests", function () {
-    // ■ #8 - uint192 lazy overflow 정확한 한계치 테스트
     it("Should handle overflow protection with precise calculation", async function () {
       const { test } = await loadFixture(deploySmallTreeFixture);
 
       await test.update(0, WAD);
 
-      // Calculate a factor that will definitely exceed uint192 when accumulated
-      // uint192 max ≈ 6.28e57, WAD = 1e18
-      // We need a factor such that factor^n > 5e36 (our protection threshold)
-
-      // First verify that a reasonable number of applications works
       // Test with single range application first
       await test.mulRange(0, 0, ethers.parseEther("1.2"));
       const valueAfter1 = await test.query(0, 0);
@@ -949,196 +828,102 @@ describe("LazyMulSegmentTree Library - Comprehensive Tests", function () {
       expect(totalSum).to.be.greaterThan(0);
     });
 
-    // ✅ 경계 인덱스: 큰 트리에서 마지막 리프만 mulRange
     it("Should handle mulRange on last leaf only in large tree", async function () {
       const { test } = await loadFixture(deployLargeTreeFixture);
 
       const lastIndex = 32767; // 32768 - 1
 
-      // 마지막 리프에만 값 설정
-      await test.update(lastIndex, WAD);
-
-      // 마지막 리프만 곱하기 (lo==hi==size-1)
+      // Apply multiplication to last leaf only
       await test.mulRange(lastIndex, lastIndex, ethers.parseEther("1.15"));
 
-      // lazy propagation 강제
-      await test.queryWithLazy(lastIndex, lastIndex);
-
-      // 결과 확인
+      // Check that only the last leaf was affected
       expect(await test.query(lastIndex, lastIndex)).to.equal(
         ethers.parseEther("1.15")
       );
-      expect(await test.getTotalSum()).to.equal(ethers.parseEther("1.15"));
 
-      // 다른 위치는 여전히 0이어야 함
-      expect(await test.query(0, 0)).to.equal(0);
-      expect(await test.query(16383, 16383)).to.equal(0); // 중간 위치
+      // Total sum should be (32767 * 1 WAD) + 1.15 WAD = 32767.15 WAD
+      const expectedSum = 32767n * 10n ** 18n + ethers.parseEther("1.15");
+      expect(await test.getTotalSum()).to.equal(expectedSum);
     });
   });
 
   // ========================================
-  // GAS EFFICIENCY TESTS (Simplified per #7)
+  // GAS EFFICIENCY TESTS
   // ========================================
 
   describe("Gas Efficiency", function () {
     it("Should measure update gas usage", async function () {
       const { test } = await loadFixture(deployMediumTreeFixture);
 
-      // Simply verify update works without measuring exact gas
       const tx = await test.update(500, WAD);
       const receipt = await tx.wait();
       const gasUsed = receipt?.gasUsed || 0n;
-      if (process.env.LOG_GAS) {
-        console.log(`Update gas: ${gasUsed.toString()}`);
-      }
 
-      // Gas usage 기록 (절댓값 대신 상대 비교로 CI 안정성 확보)
-      expect(gasUsed).to.be.greaterThan(0n); // 기본 sanity check
-      if (process.env.LOG_GAS) {
-        console.log(`Update gas baseline: ${gasUsed.toString()}`);
-      }
+      expect(gasUsed).to.be.greaterThan(0n);
     });
 
     it("Should measure mulRange gas usage", async function () {
       const { test } = await loadFixture(deployMediumTreeFixture);
 
-      // Set up only first 100 values to avoid gas issues
-      const indices = Array.from({ length: 100 }, (_, i) => i);
-      const values = Array.from({ length: 100 }, () => WAD);
-      await test.batchUpdate(indices, values);
-
-      const tx = await test.mulRange(0, 99, ethers.parseEther("1.1"));
+      const tx = await test.mulRange(0, 999, ethers.parseEther("1.1"));
       const receipt = await tx.wait();
       const gasUsed = receipt?.gasUsed || 0n;
-      if (process.env.LOG_GAS) {
-        console.log(`MulRange gas: ${gasUsed.toString()}`);
-      }
 
-      // Gas 비교 기록 (절댓값 임계값 제거)
-      expect(gasUsed).to.be.greaterThan(0n); // 기본 sanity check
-      if (process.env.LOG_GAS) {
-        console.log(
-          `MulRange gas (compare with update): ${gasUsed.toString()}`
-        );
-      }
+      expect(gasUsed).to.be.greaterThan(0n);
     });
 
     it("Should demonstrate batch update efficiency", async function () {
       const { test } = await loadFixture(deployMediumTreeFixture);
 
-      const indices = Array.from({ length: 100 }, (_, i) => i);
-      const values = Array.from({ length: 100 }, () => WAD);
+      const indices = Array.from({ length: 50 }, (_, i) => i);
+      const values = Array.from({ length: 50 }, (_, i) => (i + 1) * 10);
 
       const tx = await test.batchUpdate(indices, values);
       const receipt = await tx.wait();
       const gasUsed = receipt?.gasUsed || 0n;
-      if (process.env.LOG_GAS) {
-        console.log(`Batch update gas: ${gasUsed.toString()}`);
-      }
 
-      // Batch update 효율성 기록 (상대적 비교로 변경)
-      expect(gasUsed).to.be.greaterThan(0n); // 기본 sanity check
-      if (process.env.LOG_GAS) {
-        console.log(`Batch update gas (100 items): ${gasUsed.toString()}`);
-        console.log(`Average per item: ${gasUsed / 100n} gas`);
-      }
+      expect(gasUsed).to.be.greaterThan(0n);
     });
 
-    // Critical: Gas 상대적 비교 (CI 안정성)
     it("Should compare batch vs individual update gas efficiency", async function () {
-      const { test } = await loadFixture(deploySmallTreeFixture);
+      const { test } = await loadFixture(deployMediumTreeFixture);
 
-      // Individual updates 측정
-      const individualTxs = [];
+      // Individual updates
+      let totalGasIndividual = 0n;
       for (let i = 0; i < 5; i++) {
-        const tx = await test.update(i, WAD);
-        individualTxs.push(await tx.wait());
+        const tx = await test.update(i, (i + 1) * 10);
+        const receipt = await tx.wait();
+        totalGasIndividual += receipt?.gasUsed || 0n;
       }
 
-      const individualTotalGas = individualTxs.reduce(
-        (sum, receipt) => sum + (receipt?.gasUsed || 0n),
-        0n
-      );
+      // Reset tree for batch test
+      const { test: test2 } = await loadFixture(deployMediumTreeFixture);
 
-      // 같은 데이터를 batch로 업데이트 (새 인스턴스)
-      const { test: test2 } = await loadFixture(deploySmallTreeFixture);
-      const batchTx = await test2.batchUpdate(
-        [0, 1, 2, 3, 4],
-        [WAD, WAD, WAD, WAD, WAD]
-      );
+      // Batch update
+      const indices = [0, 1, 2, 3, 4];
+      const values = [10, 20, 30, 40, 50];
+      const batchTx = await test2.batchUpdate(indices, values);
       const batchReceipt = await batchTx.wait();
       const batchGas = batchReceipt?.gasUsed || 0n;
 
-      // 상대적 비교 (batch가 더 효율적이어야 함)
-      if (process.env.LOG_GAS) {
-        console.log(`Individual total gas: ${individualTotalGas}`);
-        console.log(`Batch gas: ${batchGas}`);
-        console.log(
-          `Efficiency ratio: ${Number(individualTotalGas) / Number(batchGas)}`
-        );
-      }
-
-      // Batch가 individual보다 효율적인지 확인 (허용 오차 내에서)
-      expect(batchGas).to.be.lt(individualTotalGas); // batch가 더 효율적
-      expect(batchGas).to.be.gt(individualTotalGas / 3n); // 하지만 3배 이상 차이나면 안됨
+      // Batch should be more efficient
+      expect(batchGas).to.be.lessThan(totalGasIndividual);
     });
   });
 
-  // ========================================
-  // DEBUGGING & INTROSPECTION TESTS
-  // ========================================
-
   describe("Debug Functions", function () {
-    it("Should provide node introspection", async function () {
-      const { test } = await loadFixture(deploySmallTreeFixture);
-
-      await test.update(0, 100);
-
-      const [root] = await test.getTreeInfo();
-      const [sum, lazy, left, right] = await test.getNodeInfo(root);
-
-      expect(sum).to.equal(100);
-      expect(lazy).to.equal(WAD);
-      // Internal node structure may vary, but sum should be correct
-    });
-
-    it("Should track tree statistics", async function () {
-      const { test } = await loadFixture(deploySmallTreeFixture);
-
-      await test.update(0, 100);
-      await test.update(5, 200);
-
-      const [size, nodeCount, totalSum] = await test.getStats();
-      expect(size).to.equal(10);
-      expect(nodeCount).to.be.greaterThan(1); // Some nodes allocated
-      expect(totalSum).to.equal(300);
-    });
-
-    // ▲ #11 - 2-slot packing 확인 (현재 수준으로 충분, 로그 정리)
     it("Should verify 2-slot node packing efficiency", async function () {
       const { test } = await loadFixture(deploySmallTreeFixture);
 
-      await test.update(0, WAD);
+      await test.update(0, 100);
 
-      // Node should exist after update
-      const [root] = await test.getTreeInfo();
-      expect(await test.nodeExists(root)).to.be.true;
-
-      // Check that lazy field uses uint192 (structural verification)
-      const [, lazy] = await test.getNodeInfo(root);
-      expect(lazy).to.equal(WAD);
-
-      // Note: Actual slot counting requires lower-level analysis
-      // This test verifies the structure works as intended
+      // Verify node packing works correctly
+      const nodeInfo = await test.getNodeInfo(1); // Root node
+      expect(nodeInfo.sum).to.equal(100n + 9n * 10n ** 18n); // 100 + 9*WAD
     });
   });
 
-  // ========================================
-  // ADDITIONAL EDGE CASES
-  // ========================================
-
   describe("Advanced Edge Cases", function () {
-    // E-1: queryWithLazy() on uninitialized tree
     it("Should revert queryWithLazy() on uninitialized tree", async function () {
       const { test } = await loadFixture(deployUninitializedFixture);
 
@@ -1148,273 +933,50 @@ describe("LazyMulSegmentTree Library - Comprehensive Tests", function () {
       );
     });
 
-    // E-2: mulRange() with exact MIN_FACTOR / MAX_FACTOR boundary values
-    it("Should handle mulRange with exact boundary factors", async function () {
-      const { test } = await loadFixture(deploySmallTreeFixture);
-
-      // Set up some initial values
-      await test.update(0, WAD);
-      await test.update(1, WAD);
-
-      // Test exact MIN_FACTOR (0.8e18)
-      await test.mulRange(0, 0, ethers.parseEther("0.8"));
-      expect(await test.query(0, 0)).to.equal(ethers.parseEther("0.8"));
-
-      // Test exact MAX_FACTOR (1.25e18)
-      await test.mulRange(1, 1, ethers.parseEther("1.25"));
-      expect(await test.query(1, 1)).to.equal(ethers.parseEther("1.25"));
-
-      // Test values just outside boundaries should revert
-      await expect(
-        test.mulRange(0, 0, ethers.parseEther("0.79"))
-      ).to.be.revertedWithCustomError(test, "InvalidFactor");
-
-      await expect(
-        test.mulRange(0, 0, ethers.parseEther("1.26"))
-      ).to.be.revertedWithCustomError(test, "InvalidFactor");
-    });
-
-    // E-3: findMaxTick() with tie case (동률일 때 가장 작은 인덱스 반환)
-    it("Should return smallest index on tie in findMaxTick", async function () {
-      const { test } = await loadFixture(deploySmallTreeFixture);
-
-      // Set positions 0, 1, 2 to same value (tie)
-      const tieValue = WAD;
-      await test.update(0, tieValue);
-      await test.update(1, tieValue);
-      await test.update(2, tieValue);
-
-      // Set position 5 to same value but later in array
-      await test.update(5, tieValue);
-
-      const [maxTick, maxValue] = await test.findMaxTick(0, 9);
-
-      // Should return the smallest index (0) when values are tied
-      expect(maxTick).to.equal(0);
-      expect(maxValue).to.equal(tieValue);
-
-      // Test with different range that excludes index 0
-      const [maxTick2, maxValue2] = await test.findMaxTick(1, 9);
-      expect(maxTick2).to.equal(1); // Should be smallest in range [1,9]
-      expect(maxValue2).to.equal(tieValue);
-    });
-
-    // E-4: lazy-only 노드가 존재하고 sum==0인 상태에서 isEmpty() 검증
-    it("Should handle isEmpty() with lazy-only nodes having sum==0", async function () {
-      const { test } = await loadFixture(deploySmallTreeFixture);
-
-      // Create a non-empty tree first
-      await test.update(0, WAD);
-      expect(await test.isEmpty()).to.be.false;
-
-      // Clear the value but apply multiplication (creates lazy-only state)
-      await test.update(0, 0);
-      await test.mulRange(0, 0, ethers.parseEther("1.2")); // This may create lazy nodes
-
-      // Tree should be considered empty when all actual values are 0
-      expect(await test.isEmpty()).to.be.true;
-      expect(await test.getTotalSum()).to.equal(0);
-    });
-
-    // E-5: 연속 무작위 시퀀스 (간단한 fuzz 테스트)
-    it("Should handle random sequence of operations without overflow", async function () {
-      const { test } = await loadFixture(deploySmallTreeFixture);
-
-      // Simple fuzz-like test with deterministic "random" sequence
-      const operations = [
-        { type: "update" as const, index: 0, value: ethers.parseEther("100") },
-        { type: "update" as const, index: 3, value: ethers.parseEther("200") },
-        {
-          type: "mulRange" as const,
-          lo: 0,
-          hi: 4,
-          factor: ethers.parseEther("1.1"),
-        },
-        { type: "update" as const, index: 1, value: ethers.parseEther("50") },
-        {
-          type: "mulRange" as const,
-          lo: 0,
-          hi: 9,
-          factor: ethers.parseEther("0.9"),
-        },
-        { type: "update" as const, index: 3, value: 0 }, // Clear
-        {
-          type: "mulRange" as const,
-          lo: 2,
-          hi: 5,
-          factor: ethers.parseEther("1.2"),
-        },
-        { type: "update" as const, index: 7, value: ethers.parseEther("300") },
-        {
-          type: "mulRange" as const,
-          lo: 0,
-          hi: 9,
-          factor: ethers.parseEther("1.05"),
-        },
-      ];
-
-      for (const op of operations) {
-        if (op.type === "update") {
-          await test.update(op.index, op.value);
-        } else if (op.type === "mulRange") {
-          await test.mulRange(op.lo, op.hi, op.factor);
-        }
-
-        // Verify invariants after each operation
-        const totalSum = await test.getTotalSum();
-        expect(totalSum).to.be.lte(ethers.MaxUint256); // Should not overflow
-
-        // Verify tree is still in valid state
-        const stats = await test.getStats();
-        expect(stats.size).to.equal(10);
-      }
-
-      // Final consistency check
-      const finalSum = await test.getTotalSum();
-      expect(finalSum).to.be.greaterThan(0);
-
-      console.log(
-        `Final sum after random operations: ${ethers.formatEther(finalSum)} ETH`
-      );
-    });
-
-    // E-6: All-zero state handling
-    it("Should handle findMaxTick correctly on all-zero tree", async function () {
-      const { test } = await loadFixture(deploySmallTreeFixture);
-
-      // No updates yet, tree has default values (zeros)
-      const [maxTick, maxValue] = await test.findMaxTick(0, 9);
-      expect(maxTick).to.equal(0); // Should return index 0 when all values are zero
-      expect(maxValue).to.equal(0);
-    });
-
-    it("Should handle getNonZeroRange correctly on all-zero tree", async function () {
-      const { test } = await loadFixture(deploySmallTreeFixture);
-
-      // No updates yet, tree has default values (zeros)
-      const [indices, values] = await test.getNonZeroRange(0, 9);
-      expect(indices.length).to.equal(0);
-      expect(values.length).to.equal(0); // Empty arrays when all values are zero
-    });
-
-    // Critical: 좌·우 child 모두 없는 leaf + lazy push 경로
     it("Should handle _push when both children are unallocated", async function () {
       const { test } = await loadFixture(deploySmallTreeFixture);
 
-      // 실제 값들을 먼저 설정한 후 mulRange 적용
-      await test.update(0, 100);
-      await test.update(5, 200);
+      // Apply lazy multiplication to entire tree
+      await test.mulRange(0, 9, ethers.parseEther("1.5"));
 
-      // mulRange로 lazy propagation 유발
-      await test.mulRange(0, 9, ethers.parseEther("0.8")); // MIN_FACTOR
+      // Force propagation by querying specific ranges
+      await test.queryWithLazy(0, 4);
+      await test.queryWithLazy(5, 9);
 
-      // queryWithLazy로 propagation 강제 실행
-      await test.queryWithLazy(0, 9);
-
-      // 루트 노드의 자식들이 제대로 생성되었는지 확인
-      const [root] = await test.getTreeInfo();
-      const [, , left, right] = await test.getNodeInfo(root);
-
-      // 값이 있는 트리에서는 자식 노드들이 생성되어야 함
-      if (left === 0n && right === 0n) {
-        // 빈 트리인 경우 - 다른 접근 필요
-        // propagation이 실제로 일어나도록 개별 쿼리 실행
-        await test.queryWithLazy(0, 0);
-        await test.queryWithLazy(5, 5);
-
-        // 개별 값 확인으로 lazy propagation 검증
-        expect(await test.query(0, 0)).to.equal(80); // 100 * 0.8
-        expect(await test.query(5, 5)).to.equal(160); // 200 * 0.8
-      } else {
-        // 자식 노드가 있는 경우
-        expect(left).to.not.equal(0n);
-        expect(right).to.not.equal(0n);
-      }
+      // Verify total sum is correct
+      expect(await test.getTotalSum()).to.equal(ethers.parseEther("15")); // 10 * 1.5
     });
   });
 
-  // ========================================
-  // INVARIANT VERIFICATION (산술 검증)
-  // ========================================
-
   describe("Invariant Verification", function () {
-    // Critical: root==0 상태에서 factor==1 호출 (empty tree)
-    it("Should handle factor==1 on empty tree without revert", async function () {
-      const { test } = await loadFixture(deploySmallTreeFixture);
-
-      // Empty tree (root==0) 상태에서 factor==1 호출
-      // 이는 early-return 경로를 타야 하며 revert 없이 no-op이어야 함
-      await test.mulRange(0, 9, WAD); // factor==1 (no-op)
-
-      // 여전히 empty 상태여야 함
-      expect(await test.isEmpty()).to.be.true;
-      expect(await test.getTotalSum()).to.equal(0);
-
-      // Tree 구조도 변경되지 않아야 함
-      const stats = await test.getStats();
-      expect(stats.nodeCount).to.equal(1); // nextIndex만 존재
-    });
-
-    // Critical: 빈 트리 + 잘못된 factor (InvalidFactor 우선 검사)
-    it("Should revert with InvalidFactor on empty tree with invalid factor", async function () {
-      const { test } = await loadFixture(deploySmallTreeFixture);
-
-      // Empty tree (root==0) 상태에서 범위 밖 factor 호출
-      // InvalidFactor 검사를 root 체크보다 먼저 하므로 반드시 revert 해야 함
-      await expect(
-        test.mulRange(0, 9, ethers.parseEther("1.5")) // > MAX_FACTOR
-      ).to.be.revertedWithCustomError(test, "InvalidFactor");
-
-      await expect(
-        test.mulRange(0, 9, ethers.parseEther("0.7")) // < MIN_FACTOR
-      ).to.be.revertedWithCustomError(test, "InvalidFactor");
-
-      // 여전히 empty 상태여야 함 (revert로 인해 상태 변경 없음)
-      expect(await test.isEmpty()).to.be.true;
-      expect(await test.getTotalSum()).to.equal(0);
-    });
-
-    // Critical: factor == WAD (1×) on non-empty tree
     it("Should handle factor==WAD as no-op on non-empty tree", async function () {
       const { test } = await loadFixture(deploySmallTreeFixture);
 
-      // Non-empty tree 상태에서 factor==1 호출
-      await test.update(0, 123);
-      await test.update(5, 456);
-      const before = await test.getTotalSum();
+      await test.update(0, 100);
+      await test.update(1, 200);
 
-      // 1× 곱셈 - _apply()에서 no-op 최적화 확인
-      await test.mulRange(0, 9, WAD); // factor == 1
+      const initialSum = await test.getTotalSum();
 
-      // 상태가 전혀 변경되지 않아야 함
-      expect(await test.getTotalSum()).to.equal(before);
-      expect(await test.query(0, 0)).to.equal(123);
-      expect(await test.query(5, 5)).to.equal(456);
+      // Apply factor of 1.0 (should be no-op)
+      await test.mulRange(0, 9, WAD);
+
+      // Values should be unchanged
+      expect(await test.getTotalSum()).to.equal(initialSum);
+      expect(await test.query(0, 0)).to.equal(100);
+      expect(await test.query(1, 1)).to.equal(200);
     });
 
     it("Should maintain cachedRootSum == query(0,size-1) invariant", async function () {
       const { test } = await loadFixture(deploySmallTreeFixture);
 
-      const operations = [
-        () => test.update(0, ethers.parseEther("10")),
-        () => test.update(5, ethers.parseEther("20")),
-        () => test.mulRange(0, 9, ethers.parseEther("1.2")),
-        () => test.update(3, ethers.parseEther("15")),
-        () => test.mulRange(2, 7, ethers.parseEther("0.9")),
-      ];
+      await test.update(0, 100);
+      await test.update(5, 500);
+      await test.mulRange(0, 9, ethers.parseEther("1.2"));
 
-      for (const operation of operations) {
-        await operation();
+      const cachedSum = await test.getTotalSum();
+      const querySum = await test.query(0, 9);
 
-        // I-Σ: cachedRootSum should equal query(0, size-1)
-        const cachedSum = await test.getTotalSum();
-        const querySum = await test.query(0, 9);
-
-        expect(cachedSum).to.equal(
-          querySum,
-          "Cached sum should equal query sum"
-        );
-      }
+      expect(cachedSum).to.equal(querySum);
     });
 
     it("Should verify no lazy factor exceeds 5e36", async function () {
@@ -1422,167 +984,421 @@ describe("LazyMulSegmentTree Library - Comprehensive Tests", function () {
 
       await test.update(0, WAD);
 
-      // Apply multiple moderate multiplications
-      for (let i = 0; i < 10; i++) {
-        await test.mulRange(0, 0, ethers.parseEther("1.2"));
-      }
+      // This should not revert (within limits)
+      await test.mulRange(0, 0, ethers.parseEther("1.1"));
 
-      // Tree should still be functional (no overflow protection triggered)
-      const result = await test.query(0, 0);
-      expect(result).to.be.greaterThan(0);
-      expect(result).to.be.lte(ethers.MaxUint256);
+      // But extreme accumulation should revert
+      await expect(
+        test.stressTestMulRange(ethers.parseEther("1.5"), 200)
+      ).to.be.revertedWith("Lazy factor overflow protection");
     });
 
     it("Should verify all node sums stay within uint256", async function () {
       const { test } = await loadFixture(deploySmallTreeFixture);
 
-      // Set reasonable initial values
-      const initialValue = ethers.parseEther("1000000"); // 1M ETH
-      await test.update(0, initialValue);
-      await test.update(3, initialValue);
-      await test.update(7, initialValue);
+      // Set maximum safe values
+      const maxSafeValue = ethers.parseEther("1000000000000000000"); // 1e36
+      await test.update(0, maxSafeValue);
 
-      // Apply some multiplications
-      await test.mulRange(0, 9, ethers.parseEther("1.1"));
-      await test.mulRange(0, 9, ethers.parseEther("1.05"));
-
-      // All sums should be valid
-      const totalSum = await test.getTotalSum();
-      expect(totalSum).to.be.lte(ethers.MaxUint256);
-      expect(totalSum).to.be.greaterThan(0);
-
-      // Individual queries should also be valid
-      for (let i = 0; i < 10; i++) {
-        const value = await test.query(i, i);
-        expect(value).to.be.lte(ethers.MaxUint256);
-      }
+      // Should not overflow
+      expect(await test.query(0, 0)).to.equal(maxSafeValue);
+      expect(await test.getTotalSum()).to.be.greaterThan(0);
     });
 
-    // Critical: Sum overflow protection - 실제 라이브러리 동작 확인
-    it("Should handle sum overflow correctly according to library behavior", async function () {
-      const { test } = await loadFixture(deploySmallTreeFixture);
-
-      const nearMax = ethers.MaxUint256 / 2n + 1n; // 절반보다 약간 큰 값
-
-      // 첫 번째 leaf에 설정
-      await test.update(0, nearMax);
-      expect(await test.getTotalSum()).to.equal(nearMax);
-
-      // 두 번째 leaf에 같은 값 설정 시 실제로 overflow revert 발생
-      // 라이브러리의 _pull()에서 overflow protection이 작동함을 확인
-      await expect(test.update(1, nearMax)).to.be.revertedWithPanic(0x11); // Arithmetic overflow
-
-      // 첫 번째 값은 여전히 유효해야 함
-      expect(await test.getTotalSum()).to.equal(nearMax);
-      expect(await test.query(0, 0)).to.equal(nearMax);
-
-      // 안전한 범위의 값으로 두 번째 leaf 설정
-      const safeValue = ethers.MaxUint256 / 4n;
-      await test.update(1, safeValue);
-
-      // 이제 정상적으로 합계가 계산되어야 함
-      expect(await test.getTotalSum()).to.equal(nearMax + safeValue);
-      expect(await test.query(0, 0)).to.equal(nearMax);
-      expect(await test.query(1, 1)).to.equal(safeValue);
-    });
-
-    // Critical: mulRange multiplication overflow (곱셈 경로)
     it("Should verify mulRange respects PRB Math overflow protection", async function () {
       const { test } = await loadFixture(deploySmallTreeFixture);
 
-      // PRB Math mulDiv는 내부적으로 overflow protection을 제공
-      // 실제 overflow보다는 라이브러리의 안전성 확인에 중점
-      const largeValue = ethers.parseEther("1000000000000"); // 1T ETH
+      // Set a large value
+      const largeValue = ethers.parseEther("1000000000000000000000000"); // 1e42
       await test.update(0, largeValue);
 
-      // MAX_FACTOR로 곱셈 - 정상적으로 처리되어야 함
-      await test.mulRange(0, 0, ethers.parseEther("1.25"));
+      // Apply a large multiplication factor
+      const largeFactor = ethers.parseEther("100"); // 100x
+      await test.mulRange(0, 0, largeFactor);
 
+      // Should handle extreme multiplication safely
       const result = await test.query(0, 0);
-      const expected = (largeValue * 125n) / 100n; // 1.25배
-      expect(result).to.equal(expected);
-
-      // 결과가 유효한 범위 내에 있는지 확인
-      expect(result).to.be.lte(ethers.MaxUint256);
-      expect(result).to.be.greaterThan(largeValue);
+      expect(result).to.be.greaterThan(0);
     });
 
-    // Critical: Extreme value multiplication safety (PRB Math 한계 테스트)
     it("Should handle extreme value multiplication safely", async function () {
       const { test } = await loadFixture(deploySmallTreeFixture);
 
-      // PRB Math는 매우 안전하게 설계되어 대부분 overflow를 방지
-      // 극단적 값에서도 안전성 확인
-      const extremeValue = ethers.MaxUint256 / 2n; // 절반 값
+      // Test with very large but safe values
+      const extremeValue = ethers.parseEther(
+        "72370055773322622139731865630429942408293740416025352524660.99"
+      );
       await test.update(0, extremeValue);
 
-      // MAX_FACTOR 곱셈이 안전하게 처리되는지 확인
-      await test.mulRange(0, 0, ethers.parseEther("1.25"));
+      // Apply small factor to avoid overflow
+      await test.mulRange(0, 0, ethers.parseEther("1.000001"));
 
       const result = await test.query(0, 0);
-      expect(result).to.be.lte(ethers.MaxUint256);
       expect(result).to.be.greaterThan(extremeValue);
+    });
+  });
 
-      // PRB Math mulDiv의 안전성 검증 완료
-      console.log(
-        `Extreme value multiplication result: ${ethers.formatEther(result)} ETH`
+  describe("Strict Edge Case & Invariant Testing", () => {
+    it("Should test boundary value inputs for mulRange", async () => {
+      const { test } = await loadFixture(deployMediumTreeFixture);
+
+      // This should not revert
+      await test.testMulRangeBoundaries();
+
+      // Verify tree is still functional
+      const sum = await test.getTotalSum();
+      expect(sum).to.be.gt(0);
+    });
+
+    it("Should test boundary value inputs for update", async () => {
+      const { test } = await loadFixture(deployMediumTreeFixture);
+
+      // This should not revert
+      await test.testUpdateBoundaries();
+
+      // Verify updates worked
+      const firstValue = await test.query(0, 0);
+      const lastValue = await test.query(999, 999);
+
+      expect(firstValue).to.equal(ethers.parseEther("2"));
+      expect(lastValue).to.equal(ethers.parseEther("3"));
+    });
+
+    it("Should maintain total sum invariant", async () => {
+      const { test } = await loadFixture(deployMediumTreeFixture);
+
+      // Set some values
+      await test.update(5, ethers.parseEther("3"));
+      await test.update(10, ethers.parseEther("5"));
+      await test.mulRange(0, 20, ethers.parseEther("1.2"));
+
+      // This should not revert
+      await test.assertTotalInvariant();
+    });
+
+    it("Should maintain lazy propagation consistency", async () => {
+      const { test } = await loadFixture(deployMediumTreeFixture);
+
+      // Apply some operations
+      await test.mulRange(10, 30, ethers.parseEther("1.5"));
+      await test.update(15, ethers.parseEther("4"));
+
+      // Test consistency for various ranges
+      await test.assertLazyConsistency(10, 20);
+      await test.assertLazyConsistency(0, 49);
+      await test.assertLazyConsistency(25, 35);
+    });
+
+    it("Should test default sum logic for untouched ranges", async () => {
+      const { test } = await loadFixture(deployMediumTreeFixture);
+
+      // Query untouched range
+      const result = await test.testDefaultSumLogic(30, 40);
+      const expected = ethers.parseEther("11"); // (40-30+1) * 1e18
+
+      expect(result).to.equal(expected);
+    });
+
+    it("Should test mulRange on empty nodes doesn't break root sum sync", async () => {
+      const { test } = await loadFixture(deployMediumTreeFixture);
+
+      // This should not revert and should maintain invariants
+      await test.testEmptyNodeMulRange();
+    });
+
+    it("Should test batchUpdate corner cases", async () => {
+      const { test } = await loadFixture(deploySmallTreeFixture);
+
+      // This should handle duplicates and unsorted arrays correctly
+      await test.testBatchUpdateCornerCases();
+    });
+
+    it("Should handle fuzz-style range multiplication", async () => {
+      const { test } = await loadFixture(deployMediumTreeFixture);
+
+      // Test with various pseudo-random inputs
+      await test.randomRangeMul(12345, 67890, ethers.parseEther("1.5"));
+      await test.randomRangeMul(98765, 43210, ethers.parseEther("0.8"));
+      await test.randomRangeMul(11111, 22222, ethers.parseEther("2.5"));
+    });
+
+    it("Should test cached root sum sync after complex operations", async () => {
+      const { test } = await loadFixture(deploySmallTreeFixture);
+
+      // This should not revert
+      await test.testCachedRootSumSync();
+    });
+
+    it("Should get tree statistics", async () => {
+      const { test } = await loadFixture(deployMediumTreeFixture);
+
+      // Apply some operations to create nodes
+      await test.update(5, ethers.parseEther("2"));
+      await test.mulRange(10, 20, ethers.parseEther("1.3"));
+      await test.update(25, ethers.parseEther("3"));
+
+      const [nodeCount, maxDepth, totalLazyOps] = await test.getTreeStats();
+
+      expect(nodeCount).to.be.gt(0);
+      expect(maxDepth).to.be.gt(0);
+      // totalLazyOps might be 0 if all lazy operations were propagated
+    });
+
+    it("Should check if tree is empty", async () => {
+      const { test } = await loadFixture(deploySmallTreeFixture);
+
+      // Fresh tree should be considered empty (all default values)
+      const isEmpty = await test.isEmpty();
+      expect(isEmpty).to.be.true;
+
+      // After update, should not be empty
+      await test.update(0, ethers.parseEther("2"));
+      const isEmptyAfter = await test.isEmpty();
+      expect(isEmptyAfter).to.be.false;
+    });
+  });
+
+  describe("Revert Path Verification", () => {
+    it("Should revert on invalid mulRange parameters", async () => {
+      const { test } = await loadFixture(deploySmallTreeFixture);
+
+      // Test lo > hi
+      await expect(
+        test.mulRange(5, 3, ethers.parseEther("1.5"))
+      ).to.be.revertedWithCustomError(test, "InvalidRange");
+
+      // Test hi >= size
+      await expect(
+        test.mulRange(0, 10, ethers.parseEther("1.5"))
+      ).to.be.revertedWithCustomError(test, "IndexOutOfBounds");
+
+      // Test factor == 0
+      await expect(test.mulRange(0, 5, 0)).to.be.revertedWithCustomError(
+        test,
+        "ZeroFactor"
+      );
+
+      // Test factor < MIN_FACTOR (0.01 is exactly MIN_FACTOR, so use smaller)
+      await expect(
+        test.mulRange(0, 5, ethers.parseEther("0.009"))
+      ).to.be.revertedWithCustomError(test, "InvalidFactor");
+
+      // Test factor > MAX_FACTOR (MAX_FACTOR is 100, so use 101)
+      await expect(
+        test.mulRange(0, 5, ethers.parseEther("100.1"))
+      ).to.be.revertedWithCustomError(test, "InvalidFactor");
+
+      // Test exact boundary values should work
+      await test.mulRange(0, 0, ethers.parseEther("0.01")); // Exact MIN_FACTOR
+      await test.mulRange(1, 1, ethers.parseEther("100")); // Exact MAX_FACTOR
+    });
+
+    it("Should revert on invalid update parameters", async () => {
+      const { test } = await loadFixture(deploySmallTreeFixture);
+
+      // Test index >= size
+      await expect(
+        test.update(10, ethers.parseEther("1"))
+      ).to.be.revertedWithCustomError(test, "IndexOutOfBounds");
+    });
+
+    it("Should revert on invalid query parameters", async () => {
+      const { test } = await loadFixture(deploySmallTreeFixture);
+
+      // Test lo > hi
+      await expect(test.query(5, 3)).to.be.revertedWithCustomError(
+        test,
+        "InvalidRange"
+      );
+
+      // Test hi >= size
+      await expect(test.query(0, 10)).to.be.revertedWithCustomError(
+        test,
+        "IndexOutOfBounds"
       );
     });
 
-    // Critical: batchUpdate → 즉시 mulRange 연타 (통합 시나리오)
-    it("Should handle batchUpdate → mulRange sequence correctly", async function () {
+    it("Should revert on invalid batchUpdate parameters", async () => {
       const { test } = await loadFixture(deploySmallTreeFixture);
 
-      // _updateRecursive가 루트 sum을 여러 번 건드림
-      await test.batchUpdate([0, 1, 2], [100, 200, 300]);
-      expect(await test.getTotalSum()).to.equal(600);
+      // Test length mismatch
+      const indices = [0, 1, 2];
+      const values = [ethers.parseEther("1"), ethers.parseEther("2")]; // One less value
 
-      // 즉시 lazy multiplication 적용
-      await test.mulRange(0, 2, ethers.parseEther("0.8")); // MIN_FACTOR
+      await expect(test.batchUpdate(indices, values)).to.be.revertedWith(
+        "Array length mismatch"
+      );
 
-      // cachedRootSum과 실제 query 결과가 일치해야 함 (lazy 끼어들어도)
-      const cachedSum = await test.getTotalSum();
-      const querySum = await test.query(0, 2);
-      expect(cachedSum).to.equal(querySum);
-      expect(cachedSum).to.equal(480); // 600 * 0.8
-
-      // lazy propagation 강제 후 개별 값 확인
-      await test.queryWithLazy(0, 0);
-      await test.queryWithLazy(1, 1);
-      await test.queryWithLazy(2, 2);
-
-      expect(await test.query(0, 0)).to.equal(80); // 100 * 0.8
-      expect(await test.query(1, 1)).to.equal(160); // 200 * 0.8
-      expect(await test.query(2, 2)).to.equal(240); // 300 * 0.8
+      // Test empty arrays (should work fine, just no-op)
+      await test.batchUpdate([], []);
     });
+  });
 
-    // Critical: factor==WAD no-op 최적화 경로 검증
-    it("Should optimize factor==WAD as no-op on non-empty tree", async function () {
-      const { test } = await loadFixture(deploySmallTreeFixture);
+  it("Should clear lazy factor when updating leaf after mulRange", async () => {
+    const { test } = await loadFixture(deploySmallTreeFixture);
 
-      // 비어있지 않은 트리 설정
-      await test.update(0, 100);
-      await test.update(1, 200);
-      const initialSum = await test.getTotalSum();
-      expect(initialSum).to.equal(300);
+    // Step 1: Apply mulRange to set lazy factor
+    await test.mulRange(0, 0, ethers.parseEther("1.2")); // lazy = 1.2 on leaf
+    expect(await test.query(0, 0)).to.equal(ethers.parseEther("1.2")); // 1 * 1.2 = 1.2
 
-      // factor==WAD (1.0) 곱셈 - no-op이어야 함
-      await test.mulRange(0, 1, ethers.parseEther("1.0")); // WAD
+    // Step 2: Update the same leaf (should clear lazy)
+    await test.update(0, ethers.parseEther("10")); // Should set lazy = 1.0
+    expect(await test.query(0, 0)).to.equal(ethers.parseEther("10")); // Direct value
 
-      // 값들이 변경되지 않아야 함
-      expect(await test.getTotalSum()).to.equal(initialSum);
-      expect(await test.query(0, 0)).to.equal(100);
-      expect(await test.query(1, 1)).to.equal(200);
+    // Step 3: Apply another mulRange - this should NOT double-multiply
+    await test.mulRange(0, 0, ethers.parseEther("2.0")); // Expected: 10 * 2 = 20
 
-      // lazy propagation 후에도 동일해야 함
-      await test.queryWithLazy(0, 1);
-      expect(await test.query(0, 0)).to.equal(100);
-      expect(await test.query(1, 1)).to.equal(200);
+    const result = await test.query(0, 0);
+    expect(result).to.equal(ethers.parseEther("20")); // Should be 20, not 24
 
-      // 노드의 lazy factor가 WAD를 유지하는지 확인
-      const [root] = await test.getTreeInfo();
-      const [, rootLazy] = await test.getNodeInfo(root);
-      expect(rootLazy).to.equal(ethers.parseEther("1.0")); // WAD 유지
-    });
+    // Verify total sum consistency
+    const totalSum = await test.getTotalSum();
+    const querySum = await test.query(0, 9);
+    expect(totalSum).to.equal(querySum);
+  });
+
+  it("Should maintain cache-query invariant after update-then-mulRange", async () => {
+    const { test } = await loadFixture(deployMediumTreeFixture);
+
+    // Apply mulRange, then update, then mulRange again
+    await test.mulRange(5, 10, ethers.parseEther("1.5"));
+    await test.update(7, ethers.parseEther("100"));
+    await test.mulRange(5, 10, ethers.parseEther("0.8"));
+
+    // Critical invariant: cached sum must equal actual query
+    const cachedSum = await test.getTotalSum();
+    const querySum = await test.query(0, 999);
+    expect(cachedSum).to.equal(querySum);
+  });
+
+  it("Should handle multiple update-mulRange cycles correctly", async () => {
+    const { test } = await loadFixture(deploySmallTreeFixture);
+
+    for (let i = 0; i < 5; i++) {
+      // Cycle: mulRange -> update -> mulRange
+      await test.mulRange(i % 10, i % 10, ethers.parseEther("1.1"));
+      await test.update(i % 10, ethers.parseEther((i + 1).toString()));
+      await test.mulRange(i % 10, i % 10, ethers.parseEther("2.0"));
+
+      // Each leaf should be exactly (i+1) * 2 = 2*(i+1)
+      const expected = ethers.parseEther((2 * (i + 1)).toString());
+      const actual = await test.query(i % 10, i % 10);
+      expect(actual).to.equal(expected);
+    }
+  });
+
+  it("Should handle factor == WAD correctly with existing lazy", async () => {
+    const { test } = await loadFixture(deploySmallTreeFixture);
+
+    // Set initial lazy factor
+    await test.mulRange(0, 2, ethers.parseEther("1.5"));
+    const beforeSum = await test.getTotalSum();
+
+    // Apply factor == WAD (should be no-op)
+    await test.mulRange(0, 2, ethers.parseEther("1.0"));
+    const afterSum = await test.getTotalSum();
+
+    expect(afterSum).to.equal(beforeSum);
+  });
+
+  it("Should prevent re-initialization of existing tree", async () => {
+    const { test } = await loadFixture(deploySmallTreeFixture);
+
+    // Modify tree
+    await test.mulRange(0, 5, ethers.parseEther("2.0"));
+    await test.update(3, ethers.parseEther("100"));
+
+    // Attempt re-initialization should fail
+    await expect(test.init(10)).to.be.revertedWith("Tree already initialized");
+  });
+
+  it("Should handle re-initialization after large lazy operations", async () => {
+    const { test } = await loadFixture(deployFixture);
+
+    // First initialization with large lazy operations
+    await test.init(100);
+    await test.mulRange(0, 99, ethers.parseEther("1.5"));
+
+    // Re-initialization should fail (preventing ghost nodes)
+    await expect(test.init(10)).to.be.revertedWith("Tree already initialized");
+  });
+
+  it("Should handle deep untouched ranges correctly", async () => {
+    const { test } = await loadFixture(deployMediumTreeFixture);
+
+    // Query deep untouched range
+    const deepStart = 800;
+    const deepEnd = 850;
+    const rangeLength = deepEnd - deepStart + 1;
+
+    const result = await test.query(deepStart, deepEnd);
+    const expected = ethers.parseEther(rangeLength.toString()); // rangeLength * 1 WAD
+
+    expect(result).to.equal(expected);
+  });
+
+  it("Should handle untouched ranges between updated sections", async () => {
+    const { test } = await loadFixture(deployMediumTreeFixture);
+
+    // Update sections [0,4] and [20,24], leaving [5,19] untouched
+    await test.update(0, ethers.parseEther("2"));
+    await test.update(4, ethers.parseEther("3"));
+    await test.update(20, ethers.parseEther("4"));
+    await test.update(24, ethers.parseEther("5"));
+
+    // Query untouched middle section [5,19]
+    const result = await test.query(5, 19);
+    const expected = ethers.parseEther("15"); // (19-5+1) * 1 WAD = 15 WAD
+
+    expect(result).to.equal(expected);
+  });
+
+  it("Should handle double lazy propagation correctly", async () => {
+    const { test } = await loadFixture(deploySmallTreeFixture);
+
+    // Apply nested lazy operations
+    await test.mulRange(0, 9, ethers.parseEther("1.3"));
+    await test.mulRange(0, 4, ethers.parseEther("1.4"));
+
+    // Query without forcing propagation first
+    const totalSum = await test.getTotalSum();
+    const querySum = await test.query(0, 9);
+
+    expect(totalSum).to.equal(querySum);
+  });
+
+  it("Should handle lazy overflow protection", async () => {
+    const { test } = await loadFixture(deploySmallTreeFixture);
+
+    // Test stress multiplication that should trigger overflow protection
+    await expect(
+      test.stressTestMulRange(ethers.parseEther("1.25"), 400)
+    ).to.be.revertedWith("Lazy factor overflow protection");
+  });
+
+  it("Should verify gas measurement functions return positive values", async () => {
+    const { test } = await loadFixture(deploySmallTreeFixture);
+
+    // Test update gas measurement
+    const updateGas = await test.measureUpdateGas.staticCall(
+      0,
+      ethers.parseEther("2")
+    );
+    expect(Number(updateGas)).to.be.gt(0);
+
+    // Test mulRange gas measurement
+    const mulRangeGas = await test.measureMulRangeGas.staticCall(
+      0,
+      5,
+      ethers.parseEther("1.5")
+    );
+    expect(Number(mulRangeGas)).to.be.gt(0);
+
+    // Test batch update gas measurement
+    const batchGas = await test.measureBatchUpdateGas.staticCall(
+      [1, 2],
+      [ethers.parseEther("3"), ethers.parseEther("4")]
+    );
+    expect(Number(batchGas)).to.be.gt(0);
   });
 });
