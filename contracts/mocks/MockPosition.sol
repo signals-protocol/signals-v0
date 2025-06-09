@@ -20,10 +20,8 @@ contract MockPosition is ICLMSRPosition, Ownable {
     mapping(uint256 => address) private _tokenApprovals;
     mapping(address => mapping(address => bool)) private _operatorApprovals;
     
-    uint256[] private _allTokens;
-    mapping(uint256 => uint256) private _allTokensIndex;
-    mapping(address => mapping(uint256 => uint256)) private _ownedTokens;
-    mapping(uint256 => uint256) private _ownedTokensIndex;
+    // For tracking owner's tokens (simplified, no enumerable index tracking)
+    mapping(address => uint256[]) private _ownedTokens;
 
     // ========================================
     // MODIFIERS
@@ -115,24 +113,6 @@ contract MockPosition is ICLMSRPosition, Ownable {
     }
 
     // ========================================
-    // ERC721 ENUMERABLE FUNCTIONS
-    // ========================================
-    
-    function totalSupply() external view returns (uint256) {
-        return _allTokens.length;
-    }
-
-    function tokenByIndex(uint256 index) external view returns (uint256) {
-        require(index < _allTokens.length, "Index out of bounds");
-        return _allTokens[index];
-    }
-
-    function tokenOfOwnerByIndex(address owner, uint256 index) external view returns (uint256) {
-        require(index < _balances[owner], "Index out of bounds");
-        return _ownedTokens[owner][index];
-    }
-
-    // ========================================
     // POSITION MANAGEMENT
     // ========================================
     
@@ -191,20 +171,16 @@ contract MockPosition is ICLMSRPosition, Ownable {
     }
 
     function getPositionsByOwner(address owner) external view returns (uint256[] memory positionIds) {
-        uint256 balance = _balances[owner];
-        positionIds = new uint256[](balance);
-        for (uint256 i = 0; i < balance; i++) {
-            positionIds[i] = _ownedTokens[owner][i];
-        }
+        return _ownedTokens[owner];
     }
 
     function getPositionsByMarket(address owner, uint256 marketId) external view returns (uint256[] memory positionIds) {
-        uint256 balance = _balances[owner];
-        uint256[] memory temp = new uint256[](balance);
+        uint256[] memory allTokens = _ownedTokens[owner];
+        uint256[] memory temp = new uint256[](allTokens.length);
         uint256 count = 0;
         
-        for (uint256 i = 0; i < balance; i++) {
-            uint256 tokenId = _ownedTokens[owner][i];
+        for (uint256 i = 0; i < allTokens.length; i++) {
+            uint256 tokenId = allTokens[i];
             if (_positions[tokenId].marketId == marketId) {
                 temp[count] = tokenId;
                 count++;
@@ -227,8 +203,7 @@ contract MockPosition is ICLMSRPosition, Ownable {
     
     function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
         return interfaceId == 0x01ffc9a7 || // ERC165
-               interfaceId == 0x80ac58cd || // ERC721
-               interfaceId == 0x780e9d63;   // ERC721Enumerable
+               interfaceId == 0x80ac58cd;   // ERC721
     }
 
     // ========================================
@@ -239,8 +214,7 @@ contract MockPosition is ICLMSRPosition, Ownable {
         _owners[tokenId] = to;
         _balances[to]++;
         
-        _addTokenToAllTokensEnumeration(tokenId);
-        _addTokenToOwnerEnumeration(to, tokenId);
+        _ownedTokens[to].push(tokenId);
     }
 
     function _burn(uint256 tokenId) internal {
@@ -250,8 +224,7 @@ contract MockPosition is ICLMSRPosition, Ownable {
         _balances[owner]--;
         delete _owners[tokenId];
         
-        _removeTokenFromAllTokensEnumeration(tokenId);
-        _removeTokenFromOwnerEnumeration(owner, tokenId);
+        _removeTokenFromOwner(owner, tokenId);
     }
 
     function _transfer(address from, address to, uint256 tokenId) internal {
@@ -263,8 +236,8 @@ contract MockPosition is ICLMSRPosition, Ownable {
         _balances[to]++;
         _owners[tokenId] = to;
         
-        _removeTokenFromOwnerEnumeration(from, tokenId);
-        _addTokenToOwnerEnumeration(to, tokenId);
+        _removeTokenFromOwner(from, tokenId);
+        _ownedTokens[to].push(tokenId);
     }
 
     function _isApprovedOrOwner(address spender, uint256 tokenId) internal view returns (bool) {
@@ -273,41 +246,15 @@ contract MockPosition is ICLMSRPosition, Ownable {
         return (spender == owner || _tokenApprovals[tokenId] == spender || _operatorApprovals[owner][spender]);
     }
 
-    function _addTokenToAllTokensEnumeration(uint256 tokenId) internal {
-        _allTokensIndex[tokenId] = _allTokens.length;
-        _allTokens.push(tokenId);
-    }
-
-    function _removeTokenFromAllTokensEnumeration(uint256 tokenId) internal {
-        uint256 lastTokenIndex = _allTokens.length - 1;
-        uint256 tokenIndex = _allTokensIndex[tokenId];
-        uint256 lastTokenId = _allTokens[lastTokenIndex];
-        
-        _allTokens[tokenIndex] = lastTokenId;
-        _allTokensIndex[lastTokenId] = tokenIndex;
-        
-        delete _allTokensIndex[tokenId];
-        _allTokens.pop();
-    }
-
-    function _addTokenToOwnerEnumeration(address to, uint256 tokenId) internal {
-        uint256 length = _balances[to] - 1;
-        _ownedTokens[to][length] = tokenId;
-        _ownedTokensIndex[tokenId] = length;
-    }
-
-    function _removeTokenFromOwnerEnumeration(address from, uint256 tokenId) internal {
-        uint256 lastTokenIndex = _balances[from];
-        uint256 tokenIndex = _ownedTokensIndex[tokenId];
-        
-        if (tokenIndex != lastTokenIndex) {
-            uint256 lastTokenId = _ownedTokens[from][lastTokenIndex];
-            _ownedTokens[from][tokenIndex] = lastTokenId;
-            _ownedTokensIndex[lastTokenId] = tokenIndex;
+    function _removeTokenFromOwner(address owner, uint256 tokenId) internal {
+        uint256[] storage tokens = _ownedTokens[owner];
+        for (uint256 i = 0; i < tokens.length; i++) {
+            if (tokens[i] == tokenId) {
+                tokens[i] = tokens[tokens.length - 1];
+                tokens.pop();
+                break;
+            }
         }
-        
-        delete _ownedTokensIndex[tokenId];
-        delete _ownedTokens[from][lastTokenIndex];
     }
 
     function _toString(uint256 value) internal pure returns (string memory) {

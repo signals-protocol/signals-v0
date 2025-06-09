@@ -119,25 +119,6 @@ interface ICLMSRPosition {
     function isApprovedForAll(address owner, address operator) external view returns (bool);
 
     // ========================================
-    // ERC721 ENUMERABLE FUNCTIONS
-    // ========================================
-    
-    /// @notice Count tokens tracked by this contract
-    /// @return A count of valid tokens tracked by this contract
-    function totalSupply() external view returns (uint256);
-
-    /// @notice Enumerate valid tokens
-    /// @param index A counter less than totalSupply()
-    /// @return The token identifier for the index-th token
-    function tokenByIndex(uint256 index) external view returns (uint256);
-
-    /// @notice Enumerate tokens assigned to an owner
-    /// @param owner An address for whom to query the token list
-    /// @param index A counter less than balanceOf(owner)
-    /// @return The token identifier for the index-th token assigned to owner
-    function tokenOfOwnerByIndex(address owner, uint256 index) external view returns (uint256);
-
-    // ========================================
     // POSITION MANAGEMENT (Core contract only)
     // ========================================
     

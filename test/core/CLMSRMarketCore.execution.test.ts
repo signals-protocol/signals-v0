@@ -220,10 +220,8 @@ describe("CLMSRMarketCore - Execution Functions", function () {
       };
 
       await core.connect(router).openPosition(alice.address, tradeParams);
-      const positionId = await mockPosition.tokenOfOwnerByIndex(
-        alice.address,
-        0
-      );
+      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positionId = positions[0];
 
       const balanceBefore = await paymentToken.balanceOf(alice.address);
 
@@ -271,10 +269,8 @@ describe("CLMSRMarketCore - Execution Functions", function () {
       };
 
       await core.connect(router).openPosition(alice.address, tradeParams);
-      const positionId = await mockPosition.tokenOfOwnerByIndex(
-        alice.address,
-        0
-      );
+      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positionId = positions[0];
 
       const balanceBefore = await paymentToken.balanceOf(alice.address);
 
@@ -322,10 +318,8 @@ describe("CLMSRMarketCore - Execution Functions", function () {
       };
 
       await core.connect(router).openPosition(alice.address, tradeParams);
-      const positionId = await mockPosition.tokenOfOwnerByIndex(
-        alice.address,
-        0
-      );
+      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positionId = positions[0];
 
       const balanceBefore = await paymentToken.balanceOf(alice.address);
 
@@ -371,10 +365,8 @@ describe("CLMSRMarketCore - Execution Functions", function () {
       };
 
       await core.connect(router).openPosition(alice.address, tradeParams);
-      const positionId = await mockPosition.tokenOfOwnerByIndex(
-        alice.address,
-        0
-      );
+      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positionId = positions[0];
 
       // Settle market with winning tick in range
       await core.connect(keeper).settleMarket(marketId, 50);
@@ -404,10 +396,8 @@ describe("CLMSRMarketCore - Execution Functions", function () {
       };
 
       await core.connect(router).openPosition(alice.address, tradeParams);
-      const positionId = await mockPosition.tokenOfOwnerByIndex(
-        alice.address,
-        0
-      );
+      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positionId = positions[0];
 
       // Settle market with winning tick outside range
       await core.connect(keeper).settleMarket(marketId, 80);
@@ -434,10 +424,8 @@ describe("CLMSRMarketCore - Execution Functions", function () {
       };
 
       await core.connect(router).openPosition(alice.address, tradeParams);
-      const positionId = await mockPosition.tokenOfOwnerByIndex(
-        alice.address,
-        0
-      );
+      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positionId = positions[0];
 
       await expect(
         core.connect(router).claimPayout(positionId)
@@ -473,10 +461,8 @@ describe("CLMSRMarketCore - Execution Functions", function () {
       };
 
       await core.connect(router).openPosition(alice.address, tradeParams);
-      const positionId = await mockPosition.tokenOfOwnerByIndex(
-        alice.address,
-        0
-      );
+      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positionId = positions[0];
 
       const cost = await core.calculateIncreaseCost(positionId, SMALL_QUANTITY);
       expect(cost).to.be.gt(0);
@@ -497,10 +483,8 @@ describe("CLMSRMarketCore - Execution Functions", function () {
       };
 
       await core.connect(router).openPosition(alice.address, tradeParams);
-      const positionId = await mockPosition.tokenOfOwnerByIndex(
-        alice.address,
-        0
-      );
+      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positionId = positions[0];
 
       const proceeds = await core.calculateDecreaseProceeds(
         positionId,
@@ -524,10 +508,8 @@ describe("CLMSRMarketCore - Execution Functions", function () {
       };
 
       await core.connect(router).openPosition(alice.address, tradeParams);
-      const positionId = await mockPosition.tokenOfOwnerByIndex(
-        alice.address,
-        0
-      );
+      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positionId = positions[0];
 
       const proceeds = await core.calculateCloseProceeds(positionId);
       expect(proceeds).to.be.gt(0);
@@ -547,10 +529,8 @@ describe("CLMSRMarketCore - Execution Functions", function () {
       };
 
       await core.connect(router).openPosition(alice.address, tradeParams);
-      const positionId = await mockPosition.tokenOfOwnerByIndex(
-        alice.address,
-        0
-      );
+      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positionId = positions[0];
 
       // Before settlement, claim amount should be 0
       let claimAmount = await core.calculateClaimAmount(positionId);
@@ -707,10 +687,8 @@ describe("CLMSRMarketCore - Execution Functions", function () {
         maxCost: MEDIUM_COST,
       });
 
-      const positionId = await mockPosition.tokenOfOwnerByIndex(
-        alice.address,
-        0
-      );
+      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positionId = positions[0];
 
       // Decrease entire position
       await expect(
@@ -801,10 +779,8 @@ describe("CLMSRMarketCore - Execution Functions", function () {
         maxCost: MEDIUM_COST,
       });
 
-      const positionId = await mockPosition.tokenOfOwnerByIndex(
-        alice.address,
-        0
-      );
+      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positionId = positions[0];
 
       // Settle outside position range
       await core.connect(keeper).settleMarket(marketId, 80);
@@ -832,10 +808,8 @@ describe("CLMSRMarketCore - Execution Functions", function () {
         maxCost: LARGE_COST,
       });
 
-      const positionId = await mockPosition.tokenOfOwnerByIndex(
-        alice.address,
-        0
-      );
+      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positionId = positions[0];
 
       // Small increase
       await expect(
@@ -862,10 +836,8 @@ describe("CLMSRMarketCore - Execution Functions", function () {
         maxCost: LARGE_COST,
       });
 
-      const positionId = await mockPosition.tokenOfOwnerByIndex(
-        alice.address,
-        0
-      );
+      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positionId = positions[0];
 
       // Use a more reasonable odd adjustment (0.1 USDC instead of 0.1 * 10^18)
       const oddAdjustment = ethers.parseUnits("0.1", 6); // 0.1 USDC
@@ -932,10 +904,8 @@ describe("CLMSRMarketCore - Execution Functions", function () {
         maxCost: MEDIUM_COST,
       });
 
-      const positionId = await mockPosition.tokenOfOwnerByIndex(
-        alice.address,
-        0
-      );
+      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positionId = positions[0];
 
       await expect(
         core.connect(router).increasePosition(positionId, 0, 0)
@@ -956,10 +926,8 @@ describe("CLMSRMarketCore - Execution Functions", function () {
         maxCost: MEDIUM_COST,
       });
 
-      const positionId = await mockPosition.tokenOfOwnerByIndex(
-        alice.address,
-        0
-      );
+      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positionId = positions[0];
 
       const excessiveSell = SMALL_QUANTITY + 1n;
 
@@ -981,10 +949,8 @@ describe("CLMSRMarketCore - Execution Functions", function () {
         maxCost: MEDIUM_COST,
       });
 
-      const positionId = await mockPosition.tokenOfOwnerByIndex(
-        alice.address,
-        0
-      );
+      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positionId = positions[0];
 
       // Settle market with winning tick
       await core.connect(keeper).settleMarket(marketId, 50);
@@ -1012,10 +978,8 @@ describe("CLMSRMarketCore - Execution Functions", function () {
         maxCost: MEDIUM_COST,
       });
 
-      const positionId = await mockPosition.tokenOfOwnerByIndex(
-        alice.address,
-        0
-      );
+      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positionId = positions[0];
 
       // Settle market with losing tick (outside position range)
       await core.connect(keeper).settleMarket(marketId, 80);
@@ -1041,10 +1005,8 @@ describe("CLMSRMarketCore - Execution Functions", function () {
         maxCost: LARGE_COST,
       });
 
-      const positionId = await mockPosition.tokenOfOwnerByIndex(
-        alice.address,
-        0
-      );
+      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positionId = positions[0];
 
       // 2. Increase position
       await core
@@ -1076,10 +1038,8 @@ describe("CLMSRMarketCore - Execution Functions", function () {
         maxCost: MEDIUM_COST,
       });
 
-      const positionId = await mockPosition.tokenOfOwnerByIndex(
-        alice.address,
-        0
-      );
+      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positionId = positions[0];
 
       // 2. Settle market
       await core.connect(keeper).settleMarket(marketId, 50);
@@ -1147,10 +1107,8 @@ describe("CLMSRMarketCore - Execution Functions", function () {
         maxCost: MEDIUM_COST,
       });
 
-      const positionId = await mockPosition.tokenOfOwnerByIndex(
-        alice.address,
-        0
-      );
+      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positionId = positions[0];
 
       // Calculate exact proceeds
       const exactProceeds = await core.calculateDecreaseProceeds(
@@ -1455,10 +1413,8 @@ describe("CLMSRMarketCore - Execution Functions", function () {
       await core.connect(router).openPosition(alice.address, tradeParams);
 
       // Verify position was created
-      const positionId = await mockPosition.tokenOfOwnerByIndex(
-        alice.address,
-        0
-      );
+      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positionId = positions[0];
       const position = await mockPosition.getPosition(positionId);
       expect(position.quantity).to.equal(tinyQuantity);
     });
@@ -1701,10 +1657,8 @@ describe("CLMSRMarketCore - Execution Functions", function () {
           maxCost: ethers.parseUnits("1000", 6),
         });
 
-        const positionId = await mockPosition.tokenOfOwnerByIndex(
-          alice.address,
-          0
-        );
+        const positions = await mockPosition.getPositionsByOwner(alice.address);
+        const positionId = positions[0];
 
         // Calculate sell proceeds (should also be rounded up now)
         const proceeds = await core.calculateDecreaseProceeds(
@@ -1754,10 +1708,8 @@ describe("CLMSRMarketCore - Execution Functions", function () {
           maxCost: ethers.parseUnits("1000", 6),
         });
 
-        const positionId = await mockPosition.tokenOfOwnerByIndex(
-          alice.address,
-          0
-        );
+        const positions = await mockPosition.getPositionsByOwner(alice.address);
+        const positionId = positions[0];
 
         // Close position immediately
         await core.connect(router).closePosition(positionId, 0);
