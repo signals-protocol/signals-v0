@@ -42,6 +42,9 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     
     /// @notice Maximum safe input for PRB-Math exp() function
     uint256 private constant EXP_MAX_INPUT_WAD = 130_000_000_000_000_000; // 0.13 * 1e18
+    
+    /// @notice Maximum number of chunks allowed per transaction to prevent gas DoS
+    uint256 private constant MAX_CHUNKS_PER_TX = 100;
 
     // ========================================
     // STATE VARIABLES
@@ -657,13 +660,21 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             // Ensure tree is properly initialized
             require(sumBefore > 0, "Tree not initialized");
             
+            // Calculate required number of chunks and prevent gas DoS
+            uint256 requiredChunks = (totalQuantity + maxSafeQuantityPerChunk - 1) / maxSafeQuantityPerChunk;
+            
+            if (requiredChunks > MAX_CHUNKS_PER_TX) {
+                revert InvalidQuantity(uint128(totalQuantity)); // Quantity too large for single transaction
+            }
+            
             // Chunk-split with cumulative state tracking
             uint256 totalCost = 0;
             uint256 remainingQuantity = totalQuantity;
             uint256 currentSumBefore = sumBefore;
             uint256 currentAffectedSum = affectedSum;
+            uint256 chunkCount = 0;
             
-            while (remainingQuantity > 0) {
+            while (remainingQuantity > 0 && chunkCount < MAX_CHUNKS_PER_TX) {
                 uint256 chunkQuantity = remainingQuantity > maxSafeQuantityPerChunk 
                     ? maxSafeQuantityPerChunk 
                     : remainingQuantity;
@@ -686,7 +697,11 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
                 currentSumBefore = sumAfter;
                 currentAffectedSum = newAffectedSum;
                 remainingQuantity -= chunkQuantity;
+                chunkCount++;
             }
+            
+            // Additional safety check
+            require(remainingQuantity == 0, "Incomplete chunk processing");
             
             return totalCost;
         }
@@ -749,13 +764,21 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             // Ensure tree is properly initialized
             require(sumBefore > 0, "Tree not initialized");
             
+            // Calculate required number of chunks and prevent gas DoS
+            uint256 requiredChunks = (totalQuantity + maxSafeQuantityPerChunk - 1) / maxSafeQuantityPerChunk;
+            
+            if (requiredChunks > MAX_CHUNKS_PER_TX) {
+                revert InvalidQuantity(uint128(totalQuantity)); // Quantity too large for single transaction
+            }
+            
             // Chunk-split with cumulative state tracking
             uint256 totalProceeds = 0;
             uint256 remainingQuantity = totalQuantity;
             uint256 currentSumBefore = sumBefore;
             uint256 currentAffectedSum = affectedSum;
+            uint256 chunkCount = 0;
             
-            while (remainingQuantity > 0) {
+            while (remainingQuantity > 0 && chunkCount < MAX_CHUNKS_PER_TX) {
                 uint256 chunkQuantity = remainingQuantity > maxSafeQuantityPerChunk 
                     ? maxSafeQuantityPerChunk 
                     : remainingQuantity;
@@ -783,7 +806,11 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
                 currentSumBefore = sumAfter;
                 currentAffectedSum = newAffectedSum;
                 remainingQuantity -= chunkQuantity;
+                chunkCount++;
             }
+            
+            // Additional safety check
+            require(remainingQuantity == 0, "Incomplete chunk processing");
             
             return totalProceeds;
         }
@@ -874,7 +901,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     }
     
     /// @notice Apply factor with chunk-split to handle large exponential values
-    /// @dev Splits large quantity into safe chunks to avoid factor limits
+    /// @dev Splits large quantity into safe chunks to avoid factor limits and gas DoS
     /// @param marketId Market identifier
     /// @param lowerTick Lower tick bound
     /// @param upperTick Upper tick bound
@@ -909,10 +936,18 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             
             LazyMulSegmentTree.mulRange(marketTrees[marketId], lowerTick, upperTick, factor);
         } else {
-            // Split into chunks
-            uint256 remainingQuantity = quantity;
+            // Calculate required number of chunks and prevent gas DoS
+            uint256 requiredChunks = (quantity + maxSafeQuantityPerChunk - 1) / maxSafeQuantityPerChunk;
             
-            while (remainingQuantity > 0) {
+            if (requiredChunks > MAX_CHUNKS_PER_TX) {
+                revert InvalidQuantity(uint128(quantity)); // Quantity too large for single transaction
+            }
+            
+            // Split into chunks with gas-efficient batch processing
+            uint256 remainingQuantity = quantity;
+            uint256 chunkCount = 0;
+            
+            while (remainingQuantity > 0 && chunkCount < MAX_CHUNKS_PER_TX) {
                 uint256 chunkQuantity = remainingQuantity > maxSafeQuantityPerChunk 
                     ? maxSafeQuantityPerChunk 
                     : remainingQuantity;
@@ -931,7 +966,11 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
                 LazyMulSegmentTree.mulRange(marketTrees[marketId], lowerTick, upperTick, factor);
                 
                 remainingQuantity -= chunkQuantity;
+                chunkCount++;
             }
+            
+            // Additional safety check
+            require(remainingQuantity == 0, "Incomplete chunk processing");
         }
     }
 

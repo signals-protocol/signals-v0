@@ -1537,5 +1537,135 @@ describe("CLMSRMarketCore - Execution Functions", function () {
       // Due to round-up, cost should never be 0
       expect(cost).to.be.at.least(1);
     });
+
+    it("Should prevent gas DoS attacks with excessive chunk splitting", async function () {
+      const { core, keeper, router, alice, paymentToken } = await loadFixture(
+        deployFixture
+      );
+
+      // Create market with very small alpha to maximize chunk count
+      const smallAlpha = ethers.parseEther("0.001"); // Very small liquidity parameter
+      const currentTime = await time.latest();
+      const startTime = currentTime + 100;
+      const endTime = startTime + MARKET_DURATION;
+      const marketId = 2;
+
+      await core
+        .connect(keeper)
+        .createMarket(marketId, TICK_COUNT, startTime, endTime, smallAlpha);
+      await time.increaseTo(startTime + 1);
+
+      // Calculate quantity that would require > 100 chunks
+      // maxSafeQuantityPerChunk = alpha * 0.13 = 0.001 * 0.13 = 0.00013 ETH
+      // To exceed 100 chunks: quantity > 100 * 0.00013 = 0.013 ETH
+      const excessiveQuantity = ethers.parseUnits("0.02", 6); // 0.02 USDC
+
+      const tradeParams = {
+        marketId,
+        lowerTick: 45,
+        upperTick: 55,
+        quantity: excessiveQuantity,
+        maxCost: ethers.parseUnits("1000000", 6), // Very high max cost
+      };
+
+      // Should revert due to excessive chunk count
+      await expect(
+        core.connect(router).openPosition(alice.address, tradeParams)
+      ).to.be.revertedWithCustomError(core, "InvalidQuantity");
+    });
+
+    it("Should handle maximum allowed chunks successfully", async function () {
+      const { core, keeper, router, alice, paymentToken } = await loadFixture(
+        deployFixture
+      );
+
+      // Create market with small alpha
+      const smallAlpha = ethers.parseEther("0.001");
+      const currentTime = await time.latest();
+      const startTime = currentTime + 100;
+      const endTime = startTime + MARKET_DURATION;
+      const marketId = 3;
+
+      await core
+        .connect(keeper)
+        .createMarket(marketId, TICK_COUNT, startTime, endTime, smallAlpha);
+      await time.increaseTo(startTime + 1);
+
+      // Calculate quantity that requires exactly 50 chunks (well under limit)
+      // maxSafeQuantityPerChunk = alpha * 0.13 = 0.001 * 0.13 = 0.00013 ETH
+      // For 50 chunks: quantity = 50 * 0.00013 = 0.0065 ETH
+      const moderateQuantity = ethers.parseUnits("0.007", 6); // 0.007 USDC
+
+      const tradeParams = {
+        marketId,
+        lowerTick: 45,
+        upperTick: 55,
+        quantity: moderateQuantity,
+        maxCost: ethers.parseUnits("1000000", 6),
+      };
+
+      // Should succeed with moderate chunk count
+      await expect(
+        core.connect(router).openPosition(alice.address, tradeParams)
+      ).to.not.be.reverted;
+    });
+
+    it("Should prevent gas DoS in cost calculation functions", async function () {
+      const { core, keeper } = await loadFixture(deployFixture);
+
+      // Create market with very small alpha
+      const smallAlpha = ethers.parseEther("0.001");
+      const currentTime = await time.latest();
+      const startTime = currentTime + 100;
+      const endTime = startTime + MARKET_DURATION;
+      const marketId = 4;
+
+      await core
+        .connect(keeper)
+        .createMarket(marketId, TICK_COUNT, startTime, endTime, smallAlpha);
+      await time.increaseTo(startTime + 1);
+
+      // Excessive quantity for cost calculation
+      const excessiveQuantity = ethers.parseUnits("0.02", 6);
+
+      // Should revert in cost calculation due to excessive chunks
+      await expect(
+        core.calculateOpenCost(marketId, 45, 55, excessiveQuantity)
+      ).to.be.revertedWithCustomError(core, "InvalidQuantity");
+    });
+
+    it("Should prevent gas DoS in sell operations", async function () {
+      const { core, keeper, router, alice } = await loadFixture(deployFixture);
+
+      // Create market with small alpha
+      const smallAlpha = ethers.parseEther("0.001");
+      const currentTime = await time.latest();
+      const startTime = currentTime + 100;
+      const endTime = startTime + MARKET_DURATION;
+      const marketId = 5;
+
+      await core
+        .connect(keeper)
+        .createMarket(marketId, TICK_COUNT, startTime, endTime, smallAlpha);
+      await time.increaseTo(startTime + 1);
+
+      // First, open a moderate position
+      const moderateQuantity = ethers.parseUnits("0.005", 6);
+      await core.connect(router).openPosition(alice.address, {
+        marketId,
+        lowerTick: 45,
+        upperTick: 55,
+        quantity: moderateQuantity,
+        maxCost: ethers.parseUnits("1000", 6),
+      });
+
+      // Try to calculate proceeds for excessive quantity (larger than position)
+      const excessiveQuantity = ethers.parseUnits("0.02", 6);
+
+      // Should revert in proceeds calculation due to excessive chunks
+      await expect(
+        core.calculateDecreaseProceeds(1, excessiveQuantity)
+      ).to.be.revertedWithCustomError(core, "InvalidQuantity");
+    });
   });
 });
