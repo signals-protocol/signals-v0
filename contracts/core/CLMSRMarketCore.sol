@@ -14,7 +14,14 @@ import {FixedPointMathU} from "../libraries/FixedPointMath.sol";
 /// @dev Immutable contract handling core trading logic and market state
 contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     using SafeERC20 for IERC20;
-    using FixedPointMathU for uint256;
+    using {
+        FixedPointMathU.toWad,
+        FixedPointMathU.fromWad,
+        FixedPointMathU.wMul,
+        FixedPointMathU.wDiv,
+        FixedPointMathU.wExp,
+        FixedPointMathU.wLn
+    } for uint256;
 
     // ========================================
     // CONSTANTS
@@ -31,17 +38,16 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     /// @notice Maximum liquidity parameter (alpha)
     uint256 public constant MAX_LIQUIDITY_PARAMETER = 1e21; // 1000 ETH
     
-    /// @notice ln(1.25) in WAD format for safe chunk splitting
-    uint256 private constant LN_1_25_WAD = 223_143_551_314_209_755_000; // 0.223143551314209755 * 1e18
+    
+    /// @notice Maximum safe input for PRB-Math exp() function
+    uint256 private constant EXP_MAX_INPUT_WAD = 130_000_000_000_000_000; // 0.13 * 1e18
 
     // ========================================
     // STATE VARIABLES
     // ========================================
     
-    /// @notice Payment token (e.g., USDC, WETH)
+    /// @notice Payment token (USDC - 6 decimals)
     IERC20 public immutable paymentToken;
-    
-    // Note: Payment token decimals removed - 18 decimals assumed
     
     /// @notice Position NFT contract
     ICLMSRPosition public immutable positionContract;
@@ -124,7 +130,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         positionContract = ICLMSRPosition(_positionContract);
         managerContract = _managerContract;
         
-        // Note: 18 decimals assumed for payment token
+        // Note: 6 decimals assumed for payment token (USDC)
     }
 
     // ========================================
@@ -216,6 +222,33 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
                caller == routerContract || 
                caller == address(positionContract);
     }
+    
+    /// @notice Pull USDC from user (6-decimal amount)
+    function _pullUSDC(address from, uint256 amt6) internal {
+        if (amt6 > 0) {
+            paymentToken.safeTransferFrom(from, address(this), amt6);
+        }
+    }
+    
+    /// @notice Push USDC to user (6-decimal amount)
+    function _pushUSDC(address to, uint256 amt6) internal {
+        if (amt6 > 0) {
+            paymentToken.safeTransfer(to, amt6);
+        }
+    }
+    
+    /// @notice Calculate trade cost with 6-decimal input, returns WAD
+    function _calcCostWad(
+        uint256 marketId,
+        uint32 lowerTick,
+        uint32 upperTick,
+        uint128 qty6
+    ) internal view returns (uint256 costWad) {
+        uint256 qtyWad = uint256(qty6).toWad();
+        return _calculateTradeCostInternal(marketId, lowerTick, upperTick, qtyWad);
+    }
+    
+
     
 
     
@@ -350,38 +383,26 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             revert InvalidMarketParameters("Market expired");
         }
         
-        if (params.lowerTick >= params.upperTick || params.upperTick >= market.tickCount) {
+        if (params.lowerTick > params.upperTick || params.upperTick >= market.tickCount) {
             revert InvalidTickRange(params.lowerTick, params.upperTick);
         }
         
-        // Calculate trade cost
-        uint256 cost = _calculateTradeCostInternal(
-            params.marketId,
-            params.lowerTick,
-            params.upperTick,
-            params.quantity
-        );
+        // Calculate trade cost and convert to 6-decimal
+        uint256 costWad = _calcCostWad(params.marketId, params.lowerTick, params.upperTick, params.quantity);
+        uint256 cost6 = costWad.fromWad();
         
-        if (cost > params.maxCost) {
-            revert CostExceedsMaximum(cost, params.maxCost);
+        if (cost6 > params.maxCost) {
+            revert CostExceedsMaximum(cost6, params.maxCost);
         }
         
-        // Transfer payment from trader (check actual received amount for fee-on-transfer tokens)
-        if (cost > 0) {
-            uint256 balanceBefore = paymentToken.balanceOf(address(this));
-            paymentToken.safeTransferFrom(trader, address(this), cost);
-            uint256 balanceAfter = paymentToken.balanceOf(address(this));
-            uint256 actualReceived = balanceAfter - balanceBefore;
-            
-            if (actualReceived < cost) {
-                revert InsufficientBalance(trader, cost, actualReceived);
-            }
-        }
+        // Transfer payment from trader
+        _pullUSDC(trader, cost6);
         
-        // Update market state BEFORE external calls (reentrancy protection)
-        _updateMarketForTrade(params.marketId, params.lowerTick, params.upperTick, params.quantity);
+        // Update market state using WAD quantity
+        uint256 qWad = uint256(params.quantity).toWad();
+        _updateMarketForTrade(params.marketId, params.lowerTick, params.upperTick, qWad);
         
-        // Mint position NFT (after state changes for reentrancy protection)
+        // Mint position NFT with original 6-decimal quantity (storage unchanged)
         positionId = positionContract.mintPosition(
             trader,
             params.marketId,
@@ -390,17 +411,14 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             params.quantity
         );
         
-        // Ensure position ID is valid (> 0)
-        require(positionId > 0, "Invalid position ID");
-        
         emit TradeExecuted(
             params.marketId,
             trader,
             positionId,
             params.lowerTick,
             params.upperTick,
-            params.quantity,
-            cost
+            params.quantity,  // qty6
+            cost6            // cost6
         );
     }
     
@@ -442,47 +460,27 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             newQuantity = position.quantity - deltaAbs;
         }
         
-        // Calculate cost/proceeds
-        uint256 cost = _calculateAdjustCostInternal(positionId, quantityDelta);
+        // Calculate cost/proceeds and handle transfer
+        uint256 costWad = _calculateAdjustCostInternal(positionId, quantityDelta);
+        uint256 costOrProceeds6 = costWad.fromWad();
         
         if (quantityDelta > 0) {
-            // Buying more - check max cost
-            if (cost > maxCost) {
-                revert CostExceedsMaximum(cost, maxCost);
+            // Buying more - check max cost and transfer payment
+            if (costOrProceeds6 > maxCost) {
+                revert CostExceedsMaximum(costOrProceeds6, maxCost);
             }
-            
-            // Transfer payment from trader (check actual received amount for fee-on-transfer tokens)
-            if (cost > 0) {
-                uint256 balanceBefore = paymentToken.balanceOf(address(this));
-                paymentToken.safeTransferFrom(trader, address(this), cost);
-                uint256 balanceAfter = paymentToken.balanceOf(address(this));
-                uint256 actualReceived = balanceAfter - balanceBefore;
-                
-                if (actualReceived < cost) {
-                    revert InsufficientBalance(trader, cost, actualReceived);
-                }
-            }
+            _pullUSDC(trader, costOrProceeds6);
             
             // Update market state (positive quantity)
-            _updateMarketForTrade(
-                position.marketId,
-                position.lowerTick,
-                position.upperTick,
-                uint128(quantityDelta)
-            );
+            uint256 deltaWad = uint256(uint128(quantityDelta)).toWad();
+            _updateMarketForTrade(position.marketId, position.lowerTick, position.upperTick, deltaWad);
         } else {
             // Selling - transfer proceeds to trader
-            if (cost > 0) {
-                paymentToken.safeTransfer(trader, cost);
-            }
+            _pushUSDC(trader, costOrProceeds6);
             
             // Update market state (negative quantity)
-            _updateMarketForSell(
-                position.marketId,
-                position.lowerTick,
-                position.upperTick,
-                uint128(-quantityDelta)
-            );
+            uint256 sellDeltaWad = uint256(uint128(-quantityDelta)).toWad();
+            _updateMarketForSell(position.marketId, position.lowerTick, position.upperTick, sellDeltaWad);
         }
         
         // Update position quantity
@@ -494,8 +492,8 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             positionContract.setPositionQuantity(positionId, newQuantity);
         }
         
-        // Emit position adjustment event
-        emit PositionAdjusted(positionId, trader, quantityDelta, newQuantity, cost);
+        // Emit position adjustment event (use 6-decimal cost for event)
+        emit PositionAdjusted(positionId, trader, quantityDelta, newQuantity, costOrProceeds6); // cost6 or proceeds6
         return true;
     }
     
@@ -523,26 +521,21 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             revert InvalidMarketParameters("Market expired");
         }
         
-        // Calculate proceeds
-        proceeds = _calculateCloseProceeds(positionId);
+        // Calculate proceeds and update market state
+        uint256 proceedsWad = _calculateCloseProceeds(positionId);
+        proceeds = proceedsWad.fromWad();
         
         // Update market state (selling entire position)
-        _updateMarketForSell(
-            position.marketId,
-            position.lowerTick,
-            position.upperTick,
-            position.quantity
-        );
+        uint256 positionQuantityWad = uint256(position.quantity).toWad();
+        _updateMarketForSell(position.marketId, position.lowerTick, position.upperTick, positionQuantityWad);
         
         // Transfer proceeds to trader
-        if (proceeds > 0) {
-            paymentToken.safeTransfer(trader, proceeds);
-        }
+        _pushUSDC(trader, proceeds);
         
         // Burn position NFT
         positionContract.burnPosition(positionId);
         
-        emit PositionClosed(positionId, trader, proceeds);
+        emit PositionClosed(positionId, trader, proceeds); // proceeds6
     }
     
     /// @inheritdoc ICLMSRMarketCore
@@ -562,14 +555,12 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         payout = _calculateClaimAmount(positionId);
         
         // Transfer payout to trader
-        if (payout > 0) {
-            paymentToken.safeTransfer(trader, payout);
-        }
+        _pushUSDC(trader, payout);
         
         // Burn position NFT (position is claimed)
         positionContract.burnPosition(positionId);
         
-        emit PositionClaimed(positionId, trader, payout);
+        emit PositionClaimed(positionId, trader, payout); // payout6
     }
 
     // ========================================
@@ -583,7 +574,11 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         uint32 upperTick,
         uint128 quantity
     ) external view override marketExists(marketId) returns (uint256 cost) {
-        return _calculateTradeCostInternal(marketId, lowerTick, upperTick, quantity);
+        // Convert quantity to WAD for internal calculation
+        uint256 quantityWad = uint256(quantity).toWad();
+        uint256 costWad = _calculateTradeCostInternal(marketId, lowerTick, upperTick, quantityWad);
+        // Convert cost back to 6-decimal for external interface
+        return costWad.fromWad();
     }
     
     /// @inheritdoc ICLMSRMarketCore
@@ -591,14 +586,16 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         uint256 positionId,
         int128 quantityDelta
     ) external view override returns (uint256 cost) {
-        return _calculateAdjustCostInternal(positionId, quantityDelta);
+        uint256 costWad = _calculateAdjustCostInternal(positionId, quantityDelta);
+        return costWad.fromWad();
     }
     
     /// @inheritdoc ICLMSRMarketCore
     function calculateCloseProceeds(
         uint256 positionId
     ) external view override returns (uint256 proceeds) {
-        return _calculateCloseProceeds(positionId);
+        uint256 proceedsWad = _calculateCloseProceeds(positionId);
+        return proceedsWad.fromWad();
     }
     
     /// @inheritdoc ICLMSRMarketCore
@@ -611,6 +608,22 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     // ========================================
     // INTERNAL CALCULATION FUNCTIONS
     // ========================================
+
+    /// @dev Calculate exp(q/α) safely by chunking to avoid overflow
+    /// @param q Quantity in WAD format
+    /// @param alpha Liquidity parameter in WAD format
+    /// @return res Result of exp(q/α) in WAD format
+    function _safeExp(uint256 q, uint256 alpha) internal pure returns (uint256 res) {
+        uint256 maxPerChunk = alpha.wMul(EXP_MAX_INPUT_WAD); // α * 0.13
+        res = FixedPointMathU.WAD; // 1.0
+        
+        while (q > 0) {
+            uint256 chunk = q > maxPerChunk ? maxPerChunk : q;
+            uint256 factor = (chunk.wDiv(alpha)).wExp(); // Safe: chunk/α ≤ 0.13
+            res = res.wMul(factor);
+            q -= chunk;
+        }
+    }
     
     /// @notice Calculate cost of a trade using CLMSR formula with chunk-split logic
     /// @dev CLMSR formula: C = α * ln(Σ_after / Σ_before) where each tick has exp(q_i/α)
@@ -618,12 +631,12 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         uint256 marketId,
         uint32 lowerTick,
         uint32 upperTick,
-        uint128 quantity
+        uint256 quantity
     ) internal view returns (uint256 cost) {
         Market memory market = markets[marketId];
-        uint256 totalQuantity = uint256(quantity);
+        uint256 totalQuantity = quantity;
         uint256 alpha = market.liquidityParameter;
-        uint256 maxSafeQuantityPerChunk = alpha.wMul(LN_1_25_WAD); // ln(1.25) exact value in WAD
+        uint256 maxSafeQuantityPerChunk = alpha.wMul(EXP_MAX_INPUT_WAD); // Fixed safe chunk size
         
         if (totalQuantity <= maxSafeQuantityPerChunk) {
             // Safe to calculate in single operation
@@ -633,15 +646,8 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             uint256 sumBefore = LazyMulSegmentTree.getTotalSum(marketTrees[marketId]);
             uint256 affectedSum = LazyMulSegmentTree.query(marketTrees[marketId], lowerTick, upperTick);
             
-            // Handle first trade case
-            if (sumBefore == 0) {
-                // First trade: C = α * ln(Σ_after)
-                uint256 quantityScaled = totalQuantity.wDiv(alpha);
-                uint256 totalFactor = quantityScaled.wExp();
-                uint256 sumAfter = affectedSum.wMul(totalFactor);
-                require(sumAfter > 0, "Empty pool after trade");
-                return alpha.wMul(sumAfter.wLn());
-            }
+            // Ensure tree is properly initialized
+            require(sumBefore > 0, "Tree not initialized");
             
             // Chunk-split with cumulative state tracking
             uint256 totalCost = 0;
@@ -695,24 +701,19 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         
         // Calculate sum after trade
         uint256 affectedSum = LazyMulSegmentTree.query(marketTrees[marketId], lowerTick, upperTick);
-        uint256 sumAfter = sumBefore - affectedSum + affectedSum.wMul(factor);
         
-        // Handle first trade case when sumBefore = 0
-        if (sumBefore == 0) {
-            require(sumAfter > 0, "Empty pool after trade");
-            // First trade: C = α * ln(Σ_after)
-            uint256 lnSumAfter = sumAfter.wLn();
-            cost = alpha.wMul(lnSumAfter);
-        } else {
-            // Regular trade: C = α * ln(Σ_after / Σ_before)
-            if (sumAfter <= sumBefore) {
-                return 0; // No cost if sum doesn't increase
-            }
-            
-            uint256 ratio = sumAfter.wDiv(sumBefore);
-            uint256 lnRatio = ratio.wLn();
-            cost = alpha.wMul(lnRatio);
+        // Ensure tree is properly initialized
+        require(sumBefore > 0, "Tree not initialized");
+        
+        uint256 sumAfter = sumBefore - affectedSum + affectedSum.wMul(factor);
+        // Regular trade: C = α * ln(Σ_after / Σ_before)
+        if (sumAfter <= sumBefore) {
+            return 0; // No cost if sum doesn't increase
         }
+        
+        uint256 ratio = sumAfter.wDiv(sumBefore);
+        uint256 lnRatio = ratio.wLn();
+        cost = alpha.wMul(lnRatio);
     }
     
     /// @notice Calculate cost of adjusting position
@@ -724,20 +725,21 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         
         if (quantityDelta > 0) {
             // Buying more - calculate additional cost
+            uint256 deltaWad = uint256(uint128(quantityDelta)).toWad();
             cost = _calculateTradeCostInternal(
                 position.marketId,
                 position.lowerTick,
                 position.upperTick,
-                uint128(quantityDelta)
+                deltaWad
             );
         } else {
             // Selling - calculate proceeds (negative cost)
-            uint128 sellQuantity = uint128(-quantityDelta);
+            uint256 sellQuantityWad = uint256(uint128(-quantityDelta)).toWad();
             cost = _calculateSellProceeds(
                 position.marketId,
                 position.lowerTick,
                 position.upperTick,
-                sellQuantity
+                sellQuantityWad
             );
         }
     }
@@ -749,12 +751,12 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         uint256 marketId,
         uint32 lowerTick,
         uint32 upperTick,
-        uint128 quantity
+        uint256 quantity
     ) internal view returns (uint256 proceeds) {
         Market memory market = markets[marketId];
-        uint256 totalQuantity = uint256(quantity);
+        uint256 totalQuantity = quantity;
         uint256 alpha = market.liquidityParameter;
-        uint256 maxSafeQuantityPerChunk = alpha.wMul(LN_1_25_WAD); // ln(1.25) exact value in WAD
+        uint256 maxSafeQuantityPerChunk = alpha.wMul(EXP_MAX_INPUT_WAD); // Fixed safe chunk size
         
         if (totalQuantity <= maxSafeQuantityPerChunk) {
             // Safe to calculate in single operation
@@ -764,10 +766,8 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             uint256 sumBefore = LazyMulSegmentTree.getTotalSum(marketTrees[marketId]);
             uint256 affectedSum = LazyMulSegmentTree.query(marketTrees[marketId], lowerTick, upperTick);
             
-            // Handle edge case when sumBefore = 0 (shouldn't happen in normal flow)
-            if (sumBefore == 0) {
-                return 0; // No proceeds if starting from empty pool
-            }
+            // Ensure tree is properly initialized
+            require(sumBefore > 0, "Tree not initialized");
             
             // Chunk-split with cumulative state tracking
             uint256 totalProceeds = 0;
@@ -832,10 +832,8 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         // Safety check: ensure sumAfter > 0 to prevent division by zero
         require(sumAfter > 0, "Empty pool after sell");
         
-        // Handle edge case when sumBefore = 0 (shouldn't happen in normal flow)
-        if (sumBefore == 0) {
-            return 0; // No proceeds if starting from empty pool
-        }
+        // Ensure tree is properly initialized
+        require(sumBefore > 0, "Tree not initialized");
         
         // CLMSR proceeds formula: α * ln(sumBefore / sumAfter)
         if (sumBefore <= sumAfter) {
@@ -851,11 +849,13 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     function _calculateCloseProceeds(uint256 positionId) internal view returns (uint256 proceeds) {
         ICLMSRPosition.Position memory position = positionContract.getPosition(positionId);
         
+        // Convert position quantity to WAD for internal calculation
+        uint256 quantityWad = uint256(position.quantity).toWad();
         proceeds = _calculateSellProceeds(
             position.marketId,
             position.lowerTick,
             position.upperTick,
-            position.quantity
+            quantityWad
         );
     }
     
@@ -885,12 +885,12 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         uint256 marketId,
         uint32 lowerTick,
         uint32 upperTick,
-        uint128 quantity
+        uint256 quantity
     ) internal {
         Market memory market = markets[marketId];
         
         // Apply trade using chunk-split to handle large factors
-        _applyFactorWithChunkSplit(marketId, lowerTick, upperTick, uint256(quantity), market.liquidityParameter, true);
+        _applyFactorWithChunkSplit(marketId, lowerTick, upperTick, quantity, market.liquidityParameter, true);
     }
     
     /// @notice Update market state for a sell
@@ -899,12 +899,12 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         uint256 marketId,
         uint32 lowerTick,
         uint32 upperTick,
-        uint128 quantity
+        uint256 quantity
     ) internal {
         Market memory market = markets[marketId];
         
         // Apply sell using chunk-split to handle large factors (inverse)
-        _applyFactorWithChunkSplit(marketId, lowerTick, upperTick, uint256(quantity), market.liquidityParameter, false);
+        _applyFactorWithChunkSplit(marketId, lowerTick, upperTick, quantity, market.liquidityParameter, false);
     }
     
     /// @notice Apply factor with chunk-split to handle large exponential values
@@ -923,10 +923,10 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         uint256 alpha,
         bool isBuy
     ) internal {
-        // Maximum safe factor is 1.25 to stay within LazyMulSegmentTree limits
-        // So max safe quantity per chunk is: alpha * ln(1.25) ≈ 0.2231 * alpha
-        // Use accurate ln(1.25) value for safe chunk splitting
-        uint256 maxSafeQuantityPerChunk = alpha.wMul(LN_1_25_WAD); // ln(1.25) exact value in WAD
+        // Use fixed safe chunk size to avoid overflow in chunk calculations
+        // This ensures that quantity/alpha ratios stay within safe bounds
+        // for exponential calculations in PRB-Math
+        uint256 maxSafeQuantityPerChunk = alpha.wMul(EXP_MAX_INPUT_WAD); // Fixed safe chunk size
         
         if (quantity <= maxSafeQuantityPerChunk) {
             // Safe to apply in single operation

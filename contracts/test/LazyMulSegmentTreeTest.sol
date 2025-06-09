@@ -11,6 +11,13 @@ contract LazyMulSegmentTreeTest {
 
     LazyMulSegmentTree.Tree private tree;
 
+    // Re-export errors for testing
+    error TreeNotInitialized();
+    error IndexOutOfBounds(uint32 index, uint32 size);
+    error InvalidRange(uint32 lo, uint32 hi);
+    error ZeroFactor();
+    error InvalidFactor(uint256 factor);
+
     // ========================================
     // EVENTS FOR TESTING
     // ========================================
@@ -37,7 +44,9 @@ contract LazyMulSegmentTreeTest {
         emit NodeUpdated(index, value);
     }
     
-
+    function get(uint32 index) external view returns (uint256) {
+        return tree.query(index, index);
+    }
     
     function query(uint32 lo, uint32 hi) external view returns (uint256) {
         return tree.query(lo, hi);

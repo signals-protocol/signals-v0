@@ -87,7 +87,7 @@ library LazyMulSegmentTree {
     /// @notice Initialize a new lazy multiplication segment tree
     /// @param tree Tree storage reference
     /// @param treeSize Number of leaves in the tree
-    function init(Tree storage tree, uint32 treeSize) internal {
+    function init(Tree storage tree, uint32 treeSize) external {
         require(treeSize > 0, "Tree size must be positive");
         require(treeSize <= type(uint32).max / 2, "Tree size too large");
         require(tree.size == 0, "Tree already initialized");
@@ -118,7 +118,7 @@ library LazyMulSegmentTree {
     /// @param tree Tree storage reference
     /// @param index Leaf index (0-based)
     /// @param value New value to set
-    function update(Tree storage tree, uint32 index, uint256 value) internal {
+    function update(Tree storage tree, uint32 index, uint256 value) external {
         if (tree.size == 0) revert TreeNotInitialized();
         if (index >= tree.size) revert IndexOutOfBounds(index, tree.size);
         
@@ -257,7 +257,7 @@ library LazyMulSegmentTree {
     /// @param lo Left boundary (inclusive)
     /// @param hi Right boundary (inclusive)
     /// @param factor Multiplication factor in wad format
-    function mulRange(Tree storage tree, uint32 lo, uint32 hi, uint256 factor) internal {
+    function mulRange(Tree storage tree, uint32 lo, uint32 hi, uint256 factor) external {
         if (tree.size == 0) revert TreeNotInitialized();
         if (lo > hi) revert InvalidRange(lo, hi);
         if (hi >= tree.size) revert IndexOutOfBounds(hi, tree.size);
@@ -329,7 +329,7 @@ library LazyMulSegmentTree {
     /// @param hi Right boundary (inclusive)
     /// @return sum Sum of values in range
     function query(Tree storage tree, uint32 lo, uint32 hi) 
-        internal 
+        external 
         view
         returns (uint256 sum) 
     {
@@ -346,7 +346,7 @@ library LazyMulSegmentTree {
     /// @param hi Right boundary (inclusive)
     /// @return sum Sum of values in range
     function queryWithLazy(Tree storage tree, uint32 lo, uint32 hi) 
-        internal 
+        external 
         returns (uint256 sum) 
     {
         if (tree.size == 0) revert TreeNotInitialized();
@@ -453,7 +453,7 @@ library LazyMulSegmentTree {
     /// @notice Get total sum of all elements (O(1) cached access)
     /// @param tree Tree storage reference
     /// @return sum Total sum
-    function getTotalSum(Tree storage tree) internal view returns (uint256 sum) {
+    function getTotalSum(Tree storage tree) external view returns (uint256 sum) {
         return tree.cachedRootSum;
     }
 
@@ -469,7 +469,7 @@ library LazyMulSegmentTree {
         Tree storage tree,
         uint32[] memory indices,
         uint256[] memory values
-    ) internal {
+    ) external {
         require(indices.length == values.length, "Array length mismatch");
         if (tree.size == 0) revert TreeNotInitialized();
         

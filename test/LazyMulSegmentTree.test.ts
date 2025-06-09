@@ -18,8 +18,31 @@ describe("LazyMulSegmentTree Library - Comprehensive Tests", function () {
   // ========================================
 
   async function deployFixture() {
+    // Deploy FixedPointMathU library first
+    const FixedPointMathU = await ethers.getContractFactory("FixedPointMathU");
+    const fixedPointMathU = await FixedPointMathU.deploy();
+    await fixedPointMathU.waitForDeployment();
+
+    // Deploy LazyMulSegmentTree library with FixedPointMathU linked
+    const LazyMulSegmentTree = await ethers.getContractFactory(
+      "LazyMulSegmentTree",
+      {
+        libraries: {
+          FixedPointMathU: await fixedPointMathU.getAddress(),
+        },
+      }
+    );
+    const lazyMulSegmentTree = await LazyMulSegmentTree.deploy();
+    await lazyMulSegmentTree.waitForDeployment();
+
+    // Deploy test contract with LazyMulSegmentTree library linked
     const LazyMulSegmentTreeTest = await ethers.getContractFactory(
-      "LazyMulSegmentTreeTest"
+      "LazyMulSegmentTreeTest",
+      {
+        libraries: {
+          LazyMulSegmentTree: await lazyMulSegmentTree.getAddress(),
+        },
+      }
     );
     const test = await LazyMulSegmentTreeTest.deploy();
     await test.waitForDeployment();

@@ -9,7 +9,7 @@ const config: HardhatUserConfig = {
       viaIR: true,
       optimizer: {
         enabled: true,
-        runs: 100, // Lower runs for smaller code size
+        runs: 200, // Lower runs for smaller code size
       },
     },
   },

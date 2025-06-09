@@ -26,22 +26,38 @@ error FP_InvalidInput();
 //───────────────────────────────────────────────────────────────────────────────
 library FixedPointMathU {
     uint256 internal constant WAD = 1e18;
+    uint256 internal constant SCALE_DIFF = 1e12;   // 10^(18-6)
+
+    /*────────────────scaling─────────────*/
+    /// @dev 6-decimal → 18-decimal (multiply by 1e12)
+    function toWad(uint256 amt6) internal pure returns (uint256) {
+        unchecked {
+            return amt6 * SCALE_DIFF;   // overflow impossible: amt6 ≤ 2^256-1 / 1e12
+        }
+    }
+
+    /// @dev 18-decimal → 6-decimal (divide by 1e12, truncates decimals)
+    function fromWad(uint256 amtWad) internal pure returns (uint256) {
+        unchecked {
+            return amtWad / SCALE_DIFF;
+        }
+    }
 
     /*────────────────basic───────────────*/
-    function wExp(uint256 x) internal pure returns (uint256) {
+    function wExp(uint256 x) external pure returns (uint256) {
         return unwrap(exp(wrap(x)));
     }
 
-    function wLn(uint256 x) internal pure returns (uint256) {
+    function wLn(uint256 x) external pure returns (uint256) {
         if (x == 0) revert FP_InvalidInput();
         return unwrap(ln(wrap(x)));
     }
 
-    function wMul(uint256 a, uint256 b) internal pure returns (uint256) {
+    function wMul(uint256 a, uint256 b) external pure returns (uint256) {
         return mulDiv(a, b, WAD);
     }
 
-    function wDiv(uint256 a, uint256 b) internal pure returns (uint256) {
+    function wDiv(uint256 a, uint256 b) external pure returns (uint256) {
         if (b == 0) revert FP_DivisionByZero();
         return mulDiv(a, WAD, b);
     }
@@ -51,7 +67,7 @@ library FixedPointMathU {
     }
 
     /*──────────────aggregates────────────*/
-    function sumExp(uint256[] memory v) internal pure returns (uint256 sum) {
+    function sumExp(uint256[] memory v) external pure returns (uint256 sum) {
         uint256 len = v.length;
         if (len == 0) revert FP_EmptyArray();
         unchecked {
@@ -64,7 +80,7 @@ library FixedPointMathU {
         return sum; // Explicit return for clarity
     }
 
-    function logSumExp(uint256[] memory v) internal pure returns (uint256) {
+    function logSumExp(uint256[] memory v) external pure returns (uint256) {
         uint256 len = v.length;
         if (len == 0) revert FP_EmptyArray();
 
@@ -96,7 +112,7 @@ library FixedPointMathU {
     function clmsrPrice(
         uint256 expValue,
         uint256 totalSumExp
-    ) internal pure returns (uint256 price) {
+    ) external pure returns (uint256 price) {
         return mulDiv(expValue, WAD, totalSumExp);
     }
 
@@ -109,7 +125,7 @@ library FixedPointMathU {
         uint256 alpha,
         uint256 sumBefore,
         uint256 sumAfter
-    ) internal pure returns (uint256 cost) {
+    ) external pure returns (uint256 cost) {
         uint256 ratio = mulDiv(sumAfter, WAD, sumBefore);
         if (ratio < WAD) revert FP_InvalidInput(); // ratio < 1 not supported in unsigned version
         uint256 lnRatio = unwrap(ln(wrap(ratio)));

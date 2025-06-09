@@ -52,28 +52,28 @@ interface ICLMSRMarketCore {
         uint256 indexed positionId,
         uint32 lowerTick,
         uint32 upperTick,
-        uint128 quantity,
-        uint256 cost
+        uint128 quantity6,
+        uint256 cost6
     );
 
     event PositionAdjusted(
         uint256 indexed positionId,
         address indexed trader,
-        int128 quantityDelta,
-        uint128 newQuantity,
-        uint256 cost
+        int128 quantityDelta6,
+        uint128 newQuantity6,
+        uint256 costOrProceeds6
     );
 
     event PositionClosed(
         uint256 indexed positionId,
         address indexed trader,
-        uint256 proceeds
+        uint256 proceeds6
     );
 
     event PositionClaimed(
         uint256 indexed positionId,
         address indexed trader,
-        uint256 payout
+        uint256 payout6
     );
 
 
