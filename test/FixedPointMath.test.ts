@@ -1133,4 +1133,162 @@ describe("FixedPointMath Library", function () {
       await expect(test.wDivSigned(int256Min, negativeOne)).to.be.reverted;
     });
   });
+
+  // ========================================
+  // PROPERTY-BASED AND FUZZ TESTS
+  // ========================================
+
+  describe("Property-Based and Fuzz Tests", function () {
+    it("Should test exp(ln(x)) ≈ x property with random values", async function () {
+      const { test } = await loadFixture(deployFixture);
+
+      // Generate 20 random values in safe range for PRB-Math ln
+      const randomValues = [];
+      for (let i = 0; i < 20; i++) {
+        // Generate values between 1 and 1000 WAD (safe for ln)
+        const randomWad = ethers.parseEther(
+          (Math.random() * 999 + 1).toString()
+        );
+        randomValues.push(randomWad);
+      }
+
+      for (const value of randomValues) {
+        const lnResult = await test.wLn(value);
+        const expLnResult = await test.wExp(lnResult);
+
+        // Should recover original value within reasonable tolerance
+        const tolerance = value / 1000000n; // 0.0001% tolerance
+        expect(expLnResult).to.be.closeTo(value, tolerance);
+      }
+    });
+
+    it("Should test multiplication/division inverse property with random values", async function () {
+      const { test } = await loadFixture(deployFixture);
+
+      // Generate 15 random pairs
+      for (let i = 0; i < 15; i++) {
+        const a = ethers.parseEther((Math.random() * 1000 + 0.1).toString());
+        const b = ethers.parseEther((Math.random() * 1000 + 0.1).toString());
+
+        // Test: div(mul(a, b), b) ≈ a
+        const mulResult = await test.wMul(a, b);
+        const divResult = await test.wDiv(mulResult, b);
+
+        const tolerance = a / 1000000n; // 0.0001% tolerance
+        expect(divResult).to.be.closeTo(a, tolerance);
+      }
+    });
+
+    it("Should test CLMSR price normalization with random arrays", async function () {
+      const { test } = await loadFixture(deployFixture);
+
+      // Test 10 random arrays of different sizes
+      for (let arrayTest = 0; arrayTest < 10; arrayTest++) {
+        const arraySize = Math.floor(Math.random() * 20) + 5; // 5-24 elements
+        const expValues = [];
+
+        for (let i = 0; i < arraySize; i++) {
+          // Generate random exp values between 1 and 100 WAD
+          const randomExp = ethers.parseEther(
+            (Math.random() * 99 + 1).toString()
+          );
+          expValues.push(randomExp);
+        }
+
+        const totalSum = expValues.reduce((sum, val) => sum + val, 0n);
+
+        let priceSum = 0n;
+        for (const expValue of expValues) {
+          const price = await test.clmsrPrice(expValue, totalSum);
+          priceSum += price;
+        }
+
+        // Sum should be very close to 1 WAD
+        const tolerance = BigInt(arraySize * 5); // Allow more tolerance for larger arrays
+        expect(priceSum).to.be.closeTo(ethers.parseEther("1"), tolerance);
+      }
+    });
+
+    it("Should test continuous operation chains with random values", async function () {
+      const { test } = await loadFixture(deployFixture);
+
+      // Test 5 chains of 10 operations each
+      for (let chain = 0; chain < 5; chain++) {
+        let value = ethers.parseEther("10"); // Start with 10 WAD
+
+        for (let op = 0; op < 10; op++) {
+          const randomMultiplier = ethers.parseEther(
+            (Math.random() * 2 + 0.5).toString()
+          ); // 0.5-2.5
+
+          // Multiply then divide by same value
+          value = await test.wMul(value, randomMultiplier);
+          value = await test.wDiv(value, randomMultiplier);
+        }
+
+        // After 10 mul/div pairs, should be close to original 10 WAD
+        const tolerance = ethers.parseEther("0.001"); // 0.1% tolerance
+        expect(value).to.be.closeTo(ethers.parseEther("10"), tolerance);
+      }
+    });
+
+    it("Should test extreme boundary values near PRB-Math limits", async function () {
+      const { test } = await loadFixture(deployFixture);
+
+      // Test values near exp() input limit (130 WAD)
+      const nearExpLimit = ethers.parseEther("129.9");
+      const expResult = await test.wExp(nearExpLimit);
+      expect(expResult).to.be.gt(0);
+
+      // Test very large values for multiplication
+      const largeValue = ethers.parseEther("1000000");
+      const smallValue = ethers.parseEther("0.000001");
+      const mulResult = await test.wMul(largeValue, smallValue);
+      expect(mulResult).to.equal(ethers.parseEther("1"));
+
+      // Test values that should cause revert
+      await expect(test.wExp(ethers.parseEther("140"))).to.be.reverted;
+      await expect(test.wLn(ethers.parseEther("0.5"))).to.be.reverted;
+    });
+
+    it("Should test signed operations with extreme values", async function () {
+      const { test } = await loadFixture(deployFixture);
+
+      // Test near signed limits with random operations
+      for (let i = 0; i < 10; i++) {
+        const randomPositive = ethers.parseEther(
+          (Math.random() * 1000 + 1).toString()
+        );
+        const randomNegative = ethers.parseEther(
+          (-Math.random() * 1000 - 1).toString()
+        );
+
+        // Test mixed sign multiplication
+        const mixedResult = await test.wMulSigned(
+          randomPositive,
+          randomNegative
+        );
+        expect(mixedResult).to.be.lt(0);
+
+        // Test division with mixed signs
+        const divResult = await test.wDivSigned(randomNegative, randomPositive);
+        expect(divResult).to.be.lt(0);
+      }
+    });
+
+    it("Should test precision preservation in complex calculations", async function () {
+      const { test } = await loadFixture(deployFixture);
+
+      // Test precision with very small and very large numbers
+      const verySmall = ethers.parseEther("0.000000001"); // 1e-9
+      const veryLarge = ethers.parseEther("1000000000"); // 1e9
+
+      // Test that small * large / large ≈ small
+      const mulResult = await test.wMul(verySmall, veryLarge);
+      const divResult = await test.wDiv(mulResult, veryLarge);
+
+      const tolerance = verySmall / 1000n; // 0.1% tolerance
+      expect(divResult).to.be.closeTo(verySmall, tolerance);
+    });
+  });
 });

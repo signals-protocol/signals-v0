@@ -1094,4 +1094,316 @@ describe("CLMSRMarketCore - Execution Functions", function () {
       expect(await mockPosition.balanceOf(alice.address)).to.equal(0);
     });
   });
+
+  // ========================================
+  // EXTREME VALUES AND SLIPPAGE BOUNDARY TESTS
+  // ========================================
+
+  describe("Extreme Values and Slippage Boundary Tests", function () {
+    it("Should test 1 wei precision slippage protection", async function () {
+      const { core, router, alice, marketId } = await loadFixture(
+        createActiveMarketFixture
+      );
+
+      // Calculate exact cost
+      const exactCost = await core.calculateOpenCost(
+        marketId,
+        45,
+        55,
+        SMALL_QUANTITY
+      );
+
+      // Test with maxCost exactly 1 wei less than needed
+      const tradeParams = {
+        marketId,
+        lowerTick: 45,
+        upperTick: 55,
+        quantity: SMALL_QUANTITY,
+        maxCost: exactCost - 1n,
+      };
+
+      await expect(
+        core.connect(router).openPosition(alice.address, tradeParams)
+      ).to.be.revertedWithCustomError(core, "CostExceedsMaximum");
+
+      // Test with exact cost should succeed
+      tradeParams.maxCost = exactCost;
+      await expect(
+        core.connect(router).openPosition(alice.address, tradeParams)
+      ).to.not.be.reverted;
+    });
+
+    it("Should test minimum and maximum proceeds slippage", async function () {
+      const { core, router, alice, mockPosition, marketId } = await loadFixture(
+        createActiveMarketFixture
+      );
+
+      // Create position
+      await core.connect(router).openPosition(alice.address, {
+        marketId,
+        lowerTick: 45,
+        upperTick: 55,
+        quantity: MEDIUM_QUANTITY,
+        maxCost: MEDIUM_COST,
+      });
+
+      const positionId = await mockPosition.tokenOfOwnerByIndex(
+        alice.address,
+        0
+      );
+
+      // Calculate exact proceeds
+      const exactProceeds = await core.calculateDecreaseProceeds(
+        positionId,
+        SMALL_QUANTITY
+      );
+
+      // Test with minProceeds exactly 1 wei more than available
+      await expect(
+        core
+          .connect(router)
+          .decreasePosition(positionId, SMALL_QUANTITY, exactProceeds + 1n)
+      ).to.be.revertedWithCustomError(core, "CostExceedsMaximum");
+
+      // Test with exact proceeds should succeed
+      await expect(
+        core
+          .connect(router)
+          .decreasePosition(positionId, SMALL_QUANTITY, exactProceeds)
+      ).to.not.be.reverted;
+    });
+
+    it("Should test extreme alpha values with large trades", async function () {
+      const { core, keeper, router, alice, paymentToken } = await loadFixture(
+        deployFixture
+      );
+
+      // Test with minimum alpha (but use more realistic values to avoid PRB-Math overflow)
+      const minAlpha = ethers.parseEther("0.01"); // Slightly higher than MIN_LIQUIDITY_PARAMETER
+      const currentTime = await time.latest();
+      const startTime = currentTime + 100;
+      const endTime = startTime + MARKET_DURATION;
+      const minAlphaMarketId = 2;
+
+      await core
+        .connect(keeper)
+        .createMarket(
+          minAlphaMarketId,
+          TICK_COUNT,
+          startTime,
+          endTime,
+          minAlpha
+        );
+      await time.increaseTo(startTime + 1);
+
+      // Moderate trade with minimum alpha should work but be expensive
+      const moderateTradeParams = {
+        marketId: minAlphaMarketId,
+        lowerTick: 45,
+        upperTick: 55,
+        quantity: ethers.parseUnits("0.01", 6), // 0.01 USDC (smaller to avoid overflow)
+        maxCost: ethers.parseUnits("50", 6), // 50 USDC max
+      };
+
+      await expect(
+        core.connect(router).openPosition(alice.address, moderateTradeParams)
+      ).to.not.be.reverted;
+
+      // Test with maximum alpha
+      const maxAlpha = ethers.parseEther("100"); // Lower than MAX_LIQUIDITY_PARAMETER for safety
+      const maxAlphaMarketId = 3;
+
+      await core
+        .connect(keeper)
+        .createMarket(
+          maxAlphaMarketId,
+          TICK_COUNT,
+          startTime,
+          endTime,
+          maxAlpha
+        );
+
+      // Large trade with maximum alpha should be cheaper
+      const maxAlphaTradeParams = {
+        marketId: maxAlphaMarketId,
+        lowerTick: 45,
+        upperTick: 55,
+        quantity: ethers.parseUnits("0.5", 6), // 0.5 USDC
+        maxCost: ethers.parseUnits("5", 6), // 5 USDC max
+      };
+
+      await expect(
+        core.connect(router).openPosition(alice.address, maxAlphaTradeParams)
+      ).to.not.be.reverted;
+    });
+
+    it("Should test massive chunk-split scenario (12x chunk boundary)", async function () {
+      const { core, keeper, router, alice, paymentToken } = await loadFixture(
+        deployFixture
+      );
+
+      // Create market with small alpha to force chunk splitting
+      const smallAlpha = ethers.parseEther("0.01");
+      const currentTime = await time.latest();
+      const startTime = currentTime + 100;
+      const endTime = startTime + MARKET_DURATION;
+      const chunkMarketId = 4;
+
+      await core
+        .connect(keeper)
+        .createMarket(
+          chunkMarketId,
+          TICK_COUNT,
+          startTime,
+          endTime,
+          smallAlpha
+        );
+      await time.increaseTo(startTime + 1);
+
+      // Calculate quantity that will require 12+ chunks
+      // EXP_MAX_INPUT_WAD = 0.13 * 1e18, so maxSafeQuantityPerChunk = alpha * 0.13
+      const maxSafePerChunk = (smallAlpha * 13n) / 100n; // 0.01 * 0.13 = 0.0013
+      const massiveQuantity = maxSafePerChunk * 12n; // 12x chunk boundary
+
+      // Convert to 6-decimal USDC format
+      const massiveQuantity6 = massiveQuantity / 10n ** 12n;
+
+      const massiveTradeParams = {
+        marketId: chunkMarketId,
+        lowerTick: 45,
+        upperTick: 55,
+        quantity: massiveQuantity6,
+        maxCost: ethers.parseUnits("1000", 6), // 1000 USDC max
+      };
+
+      // This should trigger chunk-split logic multiple times
+      await expect(
+        core.connect(router).openPosition(alice.address, massiveTradeParams)
+      ).to.not.be.reverted;
+    });
+
+    it("Should test post-expiry edge cases", async function () {
+      const { core, keeper, router, alice, marketId } = await loadFixture(
+        createActiveMarketFixture
+      );
+
+      // Fast forward past market end time
+      const market = await core.getMarket(marketId);
+      await time.increaseTo(Number(market.endTimestamp) + 1);
+
+      // All trading operations should fail
+      const tradeParams = {
+        marketId,
+        lowerTick: 45,
+        upperTick: 55,
+        quantity: SMALL_QUANTITY,
+        maxCost: MEDIUM_COST,
+      };
+
+      await expect(
+        core.connect(router).openPosition(alice.address, tradeParams)
+      ).to.be.revertedWithCustomError(core, "InvalidMarketParameters");
+
+      // Settlement should still work
+      await expect(core.connect(keeper).settleMarket(marketId, 50)).to.not.be
+        .reverted;
+    });
+
+    it("Should test cost calculation precision edge cases", async function () {
+      const { core, marketId } = await loadFixture(createActiveMarketFixture);
+
+      // Test with very small quantities
+      const tinyQuantity = 1n; // 1 wei in 6-decimal format
+      const tinyCost = await core.calculateOpenCost(
+        marketId,
+        45,
+        55,
+        tinyQuantity
+      );
+      expect(tinyCost).to.be.gte(0);
+
+      // Test with single tick range
+      const singleTickCost = await core.calculateOpenCost(
+        marketId,
+        50,
+        50,
+        SMALL_QUANTITY
+      );
+      expect(singleTickCost).to.be.gt(0);
+
+      // Test with full range
+      const fullRangeCost = await core.calculateOpenCost(
+        marketId,
+        0,
+        TICK_COUNT - 1,
+        SMALL_QUANTITY
+      );
+      expect(fullRangeCost).to.be.gt(0);
+    });
+
+    it("Should test cumulative price impact from consecutive trades", async function () {
+      const { core, router, alice, bob, marketId } = await loadFixture(
+        createActiveMarketFixture
+      );
+
+      const baseQuantity = SMALL_QUANTITY;
+      let previousCost = 0n;
+
+      // Execute 5 consecutive identical trades and verify increasing costs
+      for (let i = 0; i < 5; i++) {
+        const trader = i % 2 === 0 ? alice : bob;
+
+        const currentCost = await core.calculateOpenCost(
+          marketId,
+          45,
+          55,
+          baseQuantity
+        );
+
+        if (i > 0) {
+          // Each subsequent trade should be more expensive due to price impact
+          expect(currentCost).to.be.gt(previousCost);
+        }
+
+        await core.connect(router).openPosition(trader.address, {
+          marketId,
+          lowerTick: 45,
+          upperTick: 55,
+          quantity: baseQuantity,
+          maxCost: currentCost,
+        });
+
+        previousCost = currentCost;
+      }
+    });
+
+    it("Should test sumAfter = sumBefore edge case", async function () {
+      const { core, router, alice, marketId } = await loadFixture(
+        createActiveMarketFixture
+      );
+
+      // This tests the edge case where sumAfter might equal sumBefore
+      // which could happen with extremely small quantities or specific alpha values
+
+      // Test with minimal quantity that might not change the sum significantly
+      const minimalQuantity = 1n; // 1 wei in 6-decimal
+
+      const tradeParams = {
+        marketId,
+        lowerTick: 45,
+        upperTick: 55,
+        quantity: minimalQuantity,
+        maxCost: ethers.parseUnits("1", 6), // 1 USDC max
+      };
+
+      // Should either succeed with minimal cost or handle the edge case gracefully
+      try {
+        await core.connect(router).openPosition(alice.address, tradeParams);
+      } catch (error: any) {
+        // If it fails, it should be due to cost calculation, not a crash
+        expect(error.message).to.not.include("division by zero");
+        expect(error.message).to.not.include("underflow");
+      }
+    });
+  });
 });

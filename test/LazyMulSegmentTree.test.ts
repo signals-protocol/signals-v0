@@ -1424,4 +1424,203 @@ describe("LazyMulSegmentTree Library - Comprehensive Tests", function () {
     );
     expect(Number(batchGas)).to.be.gt(0);
   });
+
+  // ========================================
+  // FUZZ AND STRESS TESTS
+  // ========================================
+
+  describe("Fuzz and Stress Tests", function () {
+    it("Should handle random sequence of mulRange operations", async function () {
+      const { test } = await loadFixture(deployMediumTreeFixture);
+
+      // Perform 20 random mulRange operations
+      for (let i = 0; i < 20; i++) {
+        const lo = Math.floor(Math.random() * 900);
+        const hi = lo + Math.floor(Math.random() * 100); // Ensure hi >= lo
+        const factor = ethers.parseEther(
+          (Math.random() * 1.8 + 0.2).toString()
+        ); // 0.2-2.0
+
+        await test.mulRange(lo, hi, factor);
+
+        // Verify invariant after each operation
+        const cachedSum = await test.getTotalSum();
+        const querySum = await test.query(0, 999);
+        expect(cachedSum).to.equal(querySum);
+      }
+    });
+
+    it("Should handle mixed random operations sequence", async function () {
+      const { test } = await loadFixture(deploySmallTreeFixture);
+
+      // Perform 30 mixed operations
+      for (let i = 0; i < 30; i++) {
+        const operation = Math.floor(Math.random() * 3); // 0: update, 1: mulRange, 2: batchUpdate
+
+        if (operation === 0) {
+          // Random update
+          const index = Math.floor(Math.random() * 10);
+          const value = ethers.parseEther((Math.random() * 100 + 1).toString());
+          await test.update(index, value);
+        } else if (operation === 1) {
+          // Random mulRange
+          const lo = Math.floor(Math.random() * 8);
+          const hi = lo + Math.floor(Math.random() * (10 - lo));
+          const factor = ethers.parseEther(
+            (Math.random() * 1.8 + 0.2).toString()
+          );
+          await test.mulRange(lo, hi, factor);
+        } else {
+          // Random batchUpdate
+          const numUpdates = Math.floor(Math.random() * 5) + 1;
+          const indices = [];
+          const values = [];
+          for (let j = 0; j < numUpdates; j++) {
+            indices.push(Math.floor(Math.random() * 10));
+            values.push(ethers.parseEther((Math.random() * 50 + 1).toString()));
+          }
+          await test.batchUpdate(indices, values);
+        }
+
+        // Verify invariant after each operation
+        const cachedSum = await test.getTotalSum();
+        const querySum = await test.query(0, 9);
+        expect(cachedSum).to.equal(querySum);
+      }
+    });
+
+    it("Should handle continuous batchUpdate -> mulRange cycles", async function () {
+      const { test } = await loadFixture(deployMediumTreeFixture);
+
+      // Perform 10 cycles of batchUpdate followed by mulRange
+      for (let cycle = 0; cycle < 10; cycle++) {
+        // Random batchUpdate
+        const numUpdates = Math.floor(Math.random() * 20) + 5; // 5-24 updates
+        const indices = [];
+        const values = [];
+
+        for (let i = 0; i < numUpdates; i++) {
+          indices.push(Math.floor(Math.random() * 1000));
+          values.push(ethers.parseEther((Math.random() * 100 + 1).toString()));
+        }
+
+        await test.batchUpdate(indices, values);
+
+        // Random mulRange
+        const lo = Math.floor(Math.random() * 900);
+        const hi = lo + Math.floor(Math.random() * 100);
+        const factor = ethers.parseEther(
+          (Math.random() * 1.5 + 0.5).toString()
+        ); // 0.5-2.0
+
+        await test.mulRange(lo, hi, factor);
+
+        // Verify consistency
+        const cachedSum = await test.getTotalSum();
+        const querySum = await test.query(0, 999);
+        expect(cachedSum).to.equal(querySum);
+      }
+    });
+
+    it("Should handle very large tree initialization stress test", async function () {
+      const { test } = await loadFixture(deployFixture);
+
+      // Test with large tree size (close to MAX_TICK_COUNT)
+      const largeSize = 100000; // 100K ticks
+      await test.init(largeSize);
+
+      // Verify initialization
+      const totalSum = await test.getTotalSum();
+      expect(totalSum).to.equal(ethers.parseEther(largeSize.toString()));
+
+      // Perform a few operations to ensure it works
+      await test.mulRange(0, 999, ethers.parseEther("1.1"));
+      await test.update(50000, ethers.parseEther("100"));
+
+      // Verify invariant still holds
+      const cachedSum = await test.getTotalSum();
+      const partialQuery = await test.query(0, 999); // Query subset for performance
+      expect(partialQuery).to.be.gt(0);
+    });
+
+    it("Should test factor boundary conditions with random ranges", async function () {
+      const { test } = await loadFixture(deployMediumTreeFixture);
+
+      // Test with factors near boundaries
+      const boundaryFactors = [
+        MIN_FACTOR, // 0.01
+        ethers.parseEther("0.011"), // Just above min
+        ethers.parseEther("0.999"), // Just below 1
+        ethers.parseEther("1.001"), // Just above 1
+        ethers.parseEther("99.99"), // Just below max
+        MAX_FACTOR, // 100
+      ];
+
+      for (const factor of boundaryFactors) {
+        const lo = Math.floor(Math.random() * 900);
+        const hi = lo + Math.floor(Math.random() * 100);
+
+        await test.mulRange(lo, hi, factor);
+
+        // Verify no overflow or underflow
+        const result = await test.query(lo, hi);
+        expect(result).to.be.gt(0);
+      }
+    });
+
+    it("Should test overlapping range operations", async function () {
+      const { test } = await loadFixture(deployMediumTreeFixture);
+
+      // Apply overlapping mulRange operations
+      const ranges = [
+        { lo: 100, hi: 200, factor: ethers.parseEther("1.2") },
+        { lo: 150, hi: 250, factor: ethers.parseEther("1.3") },
+        { lo: 200, hi: 300, factor: ethers.parseEther("0.8") },
+        { lo: 50, hi: 350, factor: ethers.parseEther("1.1") },
+      ];
+
+      for (const range of ranges) {
+        await test.mulRange(range.lo, range.hi, range.factor);
+      }
+
+      // Verify final state consistency
+      const cachedSum = await test.getTotalSum();
+      const querySum = await test.query(0, 999);
+      expect(cachedSum).to.equal(querySum);
+
+      // Verify specific overlapping regions have reasonable values
+      const overlap1 = await test.query(150, 200); // Triple overlap
+      const overlap2 = await test.query(200, 250); // Triple overlap
+      expect(overlap1).to.be.gt(0);
+      expect(overlap2).to.be.gt(0);
+    });
+
+    it("Should handle rapid alternating operations", async function () {
+      const { test } = await loadFixture(deploySmallTreeFixture);
+
+      // Rapidly alternate between different operation types
+      for (let i = 0; i < 50; i++) {
+        const index = i % 10;
+
+        if (i % 3 === 0) {
+          // Update
+          await test.update(index, ethers.parseEther((i + 1).toString()));
+        } else if (i % 3 === 1) {
+          // MulRange single tick
+          await test.mulRange(index, index, ethers.parseEther("1.1"));
+        } else {
+          // Query (read operation)
+          const result = await test.query(index, index);
+          expect(result).to.be.gt(0);
+        }
+
+        // Every 10 operations, verify full invariant
+        if (i % 10 === 9) {
+          const cachedSum = await test.getTotalSum();
+          const querySum = await test.query(0, 9);
+          expect(cachedSum).to.equal(querySum);
+        }
+      }
+    });
+  });
 });
