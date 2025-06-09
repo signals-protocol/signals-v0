@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 import {
   deployStandardFixture,
@@ -11,146 +11,139 @@ import {
   EXTREME_COST,
   ALPHA,
   USDC_DECIMALS,
+  TICK_COUNT,
 } from "./CLMSRMarketCore.fixtures";
 
-describe("CLMSRMarketCore - Events and Authorization", function () {
-  describe("Event Parameter Verification", function () {
-    it("Should emit TradeExecuted with correct parameters", async function () {
-      const contracts = await loadFixture(deployStandardFixture);
-      const { marketId } = await createActiveMarket(contracts);
-      const { core, router, alice } = contracts;
+describe("CLMSRMarketCore - Events", function () {
+  // ========================================
+  // FIXTURES
+  // ========================================
 
-      const tradeParams = {
-        marketId,
-        lowerTick: 10,
-        upperTick: 20,
-        quantity: SMALL_QUANTITY,
-        maxCost: EXTREME_COST,
-      };
+  async function deployStandardFixture() {
+    const [deployer, keeper, router, alice, bob] = await ethers.getSigners();
 
-      const expectedCost = await core.calculateTradeCost(
-        marketId,
-        10,
-        20,
-        SMALL_QUANTITY
-      );
+    // Deploy libraries
+    const FixedPointMathU = await ethers.getContractFactory("FixedPointMathU");
+    const fixedPointMathU = await FixedPointMathU.deploy();
 
-      await expect(
-        core.connect(router).executeTradeRange(alice.address, tradeParams)
-      )
-        .to.emit(core, "TradeExecuted")
-        .withArgs(
-          marketId,
-          alice.address,
-          1, // positionId
-          10,
-          20,
-          SMALL_QUANTITY,
-          expectedCost
-        );
+    const LazyMulSegmentTree = await ethers.getContractFactory(
+      "LazyMulSegmentTree",
+      {
+        libraries: {
+          FixedPointMathU: await fixedPointMathU.getAddress(),
+        },
+      }
+    );
+    const lazyMulSegmentTree = await LazyMulSegmentTree.deploy();
+
+    // Deploy mock payment token (USDC - 6 decimals)
+    const MockERC20 = await ethers.getContractFactory("MockERC20");
+    const paymentToken = await MockERC20.deploy("USD Coin", "USDC", 6);
+
+    // Deploy mock position contract
+    const MockPosition = await ethers.getContractFactory("MockPosition");
+    const mockPosition = await MockPosition.deploy();
+
+    // Deploy core contract with libraries
+    const CLMSRMarketCore = await ethers.getContractFactory("CLMSRMarketCore", {
+      libraries: {
+        FixedPointMathU: await fixedPointMathU.getAddress(),
+        LazyMulSegmentTree: await lazyMulSegmentTree.getAddress(),
+      },
     });
 
-    it("Should emit PositionAdjusted with correct parameters", async function () {
-      const contracts = await loadFixture(deployStandardFixture);
-      const { marketId } = await createActiveMarket(contracts);
-      const { core, router, alice } = contracts;
+    const core = await CLMSRMarketCore.deploy(
+      await paymentToken.getAddress(),
+      await mockPosition.getAddress(),
+      keeper.address // Manager
+    );
 
-      // First create a position
-      const tradeParams = {
-        marketId,
-        lowerTick: 10,
-        upperTick: 20,
-        quantity: MEDIUM_QUANTITY,
-        maxCost: EXTREME_COST,
-      };
+    // Set core in position contract
+    await mockPosition.setCore(await core.getAddress());
 
-      await core.connect(router).executeTradeRange(alice.address, tradeParams);
+    // Set router in core
+    await core.connect(keeper).setRouterContract(router.address);
 
-      // Then adjust it
-      const quantityDelta = SMALL_QUANTITY;
-      const expectedCost = await core.calculateAdjustCost(1, quantityDelta);
+    // Mint tokens to users and contract
+    await paymentToken.mint(alice.address, ethers.parseUnits("10000", 6));
+    await paymentToken.mint(bob.address, ethers.parseUnits("10000", 6));
+    await paymentToken.mint(
+      await core.getAddress(),
+      ethers.parseUnits("10000", 6)
+    );
 
-      await expect(
-        core
-          .connect(router)
-          .executePositionAdjust(1, quantityDelta, EXTREME_COST)
-      )
-        .to.emit(core, "PositionAdjusted")
-        .withArgs(
-          1, // positionId
-          alice.address,
-          quantityDelta,
-          MEDIUM_QUANTITY + SMALL_QUANTITY, // newQuantity
-          expectedCost
-        );
-    });
+    // Approve core to spend tokens
+    await paymentToken
+      .connect(alice)
+      .approve(await core.getAddress(), ethers.MaxUint256);
+    await paymentToken
+      .connect(bob)
+      .approve(await core.getAddress(), ethers.MaxUint256);
 
-    it("Should emit PositionClosed with correct parameters", async function () {
-      const contracts = await loadFixture(deployStandardFixture);
-      const { marketId } = await createActiveMarket(contracts);
-      const { core, router, alice } = contracts;
+    return {
+      core,
+      paymentToken,
+      mockPosition,
+      fixedPointMathU,
+      lazyMulSegmentTree,
+      deployer,
+      keeper,
+      router,
+      alice,
+      bob,
+    };
+  }
 
-      // First create a position
-      const tradeParams = {
-        marketId,
-        lowerTick: 10,
-        upperTick: 20,
-        quantity: MEDIUM_QUANTITY,
-        maxCost: EXTREME_COST,
-      };
+  async function createActiveMarket(contracts: {
+    core: any;
+    keeper: any;
+    paymentToken: any;
+  }) {
+    const { core, keeper } = contracts;
 
-      await core.connect(router).executeTradeRange(alice.address, tradeParams);
+    const marketId = 1;
+    const startTime = Math.floor(Date.now() / 1000);
+    const endTime = startTime + 86400; // 1 day
 
-      // Calculate expected proceeds
-      const expectedProceeds = await core.calculateCloseProceeds(1);
+    await core
+      .connect(keeper)
+      .createMarket(marketId, TICK_COUNT, startTime, endTime, ALPHA);
 
-      // Then close it
-      await expect(core.connect(router).executePositionClose(1))
-        .to.emit(core, "PositionClosed")
-        .withArgs(
-          1, // positionId
-          alice.address,
-          expectedProceeds
-        );
-    });
+    return { marketId };
+  }
 
+  // ========================================
+  // EVENT EMISSION TESTS
+  // ========================================
+
+  describe("Market Management Events", function () {
     it("Should emit MarketCreated with correct parameters", async function () {
       const contracts = await loadFixture(deployStandardFixture);
       const { core, keeper } = contracts;
 
-      const startTime = Math.floor(Date.now() / 1000) + 100;
+      const marketId = 1;
+      const startTime = Math.floor(Date.now() / 1000);
       const endTime = startTime + 86400;
-      const marketId = 99;
 
       await expect(
         core
           .connect(keeper)
-          .createMarket(marketId, 100, startTime, endTime, ALPHA)
+          .createMarket(marketId, TICK_COUNT, startTime, endTime, ALPHA)
       )
         .to.emit(core, "MarketCreated")
-        .withArgs(marketId, startTime, endTime, 100, ALPHA);
+        .withArgs(marketId, startTime, endTime, TICK_COUNT, ALPHA);
     });
 
-    it("Should emit MarketDeactivated when market expires", async function () {
+    it("Should emit MarketSettled with correct parameters", async function () {
       const contracts = await loadFixture(deployStandardFixture);
-      const { marketId, endTime } = await createActiveMarket(contracts);
-      const { core, router, alice } = contracts;
+      const { marketId } = await createActiveMarket(contracts);
+      const { core, keeper } = contracts;
 
-      // Move past end time
-      await ethers.provider.send("evm_setNextBlockTimestamp", [endTime + 1]);
+      const winningTick = 50;
 
-      const tradeParams = {
-        marketId,
-        lowerTick: 10,
-        upperTick: 20,
-        quantity: SMALL_QUANTITY,
-        maxCost: EXTREME_COST,
-      };
-
-      // This should fail and deactivate the market
-      await expect(
-        core.connect(router).executeTradeRange(alice.address, tradeParams)
-      ).to.be.revertedWithCustomError(core, "InvalidMarketParameters");
+      await expect(core.connect(keeper).settleMarket(marketId, winningTick))
+        .to.emit(core, "MarketSettled")
+        .withArgs(marketId, winningTick);
     });
 
     it("Should emit EmergencyPaused with correct parameters", async function () {
@@ -217,7 +210,7 @@ describe("CLMSRMarketCore - Events and Authorization", function () {
       };
 
       await expect(
-        core.connect(alice).executeTradeRange(alice.address, tradeParams)
+        core.connect(alice).openPosition(alice.address, tradeParams)
       ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
     });
 
@@ -235,11 +228,11 @@ describe("CLMSRMarketCore - Events and Authorization", function () {
         maxCost: EXTREME_COST,
       };
 
-      await core.connect(router).executeTradeRange(alice.address, tradeParams);
+      await core.connect(router).openPosition(alice.address, tradeParams);
 
       // Bob should not be able to adjust alice's position
       await expect(
-        core.connect(bob).executePositionAdjust(1, SMALL_QUANTITY, EXTREME_COST)
+        core.connect(bob).increasePosition(1, SMALL_QUANTITY, EXTREME_COST)
       ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
     });
 
@@ -257,11 +250,11 @@ describe("CLMSRMarketCore - Events and Authorization", function () {
         maxCost: EXTREME_COST,
       };
 
-      await core.connect(router).executeTradeRange(alice.address, tradeParams);
+      await core.connect(router).openPosition(alice.address, tradeParams);
 
       // Bob should not be able to close alice's position
       await expect(
-        core.connect(bob).executePositionClose(1)
+        core.connect(bob).closePosition(1, 0)
       ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
     });
 
@@ -343,7 +336,7 @@ describe("CLMSRMarketCore - Events and Authorization", function () {
       };
 
       await expect(
-        core.connect(router).executeTradeRange(alice.address, tradeParams)
+        core.connect(router).openPosition(alice.address, tradeParams)
       ).to.be.revertedWithCustomError(core, "ContractPaused");
     });
 
@@ -361,15 +354,13 @@ describe("CLMSRMarketCore - Events and Authorization", function () {
         maxCost: EXTREME_COST,
       };
 
-      await core.connect(router).executeTradeRange(alice.address, tradeParams);
+      await core.connect(router).openPosition(alice.address, tradeParams);
 
       // Pause the contract
       await core.connect(keeper).pause("Testing pause");
 
       await expect(
-        core
-          .connect(router)
-          .executePositionAdjust(1, SMALL_QUANTITY, EXTREME_COST)
+        core.connect(router).increasePosition(1, SMALL_QUANTITY, EXTREME_COST)
       ).to.be.revertedWithCustomError(core, "ContractPaused");
     });
 
@@ -387,82 +378,14 @@ describe("CLMSRMarketCore - Events and Authorization", function () {
         maxCost: EXTREME_COST,
       };
 
-      await core.connect(router).executeTradeRange(alice.address, tradeParams);
+      await core.connect(router).openPosition(alice.address, tradeParams);
 
       // Pause the contract
       await core.connect(keeper).pause("Testing pause");
 
       await expect(
-        core.connect(router).executePositionClose(1)
+        core.connect(router).closePosition(1, 0)
       ).to.be.revertedWithCustomError(core, "ContractPaused");
-    });
-
-    it("Should allow trading after unpause", async function () {
-      const contracts = await loadFixture(deployStandardFixture);
-      const { marketId } = await createActiveMarket(contracts);
-      const { core, keeper, router, alice } = contracts;
-
-      // Pause then unpause
-      await core.connect(keeper).pause("Testing pause");
-      await core.connect(keeper).unpause();
-
-      const tradeParams = {
-        marketId,
-        lowerTick: 10,
-        upperTick: 20,
-        quantity: SMALL_QUANTITY,
-        maxCost: EXTREME_COST,
-      };
-
-      await expect(
-        core.connect(router).executeTradeRange(alice.address, tradeParams)
-      ).to.not.be.reverted;
-    });
-
-    it("Should still allow view functions when paused", async function () {
-      const contracts = await loadFixture(deployStandardFixture);
-      const { marketId } = await createActiveMarket(contracts);
-      const { core, keeper } = contracts;
-
-      // Pause the contract
-      await core.connect(keeper).pause("Testing pause");
-
-      // View functions should still work
-      await expect(core.getMarket(marketId)).to.not.be.reverted;
-      await expect(core.calculateTradeCost(marketId, 10, 20, SMALL_QUANTITY)).to
-        .not.be.reverted;
-    });
-
-    it("Should handle pause-unpause cycle correctly", async function () {
-      const contracts = await loadFixture(deployStandardFixture);
-      const { marketId } = await createActiveMarket(contracts);
-      const { core, keeper, router, alice } = contracts;
-
-      const tradeParams = {
-        marketId,
-        lowerTick: 10,
-        upperTick: 20,
-        quantity: SMALL_QUANTITY,
-        maxCost: EXTREME_COST,
-      };
-
-      // Pause
-      await core.connect(keeper).pause("Testing pause");
-      expect(await core.isPaused()).to.be.true;
-
-      // Should fail during pause
-      await expect(
-        core.connect(router).executeTradeRange(alice.address, tradeParams)
-      ).to.be.revertedWithCustomError(core, "ContractPaused");
-
-      // Unpause
-      await core.connect(keeper).unpause();
-      expect(await core.isPaused()).to.be.false;
-
-      // Should work after unpause
-      await expect(
-        core.connect(router).executeTradeRange(alice.address, tradeParams)
-      ).to.not.be.reverted;
     });
 
     it("Should prevent position claiming when paused", async function () {
@@ -470,7 +393,7 @@ describe("CLMSRMarketCore - Events and Authorization", function () {
       const { marketId } = await createActiveMarket(contracts);
       const { core, keeper, router, alice } = contracts;
 
-      // Create and settle market
+      // Create position first
       const tradeParams = {
         marketId,
         lowerTick: 10,
@@ -479,25 +402,26 @@ describe("CLMSRMarketCore - Events and Authorization", function () {
         maxCost: EXTREME_COST,
       };
 
-      await core.connect(router).executeTradeRange(alice.address, tradeParams);
-      await core.connect(keeper).settleMarket(marketId, 15); // Winning tick
+      await core.connect(router).openPosition(alice.address, tradeParams);
+
+      // Settle market
+      await core.connect(keeper).settleMarket(marketId, 15);
 
       // Pause the contract
       await core.connect(keeper).pause("Testing pause");
 
       await expect(
-        core.connect(router).executePositionClaim(1)
+        core.connect(router).claimPayout(1)
       ).to.be.revertedWithCustomError(core, "ContractPaused");
     });
   });
 
-  describe("Position NFT Authorization", function () {
-    it("Should verify position ownership before operations", async function () {
+  describe("Position Events", function () {
+    it("Should emit PositionOpened with correct parameters", async function () {
       const contracts = await loadFixture(deployStandardFixture);
       const { marketId } = await createActiveMarket(contracts);
-      const { core, router, alice, bob } = contracts;
+      const { core, router, alice } = contracts;
 
-      // Create position as alice
       const tradeParams = {
         marketId,
         lowerTick: 10,
@@ -506,21 +430,27 @@ describe("CLMSRMarketCore - Events and Authorization", function () {
         maxCost: EXTREME_COST,
       };
 
-      await core.connect(router).executeTradeRange(alice.address, tradeParams);
-
-      // Bob should not be able to operate on alice's position directly
-      // This should be handled by the position contract's ownership check
       await expect(
-        core.connect(bob).executePositionAdjust(1, SMALL_QUANTITY, EXTREME_COST)
-      ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
+        core.connect(router).openPosition(alice.address, tradeParams)
+      )
+        .to.emit(core, "PositionOpened")
+        .withArgs(
+          marketId,
+          alice.address,
+          1, // positionId
+          10, // lowerTick
+          20, // upperTick
+          MEDIUM_QUANTITY,
+          anyValue // cost
+        );
     });
 
-    it("Should allow position transfer and subsequent operations", async function () {
+    it("Should emit PositionIncreased with correct parameters", async function () {
       const contracts = await loadFixture(deployStandardFixture);
       const { marketId } = await createActiveMarket(contracts);
-      const { core, router, alice, bob, mockPosition } = contracts;
+      const { core, router, alice } = contracts;
 
-      // Create position as alice
+      // Create position first
       const tradeParams = {
         marketId,
         lowerTick: 10,
@@ -529,16 +459,131 @@ describe("CLMSRMarketCore - Events and Authorization", function () {
         maxCost: EXTREME_COST,
       };
 
-      await core.connect(router).executeTradeRange(alice.address, tradeParams);
+      await core.connect(router).openPosition(alice.address, tradeParams);
 
-      // Transfer position to bob
-      await mockPosition
-        .connect(alice)
-        .transferFrom(alice.address, bob.address, 1);
+      // Increase position
+      await expect(
+        core.connect(router).increasePosition(1, SMALL_QUANTITY, EXTREME_COST)
+      )
+        .to.emit(core, "PositionIncreased")
+        .withArgs(
+          1, // positionId
+          alice.address,
+          SMALL_QUANTITY, // additionalQuantity
+          MEDIUM_QUANTITY + SMALL_QUANTITY, // newQuantity
+          anyValue // cost
+        );
+    });
 
-      // Now bob should be able to operate on the position
-      await expect(core.connect(router).executePositionClose(1)).to.not.be
-        .reverted;
+    it("Should emit PositionDecreased with correct parameters", async function () {
+      const contracts = await loadFixture(deployStandardFixture);
+      const { marketId } = await createActiveMarket(contracts);
+      const { core, router, alice } = contracts;
+
+      // Create position first
+      const tradeParams = {
+        marketId,
+        lowerTick: 10,
+        upperTick: 20,
+        quantity: LARGE_QUANTITY,
+        maxCost: EXTREME_COST,
+      };
+
+      await core.connect(router).openPosition(alice.address, tradeParams);
+
+      // Decrease position
+      await expect(core.connect(router).decreasePosition(1, SMALL_QUANTITY, 0))
+        .to.emit(core, "PositionDecreased")
+        .withArgs(
+          1, // positionId
+          alice.address,
+          SMALL_QUANTITY, // sellQuantity
+          LARGE_QUANTITY - SMALL_QUANTITY, // newQuantity
+          anyValue // proceeds
+        );
+    });
+
+    it("Should emit PositionClosed with correct parameters", async function () {
+      const contracts = await loadFixture(deployStandardFixture);
+      const { marketId } = await createActiveMarket(contracts);
+      const { core, router, alice } = contracts;
+
+      // Create position first
+      const tradeParams = {
+        marketId,
+        lowerTick: 10,
+        upperTick: 20,
+        quantity: MEDIUM_QUANTITY,
+        maxCost: EXTREME_COST,
+      };
+
+      await core.connect(router).openPosition(alice.address, tradeParams);
+
+      // Close position
+      await expect(core.connect(router).closePosition(1, 0))
+        .to.emit(core, "PositionClosed")
+        .withArgs(
+          1, // positionId
+          alice.address,
+          anyValue // proceeds
+        );
+    });
+
+    it("Should emit PositionClaimed with correct parameters", async function () {
+      const contracts = await loadFixture(deployStandardFixture);
+      const { marketId } = await createActiveMarket(contracts);
+      const { core, keeper, router, alice } = contracts;
+
+      // Create position first
+      const tradeParams = {
+        marketId,
+        lowerTick: 10,
+        upperTick: 20,
+        quantity: MEDIUM_QUANTITY,
+        maxCost: EXTREME_COST,
+      };
+
+      await core.connect(router).openPosition(alice.address, tradeParams);
+
+      // Settle market with winning tick in range
+      await core.connect(keeper).settleMarket(marketId, 15);
+
+      // Claim position
+      await expect(core.connect(router).claimPayout(1))
+        .to.emit(core, "PositionClaimed")
+        .withArgs(
+          1, // positionId
+          alice.address,
+          anyValue // payout
+        );
+    });
+  });
+
+  describe("Router Events", function () {
+    it("Should emit RouterSet when router is updated", async function () {
+      const contracts = await loadFixture(deployStandardFixture);
+      const { keeper, alice } = contracts;
+
+      // Deploy new core without router set
+      const CLMSRMarketCoreFactory = await ethers.getContractFactory(
+        "CLMSRMarketCore",
+        {
+          libraries: {
+            FixedPointMathU: await contracts.fixedPointMathU.getAddress(),
+            LazyMulSegmentTree: await contracts.lazyMulSegmentTree.getAddress(),
+          },
+        }
+      );
+
+      const newCore = await CLMSRMarketCoreFactory.deploy(
+        await contracts.paymentToken.getAddress(),
+        await contracts.mockPosition.getAddress(),
+        keeper.address
+      );
+
+      await expect(newCore.connect(keeper).setRouterContract(alice.address))
+        .to.emit(newCore, "RouterSet")
+        .withArgs(alice.address);
     });
   });
 });

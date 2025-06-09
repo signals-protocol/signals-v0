@@ -34,7 +34,7 @@ interface ICLMSRRouter {
     // EVENTS
     // ========================================
     
-    event RouterTradeExecuted(
+    event RouterPositionOpened(
         uint256 indexed marketId,
         address indexed trader,
         uint256 indexed positionId,
@@ -44,11 +44,20 @@ interface ICLMSRRouter {
         uint256 cost
     );
 
-    event RouterPositionAdjusted(
+    event RouterPositionIncreased(
         uint256 indexed positionId,
         address indexed trader,
-        int128 quantityDelta,
+        uint128 additionalQuantity,
+        uint128 newQuantity,
         uint256 cost
+    );
+
+    event RouterPositionDecreased(
+        uint256 indexed positionId,
+        address indexed trader,
+        uint128 sellQuantity,
+        uint128 newQuantity,
+        uint256 proceeds
     );
 
     event RouterPositionClosed(
@@ -83,7 +92,7 @@ interface ICLMSRRouter {
     // USER-FRIENDLY TRADING FUNCTIONS
     // ========================================
     
-    /// @notice Execute a trade with optional permit
+    /// @notice Open a position with optional permit
     /// @dev Handles permit, token transfer, and Core delegation
     /// @param marketId Market identifier
     /// @param lowerTick Lower tick bound (inclusive)
@@ -92,7 +101,7 @@ interface ICLMSRRouter {
     /// @param maxCost Maximum cost willing to pay
     /// @param permitParams Optional permit parameters (deadline=0 to skip)
     /// @return positionId Newly created position ID
-    function tradeWithPermit(
+    function openPositionWithPermit(
         uint256 marketId,
         uint32 lowerTick,
         uint32 upperTick,
@@ -101,14 +110,14 @@ interface ICLMSRRouter {
         PermitParams calldata permitParams
     ) external returns (uint256 positionId);
     
-    /// @notice Execute a trade (requires pre-approval)
+    /// @notice Open a position (requires pre-approval)
     /// @param marketId Market identifier
     /// @param lowerTick Lower tick bound (inclusive)
     /// @param upperTick Upper tick bound (inclusive)
     /// @param quantity Position quantity (always positive)
     /// @param maxCost Maximum cost willing to pay
     /// @return positionId Newly created position ID
-    function trade(
+    function openPosition(
         uint256 marketId,
         uint32 lowerTick,
         uint32 upperTick,
@@ -116,63 +125,97 @@ interface ICLMSRRouter {
         uint256 maxCost
     ) external returns (uint256 positionId);
     
-    /// @notice Adjust existing position quantity
-    /// @param positionId Position to adjust
-    /// @param quantityDelta Change in quantity (positive = buy more, negative = sell some)
-    /// @param maxCost Maximum additional cost for positive delta
-    /// @return success True if adjustment was successful
-    function adjustPosition(
+    /// @notice Increase existing position quantity
+    /// @param positionId Position to increase
+    /// @param additionalQuantity Additional quantity to buy
+    /// @param maxCost Maximum additional cost willing to pay
+    /// @return newQuantity New total quantity after increase
+    function increasePosition(
         uint256 positionId,
-        int128 quantityDelta,
+        uint128 additionalQuantity,
         uint256 maxCost
-    ) external returns (bool success);
+    ) external returns (uint128 newQuantity);
+    
+    /// @notice Decrease existing position quantity
+    /// @param positionId Position to decrease
+    /// @param sellQuantity Quantity to sell
+    /// @param minProceeds Minimum proceeds expected
+    /// @return newQuantity New quantity after decrease
+    /// @return proceeds Actual proceeds received
+    function decreasePosition(
+        uint256 positionId,
+        uint128 sellQuantity,
+        uint256 minProceeds
+    ) external returns (uint128 newQuantity, uint256 proceeds);
     
     /// @notice Close entire position and receive proceeds
     /// @param positionId Position to close
+    /// @param minProceeds Minimum proceeds expected
     /// @return proceeds Amount received from closing position
-    function closePosition(uint256 positionId) 
-        external returns (uint256 proceeds);
+    function closePosition(
+        uint256 positionId,
+        uint256 minProceeds
+    ) external returns (uint256 proceeds);
     
     /// @notice Claim payout from settled market position
     /// @param positionId Position to claim
     /// @return payout Amount claimed
-    function claimPosition(uint256 positionId) 
+    function claimPayout(uint256 positionId) 
         external returns (uint256 payout);
 
     // ========================================
     // CALCULATION FUNCTIONS (Delegated to Core)
     // ========================================
     
-    /// @notice Calculate cost of a new trade
+    /// @notice Calculate cost of opening a new position
     /// @dev Thin wrapper - delegates to Core contract for calculation
     /// @param marketId Market identifier
     /// @param lowerTick Lower tick bound
     /// @param upperTick Upper tick bound
     /// @param quantity Position quantity
     /// @return cost Estimated cost
-    function calculateTradeCost(
+    function calculateOpenCost(
         uint256 marketId,
         uint32 lowerTick,
         uint32 upperTick,
         uint128 quantity
     ) external view returns (uint256 cost);
     
-    /// @notice Calculate cost of adjusting position
+    /// @notice Calculate cost of increasing position
     /// @dev Thin wrapper - delegates to Core contract for calculation
-    /// @param positionId Position to adjust
-    /// @param quantityDelta Change in quantity
-    /// @return cost Estimated cost (0 if selling)
-    function calculateAdjustCost(
+    /// @param positionId Position to increase
+    /// @param additionalQuantity Additional quantity to buy
+    /// @return cost Estimated additional cost
+    function calculateIncreaseCost(
         uint256 positionId,
-        int128 quantityDelta
+        uint128 additionalQuantity
     ) external view returns (uint256 cost);
     
-    /// @notice Get current value of a position
-    /// @dev Calculates current market value using Core data
-    /// @param positionId Position identifier
-    /// @return currentValue Current market value
-    function getPositionValue(uint256 positionId) 
-        external view returns (uint256 currentValue);
+    /// @notice Calculate proceeds from decreasing position
+    /// @dev Thin wrapper - delegates to Core contract for calculation
+    /// @param positionId Position to decrease
+    /// @param sellQuantity Quantity to sell
+    /// @return proceeds Estimated proceeds
+    function calculateDecreaseProceeds(
+        uint256 positionId,
+        uint128 sellQuantity
+    ) external view returns (uint256 proceeds);
+    
+    /// @notice Calculate proceeds from closing entire position
+    /// @dev Thin wrapper - delegates to Core contract for calculation
+    /// @param positionId Position to close
+    /// @return proceeds Estimated proceeds
+    function calculateCloseProceeds(
+        uint256 positionId
+    ) external view returns (uint256 proceeds);
+    
+    /// @notice Calculate claimable amount from settled position
+    /// @dev Thin wrapper - delegates to Core contract for calculation
+    /// @param positionId Position to claim
+    /// @return amount Claimable amount (0 if market not settled)
+    function calculateClaimAmount(
+        uint256 positionId
+    ) external view returns (uint256 amount);
 
     // ========================================
     // USER DATA FUNCTIONS

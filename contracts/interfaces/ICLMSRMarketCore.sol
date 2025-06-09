@@ -46,37 +46,43 @@ interface ICLMSRMarketCore {
         uint32 settlementTick
     );
 
-    event TradeExecuted(
+    event PositionOpened(
         uint256 indexed marketId,
         address indexed trader,
         uint256 indexed positionId,
         uint32 lowerTick,
         uint32 upperTick,
-        uint128 quantity6,
-        uint256 cost6
+        uint128 quantity,
+        uint256 cost
     );
 
-    event PositionAdjusted(
+    event PositionIncreased(
         uint256 indexed positionId,
         address indexed trader,
-        int128 quantityDelta6,
-        uint128 newQuantity6,
-        uint256 costOrProceeds6
+        uint128 additionalQuantity,
+        uint128 newQuantity,
+        uint256 cost
+    );
+
+    event PositionDecreased(
+        uint256 indexed positionId,
+        address indexed trader,
+        uint128 sellQuantity,
+        uint128 newQuantity,
+        uint256 proceeds
     );
 
     event PositionClosed(
         uint256 indexed positionId,
         address indexed trader,
-        uint256 proceeds6
+        uint256 proceeds
     );
 
     event PositionClaimed(
         uint256 indexed positionId,
         address indexed trader,
-        uint256 payout6
+        uint256 payout
     );
-
-
 
     event EmergencyPaused(
         address indexed by,
@@ -141,37 +147,51 @@ interface ICLMSRMarketCore {
     // EXECUTION FUNCTIONS
     // ========================================
     
-    /// @notice Execute a trade to create a new position
+    /// @notice Open a new position by buying a range
     /// @param trader Address of the trader
     /// @param params Trade parameters
     /// @return positionId Newly created position ID
-    function executeTradeRange(
+    function openPosition(
         address trader,
         TradeParams calldata params
     ) external returns (uint256 positionId);
     
-    /// @notice Adjust existing position quantity
-    /// @param positionId Position to adjust
-    /// @param quantityDelta Change in quantity (positive = buy more, negative = sell some)
-    /// @param maxCost Maximum additional cost for positive delta
-    /// @return success True if adjustment was successful
-    function executePositionAdjust(
+    /// @notice Increase existing position quantity (buy more)
+    /// @param positionId Position to increase
+    /// @param additionalQuantity Additional quantity to buy
+    /// @param maxCost Maximum additional cost willing to pay
+    /// @return newQuantity New total quantity after increase
+    function increasePosition(
         uint256 positionId,
-        int128 quantityDelta,
+        uint128 additionalQuantity,
         uint256 maxCost
-    ) external returns (bool success);
+    ) external returns (uint128 newQuantity);
+    
+    /// @notice Decrease existing position quantity (sell some)
+    /// @param positionId Position to decrease
+    /// @param sellQuantity Quantity to sell
+    /// @param minProceeds Minimum proceeds expected
+    /// @return newQuantity New quantity after decrease
+    /// @return proceeds Actual proceeds received
+    function decreasePosition(
+        uint256 positionId,
+        uint128 sellQuantity,
+        uint256 minProceeds
+    ) external returns (uint128 newQuantity, uint256 proceeds);
     
     /// @notice Close entire position and receive proceeds
     /// @param positionId Position to close
+    /// @param minProceeds Minimum proceeds expected
     /// @return proceeds Amount received from closing position
-    function executePositionClose(
-        uint256 positionId
+    function closePosition(
+        uint256 positionId,
+        uint256 minProceeds
     ) external returns (uint256 proceeds);
     
     /// @notice Claim payout from settled market position
     /// @param positionId Position to claim
     /// @return payout Amount claimed
-    function executePositionClaim(
+    function claimPayout(
         uint256 positionId
     ) external returns (uint256 payout);
 
@@ -179,29 +199,38 @@ interface ICLMSRMarketCore {
     // CALCULATION FUNCTIONS
     // ========================================
     
-    /// @notice Calculate cost of a new trade
+    /// @notice Calculate cost of opening a new position
     /// @param marketId Market identifier
     /// @param lowerTick Lower tick bound
     /// @param upperTick Upper tick bound
     /// @param quantity Position quantity
     /// @return cost Estimated cost
-    function calculateTradeCost(
+    function calculateOpenCost(
         uint256 marketId,
         uint32 lowerTick,
         uint32 upperTick,
         uint128 quantity
     ) external view returns (uint256 cost);
     
-    /// @notice Calculate cost of adjusting position
-    /// @param positionId Position to adjust
-    /// @param quantityDelta Change in quantity
-    /// @return cost Estimated cost (0 if selling)
-    function calculateAdjustCost(
+    /// @notice Calculate cost of increasing position
+    /// @param positionId Position to increase
+    /// @param additionalQuantity Additional quantity to buy
+    /// @return cost Estimated additional cost
+    function calculateIncreaseCost(
         uint256 positionId,
-        int128 quantityDelta
+        uint128 additionalQuantity
     ) external view returns (uint256 cost);
     
-    /// @notice Calculate proceeds from closing position
+    /// @notice Calculate proceeds from decreasing position
+    /// @param positionId Position to decrease
+    /// @param sellQuantity Quantity to sell
+    /// @return proceeds Estimated proceeds
+    function calculateDecreaseProceeds(
+        uint256 positionId,
+        uint128 sellQuantity
+    ) external view returns (uint256 proceeds);
+    
+    /// @notice Calculate proceeds from closing entire position
     /// @param positionId Position to close
     /// @return proceeds Estimated proceeds
     function calculateCloseProceeds(

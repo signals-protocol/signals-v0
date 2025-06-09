@@ -350,7 +350,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     // ========================================
     
     /// @inheritdoc ICLMSRMarketCore
-    function executeTradeRange(
+    function openPosition(
         address trader,
         TradeParams calldata params
     ) external override onlyAuthorized whenNotPaused nonReentrant returns (uint256 positionId) {
@@ -411,135 +411,112 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             params.quantity
         );
         
-        emit TradeExecuted(
+        emit PositionOpened(
             params.marketId,
             trader,
             positionId,
             params.lowerTick,
             params.upperTick,
-            params.quantity,  // qty6
-            cost6            // cost6
+            params.quantity,
+            cost6
         );
     }
     
     /// @inheritdoc ICLMSRMarketCore
-    function executePositionAdjust(
+    function increasePosition(
         uint256 positionId,
-        int128 quantityDelta,
+        uint128 additionalQuantity,
         uint256 maxCost
-    ) external override onlyAuthorized whenNotPaused nonReentrant returns (bool success) {
-        // Get position data
+    ) external override onlyAuthorized whenNotPaused nonReentrant returns (uint128 newQuantity) {
+        if (additionalQuantity == 0) {
+            revert InvalidQuantity(additionalQuantity);
+        }
+        
+        // Get position data and validate market
         ICLMSRPosition.Position memory position = positionContract.getPosition(positionId);
         address trader = positionContract.ownerOf(positionId);
+        _validateActiveMarket(position.marketId);
         
-        Market storage market = markets[position.marketId];
-        if (!market.isActive) {
-            revert InvalidMarketParameters("Market not active");
+        // Calculate cost
+        uint256 costWad = _calculateTradeCostInternal(
+            position.marketId,
+            position.lowerTick,
+            position.upperTick,
+            uint256(additionalQuantity).toWad()
+        );
+        uint256 cost6 = costWad.fromWad();
+        
+        if (cost6 > maxCost) {
+            revert CostExceedsMaximum(cost6, maxCost);
         }
         
-        // Validate market timing
-        if (block.timestamp < market.startTimestamp) {
-            revert InvalidMarketParameters("Market not started");
-        }
+        // Transfer payment from trader
+        _pullUSDC(trader, cost6);
         
-        if (block.timestamp > market.endTimestamp) {
-            // Deactivate expired market
-            market.isActive = false;
-            revert InvalidMarketParameters("Market expired");
-        }
-        
-        // Calculate new quantity (Long-Only constraint)
-        uint128 newQuantity;
-        if (quantityDelta >= 0) {
-            newQuantity = position.quantity + uint128(quantityDelta);
-        } else {
-            uint128 deltaAbs = uint128(-quantityDelta);
-            if (deltaAbs > position.quantity) {
-                revert InvalidQuantity(0); // Would go negative
-            }
-            newQuantity = position.quantity - deltaAbs;
-        }
-        
-        // Calculate cost/proceeds and handle transfer
-        uint256 costWad = _calculateAdjustCostInternal(positionId, quantityDelta);
-        uint256 costOrProceeds6 = costWad.fromWad();
-        
-        if (quantityDelta > 0) {
-            // Buying more - check max cost and transfer payment
-            if (costOrProceeds6 > maxCost) {
-                revert CostExceedsMaximum(costOrProceeds6, maxCost);
-            }
-            _pullUSDC(trader, costOrProceeds6);
-            
-            // Update market state (positive quantity)
-            uint256 deltaWad = uint256(uint128(quantityDelta)).toWad();
-            _updateMarketForTrade(position.marketId, position.lowerTick, position.upperTick, deltaWad);
-        } else {
-            // Selling - transfer proceeds to trader
-            _pushUSDC(trader, costOrProceeds6);
-            
-            // Update market state (negative quantity)
-            uint256 sellDeltaWad = uint256(uint128(-quantityDelta)).toWad();
-            _updateMarketForSell(position.marketId, position.lowerTick, position.upperTick, sellDeltaWad);
-        }
+        // Update market state
+        uint256 deltaWad = uint256(additionalQuantity).toWad();
+        _updateMarketForTrade(position.marketId, position.lowerTick, position.upperTick, deltaWad);
         
         // Update position quantity
+        newQuantity = position.quantity + additionalQuantity;
+        positionContract.setPositionQuantity(positionId, newQuantity);
+        
+        emit PositionIncreased(positionId, trader, additionalQuantity, newQuantity, cost6);
+    }
+    
+    /// @inheritdoc ICLMSRMarketCore
+    function decreasePosition(
+        uint256 positionId,
+        uint128 sellQuantity,
+        uint256 minProceeds
+    ) external override onlyAuthorized whenNotPaused nonReentrant returns (uint128 newQuantity, uint256 proceeds) {
+        if (sellQuantity == 0) {
+            revert InvalidQuantity(sellQuantity);
+        }
+        
+        // Get position data and validate market
+        ICLMSRPosition.Position memory position = positionContract.getPosition(positionId);
+        address trader = positionContract.ownerOf(positionId);
+        _validateActiveMarket(position.marketId);
+        
+        if (sellQuantity > position.quantity) {
+            revert InvalidQuantity(sellQuantity);
+        }
+        
+        // Calculate proceeds
+        uint256 proceedsWad = _calculateSellProceeds(
+            position.marketId,
+            position.lowerTick,
+            position.upperTick,
+            uint256(sellQuantity).toWad()
+        );
+        proceeds = proceedsWad.fromWad();
+        
+        if (proceeds < minProceeds) {
+            revert CostExceedsMaximum(minProceeds, proceeds); // Reusing error for slippage
+        }
+        
+        // Update market state
+        uint256 sellDeltaWad = uint256(sellQuantity).toWad();
+        _updateMarketForSell(position.marketId, position.lowerTick, position.upperTick, sellDeltaWad);
+        
+        // Transfer proceeds to trader
+        _pushUSDC(trader, proceeds);
+        
+        // Update position quantity
+        newQuantity = position.quantity - sellQuantity;
         if (newQuantity == 0) {
             // Burn position if quantity becomes zero
-            // Note: Market state update (sell) was already performed above
             positionContract.burnPosition(positionId);
         } else {
             positionContract.setPositionQuantity(positionId, newQuantity);
         }
         
-        // Emit position adjustment event (use 6-decimal cost for event)
-        emit PositionAdjusted(positionId, trader, quantityDelta, newQuantity, costOrProceeds6); // cost6 or proceeds6
-        return true;
+        emit PositionDecreased(positionId, trader, sellQuantity, newQuantity, proceeds);
     }
     
     /// @inheritdoc ICLMSRMarketCore
-    function executePositionClose(
-        uint256 positionId
-    ) external override onlyAuthorized whenNotPaused nonReentrant returns (uint256 proceeds) {
-        // Get position data
-        ICLMSRPosition.Position memory position = positionContract.getPosition(positionId);
-        address trader = positionContract.ownerOf(positionId);
-        
-        Market storage market = markets[position.marketId];
-        if (!market.isActive) {
-            revert InvalidMarketParameters("Market not active");
-        }
-        
-        // Validate market timing
-        if (block.timestamp < market.startTimestamp) {
-            revert InvalidMarketParameters("Market not started");
-        }
-        
-        if (block.timestamp > market.endTimestamp) {
-            // Deactivate expired market
-            market.isActive = false;
-            revert InvalidMarketParameters("Market expired");
-        }
-        
-        // Calculate proceeds and update market state
-        uint256 proceedsWad = _calculateCloseProceeds(positionId);
-        proceeds = proceedsWad.fromWad();
-        
-        // Update market state (selling entire position)
-        uint256 positionQuantityWad = uint256(position.quantity).toWad();
-        _updateMarketForSell(position.marketId, position.lowerTick, position.upperTick, positionQuantityWad);
-        
-        // Transfer proceeds to trader
-        _pushUSDC(trader, proceeds);
-        
-        // Burn position NFT
-        positionContract.burnPosition(positionId);
-        
-        emit PositionClosed(positionId, trader, proceeds); // proceeds6
-    }
-    
-    /// @inheritdoc ICLMSRMarketCore
-    function executePositionClaim(
+    function claimPayout(
         uint256 positionId
     ) external override onlyAuthorized whenNotPaused nonReentrant returns (uint256 payout) {
         // Get position data
@@ -560,7 +537,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         // Burn position NFT (position is claimed)
         positionContract.burnPosition(positionId);
         
-        emit PositionClaimed(positionId, trader, payout); // payout6
+        emit PositionClaimed(positionId, trader, payout);
     }
 
     // ========================================
@@ -568,7 +545,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     // ========================================
     
     /// @inheritdoc ICLMSRMarketCore
-    function calculateTradeCost(
+    function calculateOpenCost(
         uint256 marketId,
         uint32 lowerTick,
         uint32 upperTick,
@@ -582,19 +559,49 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     }
     
     /// @inheritdoc ICLMSRMarketCore
-    function calculateAdjustCost(
+    function calculateIncreaseCost(
         uint256 positionId,
-        int128 quantityDelta
+        uint128 additionalQuantity
     ) external view override returns (uint256 cost) {
-        uint256 costWad = _calculateAdjustCostInternal(positionId, quantityDelta);
+        ICLMSRPosition.Position memory position = positionContract.getPosition(positionId);
+        uint256 quantityWad = uint256(additionalQuantity).toWad();
+        uint256 costWad = _calculateTradeCostInternal(
+            position.marketId,
+            position.lowerTick,
+            position.upperTick,
+            quantityWad
+        );
         return costWad.fromWad();
+    }
+    
+    /// @inheritdoc ICLMSRMarketCore
+    function calculateDecreaseProceeds(
+        uint256 positionId,
+        uint128 sellQuantity
+    ) external view override returns (uint256 proceeds) {
+        ICLMSRPosition.Position memory position = positionContract.getPosition(positionId);
+        uint256 quantityWad = uint256(sellQuantity).toWad();
+        uint256 proceedsWad = _calculateSellProceeds(
+            position.marketId,
+            position.lowerTick,
+            position.upperTick,
+            quantityWad
+        );
+        return proceedsWad.fromWad();
     }
     
     /// @inheritdoc ICLMSRMarketCore
     function calculateCloseProceeds(
         uint256 positionId
     ) external view override returns (uint256 proceeds) {
-        uint256 proceedsWad = _calculateCloseProceeds(positionId);
+        ICLMSRPosition.Position memory position = positionContract.getPosition(positionId);
+        uint256 quantityWad = uint256(position.quantity).toWad();
+        uint256 proceedsWad = _calculateSellProceeds(
+            position.marketId,
+            position.lowerTick,
+            position.upperTick,
+            quantityWad
+        );
         return proceedsWad.fromWad();
     }
     
@@ -716,34 +723,6 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         cost = alpha.wMul(lnRatio);
     }
     
-    /// @notice Calculate cost of adjusting position
-    function _calculateAdjustCostInternal(
-        uint256 positionId,
-        int128 quantityDelta
-    ) internal view returns (uint256 cost) {
-        ICLMSRPosition.Position memory position = positionContract.getPosition(positionId);
-        
-        if (quantityDelta > 0) {
-            // Buying more - calculate additional cost
-            uint256 deltaWad = uint256(uint128(quantityDelta)).toWad();
-            cost = _calculateTradeCostInternal(
-                position.marketId,
-                position.lowerTick,
-                position.upperTick,
-                deltaWad
-            );
-        } else {
-            // Selling - calculate proceeds (negative cost)
-            uint256 sellQuantityWad = uint256(uint128(-quantityDelta)).toWad();
-            cost = _calculateSellProceeds(
-                position.marketId,
-                position.lowerTick,
-                position.upperTick,
-                sellQuantityWad
-            );
-        }
-    }
-    
     /// @notice Calculate proceeds from selling quantity
     /// @dev CLMSR formula with exp(-quantity/α) factor applied to affected ticks
     /// @notice Calculate sell proceeds with safe chunk splitting for large quantities
@@ -843,20 +822,6 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         uint256 ratio = sumBefore.wDiv(sumAfter);
         uint256 lnRatio = ratio.wLn();
         proceeds = alpha.wMul(lnRatio);
-    }
-    
-    /// @notice Calculate proceeds from closing entire position
-    function _calculateCloseProceeds(uint256 positionId) internal view returns (uint256 proceeds) {
-        ICLMSRPosition.Position memory position = positionContract.getPosition(positionId);
-        
-        // Convert position quantity to WAD for internal calculation
-        uint256 quantityWad = uint256(position.quantity).toWad();
-        proceeds = _calculateSellProceeds(
-            position.marketId,
-            position.lowerTick,
-            position.upperTick,
-            quantityWad
-        );
     }
     
     /// @notice Calculate claimable amount from settled position
@@ -967,5 +932,60 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
                 remainingQuantity -= chunkQuantity;
             }
         }
+    }
+
+    /// @notice Internal function to validate market is active and timing is correct
+    function _validateActiveMarket(uint256 marketId) internal {
+        Market storage market = markets[marketId];
+        if (!market.isActive) {
+            revert InvalidMarketParameters("Market not active");
+        }
+        
+        // Validate market timing
+        if (block.timestamp < market.startTimestamp) {
+            revert InvalidMarketParameters("Market not started");
+        }
+        
+        if (block.timestamp > market.endTimestamp) {
+            // Deactivate expired market
+            market.isActive = false;
+            revert InvalidMarketParameters("Market expired");
+        }
+    }
+    
+    /// @inheritdoc ICLMSRMarketCore
+    function closePosition(
+        uint256 positionId,
+        uint256 minProceeds
+    ) external override onlyAuthorized whenNotPaused nonReentrant returns (uint256 proceeds) {
+        // Get position data and validate market
+        ICLMSRPosition.Position memory position = positionContract.getPosition(positionId);
+        address trader = positionContract.ownerOf(positionId);
+        _validateActiveMarket(position.marketId);
+        
+        // Calculate proceeds from closing entire position
+        uint256 proceedsWad = _calculateSellProceeds(
+            position.marketId,
+            position.lowerTick,
+            position.upperTick,
+            uint256(position.quantity).toWad()
+        );
+        proceeds = proceedsWad.fromWad();
+        
+        if (proceeds < minProceeds) {
+            revert CostExceedsMaximum(minProceeds, proceeds); // Reusing error for slippage
+        }
+        
+        // Update market state (selling entire position)
+        uint256 positionQuantityWad = uint256(position.quantity).toWad();
+        _updateMarketForSell(position.marketId, position.lowerTick, position.upperTick, positionQuantityWad);
+        
+        // Transfer proceeds to trader
+        _pushUSDC(trader, proceeds);
+        
+        // Burn position NFT
+        positionContract.burnPosition(positionId);
+        
+        emit PositionClosed(positionId, trader, proceeds);
     }
 } 

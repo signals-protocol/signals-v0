@@ -644,7 +644,7 @@ describe("LazyMulSegmentTree Library - Comprehensive Tests", function () {
   // ========================================
 
   describe("Range Queries", function () {
-    let test: any;
+    let test: any; // TODO: Type this properly when contract types are available
 
     beforeEach(async function () {
       const fixture = await loadFixture(deploySmallTreeFixture);

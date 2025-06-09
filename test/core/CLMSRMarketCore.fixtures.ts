@@ -115,7 +115,10 @@ export async function deployStandardFixture() {
 /**
  * Create an active market with standard parameters
  */
-export async function createActiveMarket(contracts: any, marketId: number = 1) {
+export async function createActiveMarket(
+  contracts: Awaited<ReturnType<typeof deployStandardFixture>>,
+  marketId: number = 1
+) {
   const startTime = await time.latest();
   const endTime = startTime + MARKET_DURATION;
 
@@ -130,7 +133,7 @@ export async function createActiveMarket(contracts: any, marketId: number = 1) {
  * Create a market with extreme parameters for boundary testing
  */
 export async function createExtremeMarket(
-  contracts: any,
+  contracts: Awaited<ReturnType<typeof deployStandardFixture>>,
   marketId: number = 1
 ) {
   const startTime = await time.latest();
