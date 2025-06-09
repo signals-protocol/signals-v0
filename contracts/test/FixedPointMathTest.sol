@@ -59,6 +59,18 @@ contract FixedPointMathTest {
     ) external pure returns (uint256) {
         return FixedPointMathU.clmsrCost(alpha, sumBefore, sumAfter);
     }
+    
+    function testFromWad(uint256 amtWad) external pure returns (uint256) {
+        return FixedPointMathU.fromWad(amtWad);
+    }
+    
+    function testFromWadRoundUp(uint256 amtWad) external pure returns (uint256) {
+        return FixedPointMathU.fromWadRoundUp(amtWad);
+    }
+    
+    function testToWad(uint256 amt6) external pure returns (uint256) {
+        return FixedPointMathU.toWad(amt6);
+    }
 
     // ========================================
     // SIGNED MATH TESTS

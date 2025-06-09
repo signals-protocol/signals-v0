@@ -62,7 +62,8 @@ describe("CLMSRMarketCore - Mathematical Invariants", function () {
       const { marketId } = await createActiveMarket(contracts);
       const { core } = contracts;
 
-      const baseQuantity = SMALL_QUANTITY;
+      // Use larger quantities to avoid round-up effects
+      const baseQuantity = ethers.parseUnits("0.1", USDC_DECIMALS); // 0.1 USDC
       const doubleQuantity = baseQuantity * 2n;
       const tripleQuantity = baseQuantity * 3n;
 
@@ -235,7 +236,8 @@ describe("CLMSRMarketCore - Mathematical Invariants", function () {
       const { marketId } = await createActiveMarket(contracts);
       const { core } = contracts;
 
-      const baseQuantity = SMALL_QUANTITY;
+      // Use larger quantities to avoid round-up effects
+      const baseQuantity = ethers.parseUnits("0.1", USDC_DECIMALS); // 0.1 USDC
       const doubleQuantity = baseQuantity * 2n;
 
       // Calculate costs for different quantities
@@ -254,6 +256,8 @@ describe("CLMSRMarketCore - Mathematical Invariants", function () {
 
       // Price impact should be super-linear due to exponential nature
       const costRatio = (cost2 * 1000n) / cost1; // Multiply by 1000 for precision
+
+      // Price impact should be super-linear due to exponential nature
       expect(costRatio).to.be.gt(2000); // Should be more than 2x
     });
   });

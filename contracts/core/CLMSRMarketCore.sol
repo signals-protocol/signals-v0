@@ -17,6 +17,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     using {
         FixedPointMathU.toWad,
         FixedPointMathU.fromWad,
+        FixedPointMathU.fromWadRoundUp,
         FixedPointMathU.wMul,
         FixedPointMathU.wDiv,
         FixedPointMathU.wExp,
@@ -387,9 +388,9 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             revert InvalidTickRange(params.lowerTick, params.upperTick);
         }
         
-        // Calculate trade cost and convert to 6-decimal
+        // Calculate trade cost and convert to 6-decimal with round-up to prevent zero-cost attacks
         uint256 costWad = _calcCostWad(params.marketId, params.lowerTick, params.upperTick, params.quantity);
-        uint256 cost6 = costWad.fromWad();
+        uint256 cost6 = costWad.fromWadRoundUp();
         
         if (cost6 > params.maxCost) {
             revert CostExceedsMaximum(cost6, params.maxCost);
@@ -437,14 +438,14 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         address trader = positionContract.ownerOf(positionId);
         _validateActiveMarket(position.marketId);
         
-        // Calculate cost
+        // Calculate cost with round-up to prevent zero-cost attacks
         uint256 costWad = _calculateTradeCostInternal(
             position.marketId,
             position.lowerTick,
             position.upperTick,
             uint256(additionalQuantity).toWad()
         );
-        uint256 cost6 = costWad.fromWad();
+        uint256 cost6 = costWad.fromWadRoundUp();
         
         if (cost6 > maxCost) {
             revert CostExceedsMaximum(cost6, maxCost);
@@ -554,8 +555,8 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         // Convert quantity to WAD for internal calculation
         uint256 quantityWad = uint256(quantity).toWad();
         uint256 costWad = _calculateTradeCostInternal(marketId, lowerTick, upperTick, quantityWad);
-        // Convert cost back to 6-decimal for external interface
-        return costWad.fromWad();
+        // Convert cost back to 6-decimal for external interface with round-up
+        return costWad.fromWadRoundUp();
     }
     
     /// @inheritdoc ICLMSRMarketCore
@@ -571,7 +572,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             position.upperTick,
             quantityWad
         );
-        return costWad.fromWad();
+        return costWad.fromWadRoundUp();
     }
     
     /// @inheritdoc ICLMSRMarketCore

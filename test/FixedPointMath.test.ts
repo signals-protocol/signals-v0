@@ -1291,4 +1291,101 @@ describe("FixedPointMath Library", function () {
       expect(divResult).to.be.closeTo(verySmall, tolerance);
     });
   });
+
+  // ========================================
+  // ROUND-UP CONVERSION TESTS
+  // ========================================
+
+  describe("Round-Up Conversion Tests", function () {
+    it("Should round up fromWadRoundUp correctly", async function () {
+      const { test } = await loadFixture(deployFixture);
+
+      // Test cases: [wadValue, expectedRoundedUp]
+      const testCases = [
+        [0n, 0n], // 0 should remain 0
+        [1n, 1n], // 1 wei should round up to 1 micro
+        [1000000000000n - 1n, 1n], // 1e12-1 should round up to 1
+        [1000000000000n, 1n], // 1e12 should be exactly 1
+        [1000000000001n, 2n], // 1e12+1 should round up to 2
+        [2000000000000n, 2n], // 2e12 should be exactly 2
+        [2000000000001n, 3n], // 2e12+1 should round up to 3
+        [ethers.parseEther("1"), 1000000n], // 1 WAD = 1e6 micro
+      ];
+
+      for (const [wadValue, expected] of testCases) {
+        const result = await test.testFromWadRoundUp(wadValue);
+        expect(result).to.equal(expected, `Failed for wadValue: ${wadValue}`);
+      }
+    });
+
+    it("Should compare fromWad vs fromWadRoundUp", async function () {
+      const { test } = await loadFixture(deployFixture);
+
+      // Test values that would be truncated to 0 with fromWad
+      const smallValues = [
+        1n,
+        100n,
+        1000n,
+        10000n,
+        100000n,
+        1000000n,
+        10000000n,
+        100000000n,
+        1000000000n,
+        10000000000n,
+        100000000000n,
+        999999999999n, // 1e12 - 1
+      ];
+
+      for (const wadValue of smallValues) {
+        const normalResult = await test.testFromWad(wadValue);
+        const roundUpResult = await test.testFromWadRoundUp(wadValue);
+
+        // Normal fromWad should be 0 for values < 1e12
+        expect(normalResult).to.equal(0n);
+        // Round-up should be 1 for any non-zero value < 1e12
+        expect(roundUpResult).to.equal(1n);
+      }
+    });
+
+    it("Should handle large values correctly in fromWadRoundUp", async function () {
+      const { test } = await loadFixture(deployFixture);
+
+      const largeValues = [
+        ethers.parseEther("1000"), // 1000 WAD
+        ethers.parseEther("1000000"), // 1M WAD
+        ethers.parseEther("1000000000"), // 1B WAD
+      ];
+
+      for (const wadValue of largeValues) {
+        const normalResult = await test.testFromWad(wadValue);
+        const roundUpResult = await test.testFromWadRoundUp(wadValue);
+
+        // For large values, both should give the same result
+        expect(roundUpResult).to.equal(normalResult);
+      }
+    });
+
+    it("Should prevent zero-cost attack scenario", async function () {
+      const { test } = await loadFixture(deployFixture);
+
+      // Simulate a scenario where CLMSR cost calculation results in very small WAD value
+      const tinyWadValues = [
+        1n, // 1 wei
+        10n, // 10 wei
+        100n, // 100 wei
+        1000n, // 1000 wei
+        500000000000n, // 0.5 * 1e12 (half micro)
+        999999999999n, // 1e12 - 1 (just under 1 micro)
+      ];
+
+      for (const wadValue of tinyWadValues) {
+        const cost = await test.testFromWadRoundUp(wadValue);
+
+        // All tiny values should result in at least 1 micro USDC cost
+        expect(cost).to.be.at.least(1n);
+        expect(cost).to.equal(1n); // Should be exactly 1 for values < 1e12
+      }
+    });
+  });
 });

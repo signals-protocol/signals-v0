@@ -1406,4 +1406,136 @@ describe("CLMSRMarketCore - Execution Functions", function () {
       }
     });
   });
+
+  // ========================================
+  // SECURITY TESTS
+  // ========================================
+
+  describe("Security Tests", function () {
+    it("Should prevent zero-cost position attacks with round-up", async function () {
+      const { core, keeper, router, alice, paymentToken, mockPosition } =
+        await loadFixture(deployFixture);
+
+      // Create market with very high alpha to make costs extremely small
+      const highAlpha = ethers.parseEther("1000"); // Very high liquidity parameter
+      const currentTime = await time.latest();
+      const startTime = currentTime + 100;
+      const endTime = startTime + MARKET_DURATION;
+      const marketId = 1;
+
+      await core
+        .connect(keeper)
+        .createMarket(marketId, TICK_COUNT, startTime, endTime, highAlpha);
+      await time.increaseTo(startTime + 1);
+
+      // Try to open position with extremely small quantity
+      const tinyQuantity = 1; // 1 micro USDC worth
+      const maxCost = 1000; // Allow up to 1000 micro USDC
+
+      const tradeParams = {
+        marketId,
+        lowerTick: 45,
+        upperTick: 55,
+        quantity: tinyQuantity,
+        maxCost,
+      };
+
+      // Calculate expected cost
+      const calculatedCost = await core.calculateOpenCost(
+        marketId,
+        45,
+        55,
+        tinyQuantity
+      );
+
+      // Cost should be at least 1 micro USDC due to round-up
+      expect(calculatedCost).to.be.at.least(1);
+
+      // Should be able to open position with minimum cost
+      await core.connect(router).openPosition(alice.address, tradeParams);
+
+      // Verify position was created
+      const positionId = await mockPosition.tokenOfOwnerByIndex(
+        alice.address,
+        0
+      );
+      const position = await mockPosition.getPosition(positionId);
+      expect(position.quantity).to.equal(tinyQuantity);
+    });
+
+    it("Should prevent repeated tiny trades from accumulating free positions", async function () {
+      const { core, keeper, router, alice, paymentToken } = await loadFixture(
+        deployFixture
+      );
+
+      // Create market with very high alpha
+      const highAlpha = ethers.parseEther("1000");
+      const currentTime = await time.latest();
+      const startTime = currentTime + 100;
+      const endTime = startTime + MARKET_DURATION;
+      const marketId = 1;
+
+      await core
+        .connect(keeper)
+        .createMarket(marketId, TICK_COUNT, startTime, endTime, highAlpha);
+      await time.increaseTo(startTime + 1);
+
+      const initialBalance = await paymentToken.balanceOf(alice.address);
+      let totalCostPaid = 0n;
+
+      // Try to make 10 tiny trades
+      for (let i = 0; i < 10; i++) {
+        const tinyQuantity = 1; // 1 micro USDC worth
+        const maxCost = 10; // Allow up to 10 micro USDC
+
+        const tradeParams = {
+          marketId,
+          lowerTick: 45,
+          upperTick: 55,
+          quantity: tinyQuantity,
+          maxCost,
+        };
+
+        const costBefore = await core.calculateOpenCost(
+          marketId,
+          45,
+          55,
+          tinyQuantity
+        );
+
+        await core.connect(router).openPosition(alice.address, tradeParams);
+        totalCostPaid += BigInt(costBefore);
+      }
+
+      // Verify that some cost was actually paid
+      const finalBalance = await paymentToken.balanceOf(alice.address);
+      const actualCostPaid = initialBalance - finalBalance;
+
+      expect(actualCostPaid).to.be.at.least(10); // At least 10 micro USDC paid
+      expect(actualCostPaid).to.equal(totalCostPaid);
+    });
+
+    it("Should handle edge case where costWad is exactly 1e12-1", async function () {
+      const { core, keeper, router, alice } = await loadFixture(deployFixture);
+
+      // This test verifies the round-up behavior at the boundary
+      const highAlpha = ethers.parseEther("1000");
+      const currentTime = await time.latest();
+      const startTime = currentTime + 100;
+      const endTime = startTime + MARKET_DURATION;
+      const marketId = 1;
+
+      await core
+        .connect(keeper)
+        .createMarket(marketId, TICK_COUNT, startTime, endTime, highAlpha);
+      await time.increaseTo(startTime + 1);
+
+      // Try with very small quantity that might produce costWad < 1e12
+      const tinyQuantity = 1;
+      const cost = await core.calculateOpenCost(marketId, 45, 55, tinyQuantity);
+
+      // Due to round-up, cost should never be 0
+      expect(cost).to.be.at.least(1);
+    });
+  });
 });

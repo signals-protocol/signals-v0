@@ -43,6 +43,14 @@ library FixedPointMathU {
         }
     }
 
+    /// @dev 18-decimal → 6-decimal with round-up (prevents zero-cost attacks)
+    /// @notice Always rounds up to ensure minimum 1 micro unit cost
+    function fromWadRoundUp(uint256 amtWad) internal pure returns (uint256) {
+        unchecked {
+            return (amtWad + SCALE_DIFF - 1) / SCALE_DIFF;
+        }
+    }
+
     /*────────────────basic───────────────*/
     function wExp(uint256 x) external pure returns (uint256) {
         return unwrap(exp(wrap(x)));
