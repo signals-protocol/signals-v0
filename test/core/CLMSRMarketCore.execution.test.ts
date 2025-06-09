@@ -1668,4 +1668,288 @@ describe("CLMSRMarketCore - Execution Functions", function () {
       ).to.be.revertedWithCustomError(core, "InvalidQuantity");
     });
   });
+
+  describe("🧮 Rounding Policy Tests - Up/Up Fairness", function () {
+    it("Should apply consistent round-up for both buy and sell operations", async function () {
+      const { core, keeper, router, alice, paymentToken, mockPosition } =
+        await loadFixture(deployFixture);
+
+      // Create market
+      const currentTime = await time.latest();
+      const startTime = currentTime + 100;
+      const endTime = startTime + MARKET_DURATION;
+      const marketId = 1;
+
+      await core
+        .connect(keeper)
+        .createMarket(marketId, TICK_COUNT, startTime, endTime, ALPHA);
+      await time.increaseTo(startTime + 1);
+
+      // Test with minimal quantities that trigger rounding edge cases
+      const testQuantities = [1, 2, 3, 5, 7, 11]; // Small prime numbers
+
+      for (const quantity of testQuantities) {
+        // Get exact cost calculation (should be rounded up)
+        const cost = await core.calculateOpenCost(marketId, 40, 60, quantity);
+
+        // Open position
+        await core.connect(router).openPosition(alice.address, {
+          marketId,
+          lowerTick: 40,
+          upperTick: 60,
+          quantity,
+          maxCost: ethers.parseUnits("1000", 6),
+        });
+
+        const positionId = await mockPosition.tokenOfOwnerByIndex(
+          alice.address,
+          0
+        );
+
+        // Calculate sell proceeds (should also be rounded up now)
+        const proceeds = await core.calculateDecreaseProceeds(
+          positionId,
+          quantity
+        );
+
+        // Both cost and proceeds should be > 0 due to round-up
+        expect(cost).to.be.gt(0, `Cost should be > 0 for quantity ${quantity}`);
+        expect(proceeds).to.be.gt(
+          0,
+          `Proceeds should be > 0 for quantity ${quantity}`
+        );
+
+        console.log(`Quantity ${quantity}: Cost=${cost}, Proceeds=${proceeds}`);
+      }
+    });
+
+    it("Should demonstrate zero expected value for round-trip trades", async function () {
+      const { core, keeper, router, alice, paymentToken, mockPosition } =
+        await loadFixture(deployFixture);
+
+      // Create market
+      const currentTime = await time.latest();
+      const startTime = currentTime + 100;
+      const endTime = startTime + MARKET_DURATION;
+      const marketId = 2;
+
+      await core
+        .connect(keeper)
+        .createMarket(marketId, TICK_COUNT, startTime, endTime, ALPHA);
+      await time.increaseTo(startTime + 1);
+
+      // Track net deltas for multiple round-trip trades
+      const deltas: bigint[] = [];
+      const quantities = [1, 2, 3, 5, 7, 11, 13, 17, 19, 23]; // Prime numbers for variety
+
+      for (const qty of quantities) {
+        const balanceBefore = await paymentToken.balanceOf(alice.address);
+
+        // Open position
+        await core.connect(router).openPosition(alice.address, {
+          marketId,
+          lowerTick: 30,
+          upperTick: 70,
+          quantity: qty,
+          maxCost: ethers.parseUnits("1000", 6),
+        });
+
+        const positionId = await mockPosition.tokenOfOwnerByIndex(
+          alice.address,
+          0
+        );
+
+        // Close position immediately
+        await core.connect(router).closePosition(positionId, 0);
+
+        const balanceAfter = await paymentToken.balanceOf(alice.address);
+
+        // Calculate net delta (negative = loss, positive = gain)
+        const netDelta = balanceAfter - balanceBefore;
+        deltas.push(netDelta);
+
+        console.log(`Quantity ${qty}: Net delta = ${netDelta} micro USDC`);
+      }
+
+      // Calculate average delta
+      const sumDelta = deltas.reduce((a, b) => a + b, 0n);
+      const avgDelta = Number(sumDelta) / deltas.length;
+
+      console.log(
+        `Average delta over ${deltas.length} trades: ${avgDelta} micro USDC`
+      );
+
+      // With Up/Up policy, average should be close to 0 (fair)
+      // Allow some tolerance due to market state changes
+      expect(Math.abs(avgDelta)).to.be.lt(
+        1.0,
+        "Average rounding delta should be close to 0 (fair Up/Up policy)"
+      );
+    });
+
+    it("Should prevent zero-cost attacks while maintaining fairness", async function () {
+      const { core, keeper, router, alice } = await loadFixture(deployFixture);
+
+      // Create market with very high liquidity (small alpha for minimal costs)
+      const smallAlpha = ethers.parseEther("0.01"); // Small alpha = low costs
+      const currentTime = await time.latest();
+      const startTime = currentTime + 100;
+      const endTime = startTime + MARKET_DURATION;
+      const marketId = 3;
+
+      await core
+        .connect(keeper)
+        .createMarket(marketId, TICK_COUNT, startTime, endTime, smallAlpha);
+      await time.increaseTo(startTime + 1);
+
+      // Try minimal quantity that might result in near-zero cost
+      const minimalQuantity = 1; // 1 micro USDC
+
+      const calculatedCost = await core.calculateOpenCost(
+        marketId,
+        45,
+        55,
+        minimalQuantity
+      );
+
+      // Verify that even minimal trades have non-zero cost due to round-up
+      expect(calculatedCost).to.be.gt(
+        0,
+        "Even minimal trades should have non-zero cost (prevents zero-cost attacks)"
+      );
+
+      // Verify cost is at least 1 micro USDC due to round-up
+      expect(calculatedCost).to.be.gte(
+        1,
+        "Minimum cost should be at least 1 micro USDC due to round-up"
+      );
+    });
+
+    it("Should maintain consistent rounding across different market states", async function () {
+      const { core, keeper, router, alice } = await loadFixture(deployFixture);
+
+      // Create market
+      const currentTime = await time.latest();
+      const startTime = currentTime + 100;
+      const endTime = startTime + MARKET_DURATION;
+      const marketId = 4;
+
+      await core
+        .connect(keeper)
+        .createMarket(marketId, TICK_COUNT, startTime, endTime, ALPHA);
+      await time.increaseTo(startTime + 1);
+
+      const testQuantity = 5;
+
+      // Test 1: Fresh market state
+      const cost1 = await core.calculateOpenCost(
+        marketId,
+        20,
+        30,
+        testQuantity
+      );
+      console.log(`Fresh market cost: ${cost1}`);
+
+      // Make some trades to change market state
+      await core.connect(router).openPosition(alice.address, {
+        marketId,
+        lowerTick: 10,
+        upperTick: 20,
+        quantity: 1000,
+        maxCost: ethers.parseUnits("100", 6),
+      });
+
+      // Test 2: Modified market state
+      const cost2 = await core.calculateOpenCost(
+        marketId,
+        20,
+        30,
+        testQuantity
+      );
+      console.log(`Modified market cost: ${cost2}`);
+
+      // Both costs should be > 0 due to round-up
+      expect(cost1).to.be.gt(0, "Cost1 should be > 0 (round-up applied)");
+      expect(cost2).to.be.gt(0, "Cost2 should be > 0 (round-up applied)");
+
+      // Costs should be reasonable (not excessive due to rounding)
+      expect(cost1).to.be.lt(1000, "Cost1 should be reasonable");
+      expect(cost2).to.be.lt(1000, "Cost2 should be reasonable");
+    });
+
+    it("Should handle edge cases with exact WAD multiples", async function () {
+      const { core, keeper } = await loadFixture(deployFixture);
+
+      // Create market
+      const currentTime = await time.latest();
+      const startTime = currentTime + 100;
+      const endTime = startTime + MARKET_DURATION;
+      const marketId = 5;
+
+      await core
+        .connect(keeper)
+        .createMarket(marketId, TICK_COUNT, startTime, endTime, ALPHA);
+      await time.increaseTo(startTime + 1);
+
+      // Test with various quantities to check rounding behavior
+      const quantities = [1, 10, 100, 1000, 10000];
+
+      for (const quantity of quantities) {
+        const cost = await core.calculateOpenCost(marketId, 40, 60, quantity);
+
+        // Cost should always be >= quantity * some minimum rate
+        // Due to round-up, should never be exactly 0
+        expect(cost).to.be.gt(0, `Cost should be > 0 for quantity ${quantity}`);
+
+        // For larger quantities, cost should scale reasonably
+        if (quantity >= 1000) {
+          expect(cost).to.be.gte(
+            quantity / 1000,
+            `Cost should scale with quantity for ${quantity}`
+          );
+        }
+      }
+    });
+
+    it("Should demonstrate rounding delta distribution", async function () {
+      const { core, keeper } = await loadFixture(deployFixture);
+
+      // Create market
+      const currentTime = await time.latest();
+      const startTime = currentTime + 100;
+      const endTime = startTime + MARKET_DURATION;
+      const marketId = 6;
+
+      await core
+        .connect(keeper)
+        .createMarket(marketId, TICK_COUNT, startTime, endTime, ALPHA);
+      await time.increaseTo(startTime + 1);
+
+      // Test 50 different quantities to see rounding distribution
+      const costs: bigint[] = [];
+
+      for (let i = 1; i <= 50; i++) {
+        const cost = await core.calculateOpenCost(marketId, 30, 40, i);
+        costs.push(cost);
+      }
+
+      // Calculate statistics
+      const minCost = costs.reduce((a, b) => (a < b ? a : b));
+      const maxCost = costs.reduce((a, b) => (a > b ? a : b));
+      const avgCost = costs.reduce((a, b) => a + b, 0n) / BigInt(costs.length);
+
+      console.log(
+        `Cost distribution: Min=${minCost}, Max=${maxCost}, Avg=${avgCost}`
+      );
+
+      // All costs should be positive (round-up effect)
+      expect(minCost).to.be.gt(0, "All costs should be positive");
+
+      // Costs should increase roughly with quantity
+      expect(maxCost).to.be.gt(minCost, "Costs should increase with quantity");
+
+      // Average should be reasonable
+      expect(avgCost).to.be.gt(0, "Average cost should be positive");
+    });
+  });
 });

@@ -487,14 +487,14 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             revert InvalidQuantity(sellQuantity);
         }
         
-        // Calculate proceeds
+        // Calculate proceeds with round-up for fair treatment
         uint256 proceedsWad = _calculateSellProceeds(
             position.marketId,
             position.lowerTick,
             position.upperTick,
             uint256(sellQuantity).toWad()
         );
-        proceeds = proceedsWad.fromWad();
+        proceeds = proceedsWad.fromWadRoundUp();
         
         if (proceeds < minProceeds) {
             revert CostExceedsMaximum(minProceeds, proceeds); // Reusing error for slippage
@@ -591,7 +591,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             position.upperTick,
             quantityWad
         );
-        return proceedsWad.fromWad();
+        return proceedsWad.fromWadRoundUp();
     }
     
     /// @inheritdoc ICLMSRMarketCore
@@ -606,7 +606,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             position.upperTick,
             quantityWad
         );
-        return proceedsWad.fromWad();
+        return proceedsWad.fromWadRoundUp();
     }
     
     /// @inheritdoc ICLMSRMarketCore
@@ -1003,14 +1003,14 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         address trader = positionContract.ownerOf(positionId);
         _validateActiveMarket(position.marketId);
         
-        // Calculate proceeds from closing entire position
+        // Calculate proceeds from closing entire position with round-up for fair treatment
         uint256 proceedsWad = _calculateSellProceeds(
             position.marketId,
             position.lowerTick,
             position.upperTick,
             uint256(position.quantity).toWad()
         );
-        proceeds = proceedsWad.fromWad();
+        proceeds = proceedsWad.fromWadRoundUp();
         
         if (proceeds < minProceeds) {
             revert CostExceedsMaximum(minProceeds, proceeds); // Reusing error for slippage
