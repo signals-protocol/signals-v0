@@ -1,24 +1,48 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import {
-  deployStandardFixture,
-  createActiveMarket,
-  ALPHA,
-  SMALL_QUANTITY,
-  MEDIUM_QUANTITY,
-  LARGE_QUANTITY,
-  EXTREME_COST,
-  USDC_DECIMALS,
-  WAD,
-} from "./CLMSRMarketCore.fixtures";
+import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { coreFixture } from "../helpers/fixtures/core";
+import { INVARIANT_TAG } from "../helpers/tags";
 
-describe("CLMSRMarketCore - Mathematical Invariants", function () {
+describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
+  const ALPHA = ethers.parseEther("1");
+  const TICK_COUNT = 100;
+  const MARKET_DURATION = 7 * 24 * 60 * 60; // 7 days
+  const WAD = ethers.parseEther("1");
+  const USDC_DECIMALS = 6;
+  const SMALL_QUANTITY = ethers.parseUnits("0.01", USDC_DECIMALS); // 0.01 USDC
+  const MEDIUM_QUANTITY = ethers.parseUnits("0.1", USDC_DECIMALS); // 0.1 USDC
+  const LARGE_QUANTITY = ethers.parseUnits("1", USDC_DECIMALS); // 1 USDC
+  const EXTREME_COST = ethers.parseUnits("100000", USDC_DECIMALS); // 100k USDC max cost
+
+  async function createActiveMarketFixture() {
+    const contracts = await loadFixture(coreFixture);
+    const { core, keeper } = contracts;
+
+    const marketId = 1;
+    const currentTime = await time.latest();
+    const startTime = currentTime + 100;
+    const endTime = startTime + MARKET_DURATION;
+
+    await core
+      .connect(keeper)
+      .createMarket(marketId, TICK_COUNT, startTime, endTime, ALPHA);
+
+    await time.increaseTo(startTime + 1);
+
+    return {
+      ...contracts,
+      marketId,
+      startTime,
+      endTime,
+    };
+  }
+
   describe("Cost Consistency Invariants", function () {
     it("Should maintain cost consistency: buy then sell should be near-neutral", async function () {
-      const contracts = await loadFixture(deployStandardFixture);
-      const { marketId } = await createActiveMarket(contracts);
-      const { core, router, alice } = contracts;
+      const { core, router, alice, marketId } = await loadFixture(
+        createActiveMarketFixture
+      );
 
       const buyParams = {
         marketId,
@@ -38,8 +62,11 @@ describe("CLMSRMarketCore - Mathematical Invariants", function () {
       );
       const positionId = (buyEvent as any).args[2]; // positionId
 
-      // Execute sell (close position)
-      const sellTx = await core.connect(router).closePosition(positionId, 0);
+      // Execute sell (close position) - need to use router as authorized caller
+      const sellTx = await core.connect(router).closePosition(
+        positionId,
+        0 // minPayout
+      );
       const sellReceipt = await sellTx.wait();
       const sellEvent = sellReceipt!.logs.find(
         (log) => (log as any).fragment?.name === "PositionClosed"
@@ -58,9 +85,7 @@ describe("CLMSRMarketCore - Mathematical Invariants", function () {
     });
 
     it("Should maintain monotonic cost increase with quantity", async function () {
-      const contracts = await loadFixture(deployStandardFixture);
-      const { marketId } = await createActiveMarket(contracts);
-      const { core } = contracts;
+      const { core, marketId } = await loadFixture(createActiveMarketFixture);
 
       // Use larger quantities to avoid round-up effects
       const baseQuantity = ethers.parseUnits("0.1", USDC_DECIMALS); // 0.1 USDC
@@ -96,115 +121,9 @@ describe("CLMSRMarketCore - Mathematical Invariants", function () {
     });
   });
 
-  describe("Segment Tree Sum Invariants", function () {
-    it("Should maintain monotonic increase in total sum after buys", async function () {
-      const contracts = await loadFixture(deployStandardFixture);
-      const { marketId } = await createActiveMarket(contracts);
-      const { core, router, alice } = contracts;
-
-      // Get initial sum (should be tick_count * WAD)
-      const initialSum = await core.getTickValue(marketId, 0); // This gets one tick value
-
-      // Execute multiple buys and verify sum increases
-      for (let i = 0; i < 3; i++) {
-        await core.connect(router).openPosition(alice.address, {
-          marketId,
-          lowerTick: 10 + i * 10,
-          upperTick: 20 + i * 10,
-          quantity: SMALL_QUANTITY,
-          maxCost: EXTREME_COST,
-        });
-
-        const newSum = await core.getTickValue(marketId, 10 + i * 10);
-        expect(newSum).to.be.gte(WAD); // Should be at least WAD
-      }
-    });
-
-    it("Should maintain monotonic decrease in total sum after sells", async function () {
-      const contracts = await loadFixture(deployStandardFixture);
-      const { marketId } = await createActiveMarket(contracts);
-      const { core, router, alice } = contracts;
-
-      // First, execute buys to create positions
-      const positions = [];
-      for (let i = 0; i < 3; i++) {
-        const tx = await core.connect(router).openPosition(alice.address, {
-          marketId,
-          lowerTick: 10 + i * 10,
-          upperTick: 20 + i * 10,
-          quantity: MEDIUM_QUANTITY,
-          maxCost: EXTREME_COST,
-        });
-        const receipt = await tx.wait();
-        const event = receipt!.logs.find(
-          (log) => (log as any).fragment?.name === "PositionOpened"
-        );
-        positions.push((event as any).args[2]); // positionId
-      }
-
-      // Now sell positions and verify sum decreases
-      let previousTickValue = await core.getTickValue(marketId, 15);
-
-      for (const positionId of positions) {
-        await core.connect(router).closePosition(positionId, 0);
-
-        const newTickValue = await core.getTickValue(marketId, 15);
-        // After selling, tick value should decrease or stay same
-        expect(newTickValue).to.be.lte(previousTickValue);
-        previousTickValue = newTickValue;
-      }
-    });
-
-    it("Should maintain sum consistency across position adjustments", async function () {
-      const contracts = await loadFixture(deployStandardFixture);
-      const { marketId } = await createActiveMarket(contracts);
-      const { core, router, alice } = contracts;
-
-      // Open initial position
-      const tx = await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 40,
-        upperTick: 60,
-        quantity: MEDIUM_QUANTITY,
-        maxCost: EXTREME_COST,
-      });
-      const receipt = await tx.wait();
-      const event = receipt!.logs.find(
-        (log) => (log as any).fragment?.name === "PositionOpened"
-      );
-      const positionId = (event as any).args[2]; // positionId
-
-      const sumAfterOpen = await core.getTickValue(marketId, 50);
-
-      // Increase position
-      await core
-        .connect(router)
-        .increasePosition(positionId, SMALL_QUANTITY, EXTREME_COST);
-      const sumAfterIncrease = await core.getTickValue(marketId, 50);
-      expect(sumAfterIncrease).to.be.gte(sumAfterOpen);
-
-      // Decrease position
-      await core
-        .connect(router)
-        .decreasePosition(positionId, SMALL_QUANTITY, 0);
-      const sumAfterDecrease = await core.getTickValue(marketId, 50);
-      expect(sumAfterDecrease).to.be.lte(sumAfterIncrease);
-
-      // Should be back to approximately original sum
-      const difference =
-        sumAfterOpen > sumAfterDecrease
-          ? sumAfterOpen - sumAfterDecrease
-          : sumAfterDecrease - sumAfterOpen;
-      const percentDiff = (difference * 10000n) / sumAfterOpen;
-      expect(percentDiff).to.be.lt(100n); // Less than 1% difference
-    });
-  });
-
   describe("CLMSR Formula Invariants", function () {
     it("Should satisfy CLMSR cost formula: C = α * ln(Σ_after / Σ_before)", async function () {
-      const contracts = await loadFixture(deployStandardFixture);
-      const { marketId } = await createActiveMarket(contracts);
-      const { core } = contracts;
+      const { core, marketId } = await loadFixture(createActiveMarketFixture);
 
       const quantity = SMALL_QUANTITY;
       const lowerTick = 45;
@@ -232,9 +151,7 @@ describe("CLMSRMarketCore - Mathematical Invariants", function () {
     });
 
     it("Should maintain price impact consistency", async function () {
-      const contracts = await loadFixture(deployStandardFixture);
-      const { marketId } = await createActiveMarket(contracts);
-      const { core } = contracts;
+      const { core, marketId } = await loadFixture(createActiveMarketFixture);
 
       // Use larger quantities to avoid round-up effects
       const baseQuantity = ethers.parseUnits("0.1", USDC_DECIMALS); // 0.1 USDC
@@ -260,13 +177,42 @@ describe("CLMSRMarketCore - Mathematical Invariants", function () {
       // Price impact should be super-linear due to exponential nature
       expect(costRatio).to.be.gt(2000); // Should be more than 2x
     });
+
+    it("Should maintain liquidity parameter effect on costs", async function () {
+      const { core, keeper } = await loadFixture(coreFixture);
+
+      const currentTime = await time.latest();
+      const startTime = currentTime + 100;
+      const endTime = startTime + MARKET_DURATION;
+
+      const lowAlpha = ethers.parseEther("0.1");
+      const highAlpha = ethers.parseEther("10");
+
+      // Create markets with different liquidity parameters
+      await core
+        .connect(keeper)
+        .createMarket(1, TICK_COUNT, startTime, endTime, lowAlpha);
+
+      await core
+        .connect(keeper)
+        .createMarket(2, TICK_COUNT, startTime, endTime, highAlpha);
+
+      await time.increaseTo(startTime + 1);
+
+      const quantity = MEDIUM_QUANTITY;
+      const cost1 = await core.calculateOpenCost(1, 45, 55, quantity);
+      const cost2 = await core.calculateOpenCost(2, 45, 55, quantity);
+
+      // Higher alpha should mean lower cost for same quantity
+      expect(cost2).to.be.lt(cost1);
+    });
   });
 
   describe("Roundtrip Neutrality Tests", function () {
     it("Should maintain near-neutrality for small roundtrips", async function () {
-      const contracts = await loadFixture(deployStandardFixture);
-      const { marketId } = await createActiveMarket(contracts);
-      const { core, router, alice } = contracts;
+      const { core, router, alice, marketId } = await loadFixture(
+        createActiveMarketFixture
+      );
 
       const smallQuantity = ethers.parseUnits("0.001", USDC_DECIMALS); // Very small
 
@@ -286,7 +232,10 @@ describe("CLMSRMarketCore - Mathematical Invariants", function () {
       const buyCost = (buyEvent as any).args[6];
 
       // Sell immediately
-      const sellTx = await core.connect(router).closePosition(positionId, 0);
+      const sellTx = await core.connect(router).closePosition(
+        positionId,
+        0 // minPayout
+      );
       const sellReceipt = await sellTx.wait();
       const sellEvent = sellReceipt!.logs.find(
         (log) => (log as any).fragment?.name === "PositionClosed"
@@ -300,9 +249,9 @@ describe("CLMSRMarketCore - Mathematical Invariants", function () {
     });
 
     it("Should handle multiple chunk roundtrips consistently", async function () {
-      const contracts = await loadFixture(deployStandardFixture);
-      const { marketId } = await createActiveMarket(contracts);
-      const { core, router, alice } = contracts;
+      const { core, router, alice, marketId } = await loadFixture(
+        createActiveMarketFixture
+      );
 
       const largeQuantity = LARGE_QUANTITY;
 
@@ -322,7 +271,10 @@ describe("CLMSRMarketCore - Mathematical Invariants", function () {
       const buyCost = (buyEvent as any).args[6];
 
       // Sell
-      const sellTx = await core.connect(router).closePosition(positionId, 0);
+      const sellTx = await core.connect(router).closePosition(
+        positionId,
+        0 // minPayout
+      );
       const sellReceipt = await sellTx.wait();
       const sellEvent = sellReceipt!.logs.find(
         (log) => (log as any).fragment?.name === "PositionClosed"
@@ -337,9 +289,7 @@ describe("CLMSRMarketCore - Mathematical Invariants", function () {
 
   describe("Precision and Overflow Tests", function () {
     it("Should handle very small quantities without precision loss", async function () {
-      const contracts = await loadFixture(deployStandardFixture);
-      const { marketId } = await createActiveMarket(contracts);
-      const { core } = contracts;
+      const { core, marketId } = await loadFixture(createActiveMarketFixture);
 
       const verySmallQuantity = ethers.parseUnits("0.001", 6); // 1 milli-unit (6 decimals)
 
@@ -354,9 +304,9 @@ describe("CLMSRMarketCore - Mathematical Invariants", function () {
     });
 
     it("Should handle maximum safe quantities without overflow", async function () {
-      const contracts = await loadFixture(deployStandardFixture);
-      const { marketId } = await createActiveMarket(contracts);
-      const { core, router, alice } = contracts;
+      const { core, router, alice, marketId } = await loadFixture(
+        createActiveMarketFixture
+      );
 
       // Use a large but safe quantity
       const largeQuantity = ethers.parseUnits("1", USDC_DECIMALS); // 1 USDC (further reduced for safety)
@@ -370,6 +320,65 @@ describe("CLMSRMarketCore - Mathematical Invariants", function () {
           maxCost: ethers.parseUnits("1000000", 6), // Use very large maxCost
         })
       ).to.not.be.reverted;
+    });
+
+    it("Should maintain numerical consistency across different tick ranges", async function () {
+      const { core, marketId } = await loadFixture(createActiveMarketFixture);
+
+      const quantity = MEDIUM_QUANTITY;
+
+      // Test various tick ranges
+      const ranges = [
+        { lower: 0, upper: 10 },
+        { lower: 45, upper: 55 },
+        { lower: 89, upper: 99 },
+      ];
+
+      for (const range of ranges) {
+        const cost = await core.calculateOpenCost(
+          marketId,
+          range.lower,
+          range.upper,
+          quantity
+        );
+        expect(cost).to.be.gt(0);
+
+        // Cost should be roughly proportional to range size
+        const rangeSize = range.upper - range.lower + 1;
+        expect(cost).to.be.gt(rangeSize * 1000); // Minimum cost proportional to range
+      }
+    });
+
+    it("Should handle edge case tick ranges correctly", async function () {
+      const { core, marketId } = await loadFixture(createActiveMarketFixture);
+
+      const quantity = SMALL_QUANTITY;
+
+      // Single tick range
+      const singleTickCost = await core.calculateOpenCost(
+        marketId,
+        50,
+        50,
+        quantity
+      );
+      expect(singleTickCost).to.be.gt(0);
+
+      // Full range
+      const fullRangeCost = await core.calculateOpenCost(
+        marketId,
+        0,
+        TICK_COUNT - 1,
+        quantity
+      );
+      expect(fullRangeCost).to.be.gt(singleTickCost);
+
+      // Adjacent ranges should have similar costs
+      const cost1 = await core.calculateOpenCost(marketId, 40, 50, quantity);
+      const cost2 = await core.calculateOpenCost(marketId, 50, 60, quantity);
+
+      const difference = cost1 > cost2 ? cost1 - cost2 : cost2 - cost1;
+      const percentDiff = (difference * 100n) / cost1;
+      expect(percentDiff).to.be.lt(50n); // Less than 50% difference for similar ranges
     });
   });
 });

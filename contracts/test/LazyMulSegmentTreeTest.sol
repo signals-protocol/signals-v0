@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "../libraries/LazyMulSegmentTree.sol";
+import {CLMSRErrors as CE} from "../errors/CLMSRErrors.sol";
 
 /// @title LazyMulSegmentTreeTest
 /// @notice Test contract for LazyMulSegmentTree library
@@ -17,48 +18,68 @@ contract LazyMulSegmentTreeTest {
     error InvalidRange(uint32 lo, uint32 hi);
     error ZeroFactor();
     error InvalidFactor(uint256 factor);
+    
+    // Re-export CLMSRErrors for testing
+    error TreeSizeZero();
+    error TreeSizeTooLarge();
+    error TreeAlreadyInitialized();
+    error LazyFactorOverflow();
+    error ArrayLengthMismatch();
 
     // ========================================
     // EVENTS FOR TESTING
     // ========================================
     
-    event TreeInitialized(uint32 size);
+    event Initialized(uint32 size);
     event NodeUpdated(uint32 index, uint256 value);
-    event RangeMultiplied(uint32 lo, uint32 hi, uint256 factor);
+    event RangeFactorApplied(uint32 indexed lo, uint32 indexed hi, uint256 factor);
 
     // ========================================
     // INITIALIZATION
     // ========================================
     
+    /// @notice Initialize the segment tree
+    /// @param treeSize Number of leaves in the tree
     function init(uint32 treeSize) external {
         tree.init(treeSize);
-        emit TreeInitialized(treeSize);
+        emit Initialized(treeSize);
     }
 
     // ========================================
     // CORE OPERATIONS
     // ========================================
     
+    /// @notice Update a single leaf value
+    /// @param index Leaf index to update
+    /// @param value New value to set
     function update(uint32 index, uint256 value) external {
         tree.update(index, value);
         emit NodeUpdated(index, value);
     }
     
-    function get(uint32 index) external view returns (uint256) {
-        return tree.query(index, index);
+    /// @notice Get range sum (view function)
+    /// @param lo Left boundary (inclusive)
+    /// @param hi Right boundary (inclusive)
+    /// @return sum Sum of values in range
+    function getRangeSum(uint32 lo, uint32 hi) external view returns (uint256) {
+        return tree.getRangeSum(lo, hi);
     }
     
-    function query(uint32 lo, uint32 hi) external view returns (uint256) {
-        return tree.query(lo, hi);
+    /// @notice Propagate lazy values and return range sum (state-changing)
+    /// @param lo Left boundary (inclusive)
+    /// @param hi Right boundary (inclusive)
+    /// @return sum Sum of values in range
+    function propagateLazy(uint32 lo, uint32 hi) external returns (uint256) {
+        return tree.propagateLazy(lo, hi);
     }
     
-    function queryWithLazy(uint32 lo, uint32 hi) external returns (uint256) {
-        return tree.queryWithLazy(lo, hi);
-    }
-    
-    function mulRange(uint32 lo, uint32 hi, uint256 factor) external {
-        tree.mulRange(lo, hi, factor);
-        emit RangeMultiplied(lo, hi, factor);
+    /// @notice Apply range multiplication factor
+    /// @param lo Left boundary (inclusive)
+    /// @param hi Right boundary (inclusive)
+    /// @param factor Multiplication factor
+    function applyRangeFactor(uint32 lo, uint32 hi, uint256 factor) external {
+        tree.applyRangeFactor(lo, hi, factor);
+        emit RangeFactorApplied(lo, hi, factor);
     }
 
     // ========================================
@@ -84,17 +105,17 @@ contract LazyMulSegmentTreeTest {
     /// @notice Get node information for debugging (updated for new structure)
     /// @param nodeIndex Node index to inspect
     /// @return sum Node sum value
-    /// @return lazy Node lazy multiplication factor
+    /// @return pendingFactor Node pending multiplication factor
     /// @return left Left child index
     /// @return right Right child index
     function getNodeInfo(uint32 nodeIndex) 
         external 
         view 
-        returns (uint256 sum, uint192 lazy, uint32 left, uint32 right) 
+        returns (uint256 sum, uint192 pendingFactor, uint32 left, uint32 right) 
     {
         LazyMulSegmentTree.Node storage node = tree.nodes[nodeIndex];
-        (left, right) = _unpackChildren(node.children);
-        return (node.sum, node.lazy, left, right);
+        (left, right) = _unpackChildPtr(node.childPtr);
+        return (node.sum, node.pendingFactor, left, right);
     }
     
     /// @notice Get tree structure info for debugging
@@ -111,7 +132,7 @@ contract LazyMulSegmentTreeTest {
     }
     
     /// @notice Helper to unpack children for testing
-    function _unpackChildren(uint64 packed) private pure returns (uint32 left, uint32 right) {
+    function _unpackChildPtr(uint64 packed) private pure returns (uint32 left, uint32 right) {
         left = uint32(packed >> 32);
         right = uint32(packed);
     }
@@ -121,7 +142,7 @@ contract LazyMulSegmentTreeTest {
     /// @return exists True if node has been initialized
     function nodeExists(uint32 nodeIndex) external view returns (bool exists) {
         LazyMulSegmentTree.Node storage node = tree.nodes[nodeIndex];
-        return node.sum != 0 || node.lazy != 1e18 || node.children != 0;
+        return node.sum != 0 || node.pendingFactor != 1e18 || node.childPtr != 0;
     }
 
     // ========================================
@@ -133,7 +154,7 @@ contract LazyMulSegmentTreeTest {
     /// @param count Number of times to apply
     function stressTestMulRange(uint256 factor, uint32 count) external {
         for (uint32 i = 0; i < count; i++) {
-            tree.mulRange(0, tree.size - 1, factor);
+            tree.applyRangeFactor(0, tree.size - 1, factor);
         }
     }
     
@@ -181,7 +202,7 @@ contract LazyMulSegmentTreeTest {
     /// @return gasUsed Gas consumed
     function measureMulRangeGas(uint32 lo, uint32 hi, uint256 factor) external returns (uint256 gasUsed) {
         uint256 gasBefore = gasleft();
-        tree.mulRange(lo, hi, factor);
+        tree.applyRangeFactor(lo, hi, factor);
         gasUsed = gasBefore - gasleft();
     }
     
@@ -208,19 +229,19 @@ contract LazyMulSegmentTreeTest {
         require(tree.size > 0, "Tree not initialized");
         
         // Test single element at start
-        tree.mulRange(0, 0, 1.5e18);
+        tree.applyRangeFactor(0, 0, 1.5e18);
         
         // Test single element at end
-        tree.mulRange(tree.size - 1, tree.size - 1, 1.5e18);
+        tree.applyRangeFactor(tree.size - 1, tree.size - 1, 1.5e18);
         
         // Test full range
-        tree.mulRange(0, tree.size - 1, 1.1e18);
+        tree.applyRangeFactor(0, tree.size - 1, 1.1e18);
         
         // Test minimum factor
-        tree.mulRange(0, 0, 0.01e18); // Exact MIN_FACTOR
+        tree.applyRangeFactor(0, 0, 0.01e18); // Exact MIN_FACTOR
         
         // Test maximum factor
-        tree.mulRange(0, 0, 100e18); // Exact MAX_FACTOR
+        tree.applyRangeFactor(0, 0, 100e18); // Exact MAX_FACTOR
     }
     
     /// @notice Test boundary value inputs for update
@@ -235,7 +256,7 @@ contract LazyMulSegmentTreeTest {
         tree.update(tree.size - 1, 3e18);
     }
     
-    /// @notice Assert total sum invariant: totalSum == Σ query(i,i)
+    /// @notice Assert total sum invariant: totalSum == Σ getRangeSum(i,i)
     /// @dev Critical invariant that must always hold
     function assertTotalInvariant() external {
         uint32 size = tree.size;
@@ -243,7 +264,7 @@ contract LazyMulSegmentTreeTest {
         
         uint256 manual = 0;
         for (uint32 i = 0; i < size; i++) {
-            manual += tree.queryWithLazy(i, i); // Use queryWithLazy to force propagation
+            manual += tree.propagateLazy(i, i); // Use propagateLazy to force propagation
         }
         
         uint256 cached = tree.getTotalSum();
@@ -251,14 +272,14 @@ contract LazyMulSegmentTreeTest {
     }
     
     /// @notice Test lazy propagation consistency
-    /// @dev Ensures query() and queryWithLazy() return same results after propagation
+    /// @dev Ensures getRangeSum() and propagateLazy() return same results after propagation
     function assertLazyConsistency(uint32 lo, uint32 hi) external {
         require(lo <= hi && hi < tree.size, "Invalid range");
         
-        // First force propagation with queryWithLazy
-        uint256 lazyResult = tree.queryWithLazy(lo, hi);
+        // First force propagation with propagateLazy
+        uint256 lazyResult = tree.propagateLazy(lo, hi);
         // Then check that view query matches
-        uint256 viewResult = tree.query(lo, hi);
+        uint256 viewResult = tree.getRangeSum(lo, hi);
         
         require(viewResult == lazyResult, "Lazy propagation inconsistency");
     }
@@ -268,20 +289,20 @@ contract LazyMulSegmentTreeTest {
     function testDefaultSumLogic(uint32 lo, uint32 hi) external view returns (uint256) {
         require(lo <= hi && hi < tree.size, "Invalid range");
         
-        uint256 result = tree.query(lo, hi);
+        uint256 result = tree.getRangeSum(lo, hi);
         // For completely untouched ranges, should equal (hi - lo + 1) * WAD
         // Note: This test is most meaningful on fresh tree sections
         return result;
     }
     
-    /// @notice Test mulRange on empty nodes doesn't break root sum sync
+    /// @notice Test applyRangeFactor on empty nodes doesn't break root sum sync
     /// @dev Critical test for recent fix
     function testEmptyNodeMulRange() external {
         require(tree.size >= 21, "Tree too small for test");
         
-        // Apply mulRange to potentially empty range
+        // Apply applyRangeFactor to potentially empty range
         uint256 beforeSum = tree.getTotalSum();
-        tree.mulRange(10, 20, 1.1e18);
+        tree.applyRangeFactor(10, 20, 1.1e18);
         uint256 afterSum = tree.getTotalSum();
         
         // Verify sum increased appropriately
@@ -309,7 +330,7 @@ contract LazyMulSegmentTreeTest {
         tree.batchUpdate(dupIndices, dupValues);
         
         // Verify last value won
-        require(tree.query(1, 1) == 15e18, "Duplicate index handling failed");
+        require(tree.getRangeSum(1, 1) == 15e18, "Duplicate index handling failed");
         
         // Test unsorted indices
         uint32[] memory unsortedIndices = new uint32[](3);
@@ -324,9 +345,9 @@ contract LazyMulSegmentTreeTest {
         tree.batchUpdate(unsortedIndices, unsortedValues);
         
         // Verify all values set correctly
-        require(tree.query(0, 0) == 5e18, "Unsorted batch update failed");
-        require(tree.query(2, 2) == 25e18, "Unsorted batch update failed");
-        require(tree.query(3, 3) == 30e18, "Unsorted batch update failed");
+        require(tree.getRangeSum(0, 0) == 5e18, "Unsorted batch update failed");
+        require(tree.getRangeSum(2, 2) == 25e18, "Unsorted batch update failed");
+        require(tree.getRangeSum(3, 3) == 30e18, "Unsorted batch update failed");
     }
     
     /// @notice Fuzz-style range multiplication test
@@ -349,7 +370,7 @@ contract LazyMulSegmentTreeTest {
         }
         
         uint256 beforeSum = tree.getTotalSum();
-        tree.mulRange(lo, hi, factor);
+        tree.applyRangeFactor(lo, hi, factor);
         uint256 afterSum = tree.getTotalSum();
         
         // Basic sanity checks
@@ -369,12 +390,12 @@ contract LazyMulSegmentTreeTest {
         
         // Perform sequence of operations
         tree.update(0, 5e18);
-        tree.mulRange(0, 4, 1.2e18);
+        tree.applyRangeFactor(0, 4, 1.2e18);
         tree.update(5, 3e18);
-        tree.mulRange(2, 7, 0.8e18);
+        tree.applyRangeFactor(2, 7, 0.8e18);
         
         // Force lazy propagation by querying with lazy
-        tree.queryWithLazy(0, tree.size - 1);
+        tree.propagateLazy(0, tree.size - 1);
         
         // Verify cached sum matches actual sum
         this.assertTotalInvariant();
@@ -415,7 +436,7 @@ contract LazyMulSegmentTreeTest {
         if (nodeIndex == 0) return currentDepth;
         
         LazyMulSegmentTree.Node storage node = tree.nodes[nodeIndex];
-        (uint32 left, uint32 right) = _unpackChildren(node.children);
+        (uint32 left, uint32 right) = _unpackChildPtr(node.childPtr);
         
         uint32 leftDepth = _calculateMaxDepth(left, currentDepth + 1);
         uint32 rightDepth = _calculateMaxDepth(right, currentDepth + 1);
@@ -428,9 +449,9 @@ contract LazyMulSegmentTreeTest {
         if (nodeIndex == 0) return 0;
         
         LazyMulSegmentTree.Node storage node = tree.nodes[nodeIndex];
-        (uint32 left, uint32 right) = _unpackChildren(node.children);
+        (uint32 left, uint32 right) = _unpackChildPtr(node.childPtr);
         
-        uint32 count = (node.lazy != 1e18) ? 1 : 0;
+        uint32 count = (node.pendingFactor != 1e18) ? 1 : 0;
         count += _countLazyOps(left);
         count += _countLazyOps(right);
         

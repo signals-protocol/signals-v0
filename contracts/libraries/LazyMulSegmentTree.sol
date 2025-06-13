@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {FixedPointMathU} from "./FixedPointMath.sol";
+import {CLMSRErrors as CE} from "../errors/CLMSRErrors.sol";
 
 /// @title LazyMulSegmentTree
 /// @notice Gas-optimized sparse lazy multiplication segment tree for CLMSR tick data management
@@ -15,11 +16,11 @@ library LazyMulSegmentTree {
     // ========================================
     
     /// @notice Packed node structure for lazy multiplication segment tree
-    /// @dev Optimized for 2-slot storage: lazy(192bit) + children(64bit) in slot 1, sum in slot 2
+    /// @dev Optimized for 2-slot storage: pendingFactor(192bit) + childPtr(64bit) in slot 1, sum in slot 2
     struct Node {
-        uint256 sum;        // Sum of exponential values in subtree
-        uint192 lazy;       // Lazy multiplication factor (WAD = no-op) - 192 bits sufficient
-        uint64 children;    // Packed: left(32bit) + right(32bit)
+        uint256 sum;            // Sum of exponential values in subtree
+        uint192 pendingFactor;  // Lazy multiplication factor (ONE_WAD = no-op) - 192 bits sufficient
+        uint64 childPtr;        // Packed: left(32bit) + right(32bit)
     }
     
     /// @notice Complete lazy multiplication segment tree structure
@@ -39,19 +40,18 @@ library LazyMulSegmentTree {
     /// @param lo Left boundary (inclusive)
     /// @param hi Right boundary (inclusive) 
     /// @param factor Multiplication factor in WAD format
-    event RangeMul(uint32 indexed lo, uint32 indexed hi, uint256 factor);
+    event RangeFactorApplied(uint32 indexed lo, uint32 indexed hi, uint256 factor);
     
     error IndexOutOfBounds(uint32 index, uint32 size);
     error InvalidRange(uint32 lo, uint32 hi);
     error TreeNotInitialized();
-    error ZeroFactor();
     error InvalidFactor(uint256 factor);
 
     // ========================================
     // CONSTANTS
     // ========================================
     
-    uint256 public constant WAD = 1e18;
+    uint256 public constant ONE_WAD = 1e18;
     uint256 public constant MIN_FACTOR = 0.01e18;  // 1% minimum - allow wide range for CLMSR
     uint256 public constant MAX_FACTOR = 100e18;   // 100x maximum - allow wide range for CLMSR
 
@@ -65,17 +65,17 @@ library LazyMulSegmentTree {
     /// @return sum Default sum for range
     function _defaultSum(uint32 l, uint32 r) private pure returns (uint256 sum) {
         unchecked { 
-            return uint256(r - l + 1) * WAD; 
+            return uint256(r - l + 1) * ONE_WAD; 
         }
     }
 
-    /// @notice Pack two uint32 values into uint64
-    function _packChildren(uint32 left, uint32 right) private pure returns (uint64) {
+    /// @notice Pack two uint32 values into uint64 child pointer
+    function _packChildPtr(uint32 left, uint32 right) private pure returns (uint64) {
         return (uint64(left) << 32) | uint64(right);
     }
     
-    /// @notice Unpack uint64 into two uint32 values
-    function _unpackChildren(uint64 packed) private pure returns (uint32 left, uint32 right) {
+    /// @notice Unpack uint64 child pointer into two uint32 values
+    function _unpackChildPtr(uint64 packed) private pure returns (uint32 left, uint32 right) {
         left = uint32(packed >> 32);
         right = uint32(packed);
     }
@@ -88,14 +88,14 @@ library LazyMulSegmentTree {
     /// @param tree Tree storage reference
     /// @param treeSize Number of leaves in the tree
     function init(Tree storage tree, uint32 treeSize) external {
-        require(treeSize > 0, "Tree size must be positive");
-        require(treeSize <= type(uint32).max / 2, "Tree size too large");
-        require(tree.size == 0, "Tree already initialized");
+        if (treeSize == 0) revert CE.TreeSizeZero();
+        if (treeSize > type(uint32).max / 2) revert CE.TreeSizeTooLarge();
+        if (tree.size != 0) revert CE.TreeAlreadyInitialized();
         
         tree.size = treeSize;
         tree.nextIndex = 0; // Start from 0
         tree.root = _allocateNode(tree, 0, treeSize - 1);
-        tree.cachedRootSum = uint256(treeSize) * WAD; // All leaves default to WAD
+        tree.cachedRootSum = uint256(treeSize) * ONE_WAD; // All leaves default to ONE_WAD
     }
     
     /// @notice Allocate a new node with range boundaries
@@ -106,7 +106,7 @@ library LazyMulSegmentTree {
     function _allocateNode(Tree storage tree, uint32 l, uint32 r) private returns (uint32 newIndex) {
         newIndex = ++tree.nextIndex;
         Node storage node = tree.nodes[newIndex];
-        node.lazy = uint192(WAD); // No pending operations
+        node.pendingFactor = uint192(ONE_WAD); // No pending operations
         node.sum = _defaultSum(l, r); // Default sum for range
     }
 
@@ -130,19 +130,82 @@ library LazyMulSegmentTree {
     /// @param tree Tree storage reference
     /// @param nodeIndex Node index to apply to
     /// @param factor Multiplication factor
-    function _apply(Tree storage tree, uint32 nodeIndex, uint256 factor) private {
-        if (nodeIndex == 0 || factor == WAD) return;
+    function _applyFactorToNode(Tree storage tree, uint32 nodeIndex, uint256 factor) private {
+        if (nodeIndex == 0 || factor == ONE_WAD) return;
         
         Node storage node = tree.nodes[nodeIndex];
         node.sum = node.sum.wMul(factor);
         
-        uint256 newLazy = uint256(node.lazy).wMul(factor);
-        require(newLazy <= 5e36, "Lazy factor overflow protection");
-        node.lazy = uint192(newLazy);
+        uint256 newPendingFactor = uint256(node.pendingFactor).wMul(factor);
+        
+        // Auto-flush mechanism: if pending factor gets too large, flush it down
+        // This prevents overflow while maintaining mathematical correctness
+        if (newPendingFactor > 1e30) { // Much lower threshold for auto-flush
+            // If we have children, push the current pending factor down first
+            if (node.childPtr != 0) {
+                // Force push current pending factor to children
+                _forcePushPendingFactor(tree, nodeIndex);
+            }
+            // Reset pending factor and apply new factor directly
+            node.pendingFactor = uint192(factor);
+        } else {
+            // Normal case: accumulate the factor
+            if (newPendingFactor > 1e50) revert CE.LazyFactorOverflow(); // Ultimate safety limit
+            node.pendingFactor = uint192(newPendingFactor);
+        }
         
         // Update cached root sum if this is root
         if (nodeIndex == tree.root) {
             tree.cachedRootSum = node.sum;
+        }
+    }
+    
+    /// @notice Force push pending factor to children (for auto-flush)
+    /// @param tree Tree storage reference
+    /// @param nodeIndex Target node index
+    function _forcePushPendingFactor(Tree storage tree, uint32 nodeIndex) private {
+        if (nodeIndex == 0) return;
+        
+        Node storage node = tree.nodes[nodeIndex];
+        uint192 pendingFactor = node.pendingFactor;
+        
+        if (pendingFactor != uint192(ONE_WAD) && node.childPtr != 0) {
+            (uint32 left, uint32 right) = _unpackChildPtr(node.childPtr);
+            
+            // Apply pending factor to children with overflow protection
+            if (left != 0) {
+                Node storage leftNode = tree.nodes[left];
+                leftNode.sum = leftNode.sum.wMul(uint256(pendingFactor));
+                uint256 newLeftPending = uint256(leftNode.pendingFactor).wMul(uint256(pendingFactor));
+                if (newLeftPending <= 1e30) {
+                    leftNode.pendingFactor = uint192(newLeftPending);
+                } else {
+                    // Recursive flush if still too large
+                    _forcePushPendingFactor(tree, left);
+                    leftNode.pendingFactor = uint192(pendingFactor);
+                }
+            }
+            
+            if (right != 0) {
+                Node storage rightNode = tree.nodes[right];
+                rightNode.sum = rightNode.sum.wMul(uint256(pendingFactor));
+                uint256 newRightPending = uint256(rightNode.pendingFactor).wMul(uint256(pendingFactor));
+                if (newRightPending <= 1e30) {
+                    rightNode.pendingFactor = uint192(newRightPending);
+                } else {
+                    // Recursive flush if still too large
+                    _forcePushPendingFactor(tree, right);
+                    rightNode.pendingFactor = uint192(pendingFactor);
+                }
+            }
+            
+            // Clear pending factor after flushing
+            node.pendingFactor = uint192(ONE_WAD);
+            
+            // Update cached root sum if this is root
+            if (nodeIndex == tree.root) {
+                tree.cachedRootSum = node.sum;
+            }
         }
     }
     
@@ -151,33 +214,33 @@ library LazyMulSegmentTree {
     /// @param nodeIndex Current node index
     /// @param l Left boundary
     /// @param r Right boundary
-    function _push(Tree storage tree, uint32 nodeIndex, uint32 l, uint32 r) private {
+    function _pushPendingFactor(Tree storage tree, uint32 nodeIndex, uint32 l, uint32 r) private {
         if (nodeIndex == 0) return;
         
         Node storage node = tree.nodes[nodeIndex];
-        uint192 nodeLazy = node.lazy;
+        uint192 nodePendingFactor = node.pendingFactor;
         
-        if (nodeLazy != uint192(WAD)) {
+        if (nodePendingFactor != uint192(ONE_WAD)) {
             uint32 mid = l + (r - l) / 2;
-            (uint32 left, uint32 right) = _unpackChildren(node.children);
+            (uint32 left, uint32 right) = _unpackChildPtr(node.childPtr);
             
-            uint256 lazyFactor = uint256(nodeLazy);
+            uint256 pendingFactorVal = uint256(nodePendingFactor);
             
             // Auto-allocate left child if needed
             if (left == 0) {
                 left = _allocateNode(tree, l, mid);
             }
-            _apply(tree, left, lazyFactor);
+            _applyFactorToNode(tree, left, pendingFactorVal);
             
             // Auto-allocate right child if needed
             if (right == 0) {
                 right = _allocateNode(tree, mid + 1, r);
             }
-            _apply(tree, right, lazyFactor);
+            _applyFactorToNode(tree, right, pendingFactorVal);
             
             // Update packed children
-            node.children = _packChildren(left, right);
-            node.lazy = uint192(WAD);
+            node.childPtr = _packChildPtr(left, right);
+            node.pendingFactor = uint192(ONE_WAD);
         }
     }
     
@@ -186,11 +249,11 @@ library LazyMulSegmentTree {
     /// @param nodeIndex Current node index
     /// @param l Left boundary
     /// @param r Right boundary
-    function _pull(Tree storage tree, uint32 nodeIndex, uint32 l, uint32 r) private {
+    function _pullUpSum(Tree storage tree, uint32 nodeIndex, uint32 l, uint32 r) private {
         if (nodeIndex == 0) return;
         
         Node storage node = tree.nodes[nodeIndex];
-        (uint32 left, uint32 right) = _unpackChildren(node.children);
+        (uint32 left, uint32 right) = _unpackChildPtr(node.childPtr);
         
         uint32 mid = l + (r - l) / 2;
         
@@ -224,50 +287,53 @@ library LazyMulSegmentTree {
             // Leaf node
             Node storage leaf = tree.nodes[nodeIndex];
             leaf.sum = value;
-            leaf.lazy = uint192(WAD);  // Clear any pending lazy factor
+            leaf.pendingFactor = uint192(ONE_WAD);  // Clear any pending lazy factor
             return;
         }
         
-        _push(tree, nodeIndex, l, r);
+        _pushPendingFactor(tree, nodeIndex, l, r);
         
         uint32 mid = l + (r - l) / 2;
-        (uint32 leftChild, uint32 rightChild) = _unpackChildren(tree.nodes[nodeIndex].children);
+        (uint32 leftChild, uint32 rightChild) = _unpackChildPtr(tree.nodes[nodeIndex].childPtr);
         
         if (index <= mid) {
             // Auto-allocate left child if needed
             if (leftChild == 0) {
                 leftChild = _allocateNode(tree, l, mid);
-                tree.nodes[nodeIndex].children = _packChildren(leftChild, rightChild);
+                tree.nodes[nodeIndex].childPtr = _packChildPtr(leftChild, rightChild);
             }
             _updateRecursive(tree, leftChild, l, mid, index, value);
         } else {
             // Auto-allocate right child if needed
             if (rightChild == 0) {
                 rightChild = _allocateNode(tree, mid + 1, r);
-                tree.nodes[nodeIndex].children = _packChildren(leftChild, rightChild);
+                tree.nodes[nodeIndex].childPtr = _packChildPtr(leftChild, rightChild);
             }
             _updateRecursive(tree, rightChild, mid + 1, r, index, value);
         }
         
-        _pull(tree, nodeIndex, l, r);
+        _pullUpSum(tree, nodeIndex, l, r);
     }
 
-    /// @notice Apply range multiplication
+    /// @notice Apply range multiplication factor
     /// @param tree Tree storage reference
     /// @param lo Left boundary (inclusive)
     /// @param hi Right boundary (inclusive)
     /// @param factor Multiplication factor in wad format
-    function mulRange(Tree storage tree, uint32 lo, uint32 hi, uint256 factor) external {
+    function applyRangeFactor(Tree storage tree, uint32 lo, uint32 hi, uint256 factor) external {
         if (tree.size == 0) revert TreeNotInitialized();
         if (lo > hi) revert InvalidRange(lo, hi);
         if (hi >= tree.size) revert IndexOutOfBounds(hi, tree.size);
-        if (factor == 0) revert ZeroFactor();
-        if (factor < MIN_FACTOR || factor > MAX_FACTOR) revert InvalidFactor(factor);
+        if (factor == 0 || factor < MIN_FACTOR || factor > MAX_FACTOR) revert InvalidFactor(factor);
         
-        _mulRangeRecursive(tree, tree.root, 0, tree.size - 1, lo, hi, factor);
-        tree.cachedRootSum = tree.nodes[tree.root].sum;
+        _applyFactorRecursive(tree, tree.root, 0, tree.size - 1, lo, hi, factor);
         
-        emit RangeMul(lo, hi, factor);
+        // Update cached root sum if affecting entire tree
+        if (lo == 0 && hi == tree.size - 1) {
+            tree.cachedRootSum = tree.nodes[tree.root].sum;
+        }
+        
+        emit RangeFactorApplied(lo, hi, factor);
     }
     
     /// @notice Recursive range multiplication implementation
@@ -278,7 +344,7 @@ library LazyMulSegmentTree {
     /// @param lo Query left boundary
     /// @param hi Query right boundary
     /// @param factor Multiplication factor
-    function _mulRangeRecursive(
+    function _applyFactorRecursive(
         Tree storage tree,
         uint32 nodeIndex,
         uint32 l,
@@ -295,15 +361,15 @@ library LazyMulSegmentTree {
         
         // Complete overlap - apply lazy update
         if (l >= lo && r <= hi) {
-            _apply(tree, nodeIndex, factor);
+            _applyFactorToNode(tree, nodeIndex, factor);
             return;
         }
         
         // Partial overlap - push down and recurse
-        _push(tree, nodeIndex, l, r);
+        _pushPendingFactor(tree, nodeIndex, l, r);
         
         Node storage node = tree.nodes[nodeIndex];
-        (uint32 leftChild, uint32 rightChild) = _unpackChildren(node.children);
+        (uint32 leftChild, uint32 rightChild) = _unpackChildPtr(node.childPtr);
         uint32 mid = l + (r - l) / 2;
         
         // Auto-allocate children if needed for partial overlap
@@ -315,20 +381,20 @@ library LazyMulSegmentTree {
         }
         
         // Update children references
-        node.children = _packChildren(leftChild, rightChild);
+        node.childPtr = _packChildPtr(leftChild, rightChild);
         
-        _mulRangeRecursive(tree, leftChild, l, mid, lo, hi, factor);
-        _mulRangeRecursive(tree, rightChild, mid + 1, r, lo, hi, factor);
+        _applyFactorRecursive(tree, leftChild, l, mid, lo, hi, factor);
+        _applyFactorRecursive(tree, rightChild, mid + 1, r, lo, hi, factor);
         
-        _pull(tree, nodeIndex, l, r);
+        _pullUpSum(tree, nodeIndex, l, r);
     }
 
-    /// @notice Query sum over a range [lo, hi] (view version)
+    /// @notice Get range sum (on-the-fly calculation, view function)
     /// @param tree Tree storage reference
     /// @param lo Left boundary (inclusive)
     /// @param hi Right boundary (inclusive)
     /// @return sum Sum of values in range
-    function query(Tree storage tree, uint32 lo, uint32 hi) 
+    function getRangeSum(Tree storage tree, uint32 lo, uint32 hi) 
         external 
         view
         returns (uint256 sum) 
@@ -337,15 +403,15 @@ library LazyMulSegmentTree {
         if (lo > hi) revert InvalidRange(lo, hi);
         if (hi >= tree.size) revert IndexOutOfBounds(hi, tree.size);
         
-        return _queryRecursiveView(tree, tree.root, 0, tree.size - 1, lo, hi);
+        return _sumRangeWithAccFactor(tree, tree.root, 0, tree.size - 1, lo, hi, ONE_WAD);
     }
     
-    /// @notice Query sum over a range [lo, hi] (with lazy propagation)
+    /// @notice Propagate lazy values and return range sum (state-changing function)
     /// @param tree Tree storage reference
     /// @param lo Left boundary (inclusive)
     /// @param hi Right boundary (inclusive)
     /// @return sum Sum of values in range
-    function queryWithLazy(Tree storage tree, uint32 lo, uint32 hi) 
+    function propagateLazy(Tree storage tree, uint32 lo, uint32 hi) 
         external 
         returns (uint256 sum) 
     {
@@ -353,31 +419,41 @@ library LazyMulSegmentTree {
         if (lo > hi) revert InvalidRange(lo, hi);
         if (hi >= tree.size) revert IndexOutOfBounds(hi, tree.size);
         
-        return _queryRecursive(tree, tree.root, 0, tree.size - 1, lo, hi);
+        sum = _queryRecursive(tree, tree.root, 0, tree.size - 1, lo, hi);
+        
+        // Update cached root sum if affecting entire tree
+        if (lo == 0 && hi == tree.size - 1) {
+            tree.cachedRootSum = tree.nodes[tree.root].sum;
+        }
+        
+        return sum;
     }
     
-    /// @notice Recursive query implementation (view version)
+    /// @notice On-the-fly query with accumulated lazy (true view function)
+    /// @dev Renamed from _queryOnTheFly to _sumRangeWithAccFactor
     /// @param tree Tree storage reference
     /// @param nodeIndex Current node index
     /// @param l Left boundary of current segment
     /// @param r Right boundary of current segment
     /// @param lo Query left boundary
     /// @param hi Query right boundary
-    /// @return sum Sum in the queried range
-    function _queryRecursiveView(
+    /// @param accFactor Accumulated lazy factor from ancestors
+    /// @return sum Sum in the queried range with all lazy values applied
+    function _sumRangeWithAccFactor(
         Tree storage tree,
         uint32 nodeIndex,
         uint32 l,
         uint32 r,
         uint32 lo,
-        uint32 hi
+        uint32 hi,
+        uint256 accFactor
     ) private view returns (uint256 sum) {
         // Handle empty nodes with default sum
         if (nodeIndex == 0) {
             if (r < lo || l > hi) return 0;
             uint32 overlapL = lo > l ? lo : l;
             uint32 overlapR = hi < r ? hi : r;
-            return _defaultSum(overlapL, overlapR);
+            return _defaultSum(overlapL, overlapR).wMul(accFactor);
         }
         
         // No overlap
@@ -385,17 +461,21 @@ library LazyMulSegmentTree {
         
         Node storage node = tree.nodes[nodeIndex];
         
+        // Apply current node's lazy to accumulated lazy
+        uint256 newAccFactor = accFactor.wMul(node.pendingFactor);
+        
         // Complete overlap
         if (l >= lo && r <= hi) {
-            return node.sum;
+            // node.sum already contains pendingFactor, so only apply ancestor accumulated factor
+            return node.sum.wMul(accFactor);
         }
         
-        // Partial overlap
+        // Partial overlap - recurse with accumulated lazy
         uint32 mid = l + (r - l) / 2;
-        (uint32 leftChild, uint32 rightChild) = _unpackChildren(node.children);
+        (uint32 leftChild, uint32 rightChild) = _unpackChildPtr(node.childPtr);
         
-        uint256 leftSum = _queryRecursiveView(tree, leftChild, l, mid, lo, hi);
-        uint256 rightSum = _queryRecursiveView(tree, rightChild, mid + 1, r, lo, hi);
+        uint256 leftSum = _sumRangeWithAccFactor(tree, leftChild, l, mid, lo, hi, newAccFactor);
+        uint256 rightSum = _sumRangeWithAccFactor(tree, rightChild, mid + 1, r, lo, hi, newAccFactor);
         
         return leftSum + rightSum;
     }
@@ -435,10 +515,10 @@ library LazyMulSegmentTree {
         }
         
         // Partial overlap - push lazy values first
-        _push(tree, nodeIndex, l, r);
+        _pushPendingFactor(tree, nodeIndex, l, r);
         
         uint32 mid = l + (r - l) / 2;
-        (uint32 leftChild, uint32 rightChild) = _unpackChildren(node.children);
+        (uint32 leftChild, uint32 rightChild) = _unpackChildPtr(node.childPtr);
         
         uint256 leftSum = _queryRecursive(tree, leftChild, l, mid, lo, hi);
         uint256 rightSum = _queryRecursive(tree, rightChild, mid + 1, r, lo, hi);
@@ -470,7 +550,7 @@ library LazyMulSegmentTree {
         uint32[] memory indices,
         uint256[] memory values
     ) external {
-        require(indices.length == values.length, "Array length mismatch");
+        if (indices.length != values.length) revert CE.ArrayLengthMismatch();
         if (tree.size == 0) revert TreeNotInitialized();
         
         uint256 len = indices.length;

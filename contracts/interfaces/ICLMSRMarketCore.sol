@@ -16,7 +16,7 @@ interface ICLMSRMarketCore {
         uint64 startTimestamp;          // Market start time
         uint64 endTimestamp;            // Market end time
         uint32 settlementTick;          // Winning tick (only if settled)
-        uint32 tickCount;               // Number of ticks in market
+        uint32 numTicks;                // Number of ticks in market
         uint256 liquidityParameter;    // Alpha parameter (1e18 scale)
     }
     
@@ -37,7 +37,7 @@ interface ICLMSRMarketCore {
         uint256 indexed marketId,
         uint64 startTimestamp,
         uint64 endTimestamp,
-        uint32 tickCount,
+        uint32 numTicks,
         uint256 liquidityParameter
     );
 
@@ -47,9 +47,9 @@ interface ICLMSRMarketCore {
     );
 
     event PositionOpened(
-        uint256 indexed marketId,
-        address indexed trader,
         uint256 indexed positionId,
+        address indexed trader,
+        uint256 indexed marketId,
         uint32 lowerTick,
         uint32 upperTick,
         uint128 quantity,
@@ -113,10 +113,10 @@ interface ICLMSRMarketCore {
     error CostExceedsMaximum(uint256 actualCost, uint256 maxCost);
     error InsufficientBalance(address account, uint256 required, uint256 available);
     error TransferFailed(address token, address from, address to, uint256 amount);
-    error InvalidMarketParameters(string reason);
+
 
     error ContractPaused();
-    error TickCountExceedsLimit(uint32 tickCount, uint32 maxAllowed); // Max ~1M for segment-tree safety
+    error TickCountExceedsLimit(uint32 numTicks, uint32 maxAllowed); // Max ~1M for segment-tree safety
 
     // ========================================
     // MARKET MANAGEMENT FUNCTIONS
@@ -125,13 +125,13 @@ interface ICLMSRMarketCore {
     /// @notice Create a new market (only callable by Manager)
     /// @dev Stores market data and initializes all tick values to WAD (1e18)
     /// @param marketId Market identifier
-    /// @param tickCount Number of ticks in market
+    /// @param numTicks Number of ticks in market
     /// @param startTimestamp Market start time
     /// @param endTimestamp Market end time
     /// @param liquidityParameter Alpha parameter (1e18 scale)
     function createMarket(
         uint256 marketId,
-        uint32 tickCount,
+        uint32 numTicks,
         uint64 startTimestamp,
         uint64 endTimestamp,
         uint256 liquidityParameter
@@ -212,8 +212,8 @@ interface ICLMSRMarketCore {
         uint128 quantity
     ) external view returns (uint256 cost);
     
-    /// @notice Calculate cost of increasing position
-    /// @param positionId Position to increase
+    /// @notice Calculate cost of increasing existing position
+    /// @param positionId Position identifier  
     /// @param additionalQuantity Additional quantity to buy
     /// @return cost Estimated additional cost
     function calculateIncreaseCost(
@@ -222,7 +222,7 @@ interface ICLMSRMarketCore {
     ) external view returns (uint256 cost);
     
     /// @notice Calculate proceeds from decreasing position
-    /// @param positionId Position to decrease
+    /// @param positionId Position identifier
     /// @param sellQuantity Quantity to sell
     /// @return proceeds Estimated proceeds
     function calculateDecreaseProceeds(
@@ -231,15 +231,15 @@ interface ICLMSRMarketCore {
     ) external view returns (uint256 proceeds);
     
     /// @notice Calculate proceeds from closing entire position
-    /// @param positionId Position to close
+    /// @param positionId Position identifier
     /// @return proceeds Estimated proceeds
     function calculateCloseProceeds(
         uint256 positionId
     ) external view returns (uint256 proceeds);
     
     /// @notice Calculate claimable amount from settled position
-    /// @param positionId Position to claim
-    /// @return amount Claimable amount (0 if market not settled)
+    /// @param positionId Position identifier
+    /// @return amount Claimable amount
     function calculateClaimAmount(
         uint256 positionId
     ) external view returns (uint256 amount);
@@ -251,53 +251,75 @@ interface ICLMSRMarketCore {
     /// @notice Get market information
     /// @param marketId Market identifier
     /// @return market Market data
-    function getMarket(uint256 marketId) 
-        external view returns (Market memory market);
+    function getMarket(uint256 marketId) external view returns (Market memory market);
     
-    /// @notice Get exponential value for a specific tick
+    /// @notice Get tick value
     /// @param marketId Market identifier
     /// @param tick Tick index
-    /// @return value Exponential value at tick
-    function getTickValue(uint256 marketId, uint32 tick) 
-        external view returns (uint256 value);
+    /// @return value Tick value
+    function getTickValue(uint256 marketId, uint32 tick) external view returns (uint256 value);
     
     /// @notice Get position contract address
-    /// @return Address of the position NFT contract
-    function getPositionContract() 
-        external view returns (address);
+    /// @return Position contract address
+    function getPositionContract() external view returns (address);
     
     /// @notice Get payment token address
-    /// @return Address of the ERC20 payment token
-    function getPaymentToken() 
-        external view returns (address);
+    /// @return Payment token address
+    function getPaymentToken() external view returns (address);
     
-    /// @notice Check if address is authorized to call core functions
-    /// @dev Manager can call market management, Router/Position can call execution
+    /// @notice Check if caller is authorized
     /// @param caller Address to check
     /// @return True if authorized
-    function isAuthorizedCaller(address caller) 
-        external view returns (bool);
+    function isAuthorizedCaller(address caller) external view returns (bool);
     
     /// @notice Get manager contract address
-    /// @return Address of the manager contract
-    function getManagerContract() 
-        external view returns (address);
+    /// @return Manager contract address
+    function getManagerContract() external view returns (address);
     
     /// @notice Get router contract address
-    /// @return Address of the router contract
-    function getRouterContract() 
-        external view returns (address);
+    /// @return Router contract address
+    function getRouterContract() external view returns (address);
+
+    // ========================================
+    // SEGMENT TREE FUNCTIONS
+    // ========================================
+    
+    /// @notice Get range sum with on-the-fly lazy calculation (view function)
+    /// @dev For general users - returns latest values without state changes
+    /// @param marketId Market identifier
+    /// @param lo Left boundary (inclusive)
+    /// @param hi Right boundary (inclusive)
+    /// @return sum Sum of exponential values in range
+    function getRangeSum(uint256 marketId, uint32 lo, uint32 hi) 
+        external view returns (uint256 sum);
+    
+    /// @notice Propagate lazy values and return range sum (state-changing function)
+    /// @dev For Keeper/Manager - actually pushes lazy values down the tree
+    /// @param marketId Market identifier
+    /// @param lo Left boundary (inclusive)
+    /// @param hi Right boundary (inclusive)
+    /// @return sum Sum of exponential values in range
+    function propagateLazy(uint256 marketId, uint32 lo, uint32 hi) 
+        external returns (uint256 sum);
+    
+    /// @notice Apply multiplication factor to range (state-changing function)
+    /// @dev For Keeper/Manager - updates market state by applying factor
+    /// @param marketId Market identifier
+    /// @param lo Left boundary (inclusive)
+    /// @param hi Right boundary (inclusive)
+    /// @param factor Multiplication factor (WAD scale)
+    function applyRangeFactor(uint256 marketId, uint32 lo, uint32 hi, uint256 factor) 
+        external;
 
     // ========================================
     // EMERGENCY FUNCTIONS
     // ========================================
     
-    /// @notice Pause all trading operations (only callable by Manager)
-    /// @dev For oracle/settlement error response
+    /// @notice Pause the contract
     /// @param reason Reason for pausing
     function pause(string calldata reason) external;
     
-    /// @notice Unpause all trading operations (only callable by Manager)
+    /// @notice Unpause the contract
     function unpause() external;
     
     /// @notice Check if contract is paused

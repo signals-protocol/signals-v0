@@ -9,9 +9,10 @@
 #
 # 특징:
 # - 자동 파일 탐지 및 분류
+# - 동적 디렉토리 구조 시각화
 # - 실시간 테스트 결과 포함
 # - 프로젝트 통계 자동 계산
-# - 보안 개선사항 자동 추적
+# - 모든 파일 내용 포함
 # - 아름다운 마크다운 포맷팅
 # ========================================
 
@@ -84,6 +85,59 @@ human_readable_size() {
     fi
 }
 
+# 디렉토리 구조를 트리 형태로 생성
+generate_tree_structure() {
+    print_step "Generating directory tree structure..."
+    
+    echo "## 📁 Project Directory Structure" >> "$OUTPUT_FILE"
+    echo "" >> "$OUTPUT_FILE"
+    echo "\`\`\`" >> "$OUTPUT_FILE"
+    
+    # tree 명령어가 있으면 사용, 없으면 find로 대체
+    if command -v tree >/dev/null 2>&1; then
+        tree -I 'node_modules|.git|cache|artifacts|typechain-types|coverage|.cursor|complete_codebase.md' >> "$OUTPUT_FILE"
+    else
+        # 제대로 된 트리 구조 생성
+        echo "signals-v0/" >> "$OUTPUT_FILE"
+        echo "├── contracts/" >> "$OUTPUT_FILE"
+        if [ -d "contracts" ]; then
+            for dir in contracts/*/; do
+                if [ -d "$dir" ]; then
+                    dir_name=$(basename "$dir")
+                    echo "│   ├── $dir_name/" >> "$OUTPUT_FILE"
+                    for file in "$dir"*.sol; do
+                        if [ -f "$file" ]; then
+                            file_name=$(basename "$file")
+                            echo "│   │   └── $file_name" >> "$OUTPUT_FILE"
+                        fi
+                    done
+                fi
+            done
+        fi
+        echo "├── test/" >> "$OUTPUT_FILE"
+        if [ -d "test" ]; then
+            for dir in test/*/; do
+                if [ -d "$dir" ]; then
+                    dir_name=$(basename "$dir")
+                    echo "│   ├── $dir_name/" >> "$OUTPUT_FILE"
+                    find "$dir" -name "*.ts" | while read file; do
+                        rel_path=${file#test/$dir_name/}
+                        echo "│   │   └── $rel_path" >> "$OUTPUT_FILE"
+                    done
+                fi
+            done
+        fi
+        echo "├── package.json" >> "$OUTPUT_FILE"
+        echo "├── hardhat.config.ts" >> "$OUTPUT_FILE"
+        echo "├── tsconfig.json" >> "$OUTPUT_FILE"
+        echo "├── README.md" >> "$OUTPUT_FILE"
+        echo "└── .gitignore" >> "$OUTPUT_FILE"
+    fi
+    
+    echo "\`\`\`" >> "$OUTPUT_FILE"
+    echo "" >> "$OUTPUT_FILE"
+}
+
 # 파일을 출력에 추가하는 함수
 add_file() {
     local file_path="$1"
@@ -101,6 +155,42 @@ add_file() {
         local anchor=$(echo "$file_path" | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]')
         echo "- [$file_path](#$anchor) ($readable_size, $line_count lines)" >> "$OUTPUT_FILE"
         
+        # 통계 업데이트
+        total_files=$((total_files + 1))
+        total_size=$((total_size + file_size))
+        total_lines=$((total_lines + line_count))
+        
+        # 카테고리별 통계
+        case "$category" in
+            "Core Contracts") core_files=$((core_files + 1)) ;;
+            "Interface Contracts") interface_files=$((interface_files + 1)) ;;
+            "Library Contracts") library_files=$((library_files + 1)) ;;
+            "Error Contracts") error_files=$((error_files + 1)) ;;
+            "Manager Contracts") manager_files=$((manager_files + 1)) ;;
+            "Periphery Contracts") periphery_files=$((periphery_files + 1)) ;;
+            "Test Contracts") test_contract_files=$((test_contract_files + 1)) ;;
+            "Mock Contracts") mock_files=$((mock_files + 1)) ;;
+            "TypeScript Tests") test_files=$((test_files + 1)) ;;
+            "Configuration") config_files=$((config_files + 1)) ;;
+        esac
+    else
+        print_warning "File not found: $file_path"
+    fi
+}
+
+# 파일 내용을 실제로 추가하는 함수
+add_file_content() {
+    local file_path="$1"
+    local category="$2"
+    local file_name=$(basename "$file_path")
+    
+    if [ -f "$file_path" ]; then
+        local file_size=$(wc -c < "$file_path")
+        local line_count=$(wc -l < "$file_path")
+        local readable_size=$(human_readable_size $file_size)
+        
+        echo "  📄 Adding content: $file_path ($readable_size, $line_count lines)"
+        
         # 파일 내용 추가
         echo "" >> "$OUTPUT_FILE"
         echo "## $file_path" >> "$OUTPUT_FILE"
@@ -112,22 +202,6 @@ add_file() {
         echo "" >> "$OUTPUT_FILE"
         echo "\`\`\`" >> "$OUTPUT_FILE"
         echo "" >> "$OUTPUT_FILE"
-        
-        # 통계 업데이트
-        total_files=$((total_files + 1))
-        total_size=$((total_size + file_size))
-        total_lines=$((total_lines + line_count))
-        
-        # 카테고리별 통계
-        case "$category" in
-            "Core Contracts") core_files=$((core_files + 1)) ;;
-            "Interface Contracts") interface_files=$((interface_files + 1)) ;;
-            "Library Contracts") library_files=$((library_files + 1)) ;;
-            "Test Contracts") test_contract_files=$((test_contract_files + 1)) ;;
-            "Mock Contracts") mock_files=$((mock_files + 1)) ;;
-            "TypeScript Tests") test_files=$((test_files + 1)) ;;
-            "Configuration") config_files=$((config_files + 1)) ;;
-        esac
     else
         print_warning "File not found: $file_path"
     fi
@@ -141,11 +215,136 @@ add_directory() {
     
     if [ -d "$dir_path" ]; then
         print_step "Scanning directory: $dir_path"
-        # 서브셸 문제를 피하기 위해 while 루프 대신 for 루프 사용
         for file in $(find "$dir_path" -name "$pattern" -type f | sort); do
             add_file "$file" "$category"
         done
+    else
+        print_warning "Directory not found: $dir_path"
     fi
+}
+
+# 디렉토리의 모든 파일 내용을 실제로 추가
+add_directory_content() {
+    local dir_path="$1"
+    local category="$2"
+    local pattern="$3"
+    
+    if [ -d "$dir_path" ]; then
+        print_step "Adding content from directory: $dir_path"
+        for file in $(find "$dir_path" -name "$pattern" -type f | sort); do
+            add_file_content "$file" "$category"
+        done
+    else
+        print_warning "Directory not found: $dir_path"
+    fi
+}
+
+# 파일 수집 함수 (통계 계산용)
+collect_files() {
+    print_header "Collecting Files for Statistics"
+    
+    # 동적으로 contracts 하위 디렉토리들을 탐지하고 추가
+    if [ -d "contracts" ]; then
+        for contract_dir in contracts/*/; do
+            if [ -d "$contract_dir" ]; then
+                dir_name=$(basename "$contract_dir")
+                case "$dir_name" in
+                    "core") add_directory "$contract_dir" "Core Contracts" "*.sol" ;;
+                    "interfaces") add_directory "$contract_dir" "Interface Contracts" "*.sol" ;;
+                    "libraries") add_directory "$contract_dir" "Library Contracts" "*.sol" ;;
+                    "errors") add_directory "$contract_dir" "Error Contracts" "*.sol" ;;
+                    "manager") add_directory "$contract_dir" "Manager Contracts" "*.sol" ;;
+                    "periphery") add_directory "$contract_dir" "Periphery Contracts" "*.sol" ;;
+                    "test") add_directory "$contract_dir" "Test Contracts" "*.sol" ;;
+                    "mocks") add_directory "$contract_dir" "Mock Contracts" "*.sol" ;;
+                    *) add_directory "$contract_dir" "Other Contracts" "*.sol" ;;
+                esac
+            fi
+        done
+    fi
+    
+    # 동적으로 test 하위 디렉토리들을 탐지하고 추가
+    if [ -d "test" ]; then
+        for test_dir in test/*/; do
+            if [ -d "$test_dir" ]; then
+                dir_name=$(basename "$test_dir")
+                print_step "Processing test directory: $dir_name"
+                add_directory "$test_dir" "TypeScript Tests" "*.ts"
+            fi
+        done
+    fi
+    
+    # 루트 레벨의 테스트 파일들도 확인
+    for test_file in test/*.ts; do
+        if [ -f "$test_file" ]; then
+            add_file "$test_file" "TypeScript Tests"
+        fi
+    done
+    
+    # 동적으로 설정 파일들을 탐지
+    for config_file in *.ts *.json *.md *.yml *.yaml *.toml *.sh *.gitignore; do
+        if [ -f "$config_file" ] && [ "$config_file" != "$OUTPUT_FILE" ]; then
+            # 특정 파일들은 제외
+            case "$config_file" in
+                "combine_all_files.sh") continue ;;
+                *) add_file "$config_file" "Configuration" ;;
+            esac
+        fi
+    done
+}
+
+# 모든 파일 내용 추가 함수
+add_all_file_contents() {
+    print_header "Adding All File Contents"
+    
+    # 동적으로 contracts 하위 디렉토리들을 탐지하고 내용 추가
+    if [ -d "contracts" ]; then
+        for contract_dir in contracts/*/; do
+            if [ -d "$contract_dir" ]; then
+                dir_name=$(basename "$contract_dir")
+                case "$dir_name" in
+                    "core") add_directory_content "$contract_dir" "Core Contracts" "*.sol" ;;
+                    "interfaces") add_directory_content "$contract_dir" "Interface Contracts" "*.sol" ;;
+                    "libraries") add_directory_content "$contract_dir" "Library Contracts" "*.sol" ;;
+                    "errors") add_directory_content "$contract_dir" "Error Contracts" "*.sol" ;;
+                    "manager") add_directory_content "$contract_dir" "Manager Contracts" "*.sol" ;;
+                    "periphery") add_directory_content "$contract_dir" "Periphery Contracts" "*.sol" ;;
+                    "test") add_directory_content "$contract_dir" "Test Contracts" "*.sol" ;;
+                    "mocks") add_directory_content "$contract_dir" "Mock Contracts" "*.sol" ;;
+                    *) add_directory_content "$contract_dir" "Other Contracts" "*.sol" ;;
+                esac
+            fi
+        done
+    fi
+    
+    # 동적으로 test 하위 디렉토리들을 탐지하고 내용 추가
+    if [ -d "test" ]; then
+        for test_dir in test/*/; do
+            if [ -d "$test_dir" ]; then
+                dir_name=$(basename "$test_dir")
+                print_step "Adding content from test directory: $dir_name"
+                add_directory_content "$test_dir" "TypeScript Tests" "*.ts"
+            fi
+        done
+    fi
+    
+    # 루트 레벨의 테스트 파일들도 확인
+    for test_file in test/*.ts; do
+        if [ -f "$test_file" ]; then
+            add_file_content "$test_file" "TypeScript Tests"
+        fi
+    done
+    
+    # 동적으로 설정 파일들을 탐지하고 내용 추가
+    for config_file in *.ts *.json *.md *.yml *.yaml *.toml *.sh *.gitignore; do
+        if [ -f "$config_file" ] && [ "$config_file" != "$OUTPUT_FILE" ]; then
+            # 특정 파일들은 제외
+            case "$config_file" in
+                "combine_all_files.sh") continue ;;
+                *) add_file_content "$config_file" "Configuration" ;;
+            esac
+        fi
+    done
 }
 
 # 테스트 실행 및 결과 수집
@@ -189,13 +388,6 @@ calculate_stats() {
         last_commit="N/A"
         contributors="N/A"
     fi
-    
-    # 보안 개선사항 카운트 (README에서 추출)
-    if [ -f "README.md" ]; then
-        security_fixes=$(grep -c "✅.*FIXED" README.md || echo "0")
-    else
-        security_fixes="0"
-    fi
 }
 
 # 메인 문서 헤더 생성
@@ -219,7 +411,6 @@ _Auto-generated comprehensive documentation with live test results_
 | **Total Lines** | $total_lines lines |
 | **Git Commits** | $commit_count |
 | **Contributors** | $contributors |
-| **Security Fixes** | $security_fixes applied |
 
 ---
 
@@ -234,9 +425,14 @@ EOF
         echo "\`\`\`" >> "$OUTPUT_FILE"
     fi
 
-    cat >> "$OUTPUT_FILE" << EOF
+    echo "" >> "$OUTPUT_FILE"
+    echo "---" >> "$OUTPUT_FILE"
+    echo "" >> "$OUTPUT_FILE"
+}
 
----
+# 파일 구조 통계 생성
+generate_file_statistics() {
+    cat >> "$OUTPUT_FILE" << EOF
 
 ## 📁 File Structure & Statistics
 
@@ -245,6 +441,9 @@ EOF
 | **Core Contracts** | $core_files | Main CLMSR implementation |
 | **Interface Contracts** | $interface_files | Contract interfaces |
 | **Library Contracts** | $library_files | Mathematical libraries |
+| **Error Contracts** | $error_files | Custom error definitions |
+| **Manager Contracts** | $manager_files | Management layer contracts |
+| **Periphery Contracts** | $periphery_files | Helper and utility contracts |
 | **Test Contracts** | $test_contract_files | Solidity test helpers |
 | **Mock Contracts** | $mock_files | Testing mocks |
 | **TypeScript Tests** | $test_files | Comprehensive test suite |
@@ -268,6 +467,9 @@ main() {
     core_files=0
     interface_files=0
     library_files=0
+    error_files=0
+    manager_files=0
+    periphery_files=0
     test_contract_files=0
     mock_files=0
     test_files=0
@@ -279,56 +481,22 @@ main() {
     # 2. 프로젝트 통계 계산
     calculate_stats
     
-    # 3. 문서 헤더 생성
+    # 3. 파일들을 카테고리별로 수집 (통계만)
+    collect_files
+    
+    # 4. 문서 헤더 생성 (통계 포함)
     generate_header
     
-    # 4. 파일들을 카테고리별로 추가
-    print_header "Adding Contract Files"
+    # 5. 디렉토리 구조 생성
+    generate_tree_structure
     
-    print_step "Core Contracts"
-    add_directory "contracts/core" "Core Contracts" "*.sol"
+    # 6. 파일 구조 통계 생성
+    generate_file_statistics
     
-    print_step "Interface Contracts"
-    add_directory "contracts/interfaces" "Interface Contracts" "*.sol"
+    # 7. 모든 파일 내용 추가
+    add_all_file_contents
     
-    print_step "Library Contracts"
-    add_directory "contracts/libraries" "Library Contracts" "*.sol"
-    
-    print_step "Manager Contracts"
-    add_directory "contracts/manager" "Manager Contracts" "*.sol"
-    
-    print_step "Periphery Contracts"
-    add_directory "contracts/periphery" "Periphery Contracts" "*.sol"
-    
-    print_step "Test Contracts"
-    add_directory "contracts/test" "Test Contracts" "*.sol"
-    
-    print_step "Mock Contracts"
-    add_directory "contracts/mocks" "Mock Contracts" "*.sol"
-    
-    print_header "Adding Test Files"
-    
-    print_step "Core Tests"
-    add_directory "test/core" "TypeScript Tests" "*.ts"
-    
-    print_step "Library Tests"
-    if [ -f "test/FixedPointMath.test.ts" ]; then
-        add_file "test/FixedPointMath.test.ts" "TypeScript Tests"
-    fi
-    if [ -f "test/LazyMulSegmentTree.test.ts" ]; then
-        add_file "test/LazyMulSegmentTree.test.ts" "TypeScript Tests"
-    fi
-    
-    print_header "Adding Configuration Files"
-    
-    # 설정 파일들
-    for config_file in "hardhat.config.ts" "package.json" "tsconfig.json" "README.md" ".gitignore"; do
-        if [ -f "$config_file" ]; then
-            add_file "$config_file" "Configuration"
-        fi
-    done
-    
-    # 5. 문서 푸터 생성
+    # 8. 문서 푸터 생성
     print_step "Generating document footer"
     
     cat >> "$OUTPUT_FILE" << EOF
@@ -341,7 +509,13 @@ main() {
 - **Total Files**: $total_files
 - **Total Size**: $(human_readable_size $total_size)
 - **Total Lines**: $total_lines
-- **Average File Size**: $(human_readable_size $((total_size / total_files)))
+EOF
+
+    if [ $total_files -gt 0 ]; then
+        echo "- **Average File Size**: $(human_readable_size $((total_size / total_files)))" >> "$OUTPUT_FILE"
+    fi
+
+    cat >> "$OUTPUT_FILE" << EOF
 
 ### 🧪 Test Coverage
 - **Test Status**: $test_status
@@ -349,16 +523,13 @@ main() {
 - **Test Files**: $test_files
 - **Test Contracts**: $test_contract_files
 
-### 🔒 Security Status
-- **Security Fixes Applied**: $security_fixes
-- **Critical Issues**: ✅ Resolved
-- **Gas DoS Protection**: ✅ Implemented
-- **Zero-Cost Attack Prevention**: ✅ Implemented
-
 ### 🏗️ Architecture
 - **Core Contracts**: $core_files (Immutable business logic)
 - **Interface Contracts**: $interface_files (Type definitions)
 - **Library Contracts**: $library_files (Mathematical utilities)
+- **Error Contracts**: $error_files (Custom error definitions)
+- **Manager Contracts**: $manager_files (Management layer)
+- **Periphery Contracts**: $periphery_files (Helper utilities)
 - **Mock Contracts**: $mock_files (Testing infrastructure)
 
 ---
@@ -371,17 +542,11 @@ main() {
 3. **Mathematical Libraries**: Robust fixed-point arithmetic and segment trees
 4. **Security Hardening**: Protection against common DeFi vulnerabilities
 
-### 🛡️ Security Enhancements
-1. **Round-Up Cost Calculation**: Prevents zero-cost position attacks
-2. **Gas DoS Protection**: Limits chunk operations to prevent gas exhaustion
-3. **Time Validation**: Prevents trading in expired markets
-4. **Overflow Protection**: Safe handling of large quantities
-
 ### 🧪 Testing Excellence
 1. **Comprehensive Coverage**: $test_count tests covering all scenarios
-2. **Boundary Testing**: Edge cases and extreme values
+2. **Multi-layer Testing**: Unit, Integration, Component, E2E, and Performance tests
 3. **Security Testing**: Attack vector validation
-4. **Performance Testing**: Gas optimization verification
+4. **Invariant Testing**: Mathematical property verification
 
 ---
 
@@ -389,23 +554,28 @@ main() {
 
 ### 🔧 Build Information
 - **Generated**: $(date '+%Y-%m-%d %H:%M:%S %Z')
-- **Generator**: Advanced Codebase Compiler v2.0
+- **Generator**: Advanced Codebase Compiler v3.1
 - **Git Commits**: $commit_count
 - **Last Commit**: $last_commit
 
-### 🎯 Next Steps
-1. **Deployment**: Ready for mainnet deployment
-2. **Auditing**: Comprehensive security audit recommended
-3. **Integration**: Router and Manager contract implementation
-4. **Optimization**: Further gas optimizations possible
+### 🎯 Project Status
+EOF
+
+    if [ "$test_status" = "✅ PASSING" ]; then
+        echo "✅ **All Tests Passing** - Ready for deployment" >> "$OUTPUT_FILE"
+    else
+        echo "⚠️ **Tests Need Attention** - Check test output for details" >> "$OUTPUT_FILE"
+    fi
+
+    cat >> "$OUTPUT_FILE" << EOF
 
 ---
 
 ## 🏆 Achievement Summary
 
-✅ **$test_count Tests Passing** - Complete test coverage  
-✅ **Security Hardened** - All critical vulnerabilities fixed  
-✅ **Gas Optimized** - Efficient chunk-split algorithms  
+✅ **$test_count Tests** - Comprehensive test coverage  
+✅ **Multi-layer Architecture** - Clean separation of concerns  
+✅ **Complete Codebase** - All files with full content included  
 ✅ **Production Ready** - Comprehensive documentation and testing  
 
 ---
@@ -414,11 +584,11 @@ _This documentation was automatically generated by the CLMSR Advanced Codebase C
 _For the latest version, run: \`./combine_all_files.sh\`_
 
 EOF
-
-    # 6. 정리
+    
+    # 9. 정리
     rm -rf "$TEMP_DIR"
     
-    # 7. 결과 출력
+    # 10. 결과 출력
     print_header "Compilation Complete!"
     
     echo ""
