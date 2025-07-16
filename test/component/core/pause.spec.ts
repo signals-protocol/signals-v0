@@ -153,7 +153,14 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core.connect(router).openPosition(
+        alice.address,
+        tradeParams.marketId,
+        tradeParams.lowerTick,
+        tradeParams.upperTick,
+        tradeParams.quantity,
+        tradeParams.maxCost
+      )
       ).to.be.revertedWithCustomError(core, "ContractPaused");
     });
 
@@ -181,7 +188,14 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
         maxCost: ethers.parseUnits("1", 6),
       };
 
-      await core.connect(router).openPosition(alice.address, tradeParams);
+      await core.connect(router).openPosition(
+        alice.address,
+        tradeParams.marketId,
+        tradeParams.lowerTick,
+        tradeParams.upperTick,
+        tradeParams.quantity,
+        tradeParams.maxCost
+      );
 
       // Pause the contract
       await core.connect(keeper).pause("Emergency");
@@ -233,7 +247,14 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
         maxCost: ethers.parseUnits("10", 6),
       };
 
-      await core.connect(router).openPosition(alice.address, tradeParams);
+      await core.connect(router).openPosition(
+        alice.address,
+        tradeParams.marketId,
+        tradeParams.lowerTick,
+        tradeParams.upperTick,
+        tradeParams.quantity,
+        tradeParams.maxCost
+      );
 
       // Settle market
       await time.increaseTo(endTime + 1);
@@ -305,7 +326,14 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
         maxCost: ethers.parseUnits("10", 6),
       };
 
-      await core.connect(router).openPosition(alice.address, tradeParams);
+      await core.connect(router).openPosition(
+        alice.address,
+        tradeParams.marketId,
+        tradeParams.lowerTick,
+        tradeParams.upperTick,
+        tradeParams.quantity,
+        tradeParams.maxCost
+      );
 
       // Pause the contract
       await core.connect(keeper).pause("Emergency");
@@ -356,7 +384,14 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core.connect(router).openPosition(
+        alice.address,
+        tradeParams.marketId,
+        tradeParams.lowerTick,
+        tradeParams.upperTick,
+        tradeParams.quantity,
+        tradeParams.maxCost
+      )
       ).to.not.be.reverted;
 
       // Should allow position modifications after unpause
@@ -394,7 +429,14 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
         maxCost: ethers.parseUnits("10", 6),
       };
 
-      await core.connect(router).openPosition(alice.address, tradeParams);
+      await core.connect(router).openPosition(
+        alice.address,
+        tradeParams.marketId,
+        tradeParams.lowerTick,
+        tradeParams.upperTick,
+        tradeParams.quantity,
+        tradeParams.maxCost
+      );
 
       // Get initial state
       const initialMarket = await core.getMarket(1);
@@ -478,14 +520,28 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
         maxCost: ethers.parseUnits("10", 6),
       };
 
-      await core.connect(router).openPosition(alice.address, tradeParams);
+      await core.connect(router).openPosition(
+        alice.address,
+        tradeParams.marketId,
+        tradeParams.lowerTick,
+        tradeParams.upperTick,
+        tradeParams.quantity,
+        tradeParams.maxCost
+      );
 
       // Emergency pause during active market
       await core.connect(keeper).pause("Emergency during trading");
 
       // All trading should be stopped
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core.connect(router).openPosition(
+        alice.address,
+        tradeParams.marketId,
+        tradeParams.lowerTick,
+        tradeParams.upperTick,
+        tradeParams.quantity,
+        tradeParams.maxCost
+      )
       ).to.be.revertedWithCustomError(core, "ContractPaused");
 
       // But view functions should work

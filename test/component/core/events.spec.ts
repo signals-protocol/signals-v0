@@ -134,7 +134,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
       );
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       )
         .to.emit(core, "PositionOpened")
         .withArgs(
@@ -170,16 +179,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
       await time.increaseTo(startTime + 1);
 
       // Open initial position
-      const initialParams = {
-        marketId,
-        lowerTick: 10,
-        upperTick: 20,
-        quantity: ethers.parseUnits("1", 6),
-        maxCost: ethers.parseUnits("10", 6),
-      };
-
-      await core.connect(router).openPosition(alice.address, initialParams);
-
+      await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          10,
+          20,
+          ethers.parseUnits("1", 6),
+          ethers.parseUnits("10", 6)
+        );
       // Increase position
       const additionalQuantity = ethers.parseUnits("0.5", 6);
       const expectedAdditionalCost = await core.calculateOpenCost(
@@ -207,7 +216,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
           1, // positionId
           alice.address, // trader
           additionalQuantity,
-          initialParams.quantity + additionalQuantity, // new total quantity
+          ethers.parseUnits("1", 6) + additionalQuantity, // new total quantity
           expectedAdditionalCost
         );
     });
@@ -242,7 +251,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
         maxCost: ethers.parseUnits("20", 6),
       };
 
-      await core.connect(router).openPosition(alice.address, tradeParams);
+      await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        );
 
       // Decrease position
       const quantityToRemove = ethers.parseUnits("0.05", 6);
@@ -304,7 +322,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
         maxCost: ethers.parseUnits("10", 6),
       };
 
-      await core.connect(router).openPosition(alice.address, tradeParams);
+      await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        );
 
       // Close position
       const expectedPayout = await core.calculateCloseProceeds(1);
@@ -353,7 +380,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
         maxCost: ethers.parseUnits("10", 6),
       };
 
-      await core.connect(router).openPosition(alice.address, tradeParams);
+      await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        );
 
       // Settle market
       await time.increaseTo(endTime + 1);
@@ -405,7 +441,14 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
       // Check that multiple events are emitted in correct order
       const tx = await core
         .connect(router)
-        .openPosition(alice.address, tradeParams);
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        );
       const receipt = await tx.wait();
 
       const positionOpenedEvent = receipt!.logs.find(
@@ -460,7 +503,14 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
 
       const tx = await core
         .connect(router)
-        .openPosition(alice.address, tradeParams);
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        );
       const receipt = await tx.wait();
 
       // Verify gas usage is reasonable
@@ -501,7 +551,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.be.revertedWithCustomError(core, "CostExceedsMaximum");
     });
 
@@ -537,7 +596,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
 
       // Should still emit proper events even for minimal trades
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       )
         .to.emit(core, "PositionOpened")
         .withArgs(
@@ -646,7 +714,14 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
 
       const openTx = await core
         .connect(router)
-        .openPosition(alice.address, tradeParams);
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        );
       const openReceipt = await openTx.wait();
 
       // Extract position data from events
@@ -701,7 +776,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       )
         .to.emit(core, "PositionOpened")
         .withArgs(

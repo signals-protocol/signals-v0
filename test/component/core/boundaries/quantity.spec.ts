@@ -36,7 +36,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.not.be.reverted;
     });
 
@@ -70,7 +79,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.be.revertedWithCustomError(core, "InvalidQuantity");
     });
 
@@ -115,7 +133,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.not.be.reverted;
     });
   });
@@ -153,7 +180,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.not.be.reverted;
     });
 
@@ -191,7 +227,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.not.be.reverted;
     });
 
@@ -228,7 +273,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.not.be.reverted;
     });
 
@@ -305,17 +359,18 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
         massiveQuantity
       );
 
-      const massiveParams = {
-        marketId,
-        lowerTick: 10,
-        upperTick: 20,
-        quantity: massiveQuantity,
-        maxCost: massiveCost + ethers.parseUnits("1000", 6), // Add buffer
-      };
-
       // Should handle massive chunk-split without reverting
       await expect(
-        core.connect(router).openPosition(alice.address, massiveParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            marketId,
+            10,
+            20,
+            massiveQuantity,
+            massiveCost + ethers.parseUnits("1000", 6)
+          )
       ).to.not.be.reverted;
 
       // Verify position was created correctly
@@ -395,15 +450,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
       const CHUNK_BOUNDARY_QUANTITY = ethers.parseUnits("0.013", 6);
 
-      const tradeParams1 = {
-        marketId,
-        lowerTick: 10,
-        upperTick: 20,
-        quantity: CHUNK_BOUNDARY_QUANTITY,
-        maxCost: ethers.parseUnits("1000", 6),
-      };
-
-      await core.connect(router).openPosition(alice.address, tradeParams1);
+      await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          10,
+          20,
+          CHUNK_BOUNDARY_QUANTITY,
+          ethers.parseUnits("1000", 6)
+        );
 
       // Calculate cost for second chunk
       const cost2 = await core.calculateOpenCost(
@@ -413,16 +469,17 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
         CHUNK_BOUNDARY_QUANTITY
       );
 
-      const tradeParams2 = {
-        marketId,
-        lowerTick: 10,
-        upperTick: 20,
-        quantity: CHUNK_BOUNDARY_QUANTITY,
-        maxCost: ethers.parseUnits("1000", 6),
-      };
-
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams2)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            marketId,
+            30,
+            40,
+            CHUNK_BOUNDARY_QUANTITY,
+            ethers.parseUnits("1000", 6)
+          )
       ).to.not.be.reverted;
 
       // Second chunk should cost more due to price impact
@@ -475,7 +532,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.not.be.reverted;
     });
 
@@ -559,7 +625,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
       expect(calculatedCost).to.be.at.least(1);
 
       // Should be able to open position with minimum cost
-      await core.connect(router).openPosition(alice.address, tradeParams);
+      await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        );
 
       // Verify position was created
       const positions = await mockPosition.getPositionsByOwner(alice.address);
@@ -607,7 +682,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
           tinyQuantity
         );
 
-        await core.connect(router).openPosition(alice.address, tradeParams);
+        await core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          );
         totalCostPaid += BigInt(costBefore);
       }
 
@@ -650,7 +734,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
       // Should revert due to excessive chunk count
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.be.revertedWithCustomError(core, "InvalidQuantity");
     });
 
@@ -685,7 +778,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
       // Should succeed with moderate chunk count
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.not.be.reverted;
     });
   });

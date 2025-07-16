@@ -20,14 +20,7 @@ interface ICLMSRMarketCore {
         uint256 liquidityParameter;    // Alpha parameter (1e18 scale)
     }
     
-    /// @notice Trade parameters structure
-    struct TradeParams {
-        uint256 marketId;               // Market identifier
-        uint32 lowerTick;               // Lower tick bound (inclusive)
-        uint32 upperTick;               // Upper tick bound (inclusive)
-        uint128 quantity;               // Position quantity (always positive, Long-Only)
-        uint256 maxCost;                // Maximum cost willing to pay
-    }
+
 
     // ========================================
     // EVENTS
@@ -149,11 +142,19 @@ interface ICLMSRMarketCore {
     
     /// @notice Open a new position by buying a range
     /// @param trader Address of the trader
-    /// @param params Trade parameters
+    /// @param marketId Market identifier
+    /// @param lowerTick Lower tick bound (inclusive)
+    /// @param upperTick Upper tick bound (inclusive)
+    /// @param quantity Position quantity (always positive, Long-Only)
+    /// @param maxCost Maximum cost willing to pay
     /// @return positionId Newly created position ID
     function openPosition(
         address trader,
-        TradeParams calldata params
+        uint256 marketId,
+        uint32 lowerTick,
+        uint32 upperTick,
+        uint128 quantity,
+        uint256 maxCost
     ) external returns (uint256 positionId);
     
     /// @notice Increase existing position quantity (buy more)

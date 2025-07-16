@@ -125,7 +125,14 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Access Control`, function () {
       };
 
       await expect(
-        core.connect(alice).openPosition(alice.address, tradeParams)
+        core.connect(alice).openPosition(
+        alice.address,
+        tradeParams.marketId,
+        tradeParams.lowerTick,
+        tradeParams.upperTick,
+        tradeParams.quantity,
+        tradeParams.maxCost
+      )
       ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
     });
 
@@ -230,7 +237,14 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Access Control`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core.connect(router).openPosition(
+        alice.address,
+        tradeParams.marketId,
+        tradeParams.lowerTick,
+        tradeParams.upperTick,
+        tradeParams.quantity,
+        tradeParams.maxCost
+      )
       ).to.be.revertedWithCustomError(core, "ContractPaused");
     });
 
@@ -471,7 +485,14 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Access Control`, function () {
       };
 
       await expect(
-        core.connect(alice).openPosition(alice.address, tradeParams)
+        core.connect(alice).openPosition(
+        alice.address,
+        tradeParams.marketId,
+        tradeParams.lowerTick,
+        tradeParams.upperTick,
+        tradeParams.quantity,
+        tradeParams.maxCost
+      )
       ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
     });
 
@@ -506,7 +527,14 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Access Control`, function () {
         maxCost: ethers.parseUnits("1", 6),
       };
 
-      await core.connect(router).openPosition(alice.address, tradeParams);
+      await core.connect(router).openPosition(
+        alice.address,
+        tradeParams.marketId,
+        tradeParams.lowerTick,
+        tradeParams.upperTick,
+        tradeParams.quantity,
+        tradeParams.maxCost
+      );
 
       // Bob should not be able to adjust alice's position
       await expect(
@@ -553,7 +581,14 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Access Control`, function () {
       };
 
       await expect(
-        core.connect(alice).openPosition(alice.address, tradeParams)
+        core.connect(alice).openPosition(
+        alice.address,
+        tradeParams.marketId,
+        tradeParams.lowerTick,
+        tradeParams.upperTick,
+        tradeParams.quantity,
+        tradeParams.maxCost
+      )
       ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
     });
 
@@ -588,7 +623,14 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Access Control`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core.connect(router).openPosition(
+        alice.address,
+        tradeParams.marketId,
+        tradeParams.lowerTick,
+        tradeParams.upperTick,
+        tradeParams.quantity,
+        tradeParams.maxCost
+      )
       ).to.not.be.reverted;
     });
 
@@ -627,7 +669,14 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Access Control`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core.connect(router).openPosition(
+        alice.address,
+        tradeParams.marketId,
+        tradeParams.lowerTick,
+        tradeParams.upperTick,
+        tradeParams.quantity,
+        tradeParams.maxCost
+      )
       ).to.be.reverted;
     });
 
@@ -665,7 +714,14 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Access Control`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core.connect(router).openPosition(
+        alice.address,
+        tradeParams.marketId,
+        tradeParams.lowerTick,
+        tradeParams.upperTick,
+        tradeParams.quantity,
+        tradeParams.maxCost
+      )
       ).to.be.revertedWithCustomError(core, "ContractPaused");
     });
   });

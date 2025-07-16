@@ -174,7 +174,7 @@ contract MockPosition is ICLMSRPosition, Ownable {
         return _ownedTokens[owner];
     }
 
-    function getPositionsByMarket(address owner, uint256 marketId) external view returns (uint256[] memory positionIds) {
+    function getUserPositionsInMarket(address owner, uint256 marketId) external view returns (uint256[] memory positionIds) {
         uint256[] memory allTokens = _ownedTokens[owner];
         uint256[] memory temp = new uint256[](allTokens.length);
         uint256 count = 0;
@@ -193,9 +193,38 @@ contract MockPosition is ICLMSRPosition, Ownable {
         }
     }
 
+    function getAllPositionsInMarket(uint256 marketId) external view returns (uint256[] memory positionIds) {
+        // Count positions for this market
+        uint256 count = 0;
+        uint256 totalPositions = _nextId - 1;
+        
+        // First pass: count matching positions
+        for (uint256 i = 1; i <= totalPositions; i++) {
+            if (_owners[i] != address(0) && _positions[i].marketId == marketId) {
+                count++;
+            }
+        }
+        
+        // Second pass: collect matching positions
+        positionIds = new uint256[](count);
+        uint256 index = 0;
+        for (uint256 i = 1; i <= totalPositions; i++) {
+            if (_owners[i] != address(0) && _positions[i].marketId == marketId) {
+                positionIds[index] = i;
+                index++;
+            }
+        }
+    }
+
     function isAuthorizedCaller(address caller) external view returns (bool) {
         return caller == coreContract;
     }
+
+    function totalSupply() external view returns (uint256) {
+        return _nextId - 1;
+    }
+
+
 
     // ========================================
     // ERC165 SUPPORT

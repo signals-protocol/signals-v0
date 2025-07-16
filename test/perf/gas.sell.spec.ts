@@ -25,7 +25,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
     const marketId = 1;
     const currentTime = await time.latest();
-    const startTime = currentTime + 100;
+    const startTime = currentTime + 1300; // Large buffer for sell gas tests
     const endTime = startTime + MARKET_DURATION;
 
     await core
@@ -38,13 +38,16 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
     const positions = [];
 
     // Single tick position
-    const tx1 = await core.connect(router).openPosition(alice.address, {
-      marketId,
-      lowerTick: 50,
-      upperTick: 50,
-      quantity: MEDIUM_QUANTITY,
-      maxCost: EXTREME_COST,
-    });
+    const tx1 = await core
+      .connect(router)
+      .openPosition(
+        alice.address,
+        marketId,
+        50,
+        50,
+        MEDIUM_QUANTITY,
+        EXTREME_COST
+      );
     const receipt1 = await tx1.wait();
     const event1 = receipt1!.logs.find(
       (log) => (log as any).fragment?.name === "PositionOpened"
@@ -52,13 +55,16 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
     positions.push((event1 as any).args[2]);
 
     // Small range position
-    const tx2 = await core.connect(router).openPosition(alice.address, {
-      marketId,
-      lowerTick: 45,
-      upperTick: 55,
-      quantity: MEDIUM_QUANTITY,
-      maxCost: EXTREME_COST,
-    });
+    const tx2 = await core
+      .connect(router)
+      .openPosition(
+        alice.address,
+        marketId,
+        45,
+        55,
+        MEDIUM_QUANTITY,
+        EXTREME_COST
+      );
     const receipt2 = await tx2.wait();
     const event2 = receipt2!.logs.find(
       (log) => (log as any).fragment?.name === "PositionOpened"
@@ -66,13 +72,16 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
     positions.push((event2 as any).args[2]);
 
     // Large range position
-    const tx3 = await core.connect(router).openPosition(alice.address, {
-      marketId,
-      lowerTick: 20,
-      upperTick: 80,
-      quantity: MEDIUM_QUANTITY,
-      maxCost: EXTREME_COST,
-    });
+    const tx3 = await core
+      .connect(router)
+      .openPosition(
+        alice.address,
+        marketId,
+        20,
+        80,
+        MEDIUM_QUANTITY,
+        EXTREME_COST
+      );
     const receipt3 = await tx3.wait();
     const event3 = receipt3!.logs.find(
       (log) => (log as any).fragment?.name === "PositionOpened"
@@ -80,13 +89,16 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
     positions.push((event3 as any).args[2]);
 
     // Full range position
-    const tx4 = await core.connect(router).openPosition(alice.address, {
-      marketId,
-      lowerTick: 0,
-      upperTick: TICK_COUNT - 1,
-      quantity: MEDIUM_QUANTITY,
-      maxCost: EXTREME_COST,
-    });
+    const tx4 = await core
+      .connect(router)
+      .openPosition(
+        alice.address,
+        marketId,
+        0,
+        TICK_COUNT - 1,
+        MEDIUM_QUANTITY,
+        EXTREME_COST
+      );
     const receipt4 = await tx4.wait();
     const event4 = receipt4!.logs.find(
       (log) => (log as any).fragment?.name === "PositionOpened"
@@ -166,7 +178,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
       const marketId = 1;
       const currentTime = await time.latest();
-      const startTime = currentTime + 100;
+      const startTime = currentTime + 1400; // Large buffer for sell gas tests
       const endTime = startTime + MARKET_DURATION;
 
       await core
@@ -183,13 +195,16 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
         const upperTick = lowerTick + rangeSize - 1;
 
         // Open position
-        const openTx = await core.connect(router).openPosition(alice.address, {
-          marketId,
-          lowerTick,
-          upperTick,
-          quantity: MEDIUM_QUANTITY,
-          maxCost: EXTREME_COST,
-        });
+        const openTx = await core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            marketId,
+            lowerTick,
+            upperTick,
+            MEDIUM_QUANTITY,
+            EXTREME_COST
+          );
         await openTx.wait();
         // Get position ID from MockPosition
         const positions = await mockPosition.getPositionsByOwner(alice.address);
@@ -233,7 +248,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
       const marketId = 1;
       const currentTime = await time.latest();
-      const startTime = currentTime + 100;
+      const startTime = currentTime + 1400; // Large buffer for sell gas tests
       const endTime = startTime + MARKET_DURATION;
 
       await core
@@ -250,13 +265,16 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
         const lowerTick = i * 5;
         const upperTick = lowerTick + 4;
 
-        const tx = await core.connect(router).openPosition(alice.address, {
-          marketId,
-          lowerTick,
-          upperTick,
-          quantity: MEDIUM_QUANTITY,
-          maxCost: EXTREME_COST,
-        });
+        const tx = await core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            marketId,
+            lowerTick,
+            upperTick,
+            MEDIUM_QUANTITY,
+            EXTREME_COST
+          );
         await tx.wait();
         // Get position ID from MockPosition
         const userPositions = await mockPosition.getPositionsByOwner(
@@ -291,7 +309,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
       const marketId = 1;
       const currentTime = await time.latest();
-      const startTime = currentTime + 100;
+      const startTime = currentTime + 1400; // Large buffer for sell gas tests
       const endTime = startTime + MARKET_DURATION;
 
       await core
@@ -307,13 +325,16 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
         const lowerTick = Math.floor(Math.random() * 80);
         const upperTick = lowerTick + Math.floor(Math.random() * 10) + 1;
 
-        const tx = await core.connect(router).openPosition(user.address, {
-          marketId,
-          lowerTick,
-          upperTick,
-          quantity: MEDIUM_QUANTITY,
-          maxCost: EXTREME_COST,
-        });
+        const tx = await core
+          .connect(router)
+          .openPosition(
+            user.address,
+            marketId,
+            lowerTick,
+            upperTick,
+            MEDIUM_QUANTITY,
+            EXTREME_COST
+          );
         await tx.wait();
         // Get position ID from MockPosition
         const userPositions = await mockPosition.getPositionsByOwner(
@@ -349,7 +370,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
       const marketId = 1;
       const currentTime = await time.latest();
-      const startTime = currentTime + 100;
+      const startTime = currentTime + 1400; // Large buffer for sell gas tests
       const endTime = startTime + MARKET_DURATION;
 
       await core
@@ -359,13 +380,16 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
       await time.increaseTo(startTime + 1);
 
       // Open large position
-      const tx = await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 20,
-        upperTick: 80,
-        quantity: LARGE_QUANTITY,
-        maxCost: EXTREME_COST,
-      });
+      const tx = await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          20,
+          80,
+          LARGE_QUANTITY,
+          EXTREME_COST
+        );
       await tx.wait();
       // Get position ID from MockPosition
       const positions = await mockPosition.getPositionsByOwner(alice.address);
@@ -405,7 +429,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
       const marketId = 1;
       const currentTime = await time.latest();
-      const startTime = currentTime + 100;
+      const startTime = currentTime + 1400; // Large buffer for sell gas tests
       const endTime = startTime + MARKET_DURATION;
 
       await core
@@ -419,13 +443,16 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
       // Perform same operation multiple times
       for (let round = 0; round < 5; round++) {
         // Open position
-        const openTx = await core.connect(router).openPosition(alice.address, {
-          marketId,
-          lowerTick: 45,
-          upperTick: 55,
-          quantity: MEDIUM_QUANTITY,
-          maxCost: EXTREME_COST,
-        });
+        const openTx = await core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            marketId,
+            45,
+            55,
+            MEDIUM_QUANTITY,
+            EXTREME_COST
+          );
         await openTx.wait();
         // Get position ID from MockPosition
         const positions = await mockPosition.getPositionsByOwner(alice.address);

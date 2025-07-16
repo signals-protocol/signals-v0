@@ -24,13 +24,16 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     const balanceBefore = await paymentToken.balanceOf(alice.address);
 
     // Create position that will win
-    await core.connect(router).openPosition(alice.address, {
-      marketId,
-      lowerTick: 45,
-      upperTick: 55, // Winning tick 50 is in this range
-      quantity: MEDIUM_QUANTITY,
-      maxCost: MEDIUM_COST,
-    });
+    await core
+      .connect(router)
+      .openPosition(
+        alice.address,
+        marketId,
+        45,
+        55,
+        MEDIUM_QUANTITY,
+        MEDIUM_COST
+      );
 
     const positions = await mockPosition.getPositionsByOwner(alice.address);
     const positionId = positions[0];
@@ -62,13 +65,16 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     const balanceBefore = await paymentToken.balanceOf(alice.address);
 
     // Create position that will lose
-    await core.connect(router).openPosition(alice.address, {
-      marketId,
-      lowerTick: 10,
-      upperTick: 20, // Winning tick 50 is outside this range
-      quantity: MEDIUM_QUANTITY,
-      maxCost: MEDIUM_COST,
-    });
+    await core
+      .connect(router)
+      .openPosition(
+        alice.address,
+        marketId,
+        10,
+        20,
+        MEDIUM_QUANTITY,
+        MEDIUM_COST
+      );
 
     const positions = await mockPosition.getPositionsByOwner(alice.address);
     const positionId = positions[0];
@@ -99,13 +105,16 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     );
 
     // Create position
-    await core.connect(router).openPosition(alice.address, {
-      marketId,
-      lowerTick: 45,
-      upperTick: 55,
-      quantity: MEDIUM_QUANTITY,
-      maxCost: MEDIUM_COST,
-    });
+    await core
+      .connect(router)
+      .openPosition(
+        alice.address,
+        marketId,
+        45,
+        55,
+        MEDIUM_QUANTITY,
+        MEDIUM_COST
+      );
 
     const positions = await mockPosition.getPositionsByOwner(alice.address);
     const positionId = positions[0];
@@ -121,13 +130,16 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
       await loadFixture(createActiveMarketFixture);
 
     // Create position as alice
-    await core.connect(router).openPosition(alice.address, {
-      marketId,
-      lowerTick: 45,
-      upperTick: 55,
-      quantity: MEDIUM_QUANTITY,
-      maxCost: MEDIUM_COST,
-    });
+    await core
+      .connect(router)
+      .openPosition(
+        alice.address,
+        marketId,
+        45,
+        55,
+        MEDIUM_QUANTITY,
+        MEDIUM_COST
+      );
 
     const positions = await mockPosition.getPositionsByOwner(alice.address);
     const positionId = positions[0];
@@ -145,13 +157,16 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     const { core, router, alice, mockPosition, marketId, keeper } =
       await loadFixture(createActiveMarketFixture);
 
-    await core.connect(router).openPosition(alice.address, {
-      marketId,
-      lowerTick: 45,
-      upperTick: 55,
-      quantity: MEDIUM_QUANTITY,
-      maxCost: MEDIUM_COST,
-    });
+    await core
+      .connect(router)
+      .openPosition(
+        alice.address,
+        marketId,
+        45,
+        55,
+        MEDIUM_QUANTITY,
+        MEDIUM_COST
+      );
 
     const positions = await mockPosition.getPositionsByOwner(alice.address);
     const positionId = positions[0];
@@ -172,13 +187,16 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     const { core, router, alice, mockPosition, marketId, keeper } =
       await loadFixture(createActiveMarketFixture);
 
-    await core.connect(router).openPosition(alice.address, {
-      marketId,
-      lowerTick: 45,
-      upperTick: 55,
-      quantity: MEDIUM_QUANTITY,
-      maxCost: MEDIUM_COST,
-    });
+    await core
+      .connect(router)
+      .openPosition(
+        alice.address,
+        marketId,
+        45,
+        55,
+        MEDIUM_QUANTITY,
+        MEDIUM_COST
+      );
 
     const positions = await mockPosition.getPositionsByOwner(alice.address);
     const positionId = positions[0];
@@ -198,13 +216,16 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
       await loadFixture(createActiveMarketFixture);
 
     // Create position that partially covers winning outcome
-    await core.connect(router).openPosition(alice.address, {
-      marketId,
-      lowerTick: 48,
-      upperTick: 52, // Small range around winning tick 50
-      quantity: MEDIUM_QUANTITY,
-      maxCost: MEDIUM_COST,
-    });
+    await core
+      .connect(router)
+      .openPosition(
+        alice.address,
+        marketId,
+        48,
+        52,
+        MEDIUM_QUANTITY,
+        MEDIUM_COST
+      );
 
     const positions = await mockPosition.getPositionsByOwner(alice.address);
     const positionId = positions[0];
@@ -224,22 +245,28 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
       await loadFixture(createActiveMarketFixture);
 
     // Alice creates winning position
-    await core.connect(router).openPosition(alice.address, {
-      marketId,
-      lowerTick: 45,
-      upperTick: 55,
-      quantity: MEDIUM_QUANTITY,
-      maxCost: MEDIUM_COST,
-    });
+    await core
+      .connect(router)
+      .openPosition(
+        alice.address,
+        marketId,
+        45,
+        55,
+        MEDIUM_QUANTITY,
+        MEDIUM_COST
+      );
 
     // Bob creates losing position
-    await core.connect(router).openPosition(bob.address, {
-      marketId,
-      lowerTick: 10,
-      upperTick: 20,
-      quantity: MEDIUM_QUANTITY,
-      maxCost: MEDIUM_COST,
-    });
+    await core
+      .connect(router)
+      .openPosition(
+        bob.address,
+        marketId,
+        10,
+        20,
+        MEDIUM_QUANTITY,
+        MEDIUM_COST
+      );
 
     // Settle market
     await core.connect(keeper).settleMarket(marketId, 50);
@@ -261,13 +288,16 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     const { core, router, alice, mockPosition, marketId, keeper } =
       await loadFixture(createActiveMarketFixture);
 
-    await core.connect(router).openPosition(alice.address, {
-      marketId,
-      lowerTick: 45,
-      upperTick: 55,
-      quantity: MEDIUM_QUANTITY,
-      maxCost: MEDIUM_COST,
-    });
+    await core
+      .connect(router)
+      .openPosition(
+        alice.address,
+        marketId,
+        45,
+        55,
+        MEDIUM_QUANTITY,
+        MEDIUM_COST
+      );
 
     const positions = await mockPosition.getPositionsByOwner(alice.address);
     const positionId = positions[0];
@@ -286,13 +316,16 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
       await loadFixture(createActiveMarketFixture);
 
     // Create position
-    await core.connect(router).openPosition(alice.address, {
-      marketId,
-      lowerTick: 45,
-      upperTick: 55,
-      quantity: SMALL_QUANTITY,
-      maxCost: MEDIUM_COST,
-    });
+    await core
+      .connect(router)
+      .openPosition(
+        alice.address,
+        marketId,
+        45,
+        55,
+        SMALL_QUANTITY,
+        MEDIUM_COST
+      );
 
     const positions = await mockPosition.getPositionsByOwner(alice.address);
     const positionId = positions[0];
@@ -315,13 +348,16 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
       await loadFixture(createActiveMarketFixture);
 
     // Create position
-    await core.connect(router).openPosition(alice.address, {
-      marketId,
-      lowerTick: 45,
-      upperTick: 55,
-      quantity: SMALL_QUANTITY,
-      maxCost: MEDIUM_COST,
-    });
+    await core
+      .connect(router)
+      .openPosition(
+        alice.address,
+        marketId,
+        45,
+        55,
+        SMALL_QUANTITY,
+        MEDIUM_COST
+      );
 
     const positions = await mockPosition.getPositionsByOwner(alice.address);
     const positionId = positions[0];

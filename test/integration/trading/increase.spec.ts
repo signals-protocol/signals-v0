@@ -37,16 +37,16 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
     const { core, router, alice, paymentToken, mockPosition, marketId } =
       await loadFixture(createActiveMarketFixture);
 
-    // Create initial position
-    const tradeParams = {
-      marketId: marketId,
-      lowerTick: 45,
-      upperTick: 55,
-      quantity: MEDIUM_QUANTITY,
-      maxCost: MEDIUM_COST,
-    };
-
-    await core.connect(router).openPosition(alice.address, tradeParams);
+    await core
+      .connect(router)
+      .openPosition(
+        alice.address,
+        marketId,
+        45,
+        55,
+        MEDIUM_QUANTITY,
+        MEDIUM_COST
+      );
     const positions = await mockPosition.getPositionsByOwner(alice.address);
     const positionId = positions[0];
 
@@ -86,13 +86,16 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
     );
 
     // Create position
-    await core.connect(router).openPosition(alice.address, {
-      marketId,
-      lowerTick: 45,
-      upperTick: 55,
-      quantity: MEDIUM_QUANTITY,
-      maxCost: MEDIUM_COST,
-    });
+    await core
+      .connect(router)
+      .openPosition(
+        alice.address,
+        marketId,
+        45,
+        55,
+        MEDIUM_QUANTITY,
+        MEDIUM_COST
+      );
 
     const positions = await mockPosition.getPositionsByOwner(alice.address);
     const positionId = positions[0];
@@ -108,13 +111,16 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
     );
 
     // Create position
-    await core.connect(router).openPosition(alice.address, {
-      marketId,
-      lowerTick: 45,
-      upperTick: 55,
-      quantity: MEDIUM_QUANTITY,
-      maxCost: MEDIUM_COST,
-    });
+    await core
+      .connect(router)
+      .openPosition(
+        alice.address,
+        marketId,
+        45,
+        55,
+        MEDIUM_QUANTITY,
+        MEDIUM_COST
+      );
 
     const positions = await mockPosition.getPositionsByOwner(alice.address);
     const positionId = positions[0];
@@ -133,13 +139,16 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
       await loadFixture(createActiveMarketFixture);
 
     // Create position as alice
-    await core.connect(router).openPosition(alice.address, {
-      marketId,
-      lowerTick: 45,
-      upperTick: 55,
-      quantity: MEDIUM_QUANTITY,
-      maxCost: MEDIUM_COST,
-    });
+    await core
+      .connect(router)
+      .openPosition(
+        alice.address,
+        marketId,
+        45,
+        55,
+        MEDIUM_QUANTITY,
+        MEDIUM_COST
+      );
 
     const positions = await mockPosition.getPositionsByOwner(alice.address);
     const positionId = positions[0];
@@ -157,13 +166,16 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
       await loadFixture(createActiveMarketFixture);
 
     // Create position first
-    await core.connect(router).openPosition(alice.address, {
-      marketId,
-      lowerTick: 45,
-      upperTick: 55,
-      quantity: MEDIUM_QUANTITY,
-      maxCost: MEDIUM_COST,
-    });
+    await core
+      .connect(router)
+      .openPosition(
+        alice.address,
+        marketId,
+        45,
+        55,
+        MEDIUM_QUANTITY,
+        MEDIUM_COST
+      );
 
     const positions = await mockPosition.getPositionsByOwner(alice.address);
     const positionId = positions[0];
@@ -184,13 +196,14 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
     );
 
     // Create position
-    await core.connect(router).openPosition(alice.address, {
+    await core.connect(router).openPosition(
+      alice.address,
       marketId,
-      lowerTick: 45,
-      upperTick: 55,
-      quantity: ethers.parseUnits("0.1", 6), // Large quantity
-      maxCost: ethers.parseUnits("10", 6), // Large cost
-    });
+      45,
+      55,
+      ethers.parseUnits("0.1", 6), // Large quantity
+      ethers.parseUnits("10", 6) // Large cost
+    );
 
     const positions = await mockPosition.getPositionsByOwner(alice.address);
     const positionId = positions[0];
@@ -215,7 +228,16 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
       maxCost: MEDIUM_COST,
     };
 
-    await core.connect(router).openPosition(alice.address, tradeParams);
+    await core
+      .connect(router)
+      .openPosition(
+        alice.address,
+        tradeParams.marketId,
+        tradeParams.lowerTick,
+        tradeParams.upperTick,
+        tradeParams.quantity,
+        tradeParams.maxCost
+      );
     const positions = await mockPosition.getPositionsByOwner(alice.address);
     const positionId = positions[0];
 
@@ -223,4 +245,3 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
     expect(cost).to.be.gt(0);
   });
 });
- 

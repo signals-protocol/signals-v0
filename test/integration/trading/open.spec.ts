@@ -49,7 +49,16 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
     const balanceBefore = await paymentToken.balanceOf(alice.address);
 
     await expect(
-      core.connect(router).openPosition(alice.address, tradeParams)
+      core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        )
     ).to.emit(core, "PositionOpened");
 
     expect(await mockPosition.balanceOf(alice.address)).to.equal(1);
@@ -72,7 +81,16 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
     };
 
     await expect(
-      core.connect(router).openPosition(alice.address, tradeParams)
+      core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        )
     ).to.be.revertedWithCustomError(core, "CostExceedsMaximum");
   });
 
@@ -90,7 +108,16 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
     };
 
     await expect(
-      core.connect(router).openPosition(alice.address, tradeParams)
+      core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        )
     ).to.be.revertedWithCustomError(core, "InvalidTickRange");
   });
 
@@ -99,16 +126,10 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
       createActiveMarketFixture
     );
 
-    const tradeParams = {
-      marketId: marketId,
-      lowerTick: 45,
-      upperTick: 55,
-      quantity: 0,
-      maxCost: MEDIUM_COST,
-    };
-
     await expect(
-      core.connect(router).openPosition(alice.address, tradeParams)
+      core
+        .connect(router)
+        .openPosition(alice.address, marketId, 45, 55, 0, MEDIUM_COST)
     ).to.be.revertedWithCustomError(core, "InvalidQuantity");
   });
 
@@ -117,16 +138,17 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
       createActiveMarketFixture
     );
 
-    const tradeParams = {
-      marketId: marketId,
-      lowerTick: 45,
-      upperTick: TICK_COUNT, // At limit
-      quantity: SMALL_QUANTITY,
-      maxCost: MEDIUM_COST,
-    };
-
     await expect(
-      core.connect(router).openPosition(alice.address, tradeParams)
+      core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          45,
+          TICK_COUNT,
+          SMALL_QUANTITY,
+          MEDIUM_COST
+        )
     ).to.be.revertedWithCustomError(core, "InvalidTickRange");
   });
 
@@ -136,13 +158,16 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
     );
 
     await expect(
-      core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 50,
-        upperTick: 50, // Single tick
-        quantity: SMALL_QUANTITY,
-        maxCost: MEDIUM_COST,
-      })
+      core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          50,
+          50,
+          SMALL_QUANTITY,
+          MEDIUM_COST
+        )
     ).to.not.be.reverted;
   });
 
@@ -153,24 +178,30 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
 
     // First tick
     await expect(
-      core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 0,
-        upperTick: 0,
-        quantity: SMALL_QUANTITY,
-        maxCost: MEDIUM_COST,
-      })
+      core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          0,
+          0,
+          SMALL_QUANTITY,
+          MEDIUM_COST
+        )
     ).to.not.be.reverted;
 
     // Last tick
     await expect(
-      core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: TICK_COUNT - 1,
-        upperTick: TICK_COUNT - 1,
-        quantity: SMALL_QUANTITY,
-        maxCost: MEDIUM_COST,
-      })
+      core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          TICK_COUNT - 1,
+          TICK_COUNT - 1,
+          SMALL_QUANTITY,
+          MEDIUM_COST
+        )
     ).to.not.be.reverted;
   });
 
@@ -179,16 +210,17 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
       createActiveMarketFixture
     );
 
-    const tradeParams = {
-      marketId: marketId,
-      lowerTick: 45,
-      upperTick: 55,
-      quantity: MEDIUM_QUANTITY,
-      maxCost: MEDIUM_COST,
-    };
-
     await expect(
-      core.connect(alice).openPosition(alice.address, tradeParams)
+      core
+        .connect(alice)
+        .openPosition(
+          alice.address,
+          marketId,
+          45,
+          55,
+          MEDIUM_QUANTITY,
+          MEDIUM_COST
+        )
     ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
   });
 
@@ -200,16 +232,17 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
     // Pause contract
     await core.connect(keeper).pause("Test pause");
 
-    const tradeParams = {
-      marketId: marketId,
-      lowerTick: 45,
-      upperTick: 55,
-      quantity: MEDIUM_QUANTITY,
-      maxCost: MEDIUM_COST,
-    };
-
     await expect(
-      core.connect(router).openPosition(alice.address, tradeParams)
+      core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          45,
+          55,
+          MEDIUM_QUANTITY,
+          MEDIUM_COST
+        )
     ).to.be.revertedWithCustomError(core, "ContractPaused");
   });
 
@@ -218,16 +251,10 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
       createActiveMarketFixture
     );
 
-    const tradeParams = {
-      marketId: 999, // Non-existent market
-      lowerTick: 45,
-      upperTick: 55,
-      quantity: ethers.parseUnits("0.05", 6),
-      maxCost: ethers.parseUnits("5", 6),
-    };
-
     await expect(
-      core.connect(router).openPosition(alice.address, tradeParams)
+      core
+        .connect(router)
+        .openPosition(alice.address, 999, 45, 55, MEDIUM_QUANTITY, MEDIUM_COST)
     ).to.be.revertedWithCustomError(core, "MarketNotFound");
   });
 
@@ -245,22 +272,34 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
     );
 
     // Test with maxCost exactly 1 wei less than needed
-    const tradeParams = {
-      marketId,
-      lowerTick: 45,
-      upperTick: 55,
-      quantity: SMALL_QUANTITY,
-      maxCost: exactCost - 1n,
-    };
 
     await expect(
-      core.connect(router).openPosition(alice.address, tradeParams)
+      core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          45,
+          55,
+          SMALL_QUANTITY,
+          exactCost - 1n
+        )
     ).to.be.revertedWithCustomError(core, "CostExceedsMaximum");
 
     // Test with exact cost should succeed
-    tradeParams.maxCost = exactCost;
-    await expect(core.connect(router).openPosition(alice.address, tradeParams))
-      .to.not.be.reverted;
+
+    await expect(
+      core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          45,
+          55,
+          SMALL_QUANTITY,
+          exactCost
+        )
+    ).to.not.be.reverted;
   });
 
   it("Should handle large quantity trades with chunking", async function () {
@@ -272,13 +311,16 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
     const largeQuantity = ethers.parseUnits("1", 6); // 1 USDC
     const largeCost = ethers.parseUnits("100", 6); // 100 USDC max cost
 
-    const tx = await core.connect(router).openPosition(alice.address, {
-      marketId,
-      lowerTick: 0,
-      upperTick: TICK_COUNT - 1,
-      quantity: largeQuantity,
-      maxCost: largeCost,
-    });
+    const tx = await core
+      .connect(router)
+      .openPosition(
+        alice.address,
+        marketId,
+        0,
+        TICK_COUNT - 1,
+        largeQuantity,
+        largeCost
+      );
 
     await expect(tx).to.emit(core, "PositionOpened");
   });
@@ -291,16 +333,17 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
     // Settle market first
     await core.connect(keeper).settleMarket(marketId, 50);
 
-    const tradeParams = {
-      marketId: marketId,
-      lowerTick: 45,
-      upperTick: 55,
-      quantity: ethers.parseUnits("0.05", 6),
-      maxCost: ethers.parseUnits("5", 6),
-    };
-
     await expect(
-      core.connect(router).openPosition(alice.address, tradeParams)
+      core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          45,
+          55,
+          ethers.parseUnits("0.05", 6),
+          ethers.parseUnits("5", 6)
+        )
     ).to.be.revertedWithCustomError(core, "MarketNotActive");
   });
 });

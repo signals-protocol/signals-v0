@@ -74,13 +74,16 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
 
       // Alice creates multiple positions
       for (let i = 0; i < 3; i++) {
-        await core.connect(router).openPosition(alice.address, {
-          marketId,
-          lowerTick: 20 + i * 20,
-          upperTick: 30 + i * 20,
-          quantity: MEDIUM_QUANTITY,
-          maxCost: MEDIUM_COST,
-        });
+        await core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            marketId,
+            20 + i * 20,
+            30 + i * 20,
+            MEDIUM_QUANTITY,
+            MEDIUM_COST
+          );
       }
 
       const alicePositionList = await mockPosition.getPositionsByOwner(
@@ -92,22 +95,28 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       await time.increaseTo(startTime + 2 * 24 * 60 * 60); // 2 days later
 
       // Bob creates overlapping positions
-      await core.connect(router).openPosition(bob.address, {
-        marketId,
-        lowerTick: 25,
-        upperTick: 75,
-        quantity: LARGE_QUANTITY,
-        maxCost: LARGE_COST,
-      });
+      await core
+        .connect(router)
+        .openPosition(
+          bob.address,
+          marketId,
+          25,
+          75,
+          LARGE_QUANTITY,
+          LARGE_COST
+        );
 
       // Charlie creates focused position
-      await core.connect(router).openPosition(charlie.address, {
-        marketId,
-        lowerTick: 48,
-        upperTick: 52,
-        quantity: MEDIUM_QUANTITY,
-        maxCost: MEDIUM_COST,
-      });
+      await core
+        .connect(router)
+        .openPosition(
+          charlie.address,
+          marketId,
+          48,
+          52,
+          MEDIUM_QUANTITY,
+          MEDIUM_COST
+        );
 
       // Phase 5: Position adjustments
       const bobPositions = await mockPosition.getPositionsByOwner(bob.address);
@@ -217,13 +226,16 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       await time.increaseTo(startTime + 1);
 
       // Alice is the only participant
-      await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 40,
-        upperTick: 60,
-        quantity: MEDIUM_QUANTITY,
-        maxCost: MEDIUM_COST,
-      });
+      await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          40,
+          60,
+          MEDIUM_QUANTITY,
+          MEDIUM_COST
+        );
 
       await time.increaseTo(endTime + 1);
       await core.connect(keeper).settleMarket(marketId, 50);
@@ -260,13 +272,16 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       // Sudden burst of activity
       const participants = [alice, bob, charlie];
       const promises = participants.map((participant, i) =>
-        core.connect(router).openPosition(participant.address, {
-          marketId,
-          lowerTick: 40 + i * 5,
-          upperTick: 60 - i * 5,
-          quantity: MEDIUM_QUANTITY,
-          maxCost: MEDIUM_COST,
-        })
+        core
+          .connect(router)
+          .openPosition(
+            participant.address,
+            marketId,
+            40 + i * 5,
+            60 - i * 5,
+            MEDIUM_QUANTITY,
+            MEDIUM_COST
+          )
       );
 
       // All should succeed
@@ -283,13 +298,16 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       const participants = [alice, bob, charlie];
 
       for (const participant of participants) {
-        await core.connect(router).openPosition(participant.address, {
-          marketId,
-          lowerTick: 49,
-          upperTick: 51,
-          quantity: MEDIUM_QUANTITY,
-          maxCost: LARGE_COST, // Higher cost due to concentration
-        });
+        await core
+          .connect(router)
+          .openPosition(
+            participant.address,
+            marketId,
+            49,
+            51,
+            MEDIUM_QUANTITY,
+            LARGE_COST
+          ); // Higher cost due to concentration
       }
 
       // Market should still function normally
@@ -312,31 +330,40 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       await time.increaseTo(startTime + 1);
 
       // Alice: Wide range strategy
-      await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 10,
-        upperTick: 90,
-        quantity: SMALL_QUANTITY,
-        maxCost: MEDIUM_COST,
-      });
+      await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          10,
+          90,
+          SMALL_QUANTITY,
+          MEDIUM_COST
+        );
 
       // Bob: Focused strategy
-      await core.connect(router).openPosition(bob.address, {
-        marketId,
-        lowerTick: 48,
-        upperTick: 52,
-        quantity: LARGE_QUANTITY,
-        maxCost: LARGE_COST,
-      });
+      await core
+        .connect(router)
+        .openPosition(
+          bob.address,
+          marketId,
+          48,
+          52,
+          LARGE_QUANTITY,
+          LARGE_COST
+        );
 
       // Charlie: Edge strategy
-      await core.connect(router).openPosition(charlie.address, {
-        marketId,
-        lowerTick: 0,
-        upperTick: 5,
-        quantity: MEDIUM_QUANTITY,
-        maxCost: MEDIUM_COST,
-      });
+      await core
+        .connect(router)
+        .openPosition(
+          charlie.address,
+          marketId,
+          0,
+          5,
+          MEDIUM_QUANTITY,
+          MEDIUM_COST
+        );
 
       // All strategies should coexist
       const alicePositions = await mockPosition.getPositionsByOwner(
@@ -361,13 +388,16 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       await time.increaseTo(startTime + 1);
 
       // Create initial position
-      await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 40,
-        upperTick: 60,
-        quantity: LARGE_QUANTITY,
-        maxCost: LARGE_COST,
-      });
+      await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          40,
+          60,
+          LARGE_QUANTITY,
+          LARGE_COST
+        );
 
       const positions = await mockPosition.getPositionsByOwner(alice.address);
       const positionId = positions[0];
@@ -398,13 +428,16 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
 
       for (let i = 0; i < 10; i++) {
         const participant = participants[i % 3];
-        await core.connect(router).openPosition(participant.address, {
-          marketId,
-          lowerTick: i * 5,
-          upperTick: i * 5 + 10,
-          quantity: SMALL_QUANTITY,
-          maxCost: MEDIUM_COST,
-        });
+        await core
+          .connect(router)
+          .openPosition(
+            participant.address,
+            marketId,
+            i * 5,
+            i * 5 + 10,
+            SMALL_QUANTITY,
+            MEDIUM_COST
+          );
       }
 
       // System should still be responsive

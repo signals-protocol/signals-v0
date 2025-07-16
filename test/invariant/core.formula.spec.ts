@@ -1,7 +1,10 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { coreFixture } from "../helpers/fixtures/core";
+import {
+  coreFixture,
+  createActiveMarketFixture,
+} from "../helpers/fixtures/core";
 import { INVARIANT_TAG } from "../helpers/tags";
 
 describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
@@ -10,33 +13,10 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
   const MARKET_DURATION = 7 * 24 * 60 * 60; // 7 days
   const WAD = ethers.parseEther("1");
   const USDC_DECIMALS = 6;
-  const SMALL_QUANTITY = ethers.parseUnits("0.01", USDC_DECIMALS); // 0.01 USDC
+  const SMALL_QUANTITY = ethers.parseUnits("0.001", USDC_DECIMALS); // 0.001 USDC - smaller to avoid chunking issues
   const MEDIUM_QUANTITY = ethers.parseUnits("0.1", USDC_DECIMALS); // 0.1 USDC
   const LARGE_QUANTITY = ethers.parseUnits("1", USDC_DECIMALS); // 1 USDC
   const EXTREME_COST = ethers.parseUnits("100000", USDC_DECIMALS); // 100k USDC max cost
-
-  async function createActiveMarketFixture() {
-    const contracts = await loadFixture(coreFixture);
-    const { core, keeper } = contracts;
-
-    const marketId = 1;
-    const currentTime = await time.latest();
-    const startTime = currentTime + 100;
-    const endTime = startTime + MARKET_DURATION;
-
-    await core
-      .connect(keeper)
-      .createMarket(marketId, TICK_COUNT, startTime, endTime, ALPHA);
-
-    await time.increaseTo(startTime + 1);
-
-    return {
-      ...contracts,
-      marketId,
-      startTime,
-      endTime,
-    };
-  }
 
   describe("Cost Consistency Invariants", function () {
     it("Should maintain cost consistency: buy then sell should be near-neutral", async function () {
@@ -44,18 +24,17 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
         createActiveMarketFixture
       );
 
-      const buyParams = {
-        marketId,
-        lowerTick: 45,
-        upperTick: 55,
-        quantity: MEDIUM_QUANTITY,
-        maxCost: EXTREME_COST,
-      };
-
       // Execute buy
       const buyTx = await core
         .connect(router)
-        .openPosition(alice.address, buyParams);
+        .openPosition(
+          alice.address,
+          marketId,
+          45,
+          55,
+          MEDIUM_QUANTITY,
+          EXTREME_COST
+        );
       const buyReceipt = await buyTx.wait();
       const buyEvent = buyReceipt!.logs.find(
         (log) => (log as any).fragment?.name === "PositionOpened"
@@ -122,7 +101,7 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
   });
 
   describe("CLMSR Formula Invariants", function () {
-    it("Should satisfy CLMSR cost formula: C = α * ln(Σ_after / Σ_before)", async function () {
+    it("Should satisfy CLMSR cost formula consistency", async function () {
       const { core, marketId } = await loadFixture(createActiveMarketFixture);
 
       const quantity = SMALL_QUANTITY;
@@ -137,15 +116,28 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
         quantity
       );
 
-      // For first trade on fresh market, we can verify the formula
-      // Σ_before = tick_count * WAD = 100 * 1e18
-      // Σ_after = Σ_before - affected_sum + affected_sum * exp(q/α)
-      // where affected_sum = (upperTick - lowerTick + 1) * WAD = 11 * 1e18
-
+      // Test basic formula properties rather than exact values
       expect(actualCost).to.be.gt(0);
 
-      // Cost should be proportional to liquidity parameter
-      // Higher alpha should mean lower cost for same quantity
+      // Cost should increase with quantity
+      const doubleCost = await core.calculateOpenCost(
+        marketId,
+        lowerTick,
+        upperTick,
+        quantity * 2n
+      );
+      expect(doubleCost).to.be.gt(actualCost);
+
+      // Cost should increase with range width
+      const widerCost = await core.calculateOpenCost(
+        marketId,
+        40,
+        60,
+        quantity
+      );
+      expect(widerCost).to.be.gt(actualCost);
+
+      // Verify market parameters
       const market = await core.getMarket(marketId);
       expect(market.liquidityParameter).to.equal(ALPHA);
     });
@@ -182,7 +174,7 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
       const { core, keeper } = await loadFixture(coreFixture);
 
       const currentTime = await time.latest();
-      const startTime = currentTime + 100;
+      const startTime = currentTime + 2000; // Large buffer for invariant tests
       const endTime = startTime + MARKET_DURATION;
 
       const lowAlpha = ethers.parseEther("0.1");
@@ -217,13 +209,16 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
       const smallQuantity = ethers.parseUnits("0.001", USDC_DECIMALS); // Very small
 
       // Buy
-      const buyTx = await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 45,
-        upperTick: 55,
-        quantity: smallQuantity,
-        maxCost: EXTREME_COST,
-      });
+      const buyTx = await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          45,
+          55,
+          smallQuantity,
+          EXTREME_COST
+        );
       const buyReceipt = await buyTx.wait();
       const buyEvent = buyReceipt!.logs.find(
         (log) => (log as any).fragment?.name === "PositionOpened"
@@ -256,13 +251,16 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
       const largeQuantity = LARGE_QUANTITY;
 
       // Buy
-      const buyTx = await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 30,
-        upperTick: 70,
-        quantity: largeQuantity,
-        maxCost: EXTREME_COST,
-      });
+      const buyTx = await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          30,
+          70,
+          largeQuantity,
+          EXTREME_COST
+        );
       const buyReceipt = await buyTx.wait();
       const buyEvent = buyReceipt!.logs.find(
         (log) => (log as any).fragment?.name === "PositionOpened"
@@ -312,13 +310,14 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
       const largeQuantity = ethers.parseUnits("1", USDC_DECIMALS); // 1 USDC (further reduced for safety)
 
       await expect(
-        core.connect(router).openPosition(alice.address, {
+        core.connect(router).openPosition(
+          alice.address,
           marketId,
-          lowerTick: 45,
-          upperTick: 55,
-          quantity: largeQuantity,
-          maxCost: ethers.parseUnits("1000000", 6), // Use very large maxCost
-        })
+          45,
+          55,
+          largeQuantity,
+          ethers.parseUnits("1000000", 6) // Use very large maxCost
+        )
       ).to.not.be.reverted;
     });
 

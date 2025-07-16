@@ -17,7 +17,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
     const { core, keeper } = contracts;
 
     const currentTime = await time.latest();
-    const startTime = currentTime + 100;
+    const startTime = currentTime + 1200; // Large buffer for open gas tests
     const endTime = startTime + 7 * 24 * 60 * 60; // 7 days
     const marketId = 1;
 
@@ -41,13 +41,16 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
         createActiveMarketFixture
       );
 
-      const tx = await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 45,
-        upperTick: 55,
-        quantity: SMALL_QUANTITY,
-        maxCost: MEDIUM_COST,
-      });
+      const tx = await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          45,
+          55,
+          SMALL_QUANTITY,
+          MEDIUM_COST
+        );
 
       const receipt = await tx.wait();
       const gasUsed = receipt!.gasUsed;
@@ -62,13 +65,16 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
         createActiveMarketFixture
       );
 
-      const tx = await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 30,
-        upperTick: 70,
-        quantity: MEDIUM_QUANTITY,
-        maxCost: MEDIUM_COST,
-      });
+      const tx = await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          30,
+          70,
+          MEDIUM_QUANTITY,
+          MEDIUM_COST
+        );
 
       const receipt = await tx.wait();
       const gasUsed = receipt!.gasUsed;
@@ -83,13 +89,16 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
         createActiveMarketFixture
       );
 
-      const tx = await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 0,
-        upperTick: TICK_COUNT - 1,
-        quantity: LARGE_QUANTITY,
-        maxCost: LARGE_COST,
-      });
+      const tx = await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          0,
+          TICK_COUNT - 1,
+          LARGE_QUANTITY,
+          LARGE_COST
+        );
 
       const receipt = await tx.wait();
       const gasUsed = receipt!.gasUsed;
@@ -110,13 +119,16 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
 
       // Test multiple single tick positions
       for (let tick = 10; tick < 90; tick += 20) {
-        const tx = await core.connect(router).openPosition(alice.address, {
-          marketId,
-          lowerTick: tick,
-          upperTick: tick,
-          quantity: SMALL_QUANTITY,
-          maxCost: MEDIUM_COST,
-        });
+        const tx = await core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            marketId,
+            tick,
+            tick,
+            SMALL_QUANTITY,
+            MEDIUM_COST
+          );
 
         const receipt = await tx.wait();
         gasUsages.push(receipt!.gasUsed);
@@ -145,13 +157,16 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
       const gasUsages = [];
 
       for (const range of ranges) {
-        const tx = await core.connect(router).openPosition(alice.address, {
-          marketId,
-          lowerTick: range.lower,
-          upperTick: range.upper,
-          quantity: SMALL_QUANTITY,
-          maxCost: MEDIUM_COST,
-        });
+        const tx = await core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            marketId,
+            range.lower,
+            range.upper,
+            SMALL_QUANTITY,
+            MEDIUM_COST
+          );
 
         const receipt = await tx.wait();
         gasUsages.push(receipt!.gasUsed);
@@ -180,13 +195,9 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
       const gasUsages = [];
 
       for (const quantity of quantities) {
-        const tx = await core.connect(router).openPosition(alice.address, {
-          marketId,
-          lowerTick: 45,
-          upperTick: 55,
-          quantity,
-          maxCost: LARGE_COST,
-        });
+        const tx = await core
+          .connect(router)
+          .openPosition(alice.address, marketId, 45, 55, quantity, LARGE_COST);
 
         const receipt = await tx.wait();
         gasUsages.push(receipt!.gasUsed);
@@ -210,23 +221,29 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
 
       // Create multiple positions to stress the market
       for (let i = 0; i < 5; i++) {
-        await core.connect(router).openPosition(alice.address, {
-          marketId,
-          lowerTick: 40 + i * 2,
-          upperTick: 60 - i * 2,
-          quantity: SMALL_QUANTITY,
-          maxCost: MEDIUM_COST,
-        });
+        await core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            marketId,
+            40 + i * 2,
+            60 - i * 2,
+            SMALL_QUANTITY,
+            MEDIUM_COST
+          );
       }
 
       // Gas usage for new position should still be reasonable
-      const tx = await core.connect(router).openPosition(bob.address, {
-        marketId,
-        lowerTick: 45,
-        upperTick: 55,
-        quantity: SMALL_QUANTITY,
-        maxCost: MEDIUM_COST,
-      });
+      const tx = await core
+        .connect(router)
+        .openPosition(
+          bob.address,
+          marketId,
+          45,
+          55,
+          SMALL_QUANTITY,
+          MEDIUM_COST
+        );
 
       const receipt = await tx.wait();
       const gasUsed = receipt!.gasUsed;
@@ -242,22 +259,28 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
       );
 
       // Test first tick
-      const tx1 = await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 0,
-        upperTick: 0,
-        quantity: SMALL_QUANTITY,
-        maxCost: MEDIUM_COST,
-      });
+      const tx1 = await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          0,
+          0,
+          SMALL_QUANTITY,
+          MEDIUM_COST
+        );
 
       // Test last tick
-      const tx2 = await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: TICK_COUNT - 1,
-        upperTick: TICK_COUNT - 1,
-        quantity: SMALL_QUANTITY,
-        maxCost: MEDIUM_COST,
-      });
+      const tx2 = await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          TICK_COUNT - 1,
+          TICK_COUNT - 1,
+          SMALL_QUANTITY,
+          MEDIUM_COST
+        );
 
       const gasUsed1 = (await tx1.wait())!.gasUsed;
       const gasUsed2 = (await tx2.wait())!.gasUsed;
@@ -278,34 +301,43 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
       );
 
       // Gas usage in fresh market
-      const tx1 = await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 45,
-        upperTick: 55,
-        quantity: SMALL_QUANTITY,
-        maxCost: MEDIUM_COST,
-      });
+      const tx1 = await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          45,
+          55,
+          SMALL_QUANTITY,
+          MEDIUM_COST
+        );
       const freshMarketGas = (await tx1.wait())!.gasUsed;
 
       // Add some positions
       for (let i = 0; i < 3; i++) {
-        await core.connect(router).openPosition(alice.address, {
-          marketId,
-          lowerTick: 30 + i * 5,
-          upperTick: 70 - i * 5,
-          quantity: SMALL_QUANTITY,
-          maxCost: MEDIUM_COST,
-        });
+        await core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            marketId,
+            30 + i * 5,
+            70 - i * 5,
+            SMALL_QUANTITY,
+            MEDIUM_COST
+          );
       }
 
       // Gas usage in active market
-      const tx2 = await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 45,
-        upperTick: 55,
-        quantity: SMALL_QUANTITY,
-        maxCost: MEDIUM_COST,
-      });
+      const tx2 = await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          45,
+          55,
+          SMALL_QUANTITY,
+          MEDIUM_COST
+        );
       const activeMarketGas = (await tx2.wait())!.gasUsed;
 
       console.log(`Fresh market gas: ${freshMarketGas}`);
@@ -326,17 +358,16 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
         createActiveMarketFixture
       );
 
-      const standardTrade = {
-        marketId,
-        lowerTick: 45,
-        upperTick: 55,
-        quantity: MEDIUM_QUANTITY,
-        maxCost: MEDIUM_COST,
-      };
-
       const tx = await core
         .connect(router)
-        .openPosition(alice.address, standardTrade);
+        .openPosition(
+          alice.address,
+          marketId,
+          45,
+          55,
+          MEDIUM_QUANTITY,
+          MEDIUM_COST
+        );
       const receipt = await tx.wait();
       const gasUsed = receipt!.gasUsed;
 
@@ -355,13 +386,16 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
       );
 
       // Create position first
-      await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 45,
-        upperTick: 55,
-        quantity: LARGE_QUANTITY,
-        maxCost: LARGE_COST,
-      });
+      await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          45,
+          55,
+          LARGE_QUANTITY,
+          LARGE_COST
+        );
 
       const positions = await mockPosition.getPositionsByOwner(alice.address);
       const positionId = positions[0];
@@ -393,13 +427,16 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
       );
 
       // Create position
-      await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 45,
-        upperTick: 55,
-        quantity: LARGE_QUANTITY,
-        maxCost: LARGE_COST,
-      });
+      await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          45,
+          55,
+          LARGE_QUANTITY,
+          LARGE_COST
+        );
 
       const positions = await mockPosition.getPositionsByOwner(alice.address);
       const positionId = positions[0];

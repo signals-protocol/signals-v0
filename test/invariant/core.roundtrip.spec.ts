@@ -1,7 +1,10 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { coreFixture } from "../helpers/fixtures/core";
+import {
+  coreFixture,
+  createActiveMarketFixture,
+} from "../helpers/fixtures/core";
 import { INVARIANT_TAG } from "../helpers/tags";
 
 describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
@@ -12,42 +15,11 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
   const TICK_COUNT = 100;
   const WAD = ethers.parseEther("1"); // 1e18
 
-  async function createActiveMarketFixture() {
-    const contracts = await loadFixture(coreFixture);
-    const { core, keeper } = contracts;
-
-    const currentTime = await time.latest();
-    const startTime = currentTime + 100;
-    const endTime = startTime + 7 * 24 * 60 * 60; // 7 days
-    const marketId = 1;
-
-    await core
-      .connect(keeper)
-      .createMarket(
-        marketId,
-        TICK_COUNT,
-        startTime,
-        endTime,
-        ethers.parseEther("1")
-      );
-    await time.increaseTo(startTime + 1);
-
-    return { ...contracts, marketId, startTime, endTime };
-  }
-
   describe("Cost Consistency Invariants", function () {
     it("Should maintain cost consistency: buy then sell should be near-neutral", async function () {
       const { core, router, alice, mockPosition, marketId } = await loadFixture(
         createActiveMarketFixture
       );
-
-      const buyParams = {
-        marketId,
-        lowerTick: 45,
-        upperTick: 55,
-        quantity: MEDIUM_QUANTITY,
-        maxCost: EXTREME_COST,
-      };
 
       // Get initial balance
       const initialBalance = await core
@@ -61,7 +33,14 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       // Execute buy
       const buyTx = await core
         .connect(router)
-        .openPosition(alice.address, buyParams);
+        .openPosition(
+          alice.address,
+          marketId,
+          45,
+          55,
+          MEDIUM_QUANTITY,
+          EXTREME_COST
+        );
       await buyTx.wait();
 
       // Get position ID
@@ -171,13 +150,16 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       );
 
       // Open initial position
-      await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 40,
-        upperTick: 60,
-        quantity: MEDIUM_QUANTITY,
-        maxCost: EXTREME_COST,
-      });
+      await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          40,
+          60,
+          MEDIUM_QUANTITY,
+          EXTREME_COST
+        );
 
       const positions = await mockPosition.getPositionsByOwner(alice.address);
       const positionId = positions[0];
@@ -205,13 +187,16 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
         await loadFixture(createActiveMarketFixture);
 
       // Open initial position
-      await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 40,
-        upperTick: 60,
-        quantity: MEDIUM_QUANTITY,
-        maxCost: EXTREME_COST,
-      });
+      await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          40,
+          60,
+          MEDIUM_QUANTITY,
+          EXTREME_COST
+        );
 
       const positions = await mockPosition.getPositionsByOwner(alice.address);
       const positionId = positions[0];
@@ -281,13 +266,16 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       }
 
       // Execute a trade that affects multiple ticks
-      await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 10,
-        upperTick: 80,
-        quantity: MEDIUM_QUANTITY,
-        maxCost: EXTREME_COST,
-      });
+      await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          10,
+          80,
+          MEDIUM_QUANTITY,
+          EXTREME_COST
+        );
 
       // Check that tick values in the affected range increased
       for (let i = 1; i < 8; i++) {
@@ -317,13 +305,16 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       );
 
       for (let i = 0; i < 3; i++) {
-        await core.connect(router).openPosition(alice.address, {
-          marketId,
-          lowerTick: ticks[0],
-          upperTick: ticks[1],
-          quantity: tradeSize,
-          maxCost: EXTREME_COST,
-        });
+        await core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            marketId,
+            ticks[0],
+            ticks[1],
+            tradeSize,
+            EXTREME_COST
+          );
 
         const newCost = await core.calculateOpenCost(
           marketId,
@@ -363,13 +354,16 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
       // Should be able to execute the trade
       await expect(
-        core.connect(router).openPosition(alice.address, {
-          marketId,
-          lowerTick: 45,
-          upperTick: 55,
-          quantity: microQuantity,
-          maxCost: EXTREME_COST,
-        })
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            marketId,
+            45,
+            55,
+            microQuantity,
+            EXTREME_COST
+          )
       ).to.not.be.reverted;
     });
 
@@ -423,21 +417,27 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
         await loadFixture(createActiveMarketFixture);
 
       // Multiple users create overlapping positions
-      await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 30,
-        upperTick: 70,
-        quantity: MEDIUM_QUANTITY,
-        maxCost: EXTREME_COST,
-      });
+      await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          30,
+          70,
+          MEDIUM_QUANTITY,
+          EXTREME_COST
+        );
 
-      await core.connect(router).openPosition(bob.address, {
-        marketId,
-        lowerTick: 40,
-        upperTick: 60,
-        quantity: MEDIUM_QUANTITY,
-        maxCost: EXTREME_COST,
-      });
+      await core
+        .connect(router)
+        .openPosition(
+          bob.address,
+          marketId,
+          40,
+          60,
+          MEDIUM_QUANTITY,
+          EXTREME_COST
+        );
 
       // Get positions
       const alicePositions = await mockPosition.getPositionsByOwner(
@@ -464,7 +464,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       // Create market
       const { keeper } = await loadFixture(coreFixture);
       const currentTime = await time.latest();
-      const startTime = currentTime + 100;
+      const startTime = currentTime + 2000; // Large buffer for invariant tests
       const endTime = startTime + 86400;
       const marketId = 1;
 
@@ -487,13 +487,16 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
         const cost = await core.calculateOpenCost(marketId, 40, 60, quantity);
 
         // Open position
-        await core.connect(router).openPosition(alice.address, {
-          marketId,
-          lowerTick: 40,
-          upperTick: 60,
-          quantity,
-          maxCost: ethers.parseUnits("1000", 6),
-        });
+        await core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            marketId,
+            40,
+            60,
+            quantity,
+            ethers.parseUnits("1000", 6)
+          );
 
         const positions = await mockPosition.getPositionsByOwner(alice.address);
         const positionId = positions[0];
@@ -522,7 +525,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       // Create market
       const { keeper } = await loadFixture(coreFixture);
       const currentTime = await time.latest();
-      const startTime = currentTime + 100;
+      const startTime = currentTime + 2000; // Large buffer for invariant tests
       const endTime = startTime + 86400;
       const marketId = 2;
 
@@ -545,13 +548,16 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
         const balanceBefore = await paymentToken.balanceOf(alice.address);
 
         // Open position
-        await core.connect(router).openPosition(alice.address, {
-          marketId,
-          lowerTick: 30,
-          upperTick: 70,
-          quantity: qty,
-          maxCost: ethers.parseUnits("1000", 6),
-        });
+        await core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            marketId,
+            30,
+            70,
+            qty,
+            ethers.parseUnits("1000", 6)
+          );
 
         const positions = await mockPosition.getPositionsByOwner(alice.address);
         const positionId = positions[0];
@@ -591,7 +597,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       const { keeper } = await loadFixture(coreFixture);
       const smallAlpha = ethers.parseEther("0.01"); // Small alpha = low costs
       const currentTime = await time.latest();
-      const startTime = currentTime + 100;
+      const startTime = currentTime + 2000; // Large buffer for invariant tests
       const endTime = startTime + 86400;
       const marketId = 3;
 
@@ -629,7 +635,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       // Create market
       const { keeper } = await loadFixture(coreFixture);
       const currentTime = await time.latest();
-      const startTime = currentTime + 100;
+      const startTime = currentTime + 2000; // Large buffer for invariant tests
       const endTime = startTime + 86400;
       const marketId = 4;
 
@@ -656,13 +662,16 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       console.log(`Fresh market cost: ${cost1}`);
 
       // Make some trades to change market state
-      await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 10,
-        upperTick: 20,
-        quantity: 1000,
-        maxCost: ethers.parseUnits("100", 6),
-      });
+      await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          10,
+          20,
+          1000,
+          ethers.parseUnits("100", 6)
+        );
 
       // Test 2: Modified market state
       const cost2 = await core.calculateOpenCost(

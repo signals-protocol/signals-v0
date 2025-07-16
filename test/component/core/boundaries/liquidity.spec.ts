@@ -35,7 +35,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.not.be.reverted;
     });
 
@@ -68,7 +77,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.not.be.reverted;
     });
 
@@ -101,7 +119,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.be.reverted;
     });
   });
@@ -133,7 +160,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.not.be.reverted;
     });
 
@@ -163,7 +199,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.not.be.reverted;
     });
   });
@@ -429,7 +474,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.not.be.reverted;
     });
 
@@ -456,7 +510,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.not.be.reverted;
     });
   });

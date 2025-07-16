@@ -37,7 +37,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.not.be.reverted;
     });
 
@@ -72,7 +81,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.not.be.reverted;
     });
 
@@ -107,7 +125,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.be.revertedWithCustomError(core, "MarketExpired");
     });
 
@@ -138,7 +165,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.be.revertedWithCustomError(core, "MarketNotStarted");
     });
   });
@@ -175,14 +211,32 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.not.be.reverted;
 
       // Jump past end time
       await time.setNextBlockTimestamp(endTime + 1);
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.be.revertedWithCustomError(core, "MarketExpired");
     });
 
@@ -240,7 +294,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
         maxCost: ethers.parseUnits("1000", 6),
       };
 
-      await core.connect(router).openPosition(alice.address, openParams);
+      await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          openParams.marketId,
+          openParams.lowerTick,
+          openParams.upperTick,
+          openParams.quantity,
+          openParams.maxCost
+        );
       const positionId = 1n;
 
       // Move to exactly 1 second after expiry
@@ -328,7 +391,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.not.be.reverted;
     });
 
@@ -363,7 +435,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.not.be.reverted;
     });
 
@@ -398,7 +479,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.be.revertedWithCustomError(core, "MarketExpired");
     });
 
@@ -422,7 +512,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.be.revertedWithCustomError(core, "MarketNotStarted");
     });
 
@@ -457,14 +556,32 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.not.be.reverted;
 
       // Jump past end time
       await time.setNextBlockTimestamp(endTime + 1);
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.be.revertedWithCustomError(core, "MarketExpired");
     });
 
@@ -519,7 +636,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
         maxCost: ethers.parseUnits("1000", 6),
       };
 
-      await core.connect(router).openPosition(alice.address, openParams);
+      await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          openParams.marketId,
+          openParams.lowerTick,
+          openParams.upperTick,
+          openParams.quantity,
+          openParams.maxCost
+        );
       const positionId = 1n;
 
       // Move to exactly 1 second after expiry

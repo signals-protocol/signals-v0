@@ -29,7 +29,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
     const { core, keeper } = contracts;
 
     const currentTime = await time.latest();
-    const startTime = currentTime + 100;
+    const startTime = currentTime + 1500; // Large buffer for snapshot tests
     const endTime = startTime + MARKET_DURATION;
     const marketId = 1;
 
@@ -48,7 +48,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
       const { core, keeper } = contracts;
 
       const currentTime = await time.latest();
-      const startTime = currentTime + 100;
+      const startTime = currentTime + 1500; // Large buffer for snapshot tests
       const endTime = startTime + MARKET_DURATION;
 
       const tx = await core
@@ -105,7 +105,14 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
 
       const tx = await core
         .connect(router)
-        .openPosition(alice.address, tradeParams);
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        );
       const receipt = await tx.wait();
 
       console.log(
@@ -137,7 +144,14 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
 
       const tx = await core
         .connect(router)
-        .openPosition(alice.address, tradeParams);
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        );
       const receipt = await tx.wait();
 
       console.log(
@@ -169,7 +183,14 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
 
       const tx = await core
         .connect(router)
-        .openPosition(alice.address, tradeParams);
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        );
       const receipt = await tx.wait();
 
       console.log(
@@ -189,13 +210,16 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
       );
 
       // Create initial position
-      await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 40,
-        upperTick: 60,
-        quantity: ethers.parseUnits("0.1", USDC_DECIMALS),
-        maxCost: ethers.parseUnits("50", USDC_DECIMALS),
-      });
+      await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          40,
+          60,
+          ethers.parseUnits("0.1", USDC_DECIMALS),
+          ethers.parseUnits("50", USDC_DECIMALS)
+        );
 
       // Increase position
       const tx = await core.connect(router).increasePosition(
@@ -222,13 +246,16 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
       );
 
       // Create initial position
-      await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 40,
-        upperTick: 60,
-        quantity: ethers.parseUnits("0.2", USDC_DECIMALS),
-        maxCost: ethers.parseUnits("100", USDC_DECIMALS),
-      });
+      await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          40,
+          60,
+          ethers.parseUnits("0.2", USDC_DECIMALS),
+          ethers.parseUnits("100", USDC_DECIMALS)
+        );
 
       // Decrease position
       const tx = await core.connect(router).decreasePosition(
@@ -255,13 +282,16 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
       );
 
       // Create initial position
-      await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 40,
-        upperTick: 60,
-        quantity: ethers.parseUnits("0.1", USDC_DECIMALS),
-        maxCost: ethers.parseUnits("50", USDC_DECIMALS),
-      });
+      await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          40,
+          60,
+          ethers.parseUnits("0.1", USDC_DECIMALS),
+          ethers.parseUnits("50", USDC_DECIMALS)
+        );
 
       // Close position
       const tx = await core.connect(router).closePosition(1, 0);
@@ -284,13 +314,16 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
       );
 
       // Create position
-      await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 40,
-        upperTick: 60,
-        quantity: ethers.parseUnits("0.1", USDC_DECIMALS),
-        maxCost: ethers.parseUnits("50", USDC_DECIMALS),
-      });
+      await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          40,
+          60,
+          ethers.parseUnits("0.1", USDC_DECIMALS),
+          ethers.parseUnits("50", USDC_DECIMALS)
+        );
 
       // Settle market
       await core.connect(keeper).settleMarket(marketId, 50);
@@ -337,13 +370,16 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
       );
 
       // Create position first
-      await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 40,
-        upperTick: 60,
-        quantity: ethers.parseUnits("0.1", USDC_DECIMALS),
-        maxCost: ethers.parseUnits("50", USDC_DECIMALS),
-      });
+      await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          40,
+          60,
+          ethers.parseUnits("0.1", USDC_DECIMALS),
+          ethers.parseUnits("50", USDC_DECIMALS)
+        );
 
       const gasEstimate = await core.calculateIncreaseCost.estimateGas(
         1, // positionId
@@ -365,13 +401,16 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
       );
 
       // Create position first
-      await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 40,
-        upperTick: 60,
-        quantity: ethers.parseUnits("0.2", USDC_DECIMALS),
-        maxCost: ethers.parseUnits("100", USDC_DECIMALS),
-      });
+      await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          40,
+          60,
+          ethers.parseUnits("0.2", USDC_DECIMALS),
+          ethers.parseUnits("100", USDC_DECIMALS)
+        );
 
       const gasEstimate = await core.calculateDecreaseProceeds.estimateGas(
         1, // positionId
@@ -394,7 +433,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
       const { core, keeper } = contracts;
 
       const currentTime = await time.latest();
-      const startTime = currentTime + 100;
+      const startTime = currentTime + 1500; // Large buffer for snapshot tests
       const endTime = startTime + MARKET_DURATION;
 
       // Run multiple times to get average
@@ -444,13 +483,16 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
         const user = [alice, bob, charlie][i];
 
         // Open
-        let tx = await core.connect(router).openPosition(user.address, {
-          marketId,
-          lowerTick: 30 + i * 10,
-          upperTick: 70 - i * 10,
-          quantity: ethers.parseUnits("0.1", USDC_DECIMALS),
-          maxCost: ethers.parseUnits("50", USDC_DECIMALS),
-        });
+        let tx = await core
+          .connect(router)
+          .openPosition(
+            user.address,
+            marketId,
+            30 + i * 10,
+            70 - i * 10,
+            ethers.parseUnits("0.1", USDC_DECIMALS),
+            ethers.parseUnits("50", USDC_DECIMALS)
+          );
         gasResults.open.push((await tx.wait())!.gasUsed);
 
         const positionId = i + 1;
@@ -508,23 +550,29 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
       );
 
       // Single tick operation
-      const singleTx = await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 50,
-        upperTick: 50, // Single tick
-        quantity: ethers.parseUnits("0.1", USDC_DECIMALS),
-        maxCost: ethers.parseUnits("50", USDC_DECIMALS),
-      });
+      const singleTx = await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          50,
+          50,
+          ethers.parseUnits("0.1", USDC_DECIMALS),
+          ethers.parseUnits("50", USDC_DECIMALS)
+        );
       const singleGas = (await singleTx.wait())!.gasUsed;
 
       // Multi-tick operation (10 ticks)
-      const multiTx = await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 40,
-        upperTick: 49, // 10 ticks
-        quantity: ethers.parseUnits("0.1", USDC_DECIMALS),
-        maxCost: ethers.parseUnits("50", USDC_DECIMALS),
-      });
+      const multiTx = await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          40,
+          49,
+          ethers.parseUnits("0.1", USDC_DECIMALS),
+          ethers.parseUnits("50", USDC_DECIMALS)
+        );
       const multiGas = (await multiTx.wait())!.gasUsed;
 
       console.log(`Single tick gas: ${singleGas}`);
@@ -546,36 +594,43 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
       );
 
       // Fresh market operation
-      const freshTx = await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 40,
-        upperTick: 60,
-        quantity: ethers.parseUnits("0.1", USDC_DECIMALS),
-        maxCost: ethers.parseUnits("50", USDC_DECIMALS),
-      });
+      const freshTx = await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          40,
+          60,
+          ethers.parseUnits("0.1", USDC_DECIMALS),
+          ethers.parseUnits("50", USDC_DECIMALS)
+        );
       const freshGas = (await freshTx.wait())!.gasUsed;
 
       // Make some trades to modify market state
       for (let i = 0; i < 5; i++) {
-        await core.connect(router).openPosition(bob.address, {
-          marketId,
-          lowerTick: 20 + i,
-          upperTick: 80 - i,
-          quantity: ethers.parseUnits("0.02", USDC_DECIMALS),
-          maxCost: ethers.parseUnits("20", USDC_DECIMALS),
-        });
+        await core
+          .connect(router)
+          .openPosition(
+            bob.address,
+            marketId,
+            20 + i,
+            80 - i,
+            ethers.parseUnits("0.02", USDC_DECIMALS),
+            ethers.parseUnits("20", USDC_DECIMALS)
+          );
       }
 
       // Modified market operation
       const modifiedTx = await core
         .connect(router)
-        .openPosition(alice.address, {
+        .openPosition(
+          alice.address,
           marketId,
-          lowerTick: 35,
-          upperTick: 65,
-          quantity: ethers.parseUnits("0.1", USDC_DECIMALS),
-          maxCost: ethers.parseUnits("100", USDC_DECIMALS), // Higher cost due to price impact
-        });
+          35,
+          65,
+          ethers.parseUnits("0.1", USDC_DECIMALS),
+          ethers.parseUnits("100", USDC_DECIMALS)
+        );
       const modifiedGas = (await modifiedTx.wait())!.gasUsed;
 
       console.log(`Fresh market gas: ${freshGas}`);
@@ -604,35 +659,44 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
         {
           name: "small_open",
           action: () =>
-            core.connect(router).openPosition(alice.address, {
-              marketId,
-              lowerTick: 45,
-              upperTick: 55,
-              quantity: ethers.parseUnits("0.01", USDC_DECIMALS),
-              maxCost: ethers.parseUnits("10", USDC_DECIMALS),
-            }),
+            core
+              .connect(router)
+              .openPosition(
+                alice.address,
+                marketId,
+                45,
+                55,
+                ethers.parseUnits("0.01", USDC_DECIMALS),
+                ethers.parseUnits("10", USDC_DECIMALS)
+              ),
         },
         {
           name: "medium_open",
           action: () =>
-            core.connect(router).openPosition(alice.address, {
-              marketId,
-              lowerTick: 40,
-              upperTick: 60,
-              quantity: ethers.parseUnits("0.1", USDC_DECIMALS),
-              maxCost: ethers.parseUnits("50", USDC_DECIMALS),
-            }),
+            core
+              .connect(router)
+              .openPosition(
+                alice.address,
+                marketId,
+                40,
+                60,
+                ethers.parseUnits("0.1", USDC_DECIMALS),
+                ethers.parseUnits("50", USDC_DECIMALS)
+              ),
         },
         {
           name: "large_open",
           action: () =>
-            core.connect(router).openPosition(alice.address, {
-              marketId,
-              lowerTick: 30,
-              upperTick: 70,
-              quantity: ethers.parseUnits("0.5", USDC_DECIMALS),
-              maxCost: ethers.parseUnits("200", USDC_DECIMALS),
-            }),
+            core
+              .connect(router)
+              .openPosition(
+                alice.address,
+                marketId,
+                30,
+                70,
+                ethers.parseUnits("0.5", USDC_DECIMALS),
+                ethers.parseUnits("200", USDC_DECIMALS)
+              ),
         },
       ];
 

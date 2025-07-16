@@ -23,7 +23,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
     const { core, keeper } = contracts;
 
     const currentTime = await time.latest();
-    const startTime = currentTime + 100;
+    const startTime = currentTime + 1000; // Much larger buffer for chunk split tests
     const endTime = startTime + MARKET_DURATION;
     const marketId = 1;
 
@@ -55,7 +55,14 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
 
       const tx = await core
         .connect(router)
-        .openPosition(alice.address, tradeParams);
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        );
       const receipt = await tx.wait();
 
       console.log(`Single chunk gas used: ${receipt!.gasUsed}`);
@@ -77,7 +84,14 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
 
       const tx = await core
         .connect(router)
-        .openPosition(alice.address, tradeParams);
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        );
       const receipt = await tx.wait();
 
       console.log(`Boundary chunk gas used: ${receipt!.gasUsed}`);
@@ -104,7 +118,14 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
 
       const tx = await core
         .connect(router)
-        .openPosition(alice.address, tradeParams);
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        );
       const receipt = await tx.wait();
 
       console.log(`2-chunk gas used: ${receipt!.gasUsed}`);
@@ -129,7 +150,14 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
 
       const tx = await core
         .connect(router)
-        .openPosition(alice.address, tradeParams);
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        );
       const receipt = await tx.wait();
 
       console.log(`5-chunk gas used: ${receipt!.gasUsed}`);
@@ -157,7 +185,14 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
 
         const tx = await core
           .connect(router)
-          .openPosition(alice.address, tradeParams);
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          );
         const receipt = await tx.wait();
         gasResults.push(receipt!.gasUsed);
 
@@ -194,7 +229,14 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
 
       const tx = await core
         .connect(router)
-        .openPosition(alice.address, tradeParams);
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        );
       const receipt = await tx.wait();
 
       console.log(`10-chunk gas used: ${receipt!.gasUsed}`);
@@ -219,7 +261,16 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
 
       // This should either revert with InvalidQuantity or succeed
       try {
-        await core.connect(router).openPosition(alice.address, tradeParams);
+        await core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          );
         console.log("Large chunk operation succeeded (acceptable)");
       } catch (error) {
         console.log("Large chunk operation reverted (also acceptable)");
@@ -298,32 +349,41 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
       const testQuantity = CHUNK_BOUNDARY * 3n;
 
       // Fresh market state
-      const tx1 = await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 10,
-        upperTick: 20,
-        quantity: testQuantity,
-        maxCost: ethers.parseUnits("500", USDC_DECIMALS),
-      });
+      const tx1 = await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          10,
+          20,
+          testQuantity,
+          ethers.parseUnits("500", USDC_DECIMALS)
+        );
       const receipt1 = await tx1.wait();
 
       // Modified market state (after some trades)
-      await core.connect(router).openPosition(bob.address, {
-        marketId,
-        lowerTick: 30,
-        upperTick: 40,
-        quantity: ethers.parseUnits("1", USDC_DECIMALS),
-        maxCost: ethers.parseUnits("100", USDC_DECIMALS),
-      });
+      await core
+        .connect(router)
+        .openPosition(
+          bob.address,
+          marketId,
+          30,
+          40,
+          ethers.parseUnits("1", USDC_DECIMALS),
+          ethers.parseUnits("100", USDC_DECIMALS)
+        );
 
       // Same chunk operation in modified state
-      const tx2 = await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 50,
-        upperTick: 60,
-        quantity: testQuantity,
-        maxCost: ethers.parseUnits("500", USDC_DECIMALS),
-      });
+      const tx2 = await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          50,
+          60,
+          testQuantity,
+          ethers.parseUnits("500", USDC_DECIMALS)
+        );
       const receipt2 = await tx2.wait();
 
       console.log(`Fresh market gas: ${receipt1!.gasUsed}`);
@@ -347,7 +407,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
       // Create market with very small alpha to trigger chunk splitting
       const smallAlpha = ethers.parseEther("0.001");
       const currentTime = await time.latest();
-      const startTime = currentTime + 100;
+      const startTime = currentTime + 1600; // Large buffer for chunk split tests
       const endTime = startTime + MARKET_DURATION;
       const marketId = 2;
 
@@ -371,7 +431,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
       // Create market with very small alpha
       const tinyAlpha = ethers.parseEther("0.1"); // Increased from 0.0001 to 0.1 to prevent InvalidLiquidityParameter
       const currentTime = await time.latest();
-      const startTime = currentTime + 100;
+      const startTime = currentTime + 1600; // Large buffer for chunk split tests
       const endTime = startTime + MARKET_DURATION;
       const marketId = 3;
 
@@ -386,13 +446,16 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
 
       // Should either succeed or revert with chunk limit protection
       try {
-        const tx = await core.connect(router).openPosition(alice.address, {
-          marketId,
-          lowerTick: 10,
-          upperTick: 20,
-          quantity: moderateQuantity,
-          maxCost: ethers.parseUnits("1000", USDC_DECIMALS),
-        });
+        const tx = await core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            marketId,
+            10,
+            20,
+            moderateQuantity,
+            ethers.parseUnits("1000", USDC_DECIMALS)
+          );
         const receipt = await tx.wait();
 
         console.log(`Tiny alpha trade gas: ${receipt!.gasUsed}`);
@@ -420,13 +483,16 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
       for (const testCase of testCases) {
         const quantity = CHUNK_BOUNDARY * BigInt(testCase.chunks);
 
-        const tx = await core.connect(router).openPosition(alice.address, {
-          marketId,
-          lowerTick: 10,
-          upperTick: 30,
-          quantity,
-          maxCost: ethers.parseUnits("1000", USDC_DECIMALS),
-        });
+        const tx = await core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            marketId,
+            10,
+            30,
+            quantity,
+            ethers.parseUnits("1000", USDC_DECIMALS)
+          );
         const receipt = await tx.wait();
 
         console.log(
@@ -448,13 +514,16 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
 
       const largeQuantity = CHUNK_BOUNDARY * 8n;
 
-      const tx = await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 0,
-        upperTick: 99,
-        quantity: largeQuantity,
-        maxCost: ethers.parseUnits("10000", USDC_DECIMALS),
-      });
+      const tx = await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          0,
+          99,
+          largeQuantity,
+          ethers.parseUnits("10000", USDC_DECIMALS)
+        );
       const receipt = await tx.wait();
 
       console.log(`Large chunked trade gas: ${receipt!.gasUsed}`);

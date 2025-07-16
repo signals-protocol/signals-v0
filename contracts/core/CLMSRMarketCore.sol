@@ -25,6 +25,8 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         FixedPointMathU.wLn
     } for uint256;
 
+
+
     // ========================================
     // CONSTANTS
     // ========================================
@@ -417,20 +419,24 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     /// @inheritdoc ICLMSRMarketCore
     function openPosition(
         address trader,
-        TradeParams calldata params
+        uint256 marketId,
+        uint32 lowerTick,
+        uint32 upperTick,
+        uint128 quantity,
+        uint256 maxCost
     ) external override onlyAuthorized whenNotPaused nonReentrant returns (uint256 positionId) {
         // Validate parameters
         if (trader == address(0)) {
             revert CE.ZeroAddress();
         }
         
-        if (params.quantity == 0) {
-            revert CE.InvalidQuantity(params.quantity);
+        if (quantity == 0) {
+            revert CE.InvalidQuantity(quantity);
         }
         
-        Market storage market = markets[params.marketId];
-        if (!_marketExists(params.marketId)) {
-            revert CE.MarketNotFound(params.marketId);
+        Market storage market = markets[marketId];
+        if (!_marketExists(marketId)) {
+            revert CE.MarketNotFound(marketId);
         }
         
         if (!market.isActive) {
@@ -448,41 +454,41 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             revert CE.MarketExpired();
         }
         
-        if (params.lowerTick > params.upperTick || params.upperTick >= market.numTicks) {
-            revert CE.InvalidTickRange(params.lowerTick, params.upperTick);
+        if (lowerTick > upperTick || upperTick >= market.numTicks) {
+            revert CE.InvalidTickRange(lowerTick, upperTick);
         }
         
         // Calculate trade cost and convert to 6-decimal with round-up to prevent zero-cost attacks
-        uint256 costWad = _calcCostInWad(params.marketId, params.lowerTick, params.upperTick, params.quantity);
+        uint256 costWad = _calcCostInWad(marketId, lowerTick, upperTick, quantity);
         uint256 cost6 = costWad.fromWadRoundUp();
         
-        if (cost6 > params.maxCost) {
-            revert CE.CostExceedsMaximum(cost6, params.maxCost);
+        if (cost6 > maxCost) {
+            revert CE.CostExceedsMaximum(cost6, maxCost);
         }
         
         // Transfer payment from trader
         _pullUSDC(trader, cost6);
         
         // Update market state using WAD quantity
-        uint256 qtyWad = uint256(params.quantity).toWad();
-        _applyBuyFactorToRange(params.marketId, params.lowerTick, params.upperTick, qtyWad);
+        uint256 qtyWad = uint256(quantity).toWad();
+        _applyBuyFactorToRange(marketId, lowerTick, upperTick, qtyWad);
         
         // Mint position NFT with original 6-decimal quantity (storage unchanged)
         positionId = positionContract.mintPosition(
             trader,
-            params.marketId,
-            params.lowerTick,
-            params.upperTick,
-            params.quantity
+            marketId,
+            lowerTick,
+            upperTick,
+            quantity
         );
         
         emit PositionOpened(
             positionId,
             trader,
-            params.marketId,
-            params.lowerTick,
-            params.upperTick,
-            params.quantity,
+            marketId,
+            lowerTick,
+            upperTick,
+            quantity,
             cost6
         );
     }
@@ -579,6 +585,8 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         
         emit PositionDecreased(positionId, trader, sellQuantity, newQuantity, proceeds);
     }
+
+
     
     /// @inheritdoc ICLMSRMarketCore
     function claimPayout(
@@ -1003,39 +1011,28 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         uint256 remainingQty, 
         uint256 chunksLeft
     ) internal pure returns (uint256 safeChunk) {
-        // ---------------------------------
-        // ① 반드시 처리해야 할 최소 진도
-        // ---------------------------------
-        uint256 minProgress = remainingQty / (chunksLeft + 1);  // +1 → div-by-0 방지
-        if (minProgress == 0) minProgress = 1;                  // 적어도 1 wei
-
-        // ---------------------------------
-        // ② overflow 안 나는 최대치
-        // ---------------------------------
-        if (currentSum == 0) {
-            safeChunk = alpha.wMul(MAX_EXP_INPUT_WAD) - 1;
-        } else {
-            uint256 maxFactor = type(uint256).max / currentSum;
-            if (maxFactor <= FixedPointMathU.WAD) {
-                // factor ≈ 1 일 때도 overflow → 트리 값이 지나치게 큼
-                safeChunk = alpha.wMul(MAX_EXP_INPUT_WAD) - 1;  // 최대 허용
-            } else {
-                uint256 maxQscaled = maxFactor.wLn();
-                uint256 maxQuantity = maxQscaled.wMul(alpha);
-                // 여유 margin ½, 그리고 원래 limit(α·0.13) 유지
-                uint256 upper = alpha.wMul(MAX_EXP_INPUT_WAD) - 1;
-                uint256 candidate = maxQuantity / 2;
-                if (candidate > upper) candidate = upper;
-                safeChunk = candidate;
-            }
-        }
-
-        // ---------------------------------
-        // ③ 두 값 중 큰 쪽 선택 (진도 보장)
-        // ---------------------------------
-        if (safeChunk < minProgress) safeChunk = minProgress;
+        // If no chunks left, return remaining quantity
+        if (chunksLeft == 0) return remainingQty;
         
-        return safeChunk;
+        // Calculate minimum progress needed to complete within remaining chunks
+        uint256 minProgress = (remainingQty + chunksLeft - 1) / chunksLeft; // Ceiling division
+        if (minProgress == 0) minProgress = 1; // Ensure at least 1 wei progress
+        
+        // Calculate maximum safe quantity based on exponential limits
+        uint256 maxSafeQuantity = alpha.wMul(MAX_EXP_INPUT_WAD);
+        
+        // If currentSum is large, be more conservative to prevent overflow
+        if (currentSum > alpha.wMul(50e18)) { // 50x alpha threshold (50e18 = 50 * WAD)
+            maxSafeQuantity = alpha / 10; // Very conservative
+        }
+        
+        // Choose the minimum to ensure both progress and safety
+        safeChunk = minProgress < maxSafeQuantity ? minProgress : maxSafeQuantity;
+        
+        // Final safety check - ensure we don't exceed remaining quantity
+        if (safeChunk > remainingQty) {
+            safeChunk = remainingQty;
+        }
     }
 
     /// @notice Calculate claimable amount from settled position
@@ -1190,20 +1187,20 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         _validateActiveMarket(position.marketId);
         
         // Calculate proceeds from closing entire position with round-up for fair treatment
+        uint256 positionQuantityWad = FixedPointMathU.toWad(uint256(position.quantity));
         uint256 proceedsWad = _calculateSellProceeds(
             position.marketId,
             position.lowerTick,
             position.upperTick,
-            uint256(position.quantity).toWad()
+            positionQuantityWad
         );
-        proceeds = proceedsWad.fromWadRoundUp();
+        proceeds = FixedPointMathU.fromWadRoundUp(proceedsWad);
         
         if (proceeds < minProceeds) {
             revert CE.CostExceedsMaximum(minProceeds, proceeds); // Reusing error for slippage
         }
         
         // Update market state (selling entire position)
-        uint256 positionQuantityWad = uint256(position.quantity).toWad();
         _applySellFactorToRange(position.marketId, position.lowerTick, position.upperTick, positionQuantityWad);
         
         // Transfer proceeds to trader

@@ -117,13 +117,16 @@ describe(`${INTEGRATION_TAG} Market Lifecycle`, function () {
       await loadFixture(createActiveMarketFixture);
 
     // 1. Open position
-    await core.connect(router).openPosition(alice.address, {
-      marketId,
-      lowerTick: 45,
-      upperTick: 55,
-      quantity: LARGE_QUANTITY,
-      maxCost: LARGE_COST,
-    });
+    await core
+      .connect(router)
+      .openPosition(
+        alice.address,
+        marketId,
+        45,
+        55,
+        LARGE_QUANTITY,
+        LARGE_COST
+      );
 
     const positions = await mockPosition.getPositionsByOwner(alice.address);
     const positionId = positions[0];
@@ -150,13 +153,16 @@ describe(`${INTEGRATION_TAG} Market Lifecycle`, function () {
       await loadFixture(createActiveMarketFixture);
 
     // 1. Open position
-    await core.connect(router).openPosition(alice.address, {
-      marketId,
-      lowerTick: 45,
-      upperTick: 55,
-      quantity: MEDIUM_QUANTITY,
-      maxCost: MEDIUM_COST,
-    });
+    await core
+      .connect(router)
+      .openPosition(
+        alice.address,
+        marketId,
+        45,
+        55,
+        MEDIUM_QUANTITY,
+        MEDIUM_COST
+      );
 
     const positions = await mockPosition.getPositionsByOwner(alice.address);
     const positionId = positions[0];

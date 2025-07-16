@@ -37,7 +37,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       )
         .to.emit(core, "PositionOpened")
         .withArgs(
@@ -72,30 +81,32 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
       await time.increaseTo(startTime + 1);
 
-      // Test first tick
-      const firstTickParams = {
-        marketId,
-        lowerTick: 0,
-        upperTick: 0,
-        quantity: ethers.parseUnits("0.01", 6),
-        maxCost: ethers.parseUnits("1000", 6),
-      };
-
       await expect(
-        core.connect(router).openPosition(alice.address, firstTickParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            marketId,
+            0,
+            0,
+            ethers.parseUnits("0.01", 6),
+            ethers.parseUnits("1000", 6)
+          )
       ).to.not.be.reverted;
 
       // Test last tick
-      const lastTickParams = {
-        marketId,
-        lowerTick: 99,
-        upperTick: 99,
-        quantity: ethers.parseUnits("0.01", 6),
-        maxCost: ethers.parseUnits("1000", 6),
-      };
 
       await expect(
-        core.connect(router).openPosition(bob.address, lastTickParams)
+        core
+          .connect(router)
+          .openPosition(
+            bob.address,
+            marketId,
+            99,
+            99,
+            ethers.parseUnits("0.01", 6),
+            ethers.parseUnits("1000", 6)
+          )
       ).to.not.be.reverted;
     });
   });
@@ -131,7 +142,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.not.be.reverted;
     });
 
@@ -165,7 +185,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.not.be.reverted;
     });
 
@@ -199,7 +228,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.not.be.reverted;
     });
 
@@ -233,7 +271,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(alice.address, tradeParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.be.revertedWithCustomError(core, "InvalidTickRange");
     });
   });
@@ -262,24 +309,30 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
       // First tick
       await expect(
-        core.connect(router).openPosition(alice.address, {
-          marketId,
-          lowerTick: 0,
-          upperTick: 0,
-          quantity: ethers.parseUnits("0.01", 6),
-          maxCost: ethers.parseUnits("1000", 6),
-        })
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            marketId,
+            0,
+            0,
+            ethers.parseUnits("0.01", 6),
+            ethers.parseUnits("1000", 6)
+          )
       ).to.not.be.reverted;
 
       // Last tick
       await expect(
-        core.connect(router).openPosition(alice.address, {
-          marketId,
-          lowerTick: 99,
-          upperTick: 99,
-          quantity: ethers.parseUnits("0.01", 6),
-          maxCost: ethers.parseUnits("1000", 6),
-        })
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            marketId,
+            99,
+            99,
+            ethers.parseUnits("0.01", 6),
+            ethers.parseUnits("1000", 6)
+          )
       ).to.not.be.reverted;
     });
 
@@ -304,17 +357,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
       await time.increaseTo(startTime + 1);
 
-      const fullRangeParams = {
-        marketId,
-        lowerTick: 0,
-        upperTick: 99,
-        quantity: ethers.parseUnits("0.05", 6),
-        maxCost: ethers.parseUnits("1000", 6),
-      };
-
       const tx = await core
         .connect(router)
-        .openPosition(alice.address, fullRangeParams);
+        .openPosition(
+          alice.address,
+          marketId,
+          0,
+          99,
+          ethers.parseUnits("0.05", 6),
+          ethers.parseUnits("1000", 6)
+        );
       const receipt = await tx.wait();
 
       // Full range should still be efficient
@@ -343,22 +395,28 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
       await time.increaseTo(startTime + 1);
 
       // Alice: 40-60
-      await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 40,
-        upperTick: 60,
-        quantity: ethers.parseUnits("0.05", 6),
-        maxCost: ethers.parseUnits("1000", 6),
-      });
+      await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          40,
+          60,
+          ethers.parseUnits("0.05", 6),
+          ethers.parseUnits("1000", 6)
+        );
 
       // Bob: 50-70 (overlaps with Alice)
-      await core.connect(router).openPosition(bob.address, {
-        marketId,
-        lowerTick: 50,
-        upperTick: 70,
-        quantity: ethers.parseUnits("0.05", 6),
-        maxCost: ethers.parseUnits("1000", 6),
-      });
+      await core
+        .connect(router)
+        .openPosition(
+          bob.address,
+          marketId,
+          50,
+          70,
+          ethers.parseUnits("0.05", 6),
+          ethers.parseUnits("1000", 6)
+        );
 
       // Should succeed
       expect(true).to.be.true;
@@ -385,16 +443,17 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
       await time.increaseTo(startTime + 1);
 
-      const invalidParams = {
-        marketId,
-        lowerTick: 55, // Upper > Lower
-        upperTick: 45,
-        quantity: ethers.parseUnits("0.01", 6),
-        maxCost: ethers.parseUnits("1000", 6),
-      };
-
       await expect(
-        core.connect(router).openPosition(alice.address, invalidParams)
+        core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            marketId,
+            55,
+            45,
+            ethers.parseUnits("0.01", 6),
+            ethers.parseUnits("1000", 6)
+          )
       ).to.be.revertedWithCustomError(core, "InvalidTickRange");
     });
   });

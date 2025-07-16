@@ -5,7 +5,7 @@ import { time } from "@nomicfoundation/hardhat-network-helpers";
 export const WAD = ethers.parseEther("1");
 export const USDC_DECIMALS = 6;
 export const INITIAL_SUPPLY = ethers.parseUnits("1000000000000", USDC_DECIMALS);
-export const ALPHA = ethers.parseEther("0.1");
+export const ALPHA = ethers.parseEther("1"); // 1 ETH = ~$3000, more realistic liquidity parameter
 export const TICK_COUNT = 100;
 export const MARKET_DURATION = 7 * 24 * 60 * 60;
 
@@ -148,12 +148,16 @@ export async function marketFixture() {
  * Create active market helper
  */
 export async function createActiveMarket(contracts: any, marketId: number = 1) {
-  const startTime = await time.latest();
+  const currentTime = await time.latest();
+  const startTime = currentTime + 200; // Add larger buffer to avoid timestamp conflicts
   const endTime = startTime + MARKET_DURATION;
 
   await contracts.core
     .connect(contracts.keeper)
     .createMarket(marketId, TICK_COUNT, startTime, endTime, ALPHA);
+
+  // Move to market start time
+  await time.increaseTo(startTime + 1);
 
   return { marketId, startTime, endTime };
 }
@@ -166,7 +170,7 @@ export async function createActiveMarketFixture() {
   const { core, keeper } = contracts;
 
   const currentTime = await time.latest();
-  const startTime = currentTime + 100;
+  const startTime = currentTime + 300; // Larger buffer for fixture tests
   const endTime = startTime + MARKET_DURATION;
   const marketId = 1;
 

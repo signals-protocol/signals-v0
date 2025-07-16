@@ -72,13 +72,14 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
           quantity
         );
 
-        const tx = await core.connect(router).openPosition(alice.address, {
+        const tx = await core.connect(router).openPosition(
+          alice.address,
           marketId,
           lowerTick,
           upperTick,
           quantity,
-          maxCost: safeMaxCost(cost, 1.5), // 1.5x buffer for rapid trading
-        });
+          safeMaxCost(cost, 1.5) // 1.5x buffer for rapid trading
+        );
 
         const receipt = await tx.wait();
         totalGasUsed += receipt!.gasUsed;
@@ -130,13 +131,16 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
           SCALP_SIZE
         );
 
-        await core.connect(router).openPosition(alice.address, {
-          marketId,
-          lowerTick: midTick - 1,
-          upperTick: midTick + 1,
-          quantity: SCALP_SIZE,
-          maxCost: cost,
-        });
+        await core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            marketId,
+            midTick - 1,
+            midTick + 1,
+            SCALP_SIZE,
+            cost
+          );
 
         positions.push(i + 1);
 
@@ -203,13 +207,14 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
 
           const tx = await core
             .connect(router)
-            .openPosition(algo.trader.address, {
+            .openPosition(
+              algo.trader.address,
               marketId,
-              lowerTick: baseTop - algo.tickRange,
-              upperTick: baseTop + algo.tickRange,
-              quantity: DAY_TRADE_SIZE,
-              maxCost: safeMaxCost(cost, 1.8), // 1.8x buffer for cost fluctuations
-            });
+              baseTop - algo.tickRange,
+              baseTop + algo.tickRange,
+              DAY_TRADE_SIZE,
+              safeMaxCost(cost, 1.8)
+            ); // 1.8x buffer for cost fluctuations
 
           const receipt = await tx.wait();
           algoStats[algo.name].push(receipt!.gasUsed);
@@ -256,13 +261,9 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
         70,
         SWING_SIZE
       );
-      await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 30,
-        upperTick: 70,
-        quantity: SWING_SIZE,
-        maxCost: initialCost,
-      });
+      await core
+        .connect(router)
+        .openPosition(alice.address, marketId, 30, 70, SWING_SIZE, initialCost);
 
       // Get actual position ID from MockPosition
       const positions = await mockPosition.getPositionsByOwner(alice.address);
@@ -347,26 +348,32 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
           upperTick,
           DAY_TRADE_SIZE
         );
-        await core.connect(router).openPosition(alice.address, {
-          marketId,
-          lowerTick,
-          upperTick,
-          quantity: DAY_TRADE_SIZE,
-          maxCost: openCost * 3n, // 3x buffer for cost fluctuations
-        });
+        await core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            marketId,
+            lowerTick,
+            upperTick,
+            DAY_TRADE_SIZE,
+            openCost * 3n
+          ); // 3x buffer for cost fluctuations
 
         const positionId = i + 1;
 
         // Simulate some market movement (other trades)
         if (i % 3 === 0) {
           // Add some noise to market
-          await core.connect(router).openPosition(alice.address, {
-            marketId,
-            lowerTick: 20,
-            upperTick: 80,
-            quantity: ethers.parseUnits("1", USDC_DECIMALS),
-            maxCost: ethers.parseUnits("50", USDC_DECIMALS),
-          });
+          await core
+            .connect(router)
+            .openPosition(
+              alice.address,
+              marketId,
+              20,
+              80,
+              ethers.parseUnits("1", USDC_DECIMALS),
+              ethers.parseUnits("50", USDC_DECIMALS)
+            );
         }
 
         // Check if we should close (simplified stop/take logic)
@@ -436,13 +443,16 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
             range.upper,
             allocation
           );
-          await core.connect(router).openPosition(alice.address, {
-            marketId,
-            lowerTick: range.lower,
-            upperTick: range.upper,
-            quantity: allocation,
-            maxCost: cost,
-          });
+          await core
+            .connect(router)
+            .openPosition(
+              alice.address,
+              marketId,
+              range.lower,
+              range.upper,
+              allocation,
+              cost
+            );
         } catch (error: any) {
           // Handle InvalidQuantity gracefully
           if (error.message.includes("InvalidQuantity")) {
@@ -526,13 +536,16 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
             CONSERVATIVE_TRADE_SIZE
           );
 
-          const tx = await core.connect(router).openPosition(trader.address, {
-            marketId,
-            lowerTick,
-            upperTick,
-            quantity: CONSERVATIVE_TRADE_SIZE,
-            maxCost: safeMaxCost(cost, 1.8), // 1.8x buffer for cost fluctuations
-          });
+          const tx = await core
+            .connect(router)
+            .openPosition(
+              trader.address,
+              marketId,
+              lowerTick,
+              upperTick,
+              CONSERVATIVE_TRADE_SIZE,
+              safeMaxCost(cost, 1.8)
+            ); // 1.8x buffer for cost fluctuations
 
           totalTradesInRange++;
           return tx;
@@ -606,13 +619,16 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
             quantity
           );
 
-          const tx = await core.connect(router).openPosition(trader.address, {
-            marketId,
-            lowerTick,
-            upperTick,
-            quantity,
-            maxCost: cost,
-          });
+          const tx = await core
+            .connect(router)
+            .openPosition(
+              trader.address,
+              marketId,
+              lowerTick,
+              upperTick,
+              quantity,
+              cost
+            );
 
           const receipt = await tx.wait();
           batchGas += receipt!.gasUsed;
@@ -692,13 +708,16 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
           DAY_TRADE_SIZE
         );
 
-        await core.connect(router).openPosition(trader.address, {
-          marketId,
-          lowerTick: 40 + tickOffset,
-          upperTick: 60 + tickOffset,
-          quantity: DAY_TRADE_SIZE,
-          maxCost: cost,
-        });
+        await core
+          .connect(router)
+          .openPosition(
+            trader.address,
+            marketId,
+            40 + tickOffset,
+            60 + tickOffset,
+            DAY_TRADE_SIZE,
+            cost
+          );
       }
 
       console.log(`Created ${dayTradingPositions} day trading positions`);
@@ -781,13 +800,16 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
               ? actualCost / 2n // Insufficient cost (should fail)
               : actualCost; // Correct cost (should succeed)
 
-          await core.connect(router).openPosition(alice.address, {
-            marketId,
-            lowerTick,
-            upperTick,
-            quantity,
-            maxCost,
-          });
+          await core
+            .connect(router)
+            .openPosition(
+              alice.address,
+              marketId,
+              lowerTick,
+              upperTick,
+              quantity,
+              maxCost
+            );
 
           successfulTrades++;
         } catch (error: any) {
@@ -831,13 +853,16 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
           70 - i * 10,
           SWING_SIZE
         );
-        await core.connect(router).openPosition(traders[i].address, {
-          marketId,
-          lowerTick: 30 + i * 10,
-          upperTick: 70 - i * 10,
-          quantity: SWING_SIZE,
-          maxCost: cost,
-        });
+        await core
+          .connect(router)
+          .openPosition(
+            traders[i].address,
+            marketId,
+            30 + i * 10,
+            70 - i * 10,
+            SWING_SIZE,
+            cost
+          );
         initialPositions.push(i + 1);
       }
 
@@ -882,13 +907,16 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
               DAY_TRADE_SIZE
             );
             operations.push(
-              core.connect(router).openPosition(trader.address, {
-                marketId,
-                lowerTick,
-                upperTick,
-                quantity: DAY_TRADE_SIZE,
-                maxCost: cost,
-              })
+              core
+                .connect(router)
+                .openPosition(
+                  trader.address,
+                  marketId,
+                  lowerTick,
+                  upperTick,
+                  DAY_TRADE_SIZE,
+                  cost
+                )
             );
           } catch (error: any) {
             // Handle InvalidQuantity gracefully

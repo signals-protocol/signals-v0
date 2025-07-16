@@ -213,7 +213,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
         maxCost: ethers.parseUnits("10", 6),
       };
 
-      await core.connect(router).openPosition(alice.address, tradeParams);
+      await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        );
 
       // Get position info from position contract
       const positionContract = await core.getPositionContract();
@@ -262,15 +271,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
       expect(await position.balanceOf(bob.address)).to.equal(0);
 
       // Open first position
-      const tradeParams1 = {
-        marketId,
-        lowerTick: 10,
-        upperTick: 20,
-        quantity: ethers.parseUnits("1", 6),
-        maxCost: ethers.parseUnits("10", 6),
-      };
-
-      await core.connect(router).openPosition(alice.address, tradeParams1);
+      await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          10,
+          20,
+          ethers.parseUnits("1", 6),
+          ethers.parseUnits("10", 6)
+        );
       expect(await position.balanceOf(alice.address)).to.equal(1);
 
       // Open second position
@@ -282,7 +292,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
         maxCost: ethers.parseUnits("5", 6),
       };
 
-      await core.connect(router).openPosition(bob.address, tradeParams2);
+      await core
+        .connect(router)
+        .openPosition(
+          bob.address,
+          marketId,
+          30,
+          40,
+          ethers.parseUnits("0.5", 6),
+          ethers.parseUnits("5", 6)
+        );
       expect(await position.balanceOf(bob.address)).to.equal(1);
     });
 
@@ -315,7 +334,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
         maxCost: ethers.parseUnits("10", 6),
       };
 
-      await core.connect(router).openPosition(alice.address, tradeParams);
+      await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        );
 
       const positionContract = await core.getPositionContract();
       const position = await ethers.getContractAt(
@@ -388,7 +416,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
         maxCost: ethers.parseUnits("10", 6),
       };
 
-      await core.connect(router).openPosition(alice.address, tradeParams);
+      await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        );
 
       // Calculate close cost
       const closeCost = await core.calculateCloseProceeds(1);
@@ -427,7 +464,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
         maxCost: ethers.parseUnits("10", 6),
       };
 
-      await core.connect(router).openPosition(alice.address, tradeParams);
+      await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        );
 
       // Settle market
       await time.increaseTo(endTime + 1);
@@ -679,7 +725,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
         maxCost: ethers.parseUnits("10", 6),
       };
 
-      await core.connect(router).openPosition(alice.address, tradeParams);
+      await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        );
 
       // Market should still have correct info
       const marketInfo = await core.getMarket(marketId);

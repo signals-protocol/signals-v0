@@ -59,7 +59,14 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
       const tx = await core
         .connect(router)
-        .openPosition(alice.address, tradeParams);
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        );
       const receipt = await tx.wait();
 
       console.log(`Institutional trade gas: ${receipt!.gasUsed}`);
@@ -98,7 +105,16 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
           maxCost: ethers.parseUnits("200", USDC_DECIMALS),
         };
 
-        await core.connect(router).openPosition(trader.address, tradeParams);
+        await core
+          .connect(router)
+          .openPosition(
+            trader.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          );
         positions.push(i + 1);
 
         console.log(
@@ -153,7 +169,16 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
           maxCost: ethers.parseUnits("100", USDC_DECIMALS),
         };
 
-        await core.connect(router).openPosition(alice.address, tradeParams);
+        await core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          );
         trades.push(i + 1);
       }
 
@@ -196,23 +221,29 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
         const midTick = 50;
 
         // Place bid
-        const bidTx = await core.connect(router).openPosition(alice.address, {
-          marketId,
-          lowerTick: midTick - spread - 1,
-          upperTick: midTick - 1,
-          quantity: tradeSize,
-          maxCost: ethers.parseUnits("50", USDC_DECIMALS),
-        });
+        const bidTx = await core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            marketId,
+            midTick - spread - 1,
+            midTick - 1,
+            tradeSize,
+            ethers.parseUnits("50", USDC_DECIMALS)
+          );
         totalGasUsed += (await bidTx.wait())!.gasUsed;
 
         // Place ask (counter-trade)
-        const askTx = await core.connect(router).openPosition(bob.address, {
-          marketId,
-          lowerTick: midTick + 1,
-          upperTick: midTick + spread + 1,
-          quantity: tradeSize,
-          maxCost: ethers.parseUnits("50", USDC_DECIMALS),
-        });
+        const askTx = await core
+          .connect(router)
+          .openPosition(
+            bob.address,
+            marketId,
+            midTick + 1,
+            midTick + spread + 1,
+            tradeSize,
+            ethers.parseUnits("50", USDC_DECIMALS)
+          );
         totalGasUsed += (await askTx.wait())!.gasUsed;
       }
 
@@ -233,13 +264,16 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       );
 
       // Open initial large position
-      await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 30,
-        upperTick: 70,
-        quantity: HUGE_QUANTITY,
-        maxCost: ethers.parseUnits("300", USDC_DECIMALS),
-      });
+      await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          30,
+          70,
+          HUGE_QUANTITY,
+          ethers.parseUnits("300", USDC_DECIMALS)
+        );
 
       // Get actual position ID from MockPosition
       const positions = await mockPosition.getPositionsByOwner(alice.address);
@@ -293,13 +327,16 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       const startTime = Date.now();
 
       for (let i = 0; i < concurrentTrades; i++) {
-        const tradePromise = core.connect(router).openPosition(alice.address, {
-          marketId,
-          lowerTick: 30 + i * 5,
-          upperTick: 70 - i * 5,
-          quantity: tradeSize,
-          maxCost: ethers.parseUnits("100", USDC_DECIMALS),
-        });
+        const tradePromise = core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            marketId,
+            30 + i * 5,
+            70 - i * 5,
+            tradeSize,
+            ethers.parseUnits("100", USDC_DECIMALS)
+          );
 
         tradePromises.push(tradePromise);
       }
@@ -330,13 +367,16 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
       // Whale trade: $100 position (large for testing but within chunk limits)
       const whaleQuantity = ethers.parseUnits("100", USDC_DECIMALS);
-      await core.connect(router).openPosition(alice.address, {
-        marketId,
-        lowerTick: 10,
-        upperTick: 90,
-        quantity: whaleQuantity,
-        maxCost: ethers.parseUnits("300", USDC_DECIMALS),
-      });
+      await core
+        .connect(router)
+        .openPosition(
+          alice.address,
+          marketId,
+          10,
+          90,
+          whaleQuantity,
+          ethers.parseUnits("300", USDC_DECIMALS)
+        );
 
       console.log(
         `Whale position opened: $${ethers.formatUnits(
@@ -350,13 +390,16 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       const smallTrades = 100;
 
       for (let i = 0; i < smallTrades; i++) {
-        await core.connect(router).openPosition(bob.address, {
-          marketId,
-          lowerTick: 40 + (i % 10),
-          upperTick: 60 - (i % 10),
-          quantity: smallTradeSize,
-          maxCost: ethers.parseUnits("10", USDC_DECIMALS),
-        });
+        await core
+          .connect(router)
+          .openPosition(
+            bob.address,
+            marketId,
+            40 + (i % 10),
+            60 - (i % 10),
+            smallTradeSize,
+            ethers.parseUnits("10", USDC_DECIMALS)
+          );
       }
 
       console.log(`${smallTrades} small trades completed after whale trade`);
@@ -389,13 +432,14 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       for (let i = 0; i < traders.length; i++) {
         const trader = traders[i];
         for (let j = 0; j < positionsPerTrader; j++) {
-          await core.connect(router).openPosition(trader.address, {
+          await core.connect(router).openPosition(
+            trader.address,
             marketId,
-            lowerTick: 10 + j * 10, // Spread out more
-            upperTick: 90 - j * 10,
-            quantity: settlementQuantity,
-            maxCost: ethers.parseUnits("100", USDC_DECIMALS),
-          });
+            10 + j * 10, // Spread out more
+            90 - j * 10,
+            settlementQuantity,
+            ethers.parseUnits("100", USDC_DECIMALS)
+          );
         }
       }
 
@@ -446,13 +490,14 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       for (let i = 0; i < 9; i++) {
         // Reduced from 15 to 9
         const trader = traders[i % traders.length];
-        const tx = await core.connect(router).openPosition(trader.address, {
+        const tx = await core.connect(router).openPosition(
+          trader.address,
           marketId,
-          lowerTick: 10 + i * 3, // Ensure lower < upper
-          upperTick: 50 + i * 3, // Move up instead of down
-          quantity: claimingQuantity,
-          maxCost: ethers.parseUnits("100", USDC_DECIMALS),
-        });
+          10 + i * 3, // Ensure lower < upper
+          50 + i * 3, // Move up instead of down
+          claimingQuantity,
+          ethers.parseUnits("100", USDC_DECIMALS)
+        );
         await tx.wait();
         // Get position ID from MockPosition - use trader's position list
         const traderPositions = await mockPosition.getPositionsByOwner(
@@ -543,13 +588,16 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
         );
 
         // If it doesn't revert, the high liquidity is working
-        await core.connect(router).openPosition(alice.address, {
-          marketId,
-          lowerTick: 0,
-          upperTick: 99,
-          quantity: maxQuantity,
-          maxCost: costEstimate,
-        });
+        await core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            marketId,
+            0,
+            99,
+            maxQuantity,
+            costEstimate
+          );
 
         console.log("Large position opened successfully");
       } catch (error) {
@@ -571,13 +619,16 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       let totalVolume = 0n;
 
       for (let i = 0; i < extremeTrades; i++) {
-        await core.connect(router).openPosition(alice.address, {
-          marketId,
-          lowerTick: 30 + (i % 20),
-          upperTick: 70 - (i % 20),
-          quantity: tradeSize,
-          maxCost: ethers.parseUnits("300", USDC_DECIMALS),
-        });
+        await core
+          .connect(router)
+          .openPosition(
+            alice.address,
+            marketId,
+            30 + (i % 20),
+            70 - (i % 20),
+            tradeSize,
+            ethers.parseUnits("300", USDC_DECIMALS)
+          );
         totalVolume += tradeSize;
       }
 
