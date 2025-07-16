@@ -123,7 +123,8 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
       await core.connect(keeper).pause("Emergency");
 
       // Settlement should work even when paused (emergency functionality)
-      await expect(core.connect(keeper).settleMarket(1, 50)).to.not.be.reverted;
+      await expect(core.connect(keeper).settleMarket(1, 49, 50)).to.not.be
+        .reverted;
     });
 
     it("Should prevent position opening when paused", async function () {
@@ -262,7 +263,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
 
       // Settle market
       await time.increaseTo(endTime + 1);
-      await core.connect(keeper).settleMarket(1, 15); // Winning outcome
+      await core.connect(keeper).settleMarket(1, 15, 16); // Winning outcome
 
       // Pause the contract
       await core.connect(keeper).pause("Emergency");
@@ -583,7 +584,8 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
       await core.connect(keeper).pause("Emergency during settlement");
 
       // Settlement should work even when paused (emergency functionality)
-      await expect(core.connect(keeper).settleMarket(1, 50)).to.not.be.reverted;
+      await expect(core.connect(keeper).settleMarket(1, 49, 50)).to.not.be
+        .reverted;
 
       // Market should show as ended
       const market = await core.getMarket(1);

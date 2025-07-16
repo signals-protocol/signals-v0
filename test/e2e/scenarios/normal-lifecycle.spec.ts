@@ -154,8 +154,11 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       expect(market.isActive).to.be.true; // Market remains active until settlement
 
       // Phase 8: Settlement
-      const winningTick = 50; // Charlie was close!
-      await core.connect(keeper).settleMarket(marketId, winningTick);
+      const winningLowerTick = 49; // Range around Charlie's position!
+      const winningUpperTick = 50;
+      await core
+        .connect(keeper)
+        .settleMarket(marketId, winningLowerTick, winningUpperTick);
 
       // Phase 9: Claims phase
       // Bob should win since his range included tick 50
@@ -203,7 +206,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       await time.increaseTo(endTime + 1);
 
       // Should still be able to settle
-      await core.connect(keeper).settleMarket(marketId, 50);
+      await core.connect(keeper).settleMarket(marketId, 49, 50);
 
       const market = await core.getMarket(marketId);
       expect(market.isActive).to.be.false;
@@ -236,7 +239,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
         );
 
       await time.increaseTo(endTime + 1);
-      await core.connect(keeper).settleMarket(marketId, 50);
+      await core.connect(keeper).settleMarket(marketId, 49, 50);
 
       // Alice should be able to claim her winnings
       const positions = await mockPosition.getPositionsByOwner(alice.address);

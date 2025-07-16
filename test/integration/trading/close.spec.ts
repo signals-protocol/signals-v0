@@ -125,7 +125,7 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
     // Move to market end and settle
     const market = await core.getMarket(marketId);
     await time.increaseTo(Number(market.endTimestamp) + 1);
-    await core.connect(keeper).settleMarket(marketId, 50); // Settle at tick 50
+    await core.connect(keeper).settleMarket(marketId, 49, 50); // Settle at tick range 49-50
 
     const balanceBefore = await paymentToken.balanceOf(alice.address);
 

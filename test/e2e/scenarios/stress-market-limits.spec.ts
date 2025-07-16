@@ -28,10 +28,11 @@ describe(`${E2E_TAG} Market Limits and Stress Tests`, function () {
     expect(market.numTicks).to.equal(largeTicks);
 
     // Test settlement with large tick count
-    await core.connect(keeper).settleMarket(1, largeTicks - 1);
+    await core.connect(keeper).settleMarket(1, largeTicks - 2, largeTicks - 1);
 
     const settledMarket = await core.getMarket(1);
-    expect(settledMarket.settlementTick).to.equal(largeTicks - 1);
+    expect(settledMarket.settlementLowerTick).to.equal(largeTicks - 2);
+    expect(settledMarket.settlementUpperTick).to.equal(largeTicks - 1);
   });
 
   it("Should handle rapid market creation and settlement", async function () {
@@ -52,11 +53,13 @@ describe(`${E2E_TAG} Market Limits and Stress Tests`, function () {
           ALPHA
         );
 
-      await core.connect(keeper).settleMarket(i, i % TICK_COUNT);
+      const winningTick = i % TICK_COUNT;
+      await core.connect(keeper).settleMarket(i, winningTick, winningTick + 1);
 
       const market = await core.getMarket(i);
       expect(market.settled).to.be.true;
-      expect(market.settlementTick).to.equal(i % TICK_COUNT);
+      expect(market.settlementLowerTick).to.equal(winningTick);
+      expect(market.settlementUpperTick).to.equal(winningTick + 1);
     }
   });
 

@@ -28,10 +28,10 @@ describe(`${E2E_TAG} Market Operations - Stress Tests`, function () {
     expect(market.numTicks).to.equal(largeTicks);
 
     // Test settlement with large tick count
-    await core.connect(keeper).settleMarket(1, largeTicks - 1);
+    await core.connect(keeper).settleMarket(1, largeTicks - 2, largeTicks - 1);
 
     const settledMarket = await core.getMarket(1);
-    expect(settledMarket.settlementTick).to.equal(largeTicks - 1);
+    expect(settledMarket.settlementUpperTick).to.equal(largeTicks - 1);
   });
 
   it("Should handle rapid market creation and settlement", async function () {
@@ -52,11 +52,18 @@ describe(`${E2E_TAG} Market Operations - Stress Tests`, function () {
           ALPHA
         );
 
-      await core.connect(keeper).settleMarket(i, i % TICK_COUNT);
+      const settlementTick = i % TICK_COUNT;
+      await core
+        .connect(keeper)
+        .settleMarket(
+          i,
+          settlementTick === 0 ? 0 : settlementTick - 1,
+          settlementTick
+        );
 
       const market = await core.getMarket(i);
       expect(market.settled).to.be.true;
-      expect(market.settlementTick).to.equal(i % TICK_COUNT);
+      expect(market.settlementUpperTick).to.equal(settlementTick);
     }
   });
 
@@ -199,12 +206,18 @@ describe(`${E2E_TAG} Market Operations - Stress Tests`, function () {
       const config = marketConfigs[i];
       const winningTick = Math.floor(config.ticks / 2); // Middle tick
 
-      await core.connect(keeper).settleMarket(config.id, winningTick);
+      await core
+        .connect(keeper)
+        .settleMarket(
+          config.id,
+          winningTick === 0 ? 0 : winningTick - 1,
+          winningTick
+        );
 
       const market = await core.getMarket(config.id);
       expect(market.settled).to.be.true;
       expect(market.isActive).to.be.false;
-      expect(market.settlementTick).to.equal(winningTick);
+      expect(market.settlementUpperTick).to.equal(winningTick);
     }
   });
 
@@ -264,7 +277,14 @@ describe(`${E2E_TAG} Market Operations - Stress Tests`, function () {
 
     // Settle markets in reverse order
     for (let i = numMarkets; i >= 1; i--) {
-      await core.connect(keeper).settleMarket(i, i % TICK_COUNT);
+      const settlementTick = i % TICK_COUNT;
+      await core
+        .connect(keeper)
+        .settleMarket(
+          i,
+          settlementTick === 0 ? 0 : settlementTick - 1,
+          settlementTick
+        );
     }
 
     // Verify all settlements
@@ -272,7 +292,7 @@ describe(`${E2E_TAG} Market Operations - Stress Tests`, function () {
       const market = await core.getMarket(i);
       expect(market.settled).to.be.true;
       expect(market.isActive).to.be.false;
-      expect(market.settlementTick).to.equal(i % TICK_COUNT);
+      expect(market.settlementUpperTick).to.equal(i % TICK_COUNT);
     }
   });
 });

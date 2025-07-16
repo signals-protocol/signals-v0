@@ -15,6 +15,7 @@ interface CLMSRErrors {
     /* ───────────────────── Trade params ─────────────────────── */
     error InvalidTick(uint32 tick, uint32 max);
     error InvalidTickRange(uint32 lowerTick, uint32 upperTick);
+    error InvalidWinningRange(uint32 lowerTick, uint32 upperTick);
     error InvalidQuantity(uint128 qty);
     error CostExceedsMaximum(uint256 cost, uint256 maxAllowed);
 

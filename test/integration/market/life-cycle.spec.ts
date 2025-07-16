@@ -55,13 +55,16 @@ describe(`${INTEGRATION_TAG} Market Lifecycle`, function () {
     // 3. Market can be settled after end time
     await time.increaseTo(endTime + 1);
     const winningTick = 42;
-    await core.connect(keeper).settleMarket(marketId, winningTick);
+    await core
+      .connect(keeper)
+      .settleMarket(marketId, winningTick, winningTick + 1);
 
     // 4. Market is settled and inactive
     market = await core.getMarket(marketId);
     expect(market.isActive).to.be.false;
     expect(market.settled).to.be.true;
-    expect(market.settlementTick).to.equal(winningTick);
+    expect(market.settlementLowerTick).to.equal(winningTick);
+    expect(market.settlementUpperTick).to.equal(winningTick + 1);
   });
 
   it("Should handle multiple markets in different states", async function () {
@@ -85,7 +88,7 @@ describe(`${INTEGRATION_TAG} Market Lifecycle`, function () {
     }
 
     // Settle first market
-    await core.connect(keeper).settleMarket(1, 10);
+    await core.connect(keeper).settleMarket(1, 10, 11);
 
     // Check states
     let market1 = await core.getMarket(1);
@@ -100,7 +103,7 @@ describe(`${INTEGRATION_TAG} Market Lifecycle`, function () {
     expect(market3.isActive).to.be.true;
 
     // Settle second market
-    await core.connect(keeper).settleMarket(2, 20);
+    await core.connect(keeper).settleMarket(2, 20, 21);
 
     market2 = await core.getMarket(2);
     expect(market2.settled).to.be.true;
@@ -170,7 +173,7 @@ describe(`${INTEGRATION_TAG} Market Lifecycle`, function () {
     const positionId = positions[0];
 
     // 2. Settle market
-    await core.connect(keeper).settleMarket(marketId, 50);
+    await core.connect(keeper).settleMarket(marketId, 50, 51);
 
     // 3. Claim payout
     await expect(core.connect(alice).claimPayout(positionId)).to.emit(

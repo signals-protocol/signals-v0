@@ -167,7 +167,8 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             settled: false,
             startTimestamp: startTimestamp,
             endTimestamp: endTimestamp,
-            settlementTick: 0,
+            settlementLowerTick: 0,
+            settlementUpperTick: 0,
             numTicks: numTicks,
             liquidityParameter: liquidityParameter
         });
@@ -179,7 +180,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     }
     
     /// @inheritdoc ICLMSRMarketCore
-    function settleMarket(uint256 marketId, uint32 winningTick) 
+    function settleMarket(uint256 marketId, uint32 lowerTick, uint32 upperTick) 
         external override onlyManager marketExists(marketId) {
         Market storage market = markets[marketId];
         
@@ -187,16 +188,27 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             revert CE.MarketAlreadySettled(marketId);
         }
         
-        if (winningTick >= market.numTicks) {
-            revert CE.InvalidTick(winningTick, market.numTicks - 1);
+        // Validate winning range
+        if (lowerTick > upperTick) {
+            revert CE.InvalidWinningRange(lowerTick, upperTick);
+        }
+        
+        // CLMSR requires consecutive ticks (exactly 2 adjacent ticks forming a range)
+        if (upperTick != lowerTick + 1) {
+            revert CE.InvalidWinningRange(lowerTick, upperTick);
+        }
+        
+        if (upperTick >= market.numTicks) {
+            revert CE.InvalidTick(upperTick, market.numTicks - 1);
         }
         
         // Settle market
         market.settled = true;
-        market.settlementTick = winningTick;
+        market.settlementLowerTick = lowerTick;
+        market.settlementUpperTick = upperTick;
         market.isActive = false;
         
-        emit MarketSettled(marketId, winningTick);
+        emit MarketSettled(marketId, lowerTick, upperTick);
     }
 
     // ========================================
@@ -997,9 +1009,11 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             return 0;
         }
         
-        // Check if position covers winning tick
-        if (market.settlementTick >= position.lowerTick && 
-            market.settlementTick <= position.upperTick) {
+        // Check if position range overlaps with winning range
+        bool hasOverlap = (position.lowerTick <= market.settlementUpperTick && 
+                          position.upperTick >= market.settlementLowerTick);
+        
+        if (hasOverlap) {
             // Position wins - return quantity as payout
             amount = uint256(position.quantity);
         } else {

@@ -32,7 +32,8 @@ describe(`${INTEGRATION_TAG} Market Creation`, function () {
     expect(market.endTimestamp).to.equal(endTime);
     expect(market.isActive).to.be.true;
     expect(market.settled).to.be.false;
-    expect(market.settlementTick).to.equal(0);
+    expect(market.settlementLowerTick).to.equal(0);
+    expect(market.settlementUpperTick).to.equal(0);
   });
 
   it("Should initialize segment tree correctly", async function () {

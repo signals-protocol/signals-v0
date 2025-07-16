@@ -74,7 +74,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
     it("Should settle market within gas baseline", async function () {
       const { core, keeper, marketId } = await loadFixture(createActiveMarket);
 
-      const tx = await core.connect(keeper).settleMarket(marketId, 50);
+      const tx = await core.connect(keeper).settleMarket(marketId, 49, 50);
       const receipt = await tx.wait();
 
       console.log(
@@ -314,7 +314,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
         );
 
       // Settle market
-      await core.connect(keeper).settleMarket(marketId, 50);
+      await core.connect(keeper).settleMarket(marketId, 49, 50);
 
       // Claim position
       const tx = await core.connect(alice).claimPayout(1);

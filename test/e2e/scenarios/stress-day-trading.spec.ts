@@ -753,7 +753,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
       // Market settlement should work despite heavy activity
       const settlementTx = await core
         .connect(keeper)
-        .settleMarket(marketId, 50);
+        .settleMarket(marketId, 49, 50);
       const settlementReceipt = await settlementTx.wait();
 
       console.log(

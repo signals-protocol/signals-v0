@@ -354,8 +354,8 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       await time.increaseTo(endTime + 1);
 
       // Settlement should still work after expiry
-      await expect(core.connect(keeper).settleMarket(marketId, 50)).to.not.be
-        .reverted;
+      await expect(core.connect(keeper).settleMarket(marketId, 49, 50)).to.not
+        .be.reverted;
     });
   });
 

@@ -313,7 +313,7 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
     );
 
     // Settle market first
-    await core.connect(keeper).settleMarket(marketId, 50);
+    await core.connect(keeper).settleMarket(marketId, 49, 50);
 
     await expect(
       core

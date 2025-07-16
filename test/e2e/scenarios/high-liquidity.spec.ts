@@ -457,7 +457,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       // Settle market
       const settlementTx = await core
         .connect(keeper)
-        .settleMarket(marketId, 42);
+        .settleMarket(marketId, 41, 42);
       const settlementReceipt = await settlementTx.wait();
 
       console.log(`Settlement gas used: ${settlementReceipt!.gasUsed}`);
@@ -505,7 +505,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       // Settle market
       const market = await core.getMarket(marketId);
       await time.increaseTo(Number(market.endTimestamp) + 1);
-      await core.connect(keeper).settleMarket(marketId, 50);
+      await core.connect(keeper).settleMarket(marketId, 49, 50);
 
       // Mass claiming
       let totalClaimGas = 0n;

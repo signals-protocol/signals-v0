@@ -15,7 +15,8 @@ interface ICLMSRMarketCore {
         bool settled;                   // Market is settled
         uint64 startTimestamp;          // Market start time
         uint64 endTimestamp;            // Market end time
-        uint32 settlementTick;          // Winning tick (only if settled)
+        uint32 settlementLowerTick;     // Winning range lower bound (only if settled)
+        uint32 settlementUpperTick;     // Winning range upper bound (only if settled)
         uint32 numTicks;                // Number of ticks in market
         uint256 liquidityParameter;    // Alpha parameter (1e18 scale)
     }
@@ -36,7 +37,8 @@ interface ICLMSRMarketCore {
 
     event MarketSettled(
         uint256 indexed marketId,
-        uint32 settlementTick
+        uint32 settlementLowerTick,
+        uint32 settlementUpperTick
     );
 
     event PositionOpened(
@@ -127,10 +129,11 @@ interface ICLMSRMarketCore {
     ) external;
     
     /// @notice Settle a market (only callable by Manager)
-    /// @dev Sets winning tick and enables position claiming
+    /// @dev Sets winning range and enables position claiming
     /// @param marketId Market identifier
-    /// @param winningTick Winning tick determined by oracle
-    function settleMarket(uint256 marketId, uint32 winningTick) external;
+    /// @param lowerTick Winning range lower bound (inclusive)
+    /// @param upperTick Winning range upper bound (inclusive)
+    function settleMarket(uint256 marketId, uint32 lowerTick, uint32 upperTick) external;
 
     // ========================================
     // EXECUTION FUNCTIONS

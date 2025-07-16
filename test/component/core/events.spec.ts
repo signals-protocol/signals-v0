@@ -56,11 +56,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
       // Fast forward past end time
       await time.increaseTo(endTime + 1);
 
-      const winningTick = 50;
+      const winningLowerTick = 49;
+      const winningUpperTick = 50;
 
-      await expect(core.connect(keeper).settleMarket(marketId, winningTick))
+      await expect(
+        core
+          .connect(keeper)
+          .settleMarket(marketId, winningLowerTick, winningUpperTick)
+      )
         .to.emit(core, "MarketSettled")
-        .withArgs(marketId, winningTick);
+        .withArgs(marketId, winningLowerTick, winningUpperTick);
     });
 
     it("Should emit MarketStatusChanged event on status transitions", async function () {
@@ -388,7 +393,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
 
       // Settle market
       await time.increaseTo(endTime + 1);
-      await core.connect(keeper).settleMarket(marketId, 15); // Winning outcome in range
+      await core.connect(keeper).settleMarket(marketId, 15, 16); // Winning outcome in range
 
       // Calculate expected payout
       const expectedPayout = await core.calculateClaimAmount(1);
@@ -642,7 +647,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
       await time.increaseTo(endTime + 1);
 
       // Market settlement should emit events
-      await expect(core.connect(keeper).settleMarket(marketId, 50)).to.emit(
+      await expect(core.connect(keeper).settleMarket(marketId, 49, 50)).to.emit(
         core,
         "MarketSettled"
       );

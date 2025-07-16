@@ -71,9 +71,10 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
       expect(market.endTimestamp).to.be.lte(await time.latest()); // ENDED
 
       // Settle market - should become SETTLED
-      await core.connect(keeper).settleMarket(marketId, 50);
+      await core.connect(keeper).settleMarket(marketId, 49, 50);
       market = await core.getMarket(marketId);
-      expect(market.settlementTick).to.equal(50); // SETTLED
+      expect(market.settlementLowerTick).to.equal(49); // SETTLED
+      expect(market.settlementUpperTick).to.equal(50);
     });
 
     it("Should handle multiple markets independently", async function () {
@@ -468,7 +469,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
 
       // Settle market
       await time.increaseTo(endTime + 1);
-      await core.connect(keeper).settleMarket(marketId, 15); // Winning outcome in range
+      await core.connect(keeper).settleMarket(marketId, 15, 16); // Winning outcome in range
 
       const payout = await core.calculateClaimAmount(1);
       expect(payout).to.be.gt(0);
@@ -640,7 +641,8 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
       expect(market.settled).to.be.false;
       expect(market.startTimestamp).to.equal(startTime);
       expect(market.endTimestamp).to.equal(endTime);
-      expect(market.settlementTick).to.equal(0);
+      expect(market.settlementLowerTick).to.equal(0);
+      expect(market.settlementUpperTick).to.equal(0);
       expect(market.numTicks).to.equal(100);
       expect(market.liquidityParameter).to.equal(ethers.parseEther("1"));
     });
@@ -785,7 +787,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
       expect(marketInfo.isActive).to.be.true; // Still active until settled
 
       // Settle and move to SETTLED state
-      await core.connect(keeper).settleMarket(marketId, 50);
+      await core.connect(keeper).settleMarket(marketId, 49, 50);
       marketInfo = await core.getMarket(marketId);
       expect(marketInfo.settled).to.be.true;
       expect(marketInfo.isActive).to.be.false;

@@ -8,13 +8,13 @@ _Auto-generated comprehensive documentation with live test results_
 
 | Metric | Value |
 |--------|-------|
-| **Generated** | 2025-07-16 13:08:31 CEST |
+| **Generated** | 2025-07-16 16:50:34 CEST |
 | **Test Status** | ✅ PASSING |
-| **Total Tests** | 705 tests (14s) |
-| **Total Files** | 71 files |
-| **Total Size** | 1MB |
-| **Total Lines** | 29587 lines |
-| **Git Commits** | 17 |
+| **Total Tests** | 657 tests (23s) |
+| **Total Files** | 69 files |
+| **Total Size** | 1002KB |
+| **Total Lines** | 27938 lines |
+| **Git Commits** | 19 |
 | **Contributors** |        1 |
 
 ---
@@ -22,13 +22,13 @@ _Auto-generated comprehensive documentation with live test results_
 ## 🎯 Latest Test Results
 
 ```
-      ✔ should track owner tokens correctly with EnumerableSet
+      ✔ should track owner tokens correctly with EnumerableSet (85ms)
       ✔ should update owner tracking on transfer
       ✔ should handle multiple transfers correctly
     Market-Specific Position Queries
       ✔ should filter positions by market correctly
       ✔ should return empty array for non-existent market
-      ✔ should handle empty positions for user
+      ✔ should handle empty positions for user (41ms)
     Position ID Management
       ✔ should increment position IDs correctly
       ✔ should maintain ID sequence after burns
@@ -39,7 +39,7 @@ _Auto-generated comprehensive documentation with live test results_
       ✔ should use EnumerableSet for O(1) operations
 
 
-  705 passing (14s)
+  657 passing (23s)
   3 pending
 
 ```
@@ -58,9 +58,7 @@ signals-v0/
 │   │   └── CLMSRErrors.sol
 │   ├── interfaces/
 │   │   └── ICLMSRMarketCore.sol
-│   │   └── ICLMSRMarketManager.sol
 │   │   └── ICLMSRPosition.sol
-│   │   └── ICLMSRRouter.sol
 │   ├── libraries/
 │   │   └── FixedPointMath.sol
 │   │   └── LazyMulSegmentTree.sol
@@ -146,7 +144,7 @@ signals-v0/
 | Category | Files | Description |
 |----------|-------|-------------|
 | **Core Contracts** | 2 | Main CLMSR implementation |
-| **Interface Contracts** | 4 | Contract interfaces |
+| **Interface Contracts** | 2 | Contract interfaces |
 | **Library Contracts** | 2 | Mathematical libraries |
 | **Error Contracts** | 1 | Custom error definitions |
 | **Manager Contracts** | 0 | Management layer contracts |
@@ -163,7 +161,7 @@ signals-v0/
 
 ## contracts/core//CLMSRMarketCore.sol
 
-_Category: Core Contracts | Size: 46KB | Lines: 
+_Category: Core Contracts | Size: 44KB | Lines: 
 
 ```solidity
 // SPDX-License-Identifier: MIT
@@ -202,8 +200,6 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     /// @notice Maximum number of ticks per market (segment tree safety)
     uint32 public constant MAX_TICK_COUNT = 1_000_000;
     
-    // Note: MAX_ACTIVE_MARKETS removed - managed by Manager contract
-    
     /// @notice Minimum liquidity parameter (alpha)
     uint256 public constant MIN_LIQUIDITY_PARAMETER = 1e15; // 0.001 ETH
     
@@ -232,9 +228,6 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     /// @notice Manager contract address
     address public immutable managerContract;
     
-    /// @notice Router contract address
-    address public router;
-    
     /// @notice Contract pause state
     bool public paused;
     
@@ -260,13 +253,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         _;
     }
     
-    /// @notice Only authorized callers (Manager, Router, Position)
-    modifier onlyAuthorized() {
-        if (!_isAuthorizedCaller(msg.sender)) {
-            revert CE.UnauthorizedCaller(msg.sender);
-        }
-        _;
-    }
+
     
     /// @notice Contract must not be paused
     modifier whenNotPaused() {
@@ -340,8 +327,6 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             revert CE.InvalidLiquidityParameter();
         }
         
-        // Note: Active market limit check removed - managed by Manager contract
-        
         // Create market
         markets[marketId] = Market({
             isActive: true,
@@ -355,8 +340,6 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         
         // Initialize segment tree
         LazyMulSegmentTree.init(marketTrees[marketId], numTicks);
-        
-        // Note: Active market tracking removed - managed by Manager contract
         
         emit MarketCreated(marketId, startTimestamp, endTimestamp, numTicks, liquidityParameter);
     }
@@ -379,8 +362,6 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         market.settlementTick = winningTick;
         market.isActive = false;
         
-        // Note: Active market removal handled by Manager contract
-        
         emit MarketSettled(marketId, winningTick);
     }
 
@@ -393,12 +374,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         return markets[marketId].numTicks > 0;
     }
     
-    /// @notice Internal function to check if caller is authorized
-    function _isAuthorizedCaller(address caller) internal view returns (bool) {
-        return caller == managerContract || 
-               caller == router || 
-               caller == address(positionContract);
-    }
+
     
     /// @notice Pull USDC from user (6-decimal amount)
     function _pullUSDC(address from, uint256 amt6) internal {
@@ -517,21 +493,13 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         return address(paymentToken);
     }
     
-    /// @inheritdoc ICLMSRMarketCore
-    function isAuthorizedCaller(address caller) external view override returns (bool) {
-        return _isAuthorizedCaller(caller);
-    }
+
     
     /// @inheritdoc ICLMSRMarketCore
     function getManagerContract() external view override returns (address) {
         return managerContract;
     }
     
-    /// @inheritdoc ICLMSRMarketCore
-    function getRouterContract() external view override returns (address) {
-        return router;
-    }
-
     // ========================================
     // EMERGENCY FUNCTIONS
     // ========================================
@@ -564,23 +532,6 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     }
 
     // ========================================
-    // ROUTER SETUP (One-time only)
-    // ========================================
-    
-    /// @notice Set router contract address (one-time setup)
-    /// @param _routerContract Router contract address
-    function setRouterContract(address _routerContract) external onlyManager {
-        if (router != address(0)) {
-            revert CE.RouterAlreadySet();
-        }
-        if (_routerContract == address(0)) {
-            revert CE.ZeroAddress();
-        }
-        router = _routerContract;
-        emit RouterSet(_routerContract);
-    }
-
-    // ========================================
     // EXECUTION FUNCTIONS
     // ========================================
     
@@ -592,7 +543,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         uint32 upperTick,
         uint128 quantity,
         uint256 maxCost
-    ) external override onlyAuthorized whenNotPaused nonReentrant returns (uint256 positionId) {
+    ) external override whenNotPaused nonReentrant returns (uint256 positionId) {
         // Validate parameters
         if (trader == address(0)) {
             revert CE.ZeroAddress();
@@ -666,7 +617,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         uint256 positionId,
         uint128 additionalQuantity,
         uint256 maxCost
-    ) external override onlyAuthorized whenNotPaused nonReentrant returns (uint128 newQuantity) {
+    ) external override whenNotPaused nonReentrant returns (uint128 newQuantity) {
         if (additionalQuantity == 0) {
             revert CE.InvalidQuantity(additionalQuantity);
         }
@@ -708,7 +659,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         uint256 positionId,
         uint128 sellQuantity,
         uint256 minProceeds
-    ) external override onlyAuthorized whenNotPaused nonReentrant returns (uint128 newQuantity, uint256 proceeds) {
+    ) external override whenNotPaused nonReentrant returns (uint128 newQuantity, uint256 proceeds) {
         if (sellQuantity == 0) {
             revert CE.InvalidQuantity(sellQuantity);
         }
@@ -759,7 +710,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     /// @inheritdoc ICLMSRMarketCore
     function claimPayout(
         uint256 positionId
-    ) external override onlyAuthorized whenNotPaused nonReentrant returns (uint256 payout) {
+    ) external override whenNotPaused nonReentrant returns (uint256 payout) {
         // Get position data
         ICLMSRPosition.Position memory position = positionContract.getPosition(positionId);
         address trader = positionContract.ownerOf(positionId);
@@ -1348,7 +1299,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     function closePosition(
         uint256 positionId,
         uint256 minProceeds
-    ) external override onlyAuthorized whenNotPaused nonReentrant returns (uint256 proceeds) {
+    ) external override whenNotPaused nonReentrant returns (uint256 proceeds) {
         // Get position data and validate market
         ICLMSRPosition.Position memory position = positionContract.getPosition(positionId);
         address trader = positionContract.ownerOf(positionId);
@@ -1741,7 +1692,6 @@ interface CLMSRErrors {
     error UnauthorizedCaller(address caller);
 
     /* ───────────────────── Misc / config ────────────────────── */
-    error RouterAlreadySet();
     error ZeroAddress();
     error TickCountExceedsLimit(uint32 requested, uint32 maxAllowed);
     error ContractPaused();
@@ -1860,10 +1810,6 @@ interface ICLMSRMarketCore {
 
     event EmergencyUnpaused(
         address indexed by
-    );
-
-    event RouterSet(
-        address indexed routerContract
     );
 
     // ========================================
@@ -2044,19 +1990,11 @@ interface ICLMSRMarketCore {
     /// @return Payment token address
     function getPaymentToken() external view returns (address);
     
-    /// @notice Check if caller is authorized
-    /// @param caller Address to check
-    /// @return True if authorized
-    function isAuthorizedCaller(address caller) external view returns (bool);
     
     /// @notice Get manager contract address
     /// @return Manager contract address
     function getManagerContract() external view returns (address);
     
-    /// @notice Get router contract address
-    /// @return Router contract address
-    function getRouterContract() external view returns (address);
-
     // ========================================
     // SEGMENT TREE FUNCTIONS
     // ========================================
@@ -2102,173 +2040,6 @@ interface ICLMSRMarketCore {
     /// @notice Check if contract is paused
     /// @return True if paused
     function isPaused() external view returns (bool);
-} 
-```
-
-
-## contracts/interfaces//ICLMSRMarketManager.sol
-
-_Category: Interface Contracts | Size: 5KB | Lines: 
-
-```solidity
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
-
-/// @title ICLMSRMarketManager
-/// @notice Manager interface for CLMSR Daily-Market System
-/// @dev Lightweight governance contract for market lifecycle management (upgradeable)
-interface ICLMSRMarketManager {
-    // ========================================
-    // STRUCTS
-    // ========================================
-    
-    /// @notice Market creation parameters
-    struct CreateMarketParams {
-        uint256 marketId;               // Market identifier
-        uint32 tickCount;               // Number of ticks in market
-        uint64 startTimestamp;          // Market start time
-        uint64 endTimestamp;            // Market end time
-        uint256 liquidityParameter;    // Alpha parameter (1e18 scale)
-        uint256 initialTickValue;      // Initial value for all ticks
-    }
-
-    // ========================================
-    // EVENTS
-    // ========================================
-    
-    event MarketCreated(
-        uint256 indexed marketId,
-        address indexed keeper,
-        uint64 startTimestamp,
-        uint64 endTimestamp
-    );
-
-    event MarketSettled(
-        uint256 indexed marketId,
-        address indexed keeper,
-        uint32 winningTick
-    );
-
-    event KeeperChanged(
-        address indexed oldKeeper,
-        address indexed newKeeper
-    );
-
-    event ParameterUpdated(
-        bytes32 indexed key,
-        uint256 oldValue,
-        uint256 newValue
-    );
-
-    // ========================================
-    // ERRORS (Manager-specific only)
-    // ========================================
-    
-    error ManagerOnlyKeeper(address caller, address keeper);
-    error ManagerZeroAddress();
-    error InvalidTimestamps(uint64 start, uint64 end);
-    error CoreContractNotSet();
-    error MaxActiveMarketsExceeded(uint256 current, uint256 max);
-    error TickCountExceedsLimit(uint32 tickCount, uint32 maxAllowed); // Max ~1M for segment-tree safety
-
-    // ========================================
-    // MARKET LIFECYCLE FUNCTIONS
-    // ========================================
-    
-    /// @notice Create a new market (immediate execution)
-    /// @dev Only callable by keeper, delegates to Core for immediate creation
-    /// @param params Market creation parameters
-    function createMarket(CreateMarketParams calldata params) external;
-    
-    /// @notice Settle a market (immediate execution)
-    /// @dev Only callable by keeper, delegates to Core for immediate settlement
-    /// @param marketId Market identifier
-    /// @param winningTick Winning tick determined by oracle
-    function settleMarket(uint256 marketId, uint32 winningTick) external;
-
-    // ========================================
-    // GOVERNANCE FUNCTIONS
-    // ========================================
-    
-    /// @notice Set new keeper address
-    /// @dev Only callable by current keeper
-    /// @param newKeeper Address of new keeper
-    function setKeeper(address newKeeper) external;
-    
-    /// @notice Set core contract address
-    /// @dev Only callable by keeper, for upgrades
-    /// @param newCore Address of new core contract
-    function setCoreContract(address newCore) external;
-
-    // ========================================
-    // PARAMETER MANAGEMENT
-    // ========================================
-    
-    /// @notice Set a system parameter
-    /// @dev Only callable by keeper, for future extensibility
-    /// @param key Parameter key
-    /// @param value Parameter value
-    function setParameter(bytes32 key, uint256 value) external;
-    
-    /// @notice Get a system parameter
-    /// @param key Parameter key
-    /// @return value Parameter value
-    function getParameter(bytes32 key) external view returns (uint256 value);
-
-    // ========================================
-    // QUERY FUNCTIONS
-    // ========================================
-    
-    /// @notice Get array of active market identifiers
-    /// @dev Returns markets that are created but not yet settled
-    /// @return marketIds Array of active market identifiers
-    function getActiveMarkets() external view returns (uint256[] memory marketIds);
-    
-    /// @notice Get current keeper address
-    /// @return Address of current keeper
-    function getKeeper() external view returns (address);
-    
-    /// @notice Check if address is the keeper
-    /// @param account Address to check
-    /// @return True if account is the keeper
-    function isKeeper(address account) external view returns (bool);
-    
-    /// @notice Get core contract address
-    /// @return Address of the core contract
-    function getCoreContract() external view returns (address);
-    
-    /// @notice Check if a market is active (created but not settled)
-    /// @param marketId Market identifier
-    /// @return True if market is active
-    function isActiveMarket(uint256 marketId) external view returns (bool);
-    
-    /// @notice Get maximum number of active markets allowed
-    /// @return Maximum number of active markets
-    function getMaxActiveMarkets() external view returns (uint256);
-
-    // ========================================
-    // FUTURE EXTENSION SLOTS
-    // ========================================
-    
-    /// @notice Execute emergency action
-    /// @dev For future emergency procedures
-    /// @param action Encoded action data
-    /// @return result Action result
-    function executeEmergencyAction(bytes calldata action) 
-        external returns (bytes memory result);
-
-    // ========================================
-    // EMERGENCY FUNCTIONS
-    // ========================================
-    
-    /// @notice Pause all trading operations
-    /// @dev Only callable by keeper, delegates to Core pause()
-    /// @param reason Reason for pausing
-    function pause(string calldata reason) external;
-    
-    /// @notice Unpause all trading operations
-    /// @dev Only callable by keeper, delegates to Core unpause()
-    function unpause() external;
 } 
 ```
 
@@ -2407,341 +2178,6 @@ interface ICLMSRPosition is IERC721 {
 
 
 
-} 
-```
-
-
-## contracts/interfaces//ICLMSRRouter.sol
-
-_Category: Interface Contracts | Size: 12KB | Lines: 
-
-```solidity
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
-
-import "./ICLMSRMarketCore.sol";
-import "./ICLMSRPosition.sol";
-
-/// @title ICLMSRRouter
-/// @notice Router interface for CLMSR Daily-Market System
-/// @dev Thin call proxy for UX enhancement - no delegatecall, minimal state
-interface ICLMSRRouter {
-    // ========================================
-    // STRUCTS
-    // ========================================
-    
-    /// @notice User portfolio information
-    struct UserPortfolio {
-        uint256 marketId;               // Market identifier
-        address trader;                 // Trader address
-        uint256[] positionIds;          // Array of position IDs
-        uint256 totalValue;             // Total current value
-        bool canClaim;                  // Can claim from settled market
-        uint256 claimableAmount;        // Total claimable amount
-    }
-    
-    /// @notice Permit parameters for EIP-2612 support
-    struct PermitParams {
-        uint256 deadline;               // Permit deadline
-        uint8 v;                        // Signature v
-        bytes32 r;                      // Signature r
-        bytes32 s;                      // Signature s
-    }
-
-    // ========================================
-    // EVENTS
-    // ========================================
-    
-    event RouterPositionOpened(
-        uint256 indexed marketId,
-        address indexed trader,
-        uint256 indexed positionId,
-        uint32 lowerTick,
-        uint32 upperTick,
-        uint128 quantity,
-        uint256 cost
-    );
-
-    event RouterPositionIncreased(
-        uint256 indexed positionId,
-        address indexed trader,
-        uint128 additionalQuantity,
-        uint128 newQuantity,
-        uint256 cost
-    );
-
-    event RouterPositionDecreased(
-        uint256 indexed positionId,
-        address indexed trader,
-        uint128 sellQuantity,
-        uint128 newQuantity,
-        uint256 proceeds
-    );
-
-    event RouterPositionClosed(
-        uint256 indexed positionId,
-        address indexed trader,
-        uint256 proceeds
-    );
-
-    event RouterPositionClaimed(
-        uint256 indexed positionId,
-        address indexed trader,
-        uint256 payout
-    );
-
-    event BatchOperationExecuted(
-        address indexed trader,
-        uint256 operationCount,
-        uint256 totalGasUsed
-    );
-
-    // ========================================
-    // ERRORS
-    // ========================================
-    
-    error CoreContractNotSet();
-    error PositionContractNotSet();
-    error InvalidParameters(string reason);
-    error InsufficientAllowance(uint256 required, uint256 available);
-    error PermitFailed(string reason);
-
-    // ========================================
-    // USER-FRIENDLY TRADING FUNCTIONS
-    // ========================================
-    
-    /// @notice Open a position with optional permit
-    /// @dev Handles permit, token transfer, and Core delegation
-    /// @param marketId Market identifier
-    /// @param lowerTick Lower tick bound (inclusive)
-    /// @param upperTick Upper tick bound (inclusive)
-    /// @param quantity Position quantity (always positive)
-    /// @param maxCost Maximum cost willing to pay
-    /// @param permitParams Optional permit parameters (deadline=0 to skip)
-    /// @return positionId Newly created position ID
-    function openPositionWithPermit(
-        uint256 marketId,
-        uint32 lowerTick,
-        uint32 upperTick,
-        uint128 quantity,
-        uint256 maxCost,
-        PermitParams calldata permitParams
-    ) external returns (uint256 positionId);
-    
-    /// @notice Open a position (requires pre-approval)
-    /// @param marketId Market identifier
-    /// @param lowerTick Lower tick bound (inclusive)
-    /// @param upperTick Upper tick bound (inclusive)
-    /// @param quantity Position quantity (always positive)
-    /// @param maxCost Maximum cost willing to pay
-    /// @return positionId Newly created position ID
-    function openPosition(
-        uint256 marketId,
-        uint32 lowerTick,
-        uint32 upperTick,
-        uint128 quantity,
-        uint256 maxCost
-    ) external returns (uint256 positionId);
-    
-    /// @notice Increase existing position quantity
-    /// @param positionId Position to increase
-    /// @param additionalQuantity Additional quantity to buy
-    /// @param maxCost Maximum additional cost willing to pay
-    /// @return newQuantity New total quantity after increase
-    function increasePosition(
-        uint256 positionId,
-        uint128 additionalQuantity,
-        uint256 maxCost
-    ) external returns (uint128 newQuantity);
-    
-    /// @notice Decrease existing position quantity
-    /// @param positionId Position to decrease
-    /// @param sellQuantity Quantity to sell
-    /// @param minProceeds Minimum proceeds expected
-    /// @return newQuantity New quantity after decrease
-    /// @return proceeds Actual proceeds received
-    function decreasePosition(
-        uint256 positionId,
-        uint128 sellQuantity,
-        uint256 minProceeds
-    ) external returns (uint128 newQuantity, uint256 proceeds);
-    
-    /// @notice Close entire position and receive proceeds
-    /// @param positionId Position to close
-    /// @param minProceeds Minimum proceeds expected
-    /// @return proceeds Amount received from closing position
-    function closePosition(
-        uint256 positionId,
-        uint256 minProceeds
-    ) external returns (uint256 proceeds);
-    
-    /// @notice Claim payout from settled market position
-    /// @param positionId Position to claim
-    /// @return payout Amount claimed
-    function claimPayout(uint256 positionId) 
-        external returns (uint256 payout);
-
-    // ========================================
-    // CALCULATION FUNCTIONS (Delegated to Core)
-    // ========================================
-    
-    /// @notice Calculate cost of opening a new position
-    /// @dev Thin wrapper - delegates to Core contract for calculation
-    /// @param marketId Market identifier
-    /// @param lowerTick Lower tick bound
-    /// @param upperTick Upper tick bound
-    /// @param quantity Position quantity
-    /// @return cost Estimated cost
-    function calculateOpenCost(
-        uint256 marketId,
-        uint32 lowerTick,
-        uint32 upperTick,
-        uint128 quantity
-    ) external view returns (uint256 cost);
-    
-    /// @notice Calculate cost of increasing position
-    /// @dev Thin wrapper - delegates to Core contract for calculation
-    /// @param positionId Position to increase
-    /// @param additionalQuantity Additional quantity to buy
-    /// @return cost Estimated additional cost
-    function calculateIncreaseCost(
-        uint256 positionId,
-        uint128 additionalQuantity
-    ) external view returns (uint256 cost);
-    
-    /// @notice Calculate proceeds from decreasing position
-    /// @dev Thin wrapper - delegates to Core contract for calculation
-    /// @param positionId Position to decrease
-    /// @param sellQuantity Quantity to sell
-    /// @return proceeds Estimated proceeds
-    function calculateDecreaseProceeds(
-        uint256 positionId,
-        uint128 sellQuantity
-    ) external view returns (uint256 proceeds);
-    
-    /// @notice Calculate proceeds from closing entire position
-    /// @dev Thin wrapper - delegates to Core contract for calculation
-    /// @param positionId Position to close
-    /// @return proceeds Estimated proceeds
-    function calculateCloseProceeds(
-        uint256 positionId
-    ) external view returns (uint256 proceeds);
-    
-    /// @notice Calculate claimable amount from settled position
-    /// @dev Thin wrapper - delegates to Core contract for calculation
-    /// @param positionId Position to claim
-    /// @return amount Claimable amount (0 if market not settled)
-    function calculateClaimAmount(
-        uint256 positionId
-    ) external view returns (uint256 amount);
-
-    // ========================================
-    // USER DATA FUNCTIONS
-    // ========================================
-    
-    /// @notice Get user's positions for a specific market
-    /// @param user User address
-    /// @param marketId Market identifier
-    /// @return positionIds Array of position IDs owned by user
-    function getUserPositions(address user, uint256 marketId) 
-        external view returns (uint256[] memory positionIds);
-    
-    /// @notice Get user's total value in a market
-    /// @param user User address
-    /// @param marketId Market identifier
-    /// @return totalValue Total current value of all positions
-    function getUserTotalValue(address user, uint256 marketId) 
-        external view returns (uint256 totalValue);
-    
-    /// @notice Get user's complete portfolio for a market
-    /// @param user User address
-    /// @param marketId Market identifier
-    /// @return portfolio Complete portfolio information
-    function getUserPortfolio(address user, uint256 marketId) 
-        external view returns (UserPortfolio memory portfolio);
-
-    // ========================================
-    // MARKET DATA FUNCTIONS (Delegated to Core)
-    // ========================================
-    
-    /// @notice Get market information
-    /// @param marketId Market identifier
-    /// @return market Market data
-    function getMarket(uint256 marketId) 
-        external view returns (ICLMSRMarketCore.Market memory market);
-    
-    /// @notice Get information for multiple markets
-    /// @param marketIds Array of market identifiers
-    /// @return markets Array of market data
-    function getMarkets(uint256[] calldata marketIds) 
-        external view returns (ICLMSRMarketCore.Market[] memory markets);
-    
-    /// @notice Get tick value for display
-    /// @param marketId Market identifier
-    /// @param tick Tick index
-    /// @return value Exponential value at tick
-    function getTickValue(uint256 marketId, uint32 tick) 
-        external view returns (uint256 value);
-
-    // ========================================
-    // CONFIGURATION FUNCTIONS (Immutable References)
-    // ========================================
-    
-    /// @notice Get core contract address
-    /// @return Address of the core contract
-    function getCoreContract() external view returns (address);
-    
-    /// @notice Get position contract address
-    /// @return Address of the position contract
-    function getPositionContract() external view returns (address);
-    
-    /// @notice Get payment token address
-    /// @return Address of the payment token
-    function getPaymentToken() external view returns (address);
-
-    // ========================================
-    // SAFETY & UTILITY FUNCTIONS
-    // ========================================
-    
-    /// @notice Emergency token recovery (if any tokens get stuck)
-    /// @dev Only for tokens accidentally sent to Router
-    /// @param token Token address to recover
-    /// @param to Recipient address
-    /// @param amount Amount to recover
-    function emergencyTokenRecovery(
-        address token,
-        address to,
-        uint256 amount
-    ) external;
-    
-    /// @notice Check current allowance for payment token
-    /// @param owner Token owner
-    /// @return allowance Current allowance amount
-    function getCurrentAllowance(address owner) 
-        external view returns (uint256 allowance);
-
-    // ========================================
-    // BATCH OPERATIONS
-    // ========================================
-    
-    /// @notice Execute multiple operations in a single transaction
-    /// @dev For gas optimization and atomic operations
-    /// @param calls Array of encoded function calls
-    /// @return results Array of return data from each call
-    function multicall(bytes[] calldata calls) 
-        external returns (bytes[] memory results);
-    
-    /// @notice Batch close multiple positions
-    /// @param positionIds Array of position IDs to close
-    /// @return totalProceeds Total proceeds from all closures
-    function batchClosePositions(uint256[] calldata positionIds)
-        external returns (uint256 totalProceeds);
-    
-    /// @notice Batch claim multiple settled positions
-    /// @param positionIds Array of position IDs to claim
-    /// @return totalPayout Total payout from all claims
-    function batchClaimPositions(uint256[] calldata positionIds)
-        external returns (uint256 totalPayout);
 } 
 ```
 
@@ -4548,7 +3984,7 @@ contract LazyMulSegmentTreeTest {
 
 ## test/component//core/access-control.spec.ts
 
-_Category: TypeScript Tests | Size: 23KB | Lines: 
+_Category: TypeScript Tests | Size: 3KB | Lines: 
 
 ```typescript
 import { expect } from "chai";
@@ -4563,198 +3999,25 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Access Control`, function () {
       const contracts = await loadFixture(coreFixture);
       const { core, keeper } = contracts;
 
-      // In current implementation, keeper acts as the manager (admin equivalent)
+      // Manager contract address should be set correctly
       expect(await core.getManagerContract()).to.equal(keeper.address);
-      expect(await core.isAuthorizedCaller(keeper.address)).to.be.true;
     });
 
-    it("Should grant and revoke keeper role properly", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, keeper, router, alice } = contracts;
-
-      // Current implementation: Router is set once and cannot be changed (one-time setup)
-      // Initially router should be set
-      const initialRouter = await core.getRouterContract();
-      expect(initialRouter).to.equal(router.address);
-      expect(await core.isAuthorizedCaller(router.address)).to.be.true;
-
-      // Router cannot be changed after initial setup (one-time only)
-      await expect(
-        core.connect(keeper).setRouterContract(alice.address)
-      ).to.be.revertedWithCustomError(core, "RouterAlreadySet");
-
-      // Position contract and manager are also authorized
-      expect(await core.isAuthorizedCaller(keeper.address)).to.be.true;
-    });
-
-    it("Should prevent non-admin from granting roles", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, alice, bob } = contracts;
-
-      // In current implementation, only manager can set router (equivalent to granting roles)
-      await expect(
-        core.connect(alice).setRouterContract(bob.address)
-      ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
-    });
-
-    it("Should prevent non-admin from revoking roles", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, alice, keeper } = contracts;
-
-      // Non-manager cannot change router settings (equivalent to revoking roles)
-      await expect(
-        core.connect(alice).setRouterContract(keeper.address)
-      ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
-    });
-  });
-
-  describe("Keeper Role Restrictions", function () {
-    it("Should only allow keeper to create markets", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, alice, bob } = contracts;
-
-      const currentTime = Math.floor(Date.now() / 1000);
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-
-      await expect(
-        core
-          .connect(alice)
-          .createMarket(1, 100, startTime, endTime, ethers.parseEther("0.1"))
-      ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
-
-      await expect(
-        core
-          .connect(bob)
-          .createMarket(1, 100, startTime, endTime, ethers.parseEther("0.1"))
-      ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
-    });
-
-    it("Should only allow keeper to settle markets", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, alice, keeper } = contracts;
-
-      const currentTime = Math.floor(Date.now() / 1000);
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-
-      // Create market first
-      await core
-        .connect(keeper)
-        .createMarket(1, 100, startTime, endTime, ethers.parseEther("0.1"));
-
-      // Non-keeper cannot settle
-      await expect(
-        core.connect(alice).settleMarket(1, 50)
-      ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
-    });
-
-    it("Should only allow keeper to pause/unpause", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, alice } = contracts;
-
-      await expect(
-        core.connect(alice).pause("Emergency")
-      ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
-
-      await expect(core.connect(alice).unpause()).to.be.revertedWithCustomError(
-        core,
-        "UnauthorizedCaller"
-      );
-    });
-  });
-
-  describe("Router Role Restrictions", function () {
-    it("Should only allow router to execute trades", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, alice } = contracts;
-
-      const tradeParams = {
-        marketId: 1,
-        lowerTick: 10,
-        upperTick: 20,
-        quantity: ethers.parseUnits("1", 6),
-        maxCost: ethers.parseUnits("10", 6),
-      };
-
-      await expect(
-        core.connect(alice).openPosition(
-        alice.address,
-        tradeParams.marketId,
-        tradeParams.lowerTick,
-        tradeParams.upperTick,
-        tradeParams.quantity,
-        tradeParams.maxCost
-      )
-      ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
-    });
-
-    it("Should only allow router to increase positions", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, alice } = contracts;
-
-      await expect(
-        core
-          .connect(alice)
-          .increasePosition(
-            1,
-            ethers.parseUnits("1", 6),
-            ethers.parseUnits("10", 6)
-          )
-      ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
-    });
-
-    it("Should only allow router to decrease positions", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, alice } = contracts;
-
-      await expect(
-        core
-          .connect(alice)
-          .decreasePosition(
-            1,
-            ethers.parseUnits("0.5", 6),
-            ethers.parseUnits("0.4", 6)
-          )
-      ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
-    });
-
-    it("Should only allow router to close positions", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, alice } = contracts;
-
-      await expect(
-        core.connect(alice).closePosition(1, ethers.parseUnits("0.9", 6))
-      ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
-    });
-
-    it("Should only allow router to claim settled positions", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, alice } = contracts;
-
-      // In current implementation, it's claimPayout not claimSettledPosition
-      await expect(
-        core.connect(alice).claimPayout(1)
-      ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
-    });
-  });
-
-  describe("Emergency Pause System", function () {
-    it("Should allow keeper to pause and unpause", async function () {
+    it("Should allow manager operations", async function () {
       const contracts = await loadFixture(coreFixture);
       const { core, keeper } = contracts;
 
-      // Should not be paused initially
-      expect(await core.isPaused()).to.be.false;
+      // Manager should be able to pause/unpause
+      expect(await core.getManagerContract()).to.equal(keeper.address);
 
-      // Keeper can pause
-      await expect(core.connect(keeper).pause("Emergency test"))
+      // Test pause functionality
+      await expect(core.connect(keeper).pause("Test pause"))
         .to.emit(core, "EmergencyPaused")
-        .withArgs(keeper.address, "Emergency test");
+        .withArgs(keeper.address, "Test pause");
 
       expect(await core.isPaused()).to.be.true;
 
-      // Keeper can unpause
+      // Test unpause functionality
       await expect(core.connect(keeper).unpause())
         .to.emit(core, "EmergencyUnpaused")
         .withArgs(keeper.address);
@@ -4762,520 +4025,62 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Access Control`, function () {
       expect(await core.isPaused()).to.be.false;
     });
 
-    it("Should prevent operations when paused", async function () {
+    it("Should reject unauthorized manager operations", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, keeper, router, alice } = contracts;
+      const { core, alice } = contracts;
 
-      // Pause the contract
-      await core.connect(keeper).pause("Test pause");
-
-      const currentTime = Math.floor(Date.now() / 1000);
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-
-      // Should prevent market creation when paused
-      await expect(
-        core
-          .connect(keeper)
-          .createMarket(1, 100, startTime, endTime, ethers.parseEther("0.1"))
-      ).to.be.revertedWithCustomError(core, "ContractPaused");
-
-      // Should prevent trading when paused
-      const tradeParams = {
-        marketId: 1,
-        lowerTick: 10,
-        upperTick: 20,
-        quantity: ethers.parseUnits("1", 6),
-        maxCost: ethers.parseUnits("10", 6),
-      };
-
-      await expect(
-        core.connect(router).openPosition(
-        alice.address,
-        tradeParams.marketId,
-        tradeParams.lowerTick,
-        tradeParams.upperTick,
-        tradeParams.quantity,
-        tradeParams.maxCost
-      )
-      ).to.be.revertedWithCustomError(core, "ContractPaused");
-    });
-
-    it("Should allow operations to resume after unpause", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, keeper } = contracts;
-
-      // Pause and then unpause
-      await core.connect(keeper).pause("Test pause");
-      await core.connect(keeper).unpause();
-
-      const currentTime = Math.floor(Date.now() / 1000);
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-
-      // Should allow market creation after unpause
-      await expect(
-        core
-          .connect(keeper)
-          .createMarket(1, 100, startTime, endTime, ethers.parseEther("0.1"))
-      ).to.not.be.reverted;
+      // Non-manager should not be able to pause
+      await expect(core.connect(alice).pause("Unauthorized"))
+        .to.be.revertedWithCustomError(core, "UnauthorizedCaller")
+        .withArgs(alice.address);
     });
   });
 
-  describe("Contract Deployment Access", function () {
-    it("Should prevent unauthorized contract updates", async function () {
+  describe("Trading Access", function () {
+    it("Should allow public trading operations", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, alice, bob } = contracts;
+      const { core, keeper, alice, paymentToken } = contracts;
 
-      // In current implementation, only manager can update router contract
-      await expect(
-        core.connect(alice).setRouterContract(bob.address)
-      ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
-    });
-
-    it("Should only allow owner to update critical contracts", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, keeper, alice } = contracts;
-
-      // Router is already set in fixture, so even manager gets RouterAlreadySet error
-      await expect(
-        core.connect(keeper).setRouterContract(alice.address)
-      ).to.be.revertedWithCustomError(core, "RouterAlreadySet");
-    });
-  });
-
-  describe("Access Control Events", function () {
-    it("Should emit proper events on role changes", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, router } = contracts;
-
-      // Router is already set in fixture, so we just verify the current state
-      expect(await core.getRouterContract()).to.equal(router.address);
-      expect(await core.isAuthorizedCaller(router.address)).to.be.true;
-    });
-  });
-
-  describe("Role Admin Management", function () {
-    it("Should properly manage role admin relationships", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, keeper, router } = contracts;
-
-      // In current implementation, manager has supreme authority
-      expect(await core.getManagerContract()).to.equal(keeper.address);
-      expect(await core.isAuthorizedCaller(keeper.address)).to.be.true;
-      expect(await core.isAuthorizedCaller(router.address)).to.be.true;
-    });
-
-    it("Should handle role admin transfers", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, keeper, alice } = contracts;
-
-      // Current implementation doesn't support manager transfer or router change after initial setup
-      // Router is already set in fixture, so we get RouterAlreadySet error
-      await expect(
-        core.connect(keeper).setRouterContract(alice.address)
-      ).to.be.revertedWithCustomError(core, "RouterAlreadySet");
-
-      // Manager contract is immutable (set in constructor)
-      expect(await core.getManagerContract()).to.equal(keeper.address);
-    });
-  });
-
-  describe("Market Operations Authorization", function () {
-    const ALPHA = ethers.parseEther("1");
-    const TICK_COUNT = 100;
-    const MARKET_DURATION = 7 * 24 * 60 * 60; // 7 days
-
-    async function createMarketFixture() {
-      const contracts = await loadFixture(coreFixture);
-      const { core, keeper } = contracts;
-
-      const currentTime = await time.latest();
-      const startTime = currentTime + 3600; // 1 hour from now
-      const endTime = startTime + MARKET_DURATION;
+      // Create a test market
       const marketId = 1;
+      const numTicks = 100;
+      const startTime = (await time.latest()) + 100;
+      const endTime = startTime + 3600; // 1 hour
+      const liquidityParam = ethers.parseEther("1"); // 1 ETH
 
       await core
         .connect(keeper)
-        .createMarket(marketId, TICK_COUNT, startTime, endTime, ALPHA);
+        .createMarket(marketId, numTicks, startTime, endTime, liquidityParam);
 
-      return {
-        ...contracts,
-        marketId,
-        startTime,
-        endTime,
-      };
-    }
+      // Fast forward to market start
+      await time.increaseTo(startTime + 1);
 
-    it("Should only allow manager to create markets", async function () {
-      const { core, alice, bob } = await loadFixture(coreFixture);
+      // Approve tokens for alice
+      await paymentToken
+        .connect(alice)
+        .approve(await core.getAddress(), ethers.parseUnits("1000", 6));
 
-      const currentTime = await time.latest();
-      const startTime = currentTime + 3600;
-      const endTime = startTime + MARKET_DURATION;
+      // Alice should be able to open position directly (no authorization needed)
+      const quantity = 100;
+      const maxCost = ethers.parseUnits("10", 6); // 10 USDC
 
       await expect(
         core
           .connect(alice)
-          .createMarket(1, TICK_COUNT, startTime, endTime, ALPHA)
-      ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
-
-      await expect(
-        core.connect(bob).createMarket(1, TICK_COUNT, startTime, endTime, ALPHA)
-      ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
-    });
-
-    it("Should only allow manager to settle markets", async function () {
-      const { core, alice, bob, marketId } = await loadFixture(
-        createMarketFixture
-      );
-
-      await expect(
-        core.connect(alice).settleMarket(marketId, 50)
-      ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
-
-      await expect(
-        core.connect(bob).settleMarket(marketId, 50)
-      ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
-    });
-  });
-
-  describe("Router Management Tests", function () {
-    it("Should only allow keeper to update router contract", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, keeper, alice } = contracts;
-
-      // Router is already set in fixture, so even keeper gets RouterAlreadySet error
-      await expect(
-        core.connect(keeper).setRouterContract(alice.address)
-      ).to.be.revertedWithCustomError(core, "RouterAlreadySet");
-    });
-
-    it("Should not allow non-keeper to update router contract", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, alice } = contracts;
-
-      await expect(
-        core.connect(alice).setRouterContract(alice.address)
-      ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
-    });
-
-    it("Should prevent router setting after initial setup", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, keeper, alice } = contracts;
-
-      // In current implementation, router can only be set once
-      // Router is already set in fixture, so we get RouterAlreadySet error
-      await expect(
-        core.connect(keeper).setRouterContract(alice.address)
-      ).to.be.revertedWithCustomError(core, "RouterAlreadySet");
-    });
-  });
-
-  describe("Market Settlement Authorization", function () {
-    it("Should prevent non-manager from calling settleMarket", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, keeper, alice } = contracts;
-
-      const currentTime = Math.floor(Date.now() / 1000);
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-
-      // Create market first
-      await core
-        .connect(keeper)
-        .createMarket(1, 100, startTime, endTime, ethers.parseEther("0.1"));
-
-      // Non-manager cannot settle
-      await expect(
-        core.connect(alice).settleMarket(1, 50)
-      ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
-    });
-
-    it("Should only allow keeper to create markets", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, alice } = contracts;
-
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-
-      await expect(
-        core
-          .connect(alice)
-          .createMarket(99, 100, startTime, endTime, ethers.parseEther("0.1"))
-      ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
-    });
-
-    it("Should only allow router to execute trades", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, keeper, alice } = contracts;
-
-      // Create market first
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const marketId = 1;
-
-      await core
-        .connect(keeper)
-        .createMarket(
-          marketId,
-          100,
-          startTime,
-          endTime,
-          ethers.parseEther("0.1")
-        );
-
-      await time.increaseTo(startTime + 1);
-
-      const tradeParams = {
-        marketId,
-        lowerTick: 10,
-        upperTick: 20,
-        quantity: ethers.parseUnits("0.01", 6),
-        maxCost: ethers.parseUnits("1", 6),
-      };
-
-      await expect(
-        core.connect(alice).openPosition(
-        alice.address,
-        tradeParams.marketId,
-        tradeParams.lowerTick,
-        tradeParams.upperTick,
-        tradeParams.quantity,
-        tradeParams.maxCost
-      )
-      ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
-    });
-
-    it("Should only allow position owner or router to adjust positions", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, router, keeper, alice, bob } = contracts;
-
-      // Create market first
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const marketId = 1;
-
-      await core
-        .connect(keeper)
-        .createMarket(
-          marketId,
-          100,
-          startTime,
-          endTime,
-          ethers.parseEther("0.1")
-        );
-
-      await time.increaseTo(startTime + 1);
-
-      // Create position as alice
-      const tradeParams = {
-        marketId,
-        lowerTick: 10,
-        upperTick: 20,
-        quantity: ethers.parseUnits("0.05", 6),
-        maxCost: ethers.parseUnits("1", 6),
-      };
-
-      await core.connect(router).openPosition(
-        alice.address,
-        tradeParams.marketId,
-        tradeParams.lowerTick,
-        tradeParams.upperTick,
-        tradeParams.quantity,
-        tradeParams.maxCost
-      );
-
-      // Bob should not be able to adjust alice's position
-      await expect(
-        core
-          .connect(bob)
-          .increasePosition(
-            1,
-            ethers.parseUnits("0.01", 6),
-            ethers.parseUnits("1", 6)
-          )
-      ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
-    });
-  });
-
-  describe("Trade Execution Authorization", function () {
-    it("Should revert unauthorized trade execution", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, alice, keeper } = contracts;
-
-      // Create market first
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const marketId = 1;
-
-      await core
-        .connect(keeper)
-        .createMarket(
-          marketId,
-          100,
-          startTime,
-          endTime,
-          ethers.parseEther("0.1")
-        );
-
-      await time.increaseTo(startTime + 1);
-
-      const tradeParams = {
-        marketId: marketId,
-        lowerTick: 45,
-        upperTick: 55,
-        quantity: ethers.parseUnits("0.05", 6),
-        maxCost: ethers.parseUnits("0.1", 6),
-      };
-
-      await expect(
-        core.connect(alice).openPosition(
-        alice.address,
-        tradeParams.marketId,
-        tradeParams.lowerTick,
-        tradeParams.upperTick,
-        tradeParams.quantity,
-        tradeParams.maxCost
-      )
-      ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
-    });
-
-    it("Should allow authorized router to execute trades", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
-
-      // Create market first
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const marketId = 1;
-
-      await core
-        .connect(keeper)
-        .createMarket(
-          marketId,
-          100,
-          startTime,
-          endTime,
-          ethers.parseEther("0.1")
-        );
-
-      await time.increaseTo(startTime + 1);
-
-      const tradeParams = {
-        marketId: marketId,
-        lowerTick: 45,
-        upperTick: 55,
-        quantity: ethers.parseUnits("0.05", 6),
-        maxCost: ethers.parseUnits("0.1", 6),
-      };
-
-      await expect(
-        core.connect(router).openPosition(
-        alice.address,
-        tradeParams.marketId,
-        tradeParams.lowerTick,
-        tradeParams.upperTick,
-        tradeParams.quantity,
-        tradeParams.maxCost
-      )
+          .openPosition(alice.address, marketId, 10, 20, quantity, maxCost)
       ).to.not.be.reverted;
     });
+  });
 
-    it("Should handle insufficient balance", async function () {
+  describe("Position Contract Integration", function () {
+    it("Should have correct position contract reference", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, paymentToken, keeper } = contracts;
+      const { core, mockPosition } = contracts;
 
-      // Create market first
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const marketId = 1;
-
-      await core
-        .connect(keeper)
-        .createMarket(
-          marketId,
-          100,
-          startTime,
-          endTime,
-          ethers.parseEther("0.1")
-        );
-
-      await time.increaseTo(startTime + 1);
-
-      // Drain alice's balance
-      const balance = await paymentToken.balanceOf(alice.address);
-      await paymentToken.connect(alice).transfer(router.address, balance);
-
-      const tradeParams = {
-        marketId: marketId,
-        lowerTick: 45,
-        upperTick: 55,
-        quantity: ethers.parseUnits("0.05", 6),
-        maxCost: ethers.parseUnits("0.1", 6),
-      };
-
-      await expect(
-        core.connect(router).openPosition(
-        alice.address,
-        tradeParams.marketId,
-        tradeParams.lowerTick,
-        tradeParams.upperTick,
-        tradeParams.quantity,
-        tradeParams.maxCost
-      )
-      ).to.be.reverted;
-    });
-
-    it("Should handle paused contract", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, keeper, router, alice } = contracts;
-
-      // Create market first
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const marketId = 1;
-
-      await core
-        .connect(keeper)
-        .createMarket(
-          marketId,
-          100,
-          startTime,
-          endTime,
-          ethers.parseEther("0.1")
-        );
-
-      await time.increaseTo(startTime + 1);
-
-      // Pause contract
-      await core.connect(keeper).pause("Test pause");
-
-      const tradeParams = {
-        marketId: marketId,
-        lowerTick: 45,
-        upperTick: 55,
-        quantity: ethers.parseUnits("0.05", 6),
-        maxCost: ethers.parseUnits("0.1", 6),
-      };
-
-      await expect(
-        core.connect(router).openPosition(
-        alice.address,
-        tradeParams.marketId,
-        tradeParams.lowerTick,
-        tradeParams.upperTick,
-        tradeParams.quantity,
-        tradeParams.maxCost
-      )
-      ).to.be.revertedWithCustomError(core, "ContractPaused");
+      // Core should reference the correct position contract
+      expect(await core.getPositionContract()).to.equal(
+        await mockPosition.getAddress()
+      );
     });
   });
 });
@@ -5285,7 +4090,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Access Control`, function () {
 
 ## test/component//core/boundaries/liquidity.spec.ts
 
-_Category: TypeScript Tests | Size: 16KB | Lines: 
+_Category: TypeScript Tests | Size: 15KB | Lines: 
 
 ```typescript
 import { expect } from "chai";
@@ -5298,7 +4103,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
   describe("Factor Limits", function () {
     it("Should handle trades that approach MIN_FACTOR boundary", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       // Create market with extreme parameters
       const currentTime = await time.latest();
@@ -5326,7 +4131,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -5340,7 +4145,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
 
     it("Should handle trades that approach MAX_FACTOR boundary", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       // Create market with extreme parameters
       const currentTime = await time.latest();
@@ -5368,7 +4173,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -5382,7 +4187,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
 
     it("Should revert when factor exceeds MAX_FACTOR", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       // Create market with extreme parameters
       const currentTime = await time.latest();
@@ -5410,7 +4215,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -5426,7 +4231,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
   describe("Liquidity Parameter Boundaries", function () {
     it("Should handle minimum liquidity parameter", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, keeper, router, alice } = contracts;
+      const { core, keeper, alice } = contracts;
 
       const minAlpha = ethers.parseEther("0.001"); // MIN_LIQUIDITY_PARAMETER
       const currentTime = await time.latest();
@@ -5451,7 +4256,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -5465,7 +4270,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
 
     it("Should handle maximum liquidity parameter", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, keeper, router, alice } = contracts;
+      const { core, keeper, alice } = contracts;
 
       const maxAlpha = ethers.parseEther("1000"); // MAX_LIQUIDITY_PARAMETER
       const currentTime = await time.latest();
@@ -5490,7 +4295,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -5506,7 +4311,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
   describe("Extreme Alpha Values with Large Trades", function () {
     it("Should handle low alpha values with moderate trades", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, keeper, router, alice } = contracts;
+      const { core, keeper, alice } = contracts;
 
       // Test with relatively low alpha (but not minimum to avoid overflow)
       const lowAlphaMarketId = 10;
@@ -5743,7 +4548,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
   describe("Liquidity Parameter Boundaries", function () {
     it("Should handle minimum liquidity parameter", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, keeper, router, alice } = contracts;
+      const { core, keeper, alice } = contracts;
 
       const minAlpha = ethers.parseEther("0.001"); // MIN_LIQUIDITY_PARAMETER
       const currentTime = await time.latest();
@@ -5765,7 +4570,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -5779,7 +4584,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
 
     it("Should handle maximum liquidity parameter", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, keeper, router, alice } = contracts;
+      const { core, keeper, alice } = contracts;
 
       const maxAlpha = ethers.parseEther("1000"); // MAX_LIQUIDITY_PARAMETER
       const currentTime = await time.latest();
@@ -5801,7 +4606,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -5833,7 +4638,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
   describe("Quantity Validation", function () {
     it("Should handle minimum possible quantity (1 wei)", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -5862,7 +4667,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -5876,7 +4681,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
     it("Should revert with zero quantity", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -5905,7 +4710,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -5919,7 +4724,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
     it("Should handle very small quantities without underflow", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -5959,7 +4764,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -5975,7 +4780,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
   describe("Chunk-Split Boundaries", function () {
     it("Should handle quantity exactly at chunk boundary", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -6006,7 +4811,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -6020,7 +4825,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
     it("Should handle quantity slightly above chunk boundary", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -6053,7 +4858,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -6067,7 +4872,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
     it("Should handle multiple chunk splits correctly", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -6099,7 +4904,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -6154,7 +4959,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
     it("Should handle massive chunk-split scenarios", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -6187,7 +4992,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
       // Should handle massive chunk-split without reverting
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -6254,7 +5059,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
     it("Should handle multiple chunk calculations consistently", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -6276,7 +5081,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
       const CHUNK_BOUNDARY_QUANTITY = ethers.parseUnits("0.013", 6);
 
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -6296,7 +5101,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -6319,7 +5124,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
     it("Should handle first trade scenario (sumBefore == 0)", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -6358,7 +5163,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -6411,8 +5216,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
   describe("Security Tests", function () {
     it("Should prevent zero-cost position attacks with round-up", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, keeper, router, alice, paymentToken, mockPosition } =
-        contracts;
+      const { core, keeper, alice, paymentToken, mockPosition } = contracts;
 
       // Create market with very high alpha to make costs extremely small
       const highAlpha = ethers.parseEther("1000"); // Very high liquidity parameter
@@ -6451,7 +5255,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
       // Should be able to open position with minimum cost
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -6470,7 +5274,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
     it("Should prevent repeated tiny trades from accumulating free positions", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, keeper, router, alice, paymentToken } = contracts;
+      const { core, keeper, alice, paymentToken } = contracts;
 
       // Create market with very high alpha
       const highAlpha = ethers.parseEther("1000");
@@ -6508,7 +5312,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
         );
 
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -6530,7 +5334,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
     it("Should prevent gas DoS attacks with excessive chunk splitting", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, keeper, router, alice, paymentToken } = contracts;
+      const { core, keeper, alice, paymentToken } = contracts;
 
       // Create market with very small alpha to maximize chunk count
       const smallAlpha = ethers.parseEther("0.001"); // Very small liquidity parameter
@@ -6560,7 +5364,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
       // Should revert due to excessive chunk count
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -6574,7 +5378,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
     it("Should handle maximum allowed chunks successfully", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, keeper, router, alice, paymentToken } = contracts;
+      const { core, keeper, alice, paymentToken } = contracts;
 
       // Create market with small alpha
       const smallAlpha = ethers.parseEther("0.001");
@@ -6604,7 +5408,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
       // Should succeed with moderate chunk count
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -6637,7 +5441,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
   describe("Single Tick Trading", function () {
     it("Should allow single tick trades (lowerTick == upperTick)", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -6666,7 +5470,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -6690,7 +5494,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
     it("Should handle single tick at market boundaries", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, bob, keeper } = contracts;
+      const { core, alice, bob, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -6711,7 +5515,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -6726,7 +5530,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(bob)
           .openPosition(
             bob.address,
             marketId,
@@ -6742,7 +5546,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
   describe("Tick Range Boundaries", function () {
     it("Should handle trades at first tick (0)", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -6771,7 +5575,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -6785,7 +5589,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
     it("Should handle trades at last tick (99)", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -6814,7 +5618,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -6828,7 +5632,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
     it("Should handle maximum tick range (0 to 99)", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -6857,7 +5661,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+                .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -6871,7 +5675,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
     it("Should revert when tick exceeds market bounds", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -6900,7 +5704,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -6916,7 +5720,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
   describe("Edge Cases for Tick Handling", function () {
     it("Should handle boundary tick positions", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -6938,7 +5742,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
       // First tick
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -6952,7 +5756,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
       // Last tick
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -6966,7 +5770,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
     it("Should handle large tick range operations efficiently", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -6986,7 +5790,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
       await time.increaseTo(startTime + 1);
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -7003,7 +5807,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
     it("Should handle overlapping tick ranges", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, bob, keeper } = contracts;
+      const { core, alice, bob, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -7024,7 +5828,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
       // Alice: 40-60
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -7036,7 +5840,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
       // Bob: 50-70 (overlaps with Alice)
       await core
-        .connect(router)
+        .connect(bob)
         .openPosition(
           bob.address,
           marketId,
@@ -7052,7 +5856,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
     it("Should validate tick order (lowerTick <= upperTick)", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+          const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -7073,7 +5877,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -7105,7 +5909,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
   describe("Trade Timing Validation", function () {
     it("Should handle trade at exact market start time", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -7135,7 +5939,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -7149,7 +5953,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
     it("Should handle trade 1 second before market end", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -7179,7 +5983,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -7193,7 +5997,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
     it("Should deactivate market when trading after end time", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -7223,7 +6027,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -7237,7 +6041,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
     it("Should prevent trading before market start", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, keeper, router, alice } = contracts;
+      const { core, keeper, alice } = contracts;
 
       const futureStart = (await time.latest()) + 3600; // 1 hour from now
       const futureEnd = futureStart + 86400; // 1 day duration
@@ -7263,7 +6067,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -7279,7 +6083,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
   describe("Block Timestamp Edge Cases", function () {
     it("Should handle block timestamp jumps correctly", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -7309,7 +6113,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -7325,7 +6129,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -7363,7 +6167,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
   describe("Market Expiry Operations", function () {
     it("Should handle market expiry edge cases during operations", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, keeper, router, alice } = contracts;
+      const { core, keeper, alice } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -7392,7 +6196,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       };
 
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           openParams.marketId,
@@ -7409,7 +6213,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       // All operations should fail after expiry
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             positionId,
             ethers.parseUnits("0.01", 6),
@@ -7419,12 +6223,12 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .decreasePosition(positionId, ethers.parseUnits("0.01", 6), 0)
       ).to.be.revertedWithCustomError(core, "MarketExpired");
 
       await expect(
-        core.connect(router).closePosition(positionId, 0)
+        core.connect(alice).closePosition(positionId, 0)
       ).to.be.revertedWithCustomError(core, "MarketExpired");
     });
 
@@ -7459,7 +6263,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
   describe("Extended Time Boundaries", function () {
     it("Should handle trade at exact market start time", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -7489,7 +6293,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -7503,7 +6307,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
     it("Should handle trade 1 second before market end", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -7533,7 +6337,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -7547,7 +6351,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
     it("Should deactivate market when trading after end time", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -7577,7 +6381,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -7591,7 +6395,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
     it("Should prevent trading before market start", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, keeper, router, alice } = contracts;
+      const { core, keeper, alice } = contracts;
 
       const futureStart = (await time.latest()) + 3600; // 1 hour from now
       const futureEnd = futureStart + 86400; // 1 day duration
@@ -7610,7 +6414,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -7624,7 +6428,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
     it("Should handle block timestamp jumps correctly", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -7654,7 +6458,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -7670,7 +6474,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -7705,7 +6509,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
     it("Should handle market expiry edge cases during operations", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -7734,7 +6538,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       };
 
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           openParams.marketId,
@@ -7751,7 +6555,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       // All operations should fail after expiry
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             positionId,
             ethers.parseUnits("0.01", 6),
@@ -7761,12 +6565,12 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .decreasePosition(positionId, ethers.parseUnits("0.01", 6), 0)
       ).to.be.revertedWithCustomError(core, "MarketExpired");
 
       await expect(
-        core.connect(router).closePosition(positionId, 0)
+        core.connect(alice).closePosition(positionId, 0)
       ).to.be.revertedWithCustomError(core, "MarketExpired");
     });
   });
@@ -7777,7 +6581,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
 ## test/component//core/deployment.spec.ts
 
-_Category: TypeScript Tests | Size: 18KB | Lines: 
+_Category: TypeScript Tests | Size: 11KB | Lines: 
 
 ```typescript
 import { expect } from "chai";
@@ -7826,32 +6630,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
     });
 
     it("Should revert deployment with zero addresses", async function () {
-      const FixedPointMathUFactory = await ethers.getContractFactory(
-        "FixedPointMathU"
-      );
-      const fixedPointMathU = await FixedPointMathUFactory.deploy();
-      await fixedPointMathU.waitForDeployment();
-
-      const LazyMulSegmentTreeFactory = await ethers.getContractFactory(
-        "LazyMulSegmentTree",
-        {
-          libraries: { FixedPointMathU: await fixedPointMathU.getAddress() },
-        }
-      );
-      const lazyMulSegmentTree = await LazyMulSegmentTreeFactory.deploy();
-      await lazyMulSegmentTree.waitForDeployment();
-
       const CLMSRMarketCoreFactory = await ethers.getContractFactory(
         "CLMSRMarketCore",
         {
           libraries: {
-            FixedPointMathU: await fixedPointMathU.getAddress(),
-            LazyMulSegmentTree: await lazyMulSegmentTree.getAddress(),
+            FixedPointMathU: ethers.ZeroAddress,
+            LazyMulSegmentTree: ethers.ZeroAddress,
           },
         }
       );
 
-      // Test zero payment token
       await expect(
         CLMSRMarketCoreFactory.deploy(
           ethers.ZeroAddress,
@@ -7859,16 +6647,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
           ethers.ZeroAddress
         )
       ).to.be.revertedWithCustomError(CLMSRMarketCoreFactory, "ZeroAddress");
-    });
-
-    it("Should demonstrate contract size reduction with external libraries", async function () {
-      const { core } = await loadFixture(coreFixture);
-
-      const code = await ethers.provider.getCode(await core.getAddress());
-      const sizeInBytes = (code.length - 2) / 2;
-
-      expect(sizeInBytes).to.be.lt(24576); // EIP-170 limit
-      expect(sizeInBytes).to.be.gt(10000); // Should be substantial contract
     });
 
     it("Should verify contract state after deployment", async function () {
@@ -7903,12 +6681,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
   });
 
   describe("Initial Configuration", function () {
-    it("Should set correct router address", async function () {
-      const { core, router } = await loadFixture(coreFixture);
-
-      expect(await core.getRouterContract()).to.equal(router.address);
-    });
-
     it("Should have tokens approved for users", async function () {
       const { core, paymentToken, alice, bob } = await loadFixture(coreFixture);
 
@@ -7921,18 +6693,32 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
       );
     });
 
-    it("Should initialize with proper token balances", async function () {
-      const { paymentToken, alice, bob } = await loadFixture(coreFixture);
+    it("Should have correct token balances", async function () {
+      const { paymentToken, alice, bob, charlie } = await loadFixture(
+        coreFixture
+      );
 
-      const aliceBalance = await paymentToken.balanceOf(alice.address);
-      const bobBalance = await paymentToken.balanceOf(bob.address);
-
-      expect(aliceBalance).to.be.gt(0);
-      expect(bobBalance).to.be.gt(0);
-      expect(aliceBalance).to.equal(bobBalance);
+      const expectedBalance = ethers.parseUnits("1000000000000", 6); // 1T USDC (INITIAL_SUPPLY)
+      expect(await paymentToken.balanceOf(alice.address)).to.equal(
+        expectedBalance
+      );
+      expect(await paymentToken.balanceOf(bob.address)).to.equal(
+        expectedBalance
+      );
+      expect(await paymentToken.balanceOf(charlie.address)).to.equal(
+        expectedBalance
+      );
     });
 
-    it("Should have MockPosition properly configured", async function () {
+    it("Should verify payment token properties", async function () {
+      const { paymentToken } = await loadFixture(coreFixture);
+
+      expect(await paymentToken.name()).to.equal("USD Coin");
+      expect(await paymentToken.symbol()).to.equal("USDC");
+      expect(await paymentToken.decimals()).to.equal(6);
+    });
+
+    it("Should link position contract correctly", async function () {
       const { core, mockPosition } = await loadFixture(coreFixture);
 
       expect(await mockPosition.coreContract()).to.equal(
@@ -7946,14 +6732,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
       const { core, keeper } = await loadFixture(coreFixture);
 
       expect(await core.getManagerContract()).to.equal(keeper.address);
-    });
-
-    it("Should allow only keeper to call manager functions", async function () {
-      const { core, alice } = await loadFixture(coreFixture);
-
-      await expect(
-        core.connect(alice).setRouterContract(alice.address)
-      ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
     });
 
     it("Should verify initial paused state", async function () {
@@ -7971,46 +6749,18 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
       await core.connect(keeper).unpause();
       expect(await core.isPaused()).to.be.false;
     });
-  });
 
-  describe("Parameter Validation", function () {
-    it("Should validate payment token decimals", async function () {
-      const { paymentToken } = await loadFixture(coreFixture);
+    it("Should prevent non-keeper from pause operations", async function () {
+      const { core, alice } = await loadFixture(coreFixture);
 
-      const decimals = await paymentToken.decimals();
-      expect(decimals).to.equal(6); // USDC standard
-    });
-
-    it("Should verify token symbol and name", async function () {
-      const { paymentToken } = await loadFixture(coreFixture);
-
-      expect(await paymentToken.symbol()).to.equal("USDC");
-      expect(await paymentToken.name()).to.equal("USD Coin");
-    });
-
-    it("Should handle invalid constructor parameters gracefully", async function () {
-      const { fixedPointMathU, lazyMulSegmentTree } = await loadFixture(
-        coreFixture
-      );
-
-      const CLMSRMarketCoreFactory = await ethers.getContractFactory(
-        "CLMSRMarketCore",
-        {
-          libraries: {
-            FixedPointMathU: await fixedPointMathU.getAddress(),
-            LazyMulSegmentTree: await lazyMulSegmentTree.getAddress(),
-          },
-        }
-      );
-
-      // All zero addresses should fail
       await expect(
-        CLMSRMarketCoreFactory.deploy(
-          ethers.ZeroAddress,
-          ethers.ZeroAddress,
-          ethers.ZeroAddress
-        )
-      ).to.be.revertedWithCustomError(CLMSRMarketCoreFactory, "ZeroAddress");
+        core.connect(alice).pause("Unauthorized")
+      ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
+
+      await expect(core.connect(alice).unpause()).to.be.revertedWithCustomError(
+        core,
+        "UnauthorizedCaller"
+      );
     });
   });
 
@@ -8027,18 +6777,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
       );
     });
 
-    it("Should set up router interaction correctly", async function () {
-      const { core, router, keeper } = await loadFixture(coreFixture);
-
-      expect(await core.getRouterContract()).to.equal(router.address);
-
-      // Router is already set in fixture, so this should fail
-      const newRouter = await ethers.getSigners().then((s) => s[5]);
-      await expect(
-        core.connect(keeper).setRouterContract(newRouter.address)
-      ).to.be.revertedWithCustomError(core, "RouterAlreadySet");
-    });
-
     it("Should handle library function calls correctly", async function () {
       const { core } = await loadFixture(coreFixture);
 
@@ -8050,43 +6788,58 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
       );
     });
 
-    it("Should verify initial state of all contracts", async function () {
-      const { core, paymentToken, mockPosition, alice } = await loadFixture(
-        coreFixture
+    it("Should verify payment token integration", async function () {
+      const { core, paymentToken } = await loadFixture(coreFixture);
+
+      expect(await core.getPaymentToken()).to.equal(
+        await paymentToken.getAddress()
       );
 
-      // Core state
-      expect(await core.isPaused()).to.be.false;
+      // Core should have tokens from setup
+      const coreBalance = await paymentToken.balanceOf(await core.getAddress());
+      expect(coreBalance).to.be.gt(0);
+    });
+  });
 
-      // Token state
-      expect(await paymentToken.balanceOf(alice.address)).to.be.gt(0);
+  describe("Error Handling", function () {
+    it("Should handle basic error scenarios", async function () {
+      const { core } = await loadFixture(coreFixture);
 
-      // Position state
-      expect(await mockPosition.coreContract()).to.equal(
-        await core.getAddress()
+      // Market not found
+      await expect(core.getMarket(999)).to.be.revertedWithCustomError(
+        core,
+        "MarketNotFound"
       );
 
-      // Integration check - no markets initially
-      await expect(core.getMarket(1)).to.be.revertedWithCustomError(
+      // Invalid tick value (market doesn't exist)
+      await expect(core.getTickValue(1, 0)).to.be.revertedWithCustomError(
         core,
         "MarketNotFound"
       );
     });
   });
 
-  describe("Deployment Edge Cases", function () {
-    it("Should handle deployment with various token decimals", async function () {
-      // Our fixture uses 6 decimals (USDC standard)
-      const { paymentToken } = await loadFixture(coreFixture);
-      expect(await paymentToken.decimals()).to.equal(6);
-    });
-
-    it("Should verify gas usage for deployment", async function () {
+  describe("Gas and Performance", function () {
+    it("Should deploy within gas limits", async function () {
       const { core } = await loadFixture(coreFixture);
 
-      // Contract should be deployed (address exists)
+      const deploymentTx = core.deploymentTransaction();
+      expect(deploymentTx).to.not.be.null;
+
+      if (deploymentTx) {
+        const receipt = await deploymentTx.wait();
+        expect(receipt?.gasUsed).to.be.lt(15_000_000); // Reasonable deployment limit
+      }
+    });
+
+    it("Should have reasonable contract size", async function () {
+      const { core } = await loadFixture(coreFixture);
+
       const code = await ethers.provider.getCode(await core.getAddress());
-      expect(code.length).to.be.gt(2); // More than just "0x"
+      const sizeInBytes = (code.length - 2) / 2;
+
+      console.log(`CLMSRMarketCore deployed size: ${sizeInBytes} bytes`);
+      expect(sizeInBytes).to.be.lt(24576); // EIP-170 limit
     });
 
     it("Should handle multiple deployment scenarios", async function () {
@@ -8126,186 +6879,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
       await core.connect(keeper).pause("Test pause");
       expect(await core.isPaused()).to.be.true;
       await core.connect(keeper).unpause();
-    });
-  });
-
-  describe("Constants & Limits", function () {
-    it("Should have correct constants", async function () {
-      const { core } = await loadFixture(coreFixture);
-
-      expect(await core.MAX_TICK_COUNT()).to.equal(1_000_000);
-      expect(await core.MIN_LIQUIDITY_PARAMETER()).to.equal(
-        ethers.parseEther("0.001")
-      );
-      expect(await core.MAX_LIQUIDITY_PARAMETER()).to.equal(
-        ethers.parseEther("1000")
-      );
-    });
-
-    it("Should validate tick count limits", async function () {
-      const { core, keeper } = await loadFixture(coreFixture);
-
-      const currentTime = await time.latest();
-      const startTime = currentTime + 3600;
-      const endTime = startTime + 86400; // 1 day
-
-      // Test zero tick count
-      await expect(
-        core.connect(keeper).createMarket(
-          1,
-          0, // zero ticks
-          startTime,
-          endTime,
-          ethers.parseEther("1")
-        )
-      ).to.be.revertedWithCustomError(core, "TickCountExceedsLimit");
-
-      // Test excessive tick count
-      await expect(
-        core.connect(keeper).createMarket(
-          1,
-          1_000_001, // exceeds MAX_TICK_COUNT
-          startTime,
-          endTime,
-          ethers.parseEther("1")
-        )
-      ).to.be.revertedWithCustomError(core, "TickCountExceedsLimit");
-    });
-
-    it("Should validate liquidity parameter limits", async function () {
-      const { core, keeper } = await loadFixture(coreFixture);
-
-      const currentTime = await time.latest();
-      const startTime = currentTime + 3600;
-      const endTime = startTime + 86400;
-
-      // Test too small alpha
-      await expect(
-        core.connect(keeper).createMarket(
-          1,
-          100,
-          startTime,
-          endTime,
-          ethers.parseEther("0.0001") // below MIN_LIQUIDITY_PARAMETER
-        )
-      ).to.be.revertedWithCustomError(core, "InvalidLiquidityParameter");
-
-      // Test too large alpha
-      await expect(
-        core.connect(keeper).createMarket(
-          1,
-          100,
-          startTime,
-          endTime,
-          ethers.parseEther("2000") // above MAX_LIQUIDITY_PARAMETER
-        )
-      ).to.be.revertedWithCustomError(core, "InvalidLiquidityParameter");
-    });
-  });
-
-  describe("Error Handling", function () {
-    it("Should revert operations when paused", async function () {
-      const { core, keeper } = await loadFixture(coreFixture);
-
-      // Pause contract
-      await core.connect(keeper).pause("Test pause");
-
-      const currentTime = await time.latest();
-
-      // Should revert market creation when paused
-      await expect(
-        core
-          .connect(keeper)
-          .createMarket(
-            1,
-            100,
-            currentTime + 3600,
-            currentTime + 3600 + 86400,
-            ethers.parseEther("1")
-          )
-      ).to.be.revertedWithCustomError(core, "ContractPaused");
-    });
-
-    it("Should handle invalid time ranges", async function () {
-      const { core, keeper } = await loadFixture(coreFixture);
-
-      const currentTime = await time.latest();
-
-      // End time before start time
-      await expect(
-        core.connect(keeper).createMarket(
-          1,
-          100,
-          currentTime + 7200, // start
-          currentTime + 3600, // end (before start)
-          ethers.parseEther("1")
-        )
-      ).to.be.revertedWithCustomError(core, "InvalidTimeRange");
-
-      // Start time equals end time
-      await expect(
-        core.connect(keeper).createMarket(
-          1,
-          100,
-          currentTime + 3600,
-          currentTime + 3600, // same as start
-          ethers.parseEther("1")
-        )
-      ).to.be.revertedWithCustomError(core, "InvalidTimeRange");
-    });
-
-    it("Should handle duplicate market IDs", async function () {
-      const { core, keeper } = await loadFixture(coreFixture);
-
-      const currentTime = await time.latest();
-      const startTime = currentTime + 3600;
-      const endTime = startTime + 86400;
-
-      // Create first market
-      await core
-        .connect(keeper)
-        .createMarket(1, 100, startTime, endTime, ethers.parseEther("1"));
-
-      // Try to create market with same ID
-      await expect(
-        core
-          .connect(keeper)
-          .createMarket(
-            1,
-            100,
-            startTime + 86400,
-            startTime + 2 * 86400,
-            ethers.parseEther("1")
-          )
-      ).to.be.revertedWithCustomError(core, "MarketAlreadyExists");
-    });
-
-    it("Should handle unauthorized access properly", async function () {
-      const { core, alice, bob } = await loadFixture(coreFixture);
-
-      // Non-authorized user cannot create markets
-      const currentTime = await time.latest();
-      await expect(
-        core
-          .connect(alice)
-          .createMarket(
-            2,
-            100,
-            currentTime + 3600,
-            currentTime + 3600 + 86400,
-            ethers.parseEther("1")
-          )
-      ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
-
-      // Non-authorized user cannot pause
-      await expect(
-        core.connect(bob).pause("Test")
-      ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
-
-      // Non-authorized user cannot set router
-      await expect(
-        core.connect(alice).setRouterContract(alice.address)
-      ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
     });
   });
 
@@ -8358,7 +6931,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
 
 ## test/component//core/events.spec.ts
 
-_Category: TypeScript Tests | Size: 22KB | Lines: 
+_Category: TypeScript Tests | Size: 21KB | Lines: 
 
 ```typescript
 import { expect } from "chai";
@@ -8462,7 +7035,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
   describe("Position Events", function () {
     it("Should emit PositionOpened event with correct parameters", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -8498,7 +7071,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -8522,7 +7095,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
 
     it("Should emit PositionIncreased event with correct parameters", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -8543,7 +7116,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
 
       // Open initial position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -8568,7 +7141,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
       };
 
       await expect(
-        core.connect(router).increasePosition(
+        core.connect(alice).increasePosition(
           1, // positionId
           additionalQuantity,
           ethers.parseUnits("10", 6) // maxCost
@@ -8586,7 +7159,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
 
     it("Should emit PositionDecreased event with correct parameters", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -8615,7 +7188,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
       };
 
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -8639,7 +7212,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
       };
 
       await expect(
-        core.connect(router).decreasePosition(
+        core.connect(alice).decreasePosition(
           1, // positionId
           quantityToRemove,
           0 // minPayout
@@ -8657,7 +7230,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
 
     it("Should emit PositionClosed event with correct parameters", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -8686,7 +7259,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
       };
 
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -8699,12 +7272,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
       // Close position
       const expectedPayout = await core.calculateCloseProceeds(1);
 
-      const closeParams = {
-        positionId: 1,
-        minPayout: 0,
-      };
-
-      await expect(core.connect(router).closePosition(1, 0))
+      await expect(core.connect(alice).closePosition(1, 0))
         .to.emit(core, "PositionClosed")
         .withArgs(
           1, // positionId
@@ -8715,7 +7283,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
 
     it("Should emit PositionClaimed event with correct parameters", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -8744,7 +7312,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
       };
 
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -8761,7 +7329,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
       // Calculate expected payout
       const expectedPayout = await core.calculateClaimAmount(1);
 
-      await expect(core.connect(router).claimPayout(1))
+      await expect(core.connect(alice).claimPayout(1))
         .to.emit(core, "PositionClaimed")
         .withArgs(
           1, // positionId
@@ -8774,7 +7342,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
   describe("Trading Events with Detailed Parameters", function () {
     it("Should emit detailed events for complex position operations", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -8803,7 +7371,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
 
       // Check that multiple events are emitted in correct order
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -8837,7 +7405,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
 
     it("Should emit events with proper gas tracking", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -8865,7 +7433,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
       };
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -8885,7 +7453,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
   describe("Error Events", function () {
     it("Should emit error-related events on failed operations", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -8915,7 +7483,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -8929,7 +7497,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
 
     it("Should handle event emissions during edge cases", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -8960,7 +7528,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
       // Should still emit proper events even for minimal trades
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -9047,7 +7615,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
   describe("Event Data Integrity", function () {
     it("Should maintain event parameter consistency across operations", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -9076,7 +7644,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
       };
 
       const openTx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -9101,7 +7669,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
 
       // Close position and verify consistency
       await expect(
-        core.connect(router).closePosition(positionData.positionId, 0)
+        core.connect(alice).closePosition(positionData.positionId, 0)
       )
         .to.emit(core, "PositionClosed")
         .withArgs(
@@ -9113,7 +7681,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
 
     it("Should handle large numeric values in events", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -9140,7 +7708,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -9160,34 +7728,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
           largeQuantity,
           anyValue // cost
         );
-    });
-  });
-
-  describe("Router Events", function () {
-    it("Should emit RouterSet when router is updated", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { keeper, alice } = contracts;
-
-      // Deploy new core without router set
-      const CLMSRMarketCoreFactory = await ethers.getContractFactory(
-        "CLMSRMarketCore",
-        {
-          libraries: {
-            FixedPointMathU: await contracts.fixedPointMathU.getAddress(),
-            LazyMulSegmentTree: await contracts.lazyMulSegmentTree.getAddress(),
-          },
-        }
-      );
-
-      const newCore = await CLMSRMarketCoreFactory.deploy(
-        await contracts.paymentToken.getAddress(),
-        await contracts.mockPosition.getAddress(),
-        keeper.address
-      );
-
-      await expect(newCore.connect(keeper).setRouterContract(alice.address))
-        .to.emit(newCore, "RouterSet")
-        .withArgs(alice.address);
     });
   });
 });
@@ -9330,7 +7870,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
 
     it("Should prevent position opening when paused", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -9355,20 +7895,22 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(
-        alice.address,
-        tradeParams.marketId,
-        tradeParams.lowerTick,
-        tradeParams.upperTick,
-        tradeParams.quantity,
-        tradeParams.maxCost
-      )
+        core
+          .connect(alice)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.be.revertedWithCustomError(core, "ContractPaused");
     });
 
     it("Should prevent position modification when paused", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -9390,14 +7932,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
         maxCost: ethers.parseUnits("1", 6),
       };
 
-      await core.connect(router).openPosition(
-        alice.address,
-        tradeParams.marketId,
-        tradeParams.lowerTick,
-        tradeParams.upperTick,
-        tradeParams.quantity,
-        tradeParams.maxCost
-      );
+      await core
+        .connect(alice)
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        );
 
       // Pause the contract
       await core.connect(keeper).pause("Emergency");
@@ -9405,7 +7949,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
       // Try to increase position while paused
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             1,
             ethers.parseUnits("0.01", 6),
@@ -9415,20 +7959,18 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
 
       // Try to decrease position while paused
       await expect(
-        core
-          .connect(router)
-          .decreasePosition(1, ethers.parseUnits("0.01", 6), 0)
+        core.connect(alice).decreasePosition(1, ethers.parseUnits("0.01", 6), 0)
       ).to.be.revertedWithCustomError(core, "ContractPaused");
 
       // Try to close position while paused
       await expect(
-        core.connect(router).closePosition(1, 0)
+        core.connect(alice).closePosition(1, 0)
       ).to.be.revertedWithCustomError(core, "ContractPaused");
     });
 
     it("Should prevent position claiming when paused", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -9449,14 +7991,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
         maxCost: ethers.parseUnits("10", 6),
       };
 
-      await core.connect(router).openPosition(
-        alice.address,
-        tradeParams.marketId,
-        tradeParams.lowerTick,
-        tradeParams.upperTick,
-        tradeParams.quantity,
-        tradeParams.maxCost
-      );
+      await core
+        .connect(alice)
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        );
 
       // Settle market
       await time.increaseTo(endTime + 1);
@@ -9467,7 +8011,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
 
       // Try to claim settled position while paused
       await expect(
-        core.connect(router).claimPayout(1)
+        core.connect(alice).claimPayout(1)
       ).to.be.revertedWithCustomError(core, "ContractPaused");
     });
   });
@@ -9507,7 +8051,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
 
     it("Should allow cost calculations when paused", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -9528,14 +8072,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
         maxCost: ethers.parseUnits("10", 6),
       };
 
-      await core.connect(router).openPosition(
-        alice.address,
-        tradeParams.marketId,
-        tradeParams.lowerTick,
-        tradeParams.upperTick,
-        tradeParams.quantity,
-        tradeParams.maxCost
-      );
+      await core
+        .connect(alice)
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        );
 
       // Pause the contract
       await core.connect(keeper).pause("Emergency");
@@ -9557,7 +8103,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
   describe("Resume Operations After Unpause", function () {
     it("Should allow all operations after unpause", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       // Pause and then unpause
       await core.connect(keeper).pause("Emergency");
@@ -9586,20 +8132,22 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(
-        alice.address,
-        tradeParams.marketId,
-        tradeParams.lowerTick,
-        tradeParams.upperTick,
-        tradeParams.quantity,
-        tradeParams.maxCost
-      )
+        core
+          .connect(alice)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.not.be.reverted;
 
       // Should allow position modifications after unpause
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             1,
             ethers.parseUnits("0.01", 6),
@@ -9610,7 +8158,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
 
     it("Should maintain state consistency across pause/unpause cycles", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -9631,14 +8179,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
         maxCost: ethers.parseUnits("10", 6),
       };
 
-      await core.connect(router).openPosition(
-        alice.address,
-        tradeParams.marketId,
-        tradeParams.lowerTick,
-        tradeParams.upperTick,
-        tradeParams.quantity,
-        tradeParams.maxCost
-      );
+      await core
+        .connect(alice)
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        );
 
       // Get initial state
       const initialMarket = await core.getMarket(1);
@@ -9701,7 +8251,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
   describe("Emergency Scenarios", function () {
     it("Should handle pause during active trading", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -9722,28 +8272,32 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
         maxCost: ethers.parseUnits("10", 6),
       };
 
-      await core.connect(router).openPosition(
-        alice.address,
-        tradeParams.marketId,
-        tradeParams.lowerTick,
-        tradeParams.upperTick,
-        tradeParams.quantity,
-        tradeParams.maxCost
-      );
+      await core
+        .connect(alice)
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        );
 
       // Emergency pause during active market
       await core.connect(keeper).pause("Emergency during trading");
 
       // All trading should be stopped
       await expect(
-        core.connect(router).openPosition(
-        alice.address,
-        tradeParams.marketId,
-        tradeParams.lowerTick,
-        tradeParams.upperTick,
-        tradeParams.quantity,
-        tradeParams.maxCost
-      )
+        core
+          .connect(alice)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.be.revertedWithCustomError(core, "ContractPaused");
 
       // But view functions should work
@@ -9976,7 +8530,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
   describe("Position Information Getters", function () {
     it("Should return correct position information after opening", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -10004,7 +8558,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
       };
 
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -10031,7 +8585,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
 
     it("Should track position count correctly", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, bob, keeper } = contracts;
+      const { core, alice, bob, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -10062,7 +8616,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
 
       // Open first position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -10073,17 +8627,8 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
         );
       expect(await position.balanceOf(alice.address)).to.equal(1);
 
-      // Open second position
-      const tradeParams2 = {
-        marketId,
-        lowerTick: 30,
-        upperTick: 40,
-        quantity: ethers.parseUnits("0.5", 6),
-        maxCost: ethers.parseUnits("5", 6),
-      };
-
       await core
-        .connect(router)
+        .connect(bob)
         .openPosition(
           bob.address,
           marketId,
@@ -10097,7 +8642,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
 
     it("Should handle position ownership correctly", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, bob, keeper } = contracts;
+      const { core, alice, bob, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -10125,7 +8670,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
       };
 
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -10178,7 +8723,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
 
     it("Should calculate close costs correctly", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -10207,7 +8752,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
       };
 
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -10226,7 +8771,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
 
     it("Should calculate settled payouts correctly", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -10255,7 +8800,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
       };
 
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -10487,7 +9032,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
   describe("State Consistency Checks", function () {
     it("Should maintain consistent state after multiple operations", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -10516,7 +9061,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
       };
 
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -10610,7 +9155,7 @@ import { COMPONENT_TAG } from "../../helpers/tags";
 describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
   describe("Position Minting via Core", function () {
     it("should mint position when Core.openPosition is called", async function () {
-      const { core, position, router, alice, marketId } = await loadFixture(
+      const { core, position, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -10628,7 +9173,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
       // Open position through Core
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -10640,7 +9185,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             params.marketId,
@@ -10668,12 +9213,13 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
     });
 
     it("should handle multiple position mints correctly", async function () {
-      const { core, position, router, alice, bob, marketId } =
-        await loadFixture(realPositionMarketFixture);
+      const { core, position, alice, bob, marketId } = await loadFixture(
+        realPositionMarketFixture
+      );
 
       // Alice opens first position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -10685,7 +9231,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
       // Bob opens second position
       await core
-        .connect(router)
+        .connect(bob)
         .openPosition(
           bob.address,
           marketId,
@@ -10733,13 +9279,13 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
     });
 
     it("should handle position mint with edge case parameters", async function () {
-      const { core, position, router, alice, marketId } = await loadFixture(
+      const { core, position, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -10758,7 +9304,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
   describe("Position Updates via Core", function () {
     it("should update position quantity when Core.increasePosition is called", async function () {
-      const { core, position, router, alice, marketId } = await loadFixture(
+      const { core, position, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -10772,7 +9318,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -10782,7 +9328,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -10799,7 +9345,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       const increaseAmount = ethers.parseUnits("0.5", 6);
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             positionId,
             increaseAmount,
@@ -10819,7 +9365,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
     });
 
     it("should update position quantity when Core.decreasePosition is called", async function () {
-      const { core, position, router, alice, marketId } = await loadFixture(
+      const { core, position, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -10833,7 +9379,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -10843,7 +9389,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -10859,7 +9405,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       // Decrease position
       const decreaseAmount = ethers.parseUnits("0.5", 6);
       await expect(
-        core.connect(router).decreasePosition(positionId, decreaseAmount, 0)
+        core.connect(alice).decreasePosition(positionId, decreaseAmount, 0)
       )
         .to.emit(position, "PositionUpdated")
         .withArgs(
@@ -10886,7 +9432,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
     });
 
     it("should handle multiple sequential updates", async function () {
-      const { core, position, router, alice, marketId } = await loadFixture(
+      const { core, position, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -10900,7 +9446,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -10910,7 +9456,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -10936,7 +9482,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
         if (op.type === "increase") {
           await core
-            .connect(router)
+            .connect(alice)
             .increasePosition(
               positionId,
               op.amount,
@@ -10944,7 +9490,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
             );
           currentQuantity += op.amount;
         } else {
-          await core.connect(router).decreasePosition(positionId, op.amount, 0);
+          await core.connect(alice).decreasePosition(positionId, op.amount, 0);
           currentQuantity -= op.amount;
         }
 
@@ -10957,7 +9503,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
   describe("Position Burning via Core", function () {
     it("should burn position when Core.closePosition is called", async function () {
-      const { core, position, router, alice, marketId } = await loadFixture(
+      const { core, position, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -10971,7 +9517,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -10981,7 +9527,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -10996,7 +9542,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       expect(await position.ownerOf(positionId)).to.equal(alice.address);
 
       // Close position
-      await expect(core.connect(router).closePosition(positionId, 0))
+      await expect(core.connect(alice).closePosition(positionId, 0))
         .to.emit(position, "PositionBurned")
         .withArgs(positionId, alice.address)
         .and.to.emit(core, "PositionClosed");
@@ -11013,7 +9559,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
     });
 
     it("should burn position when decreased to zero", async function () {
-      const { core, position, router, alice, marketId } = await loadFixture(
+      const { core, position, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -11027,7 +9573,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -11037,7 +9583,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -11052,7 +9598,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       // Decrease to zero (should burn)
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .decreasePosition(positionId, positionData.quantity, 0)
       )
         .to.emit(position, "PositionBurned")
@@ -11074,7 +9620,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
     });
 
     it("should handle burning multiple positions", async function () {
-      const { core, position, router, alice, marketId } = await loadFixture(
+      const { core, position, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -11090,7 +9636,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
         };
 
         const positionId = await core
-          .connect(router)
+          .connect(alice)
           .openPosition.staticCall(
             alice.address,
             params.marketId,
@@ -11100,7 +9646,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
             params.maxCost
           );
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             params.marketId,
@@ -11116,7 +9662,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
       // Close all positions
       for (const positionId of positions) {
-        await core.connect(router).closePosition(positionId, 0);
+        await core.connect(alice).closePosition(positionId, 0);
       }
 
       expect(await position.balanceOf(alice.address)).to.equal(0);
@@ -11132,7 +9678,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
   describe("Position State Consistency", function () {
     it("should maintain consistent state across Core operations", async function () {
-      const { core, position, router, alice, marketId } = await loadFixture(
+      const { core, position, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -11146,7 +9692,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -11156,7 +9702,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -11172,7 +9718,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
       // Increase position
       await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(
           positionId,
           ethers.parseUnits("1", 6),
@@ -11184,14 +9730,14 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
       // Decrease position
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(positionId, ethers.parseUnits("2", 6), 0);
 
       positionData = await position.getPosition(positionId);
       expect(positionData.quantity).to.equal(ethers.parseUnits("2", 6));
 
       // Close position
-      await core.connect(router).closePosition(positionId, 0);
+      await core.connect(alice).closePosition(positionId, 0);
 
       // Verify position is completely removed
       await expect(
@@ -11200,7 +9746,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
     });
 
     it("should handle Core operations with different users", async function () {
-      const { core, position, router, alice, bob, charlie, marketId } =
+      const { core, position, alice, bob, charlie, marketId } =
         await loadFixture(realPositionMarketFixture);
 
       const users = [alice, bob, charlie];
@@ -11217,7 +9763,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
         };
 
         const positionId = await core
-          .connect(router)
+          .connect(alice)
           .openPosition.staticCall(
             users[i].address,
             params.marketId,
@@ -11227,7 +9773,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
             params.maxCost
           );
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             users[i].address,
             params.marketId,
@@ -11254,7 +9800,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
       // Alice increases her position
       await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(
           positionIds[0],
           ethers.parseUnits("0.5", 6),
@@ -11262,11 +9808,11 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
         );
 
       // Bob closes his position
-      await core.connect(router).closePosition(positionIds[1], 0);
+      await core.connect(alice).closePosition(positionIds[1], 0);
 
       // Charlie decreases his position
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(positionIds[2], ethers.parseUnits("0.5", 6), 0);
 
       // Verify final states
@@ -11288,13 +9834,13 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
   describe("Error Handling and Edge Cases", function () {
     it("should handle Core operations on non-existent positions", async function () {
-      const { core, router } = await loadFixture(realPositionMarketFixture);
+      const { core, alice } = await loadFixture(realPositionMarketFixture);
 
       const nonExistentId = 999;
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             nonExistentId,
             ethers.parseUnits("1", 6),
@@ -11304,17 +9850,18 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .decreasePosition(nonExistentId, ethers.parseUnits("1", 6), 0)
       ).to.be.reverted;
 
-      await expect(core.connect(router).closePosition(nonExistentId, 0)).to.be
+      await expect(core.connect(alice).closePosition(nonExistentId, 0)).to.be
         .reverted;
     });
 
     it("should handle position operations during market state changes", async function () {
-      const { core, position, router, keeper, alice, marketId } =
-        await loadFixture(realPositionMarketFixture);
+      const { core, position, keeper, alice, marketId } = await loadFixture(
+        realPositionMarketFixture
+      );
 
       // Open position
       const params = {
@@ -11326,7 +9873,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -11336,7 +9883,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -11352,7 +9899,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       // Operations should fail when paused
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             positionId,
             ethers.parseUnits("0.5", 6),
@@ -11365,7 +9912,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             positionId,
             ethers.parseUnits("0.5", 6),
@@ -11375,7 +9922,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
     });
 
     it("should maintain position integrity during sequential operations", async function () {
-      const { core, position, router, alice, marketId } = await loadFixture(
+      const { core, position, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -11389,7 +9936,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -11399,7 +9946,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -11413,7 +9960,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       const operations = [
         () =>
           core
-            .connect(router)
+            .connect(alice)
             .increasePosition(
               positionId,
               ethers.parseUnits("0.001", 6),
@@ -11421,11 +9968,11 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
             ),
         () =>
           core
-            .connect(router)
+            .connect(alice)
             .decreasePosition(positionId, ethers.parseUnits("0.0005", 6), 0),
         () =>
           core
-            .connect(router)
+            .connect(alice)
             .increasePosition(
               positionId,
               ethers.parseUnits("0.002", 6),
@@ -11433,7 +9980,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
             ),
         () =>
           core
-            .connect(router)
+            .connect(alice)
             .decreasePosition(positionId, ethers.parseUnits("0.0015", 6), 0),
       ];
 
@@ -11620,8 +10167,9 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
     });
 
     it("should handle transfers of multiple positions", async function () {
-      const { core, position, router, alice, bob, marketId } =
-        await loadFixture(realPositionMarketFixture);
+      const { core, position, alice, bob, marketId } = await loadFixture(
+        realPositionMarketFixture
+      );
 
       // Create multiple positions for Alice
       const positionIds = [];
@@ -11635,7 +10183,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
         };
 
         const positionId = await core
-          .connect(router)
+          .connect(alice)
           .openPosition.staticCall(
             alice.address,
             params.marketId,
@@ -11645,7 +10193,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
             params.maxCost
           );
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             params.marketId,
@@ -11970,8 +10518,9 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
 
   describe("Transfer Impact on Position Operations", function () {
     it("should allow new owner to manage transferred position", async function () {
-      const { core, position, router, alice, bob, marketId } =
-        await loadFixture(realPositionMarketFixture);
+      const { core, position, alice, bob, marketId } = await loadFixture(
+        realPositionMarketFixture
+      );
 
       // Alice opens position
       const params = {
@@ -11983,7 +10532,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -11993,7 +10542,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -12011,7 +10560,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
       // Bob should be able to manage the position
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             positionId,
             ethers.parseUnits("1", 6),
@@ -12021,11 +10570,11 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .decreasePosition(positionId, ethers.parseUnits("0.5", 6), 0)
       ).to.emit(position, "PositionUpdated");
 
-      await expect(core.connect(router).closePosition(positionId, 0)).to.emit(
+      await expect(core.connect(alice).closePosition(positionId, 0)).to.emit(
         position,
         "PositionBurned"
       );
@@ -12035,8 +10584,9 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
     });
 
     it("should prevent original owner from managing transferred position", async function () {
-      const { core, position, router, alice, bob, marketId } =
-        await loadFixture(realPositionMarketFixture);
+      const { core, position, alice, bob, marketId } = await loadFixture(
+        realPositionMarketFixture
+      );
 
       // Alice opens position
       const params = {
@@ -12048,7 +10598,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -12058,7 +10608,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -12087,8 +10637,9 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
     });
 
     it("should handle position transfer during active operations", async function () {
-      const { core, position, router, alice, bob, marketId } =
-        await loadFixture(realPositionMarketFixture);
+      const { core, position, alice, bob, marketId } = await loadFixture(
+        realPositionMarketFixture
+      );
 
       // Alice opens position
       const params = {
@@ -12100,7 +10651,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -12110,7 +10661,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -12122,7 +10673,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
 
       // Increase position
       await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(
           positionId,
           ethers.parseUnits("2", 6),
@@ -12146,7 +10697,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
 
       // Bob can continue operations
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(positionId, ethers.parseUnits("3", 6), 0);
 
       positionData = await position.getPosition(positionId);
@@ -12202,7 +10753,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
   describe("Large Volume Trading", function () {
     it("Should handle institutional-size trades efficiently", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createHighLiquidityMarket
       );
 
@@ -12223,7 +10774,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       );
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -12251,7 +10802,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
     });
 
     it("Should support multiple large concurrent positions", async function () {
-      const { core, router, alice, bob, charlie, marketId, mockPosition } =
+      const { core, alice, bob, charlie, marketId, mockPosition } =
         await loadFixture(createHighLiquidityMarket);
 
       const traders = [alice, bob, charlie];
@@ -12271,7 +10822,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
         };
 
         await core
-          .connect(router)
+          .connect(trader)
           .openPosition(
             trader.address,
             tradeParams.marketId,
@@ -12309,7 +10860,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
     });
 
     it("Should maintain price stability under high volume", async function () {
-      const { core, router, alice, bob, marketId } = await loadFixture(
+      const { core, alice, bob, marketId } = await loadFixture(
         createHighLiquidityMarket
       );
 
@@ -12335,7 +10886,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
         };
 
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -12371,7 +10922,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
   describe("Market Maker Activity", function () {
     it("Should support high-frequency market making", async function () {
-      const { core, router, alice, bob, marketId } = await loadFixture(
+      const { core, alice, bob, marketId } = await loadFixture(
         createHighLiquidityMarket
       );
 
@@ -12387,7 +10938,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
         // Place bid
         const bidTx = await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -12400,7 +10951,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
         // Place ask (counter-trade)
         const askTx = await core
-          .connect(router)
+          .connect(bob)
           .openPosition(
             bob.address,
             marketId,
@@ -12424,13 +10975,13 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
     });
 
     it("Should handle rapid position adjustments", async function () {
-      const { core, router, alice, marketId, mockPosition } = await loadFixture(
+      const { core, alice, marketId, mockPosition } = await loadFixture(
         createHighLiquidityMarket
       );
 
       // Open initial large position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -12450,7 +11001,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
         if (i % 2 === 0) {
           // Increase position
           await core
-            .connect(router)
+            .connect(alice)
             .increasePosition(
               positionId,
               adjustmentSize,
@@ -12459,7 +11010,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
         } else {
           // Decrease position
           await core
-            .connect(router)
+            .connect(alice)
             .decreasePosition(positionId, adjustmentSize, 0);
         }
       }
@@ -12479,7 +11030,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
   describe("Stress Testing Under Load", function () {
     it("Should maintain performance under concurrent high-volume trades", async function () {
-      const { core, router, alice, bob, charlie, marketId } = await loadFixture(
+      const { core, alice, bob, charlie, marketId } = await loadFixture(
         createHighLiquidityMarket
       );
 
@@ -12493,7 +11044,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
       for (let i = 0; i < concurrentTrades; i++) {
         const tradePromise = core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -12526,14 +11077,14 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
     });
 
     it("Should handle whale trade followed by many small trades", async function () {
-      const { core, router, alice, bob, marketId } = await loadFixture(
+      const { core, alice, bob, marketId } = await loadFixture(
         createHighLiquidityMarket
       );
 
       // Whale trade: $100 position (large for testing but within chunk limits)
       const whaleQuantity = ethers.parseUnits("100", USDC_DECIMALS);
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -12556,7 +11107,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
       for (let i = 0; i < smallTrades; i++) {
         await core
-          .connect(router)
+          .connect(bob)
           .openPosition(
             bob.address,
             marketId,
@@ -12586,8 +11137,9 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
   describe("High Liquidity Market Settlement", function () {
     it("Should settle high-volume market efficiently", async function () {
-      const { core, keeper, router, alice, bob, charlie, marketId } =
-        await loadFixture(createHighLiquidityMarket);
+      const { core, keeper, alice, bob, charlie, marketId } = await loadFixture(
+        createHighLiquidityMarket
+      );
 
       // Create moderate volume before settlement - reduced to prevent LazyFactorOverflow
       const traders = [alice, bob, charlie];
@@ -12597,7 +11149,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       for (let i = 0; i < traders.length; i++) {
         const trader = traders[i];
         for (let j = 0; j < positionsPerTrader; j++) {
-          await core.connect(router).openPosition(
+          await core.connect(trader).openPosition(
             trader.address,
             marketId,
             10 + j * 10, // Spread out more
@@ -12636,16 +11188,8 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
     });
 
     it("Should handle mass claiming after high-volume settlement", async function () {
-      const {
-        core,
-        keeper,
-        router,
-        alice,
-        bob,
-        charlie,
-        marketId,
-        mockPosition,
-      } = await loadFixture(createHighLiquidityMarket);
+      const { core, keeper, alice, bob, charlie, marketId, mockPosition } =
+        await loadFixture(createHighLiquidityMarket);
 
       // Create many positions
       const traders = [alice, bob, charlie];
@@ -12655,7 +11199,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       for (let i = 0; i < 9; i++) {
         // Reduced from 15 to 9
         const trader = traders[i % traders.length];
-        const tx = await core.connect(router).openPosition(
+        const tx = await core.connect(trader).openPosition(
           trader.address,
           marketId,
           10 + i * 3, // Ensure lower < upper
@@ -12685,7 +11229,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
       for (const positionId of positionIds) {
         try {
-          const claimTx = await core.connect(router).claimPayout(positionId);
+          const claimTx = await core.connect(alice).claimPayout(positionId);
           const claimReceipt = await claimTx.wait();
           totalClaimGas += claimReceipt!.gasUsed;
 
@@ -12731,7 +11275,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
   describe("High Liquidity Edge Cases", function () {
     it("Should handle maximum position sizes gracefully", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createHighLiquidityMarket
       );
 
@@ -12754,7 +11298,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
         // If it doesn't revert, the high liquidity is working
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -12773,7 +11317,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
     });
 
     it("Should maintain precision under extreme volumes", async function () {
-      const { core, router, alice, bob, marketId } = await loadFixture(
+      const { core, alice, bob, marketId } = await loadFixture(
         createHighLiquidityMarket
       );
 
@@ -12785,7 +11329,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
       for (let i = 0; i < extremeTrades; i++) {
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -12837,7 +11381,7 @@ _Category: TypeScript Tests | Size: 1B | Lines:
 
 ## test/e2e//scenarios/normal-lifecycle.spec.ts
 
-_Category: TypeScript Tests | Size: 13KB | Lines: 
+_Category: TypeScript Tests | Size: 12KB | Lines: 
 
 ```typescript
 import { expect } from "chai";
@@ -12880,7 +11424,6 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
     it("Should handle complete market lifecycle with multiple participants", async function () {
       const {
         core,
-        router,
         keeper,
         alice,
         bob,
@@ -12917,7 +11460,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       // Alice creates multiple positions
       for (let i = 0; i < 3; i++) {
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -12938,7 +11481,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
 
       // Bob creates overlapping positions
       await core
-        .connect(router)
+        .connect(bob)
         .openPosition(
           bob.address,
           marketId,
@@ -12950,7 +11493,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
 
       // Charlie creates focused position
       await core
-        .connect(router)
+        .connect(charlie)
         .openPosition(
           charlie.address,
           marketId,
@@ -12966,13 +11509,13 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
 
       // Bob increases his position
       await core
-        .connect(router)
+        .connect(bob)
         .increasePosition(bobPositionId, MEDIUM_QUANTITY, LARGE_COST);
 
       // Alice decreases one of her positions
       const alicePositionId = alicePositionList[0];
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(alicePositionId, SMALL_QUANTITY, 0);
 
       // Phase 6: Some users exit early
@@ -12986,7 +11529,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
         charlie.address
       );
 
-      await core.connect(router).closePosition(charliePositions[0], 0);
+      await core.connect(charlie).closePosition(charliePositions[0], 0);
 
       const charlieFinalBalance = await paymentToken.balanceOf(charlie.address);
       expect(charlieFinalBalance).to.be.gt(charlieInitialBalance);
@@ -13007,7 +11550,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       );
       const bobBalanceBefore = await paymentToken.balanceOf(bob.address);
 
-      await core.connect(router).claimPayout(bobFinalPositions[0]);
+      await core.connect(bob).claimPayout(bobFinalPositions[0]);
 
       const bobBalanceAfter = await paymentToken.balanceOf(bob.address);
       expect(bobBalanceAfter).to.be.gt(bobBalanceBefore);
@@ -13021,7 +11564,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       for (const positionId of aliceFinalPositions) {
         try {
           const balanceBefore = await paymentToken.balanceOf(alice.address);
-          await core.connect(router).claimPayout(positionId);
+          await core.connect(alice).claimPayout(positionId);
           const balanceAfter = await paymentToken.balanceOf(alice.address);
           if (balanceAfter > balanceBefore) {
             aliceClaimedAny = true;
@@ -13055,7 +11598,6 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
     it("Should handle single participant market", async function () {
       const {
         core,
-        router,
         keeper,
         alice,
         paymentToken,
@@ -13069,7 +11611,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
 
       // Alice is the only participant
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -13086,7 +11628,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       const positions = await mockPosition.getPositionsByOwner(alice.address);
       const balanceBefore = await paymentToken.balanceOf(alice.address);
 
-      await core.connect(router).claimPayout(positions[0]);
+      await core.connect(alice).claimPayout(positions[0]);
 
       const balanceAfter = await paymentToken.balanceOf(alice.address);
       expect(balanceAfter).to.be.gt(balanceBefore);
@@ -13095,16 +11637,8 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
 
   describe("Market Edge Cases", function () {
     it("Should handle last-minute trading rush", async function () {
-      const {
-        core,
-        router,
-        alice,
-        bob,
-        charlie,
-        marketId,
-        startTime,
-        endTime,
-      } = await loadFixture(createMarketLifecycleFixture);
+      const { core, alice, bob, charlie, marketId, startTime, endTime } =
+        await loadFixture(createMarketLifecycleFixture);
 
       await time.increaseTo(startTime + 1);
 
@@ -13115,7 +11649,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       const participants = [alice, bob, charlie];
       const promises = participants.map((participant, i) =>
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             participant.address,
             marketId,
@@ -13131,7 +11665,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
     });
 
     it("Should handle market with extreme tick concentration", async function () {
-      const { core, router, alice, bob, charlie, marketId, startTime } =
+      const { core, alice, bob, charlie, marketId, startTime } =
         await loadFixture(createMarketLifecycleFixture);
 
       await time.increaseTo(startTime + 1);
@@ -13141,7 +11675,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
 
       for (const participant of participants) {
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             participant.address,
             marketId,
@@ -13158,22 +11692,14 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
     });
 
     it("Should handle mixed trading strategies", async function () {
-      const {
-        core,
-        router,
-        alice,
-        bob,
-        charlie,
-        marketId,
-        startTime,
-        mockPosition,
-      } = await loadFixture(createMarketLifecycleFixture);
+      const { core, alice, bob, charlie, marketId, startTime, mockPosition } =
+        await loadFixture(createMarketLifecycleFixture);
 
       await time.increaseTo(startTime + 1);
 
       // Alice: Wide range strategy
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -13185,7 +11711,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
 
       // Bob: Focused strategy
       await core
-        .connect(router)
+        .connect(bob)
         .openPosition(
           bob.address,
           marketId,
@@ -13197,7 +11723,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
 
       // Charlie: Edge strategy
       await core
-        .connect(router)
+        .connect(charlie)
         .openPosition(
           charlie.address,
           marketId,
@@ -13224,14 +11750,14 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
 
   describe("Market Stress Scenarios", function () {
     it("Should handle high-frequency position adjustments", async function () {
-      const { core, router, alice, mockPosition, marketId, startTime } =
+      const { core, alice, mockPosition, marketId, startTime } =
         await loadFixture(createMarketLifecycleFixture);
 
       await time.increaseTo(startTime + 1);
 
       // Create initial position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -13247,10 +11773,10 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       // Rapidly adjust position multiple times
       for (let i = 0; i < 5; i++) {
         await core
-          .connect(router)
+          .connect(alice)
           .increasePosition(positionId, SMALL_QUANTITY, MEDIUM_COST);
         await core
-          .connect(router)
+          .connect(alice)
           .decreasePosition(positionId, SMALL_QUANTITY / 2n, 0);
       }
 
@@ -13260,7 +11786,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
     });
 
     it("Should maintain system integrity under maximum load", async function () {
-      const { core, router, alice, bob, charlie, marketId, startTime } =
+      const { core, alice, bob, charlie, marketId, startTime } =
         await loadFixture(createMarketLifecycleFixture);
 
       await time.increaseTo(startTime + 1);
@@ -13271,7 +11797,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       for (let i = 0; i < 10; i++) {
         const participant = participants[i % 3];
         await core
-          .connect(router)
+          .connect(participant)
           .openPosition(
             participant.address,
             marketId,
@@ -13353,7 +11879,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
 
   describe("High Frequency Trading", function () {
     it("Should handle rapid fire trading", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createDayTradingMarket
       );
 
@@ -13380,7 +11906,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
           quantity
         );
 
-        const tx = await core.connect(router).openPosition(
+        const tx = await core.connect(alice).openPosition(
           alice.address,
           marketId,
           lowerTick,
@@ -13418,7 +11944,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
     });
 
     it("Should handle scalping strategy", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createDayTradingMarket
       );
 
@@ -13440,7 +11966,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
         );
 
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -13456,7 +11982,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
         if (i > 10 && i % 5 === 0) {
           const positionToClose =
             positions[Math.floor(Math.random() * (positions.length - 5))];
-          await core.connect(router).closePosition(positionToClose, 0);
+          await core.connect(alice).closePosition(positionToClose, 0);
         }
       }
 
@@ -13481,7 +12007,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
     });
 
     it("Should handle algorithmic trading patterns", async function () {
-      const { core, router, alice, bob, charlie, marketId } = await loadFixture(
+      const { core, alice, bob, charlie, marketId } = await loadFixture(
         createDayTradingMarket
       );
 
@@ -13514,7 +12040,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
           );
 
           const tx = await core
-            .connect(router)
+            .connect(alice)
             .openPosition(
               algo.trader.address,
               marketId,
@@ -13558,7 +12084,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
 
   describe("Day Trading Position Management", function () {
     it("Should handle rapid position adjustments", async function () {
-      const { core, router, alice, marketId, mockPosition } = await loadFixture(
+      const { core, alice, marketId, mockPosition } = await loadFixture(
         createDayTradingMarket
       );
 
@@ -13570,7 +12096,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
         SWING_SIZE
       );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(alice.address, marketId, 30, 70, SWING_SIZE, initialCost);
 
       // Get actual position ID from MockPosition
@@ -13589,12 +12115,12 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
               adjustmentSize
             );
             await core
-              .connect(router)
+              .connect(alice)
               .increasePosition(positionId, adjustmentSize, increaseCost);
           } else {
             // Decrease position
             await core
-              .connect(router)
+              .connect(alice)
               .decreasePosition(positionId, adjustmentSize, 0);
           }
         } catch (error: any) {
@@ -13633,7 +12159,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
     });
 
     it("Should handle stop-loss and take-profit patterns", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createDayTradingMarket
       );
 
@@ -13657,7 +12183,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
           DAY_TRADE_SIZE
         );
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -13673,7 +12199,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
         if (i % 3 === 0) {
           // Add some noise to market
           await core
-            .connect(router)
+            .connect(alice)
             .openPosition(
               alice.address,
               marketId,
@@ -13696,14 +12222,14 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
           openCost - closeProceeds > stopLossThreshold
         ) {
           // Stop loss
-          await core.connect(router).closePosition(positionId, 0);
+          await core.connect(alice).closePosition(positionId, 0);
           stoppedOut++;
         } else if (
           closeProceeds > openCost &&
           closeProceeds - openCost > takeProfitThreshold
         ) {
           // Take profit
-          await core.connect(router).closePosition(positionId, 0);
+          await core.connect(alice).closePosition(positionId, 0);
           tookProfit++;
         }
 
@@ -13723,7 +12249,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
     });
 
     it("Should handle portfolio rebalancing", async function () {
-      const { core, router, alice, marketId, mockPosition } = await loadFixture(
+      const { core, alice, marketId, mockPosition } = await loadFixture(
         createDayTradingMarket
       );
 
@@ -13752,7 +12278,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
             allocation
           );
           await core
-            .connect(router)
+            .connect(alice)
             .openPosition(
               alice.address,
               marketId,
@@ -13788,7 +12314,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
 
       // Reduce position 1
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(positionIds[0], rebalanceAmount, 0);
 
       // Increase position 2
@@ -13797,7 +12323,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
         rebalanceAmount
       );
       await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(positionIds[1], rebalanceAmount, increaseCost);
 
       console.log("Portfolio rebalanced");
@@ -13817,7 +12343,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
 
   describe("Market Stress Under Day Trading", function () {
     it("Should handle overlapping ranges with high activity", async function () {
-      const { core, router, alice, bob, charlie, marketId } = await loadFixture(
+      const { core, alice, bob, charlie, marketId } = await loadFixture(
         createDayTradingMarket
       );
 
@@ -13845,7 +12371,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
           );
 
           const tx = await core
-            .connect(router)
+            .connect(alice)
             .openPosition(
               trader.address,
               marketId,
@@ -13893,7 +12419,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
     });
 
     it("Should maintain performance under sustained high volume", async function () {
-      const { core, router, alice, bob, charlie, marketId } = await loadFixture(
+      const { core, alice, bob, charlie, marketId } = await loadFixture(
         createDayTradingMarket
       );
 
@@ -13928,7 +12454,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
           );
 
           const tx = await core
-            .connect(router)
+            .connect(alice)
             .openPosition(
               trader.address,
               marketId,
@@ -13981,16 +12507,8 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
     });
 
     it("Should handle end-of-day settlement rush", async function () {
-      const {
-        core,
-        keeper,
-        router,
-        alice,
-        bob,
-        charlie,
-        marketId,
-        mockPosition,
-      } = await loadFixture(createDayTradingMarket);
+      const { core, keeper, alice, bob, charlie, marketId, mockPosition } =
+        await loadFixture(createDayTradingMarket);
 
       const traders = [alice, bob, charlie];
       const dayTradingPositions = 20; // Reduced from 50 to prevent LazyFactorOverflow
@@ -14017,7 +12535,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
         );
 
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             trader.address,
             marketId,
@@ -14045,7 +12563,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
         try {
           const position = await mockPosition.getPosition(positionId);
           if (position.quantity > 0) {
-            const tx = await core.connect(router).closePosition(positionId, 0);
+            const tx = await core.connect(alice).closePosition(positionId, 0);
             const receipt = await tx.wait();
             rushGasUsed += receipt!.gasUsed;
           }
@@ -14081,7 +12599,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
 
   describe("Day Trading Error Recovery", function () {
     it("Should handle failed trades gracefully during high activity", async function () {
-      const { core, router, alice, bob, marketId } = await loadFixture(
+      const { core, alice, bob, marketId } = await loadFixture(
         createDayTradingMarket
       );
 
@@ -14109,7 +12627,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
               : actualCost; // Correct cost (should succeed)
 
           await core
-            .connect(router)
+            .connect(alice)
             .openPosition(
               alice.address,
               marketId,
@@ -14147,7 +12665,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
     });
 
     it("Should maintain state consistency during concurrent operations", async function () {
-      const { core, router, alice, bob, charlie, marketId, mockPosition } =
+      const { core, alice, bob, charlie, marketId, mockPosition } =
         await loadFixture(createDayTradingMarket);
 
       // Create initial positions
@@ -14162,7 +12680,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
           SWING_SIZE
         );
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             traders[i].address,
             marketId,
@@ -14191,7 +12709,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
           );
           operations.push(
             core
-              .connect(router)
+              .connect(alice)
               .increasePosition(positionId, DAY_TRADE_SIZE, increaseCost)
           );
         } else if (opType === 1 && i < initialPositions.length) {
@@ -14199,7 +12717,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
           const positionId = initialPositions[i % initialPositions.length];
           operations.push(
             core
-              .connect(router)
+              .connect(alice)
               .decreasePosition(positionId, DAY_TRADE_SIZE / 2n, 0)
           );
         } else {
@@ -14216,7 +12734,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
             );
             operations.push(
               core
-                .connect(router)
+                .connect(alice)
                 .openPosition(
                   trader.address,
                   marketId,
@@ -14773,8 +13291,7 @@ export const MAX_FACTOR = ethers.parseEther("10000");
  * Unit fixture - 라이브러리만
  */
 export async function unitFixture() {
-  const [deployer, keeper, router, alice, bob, charlie] =
-    await ethers.getSigners();
+  const [deployer, keeper, alice, bob, charlie] = await ethers.getSigners();
 
   // Deploy libraries
   const FixedPointMathUFactory = await ethers.getContractFactory(
@@ -14797,7 +13314,6 @@ export async function unitFixture() {
     lazyMulSegmentTree,
     deployer,
     keeper,
-    router,
     alice,
     bob,
     charlie,
@@ -14809,7 +13325,7 @@ export async function unitFixture() {
  */
 export async function coreFixture() {
   const baseFixture = await unitFixture();
-  const { keeper, router, alice, bob, charlie } = baseFixture;
+  const { keeper, alice, bob, charlie } = baseFixture;
 
   // Deploy USDC token
   const MockERC20Factory = await ethers.getContractFactory("MockERC20");
@@ -14848,7 +13364,6 @@ export async function coreFixture() {
   // Setup contracts
   await paymentToken.mint(await core.getAddress(), INITIAL_SUPPLY);
   await mockPosition.setCore(await core.getAddress());
-  await core.connect(keeper).setRouterContract(router.address);
 
   // Approve tokens
   for (const user of users) {
@@ -14975,7 +13490,7 @@ import {
  */
 export async function positionFixture() {
   const baseFixture = await unitFixture();
-  const { keeper, router, alice, bob, charlie } = baseFixture;
+  const { keeper, alice, bob, charlie } = baseFixture;
 
   // Deploy USDC token
   const MockERC20Factory = await ethers.getContractFactory("MockERC20");
@@ -15016,7 +13531,6 @@ export async function positionFixture() {
 
   // Setup contracts
   await paymentToken.mint(await core.getAddress(), INITIAL_SUPPLY);
-  await core.connect(keeper).setRouterContract(router.address);
 
   // Approve tokens
   for (const user of users) {
@@ -15038,7 +13552,7 @@ export async function positionFixture() {
  */
 export async function realPositionFixture() {
   const baseFixture = await unitFixture();
-  const { keeper, router, alice, bob, charlie } = baseFixture;
+  const { keeper, alice, bob, charlie } = baseFixture;
 
   // Deploy USDC token
   const MockERC20Factory = await ethers.getContractFactory("MockERC20");
@@ -15098,7 +13612,6 @@ export async function realPositionFixture() {
 
   // Setup contracts
   await paymentToken.mint(await core.getAddress(), INITIAL_SUPPLY);
-  await core.connect(keeper).setRouterContract(router.address);
 
   // Approve tokens
   for (const user of users) {
@@ -15302,12 +13815,9 @@ export async function createRealTestPosition(
   upperTick: number = 20,
   quantity: bigint = ethers.parseUnits("0.01", 6)
 ) {
-  // Ensure core and router exist
+  // Ensure core exists
   if (!contracts.core) {
     throw new Error("Core contract not found in contracts");
-  }
-  if (!contracts.router) {
-    throw new Error("Router contract not found in contracts");
   }
 
   const params = {
@@ -15318,9 +13828,9 @@ export async function createRealTestPosition(
     maxCost: ethers.parseUnits("10", 6), // High max cost
   };
 
-  // Call through router (authorized caller) instead of directly to core
+  // Call directly to core (no router needed)
   const positionId = await contracts.core
-    .connect(contracts.router)
+    .connect(user)
     .openPosition.staticCall(
       user.address,
       params.marketId,
@@ -15330,7 +13840,7 @@ export async function createRealTestPosition(
       params.maxCost
     );
   await contracts.core
-    .connect(contracts.router)
+    .connect(user)
     .openPosition(
       user.address,
       params.marketId,
@@ -15792,13 +14302,14 @@ describe(`${INTEGRATION_TAG} Market Lifecycle`, function () {
     expect(market3.isActive).to.be.true;
   });
 
-  it("Should handle complete position lifecycle", async function () {
-    const { core, keeper, router, alice, mockPosition, marketId } =
-      await loadFixture(createActiveMarketFixture);
+  it("Should handle complete positio  n lifecycle", async function () {
+    const { core, keeper, alice, mockPosition, marketId } = await loadFixture(
+      createActiveMarketFixture
+    );
 
     // 1. Open position
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -15813,28 +14324,29 @@ describe(`${INTEGRATION_TAG} Market Lifecycle`, function () {
 
     // 2. Increase position
     await core
-      .connect(router)
+      .connect(alice)
       .increasePosition(positionId, MEDIUM_QUANTITY, MEDIUM_COST);
 
     // 3. Decrease position partially
     await expect(
-      core.connect(router).decreasePosition(positionId, MEDIUM_QUANTITY, 0)
+      core.connect(alice).decreasePosition(positionId, MEDIUM_QUANTITY, 0)
     ).to.not.be.reverted;
 
     // 4. Close remaining position
-    await core.connect(router).closePosition(positionId, 0);
+    await core.connect(alice).closePosition(positionId, 0);
 
     // Position should be burned
     expect(await mockPosition.balanceOf(alice.address)).to.equal(0);
   });
 
   it("Should handle position lifecycle with settlement", async function () {
-    const { core, keeper, router, alice, mockPosition, marketId } =
-      await loadFixture(createActiveMarketFixture);
+    const { core, keeper, alice, mockPosition, marketId } = await loadFixture(
+      createActiveMarketFixture
+    );
 
     // 1. Open position
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -15851,7 +14363,7 @@ describe(`${INTEGRATION_TAG} Market Lifecycle`, function () {
     await core.connect(keeper).settleMarket(marketId, 50);
 
     // 3. Claim payout
-    await expect(core.connect(router).claimPayout(positionId)).to.emit(
+    await expect(core.connect(alice).claimPayout(positionId)).to.emit(
       core,
       "PositionClaimed"
     );
@@ -16012,7 +14524,7 @@ import { INTEGRATION_TAG } from "../../helpers/tags";
 describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
   describe("Complete Position Lifecycle", function () {
     it("should handle full position lifecycle: create -> modify -> transfer -> close", async function () {
-      const { core, position, router, alice, bob, charlie, marketId } =
+      const { core, position, alice, bob, charlie, marketId } =
         await loadFixture(realPositionMarketFixture);
 
       // Phase 1: Alice creates position
@@ -16025,7 +14537,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           initialParams.marketId,
@@ -16037,7 +14549,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             initialParams.marketId,
@@ -16069,7 +14581,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
       const increaseAmount = ethers.parseUnits("2", 6);
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             positionId,
             increaseAmount,
@@ -16089,7 +14601,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
       // Phase 3: Alice modifies position (decrease)
       const decreaseAmount = ethers.parseUnits("1.5", 6);
       await expect(
-        core.connect(router).decreasePosition(positionId, decreaseAmount, 0)
+        core.connect(alice).decreasePosition(positionId, decreaseAmount, 0)
       )
         .to.emit(position, "PositionUpdated")
         .withArgs(
@@ -16117,7 +14629,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
       // Phase 5: Bob modifies the position
       await expect(
         core
-          .connect(router)
+          .connect(bob)
           .increasePosition(
             positionId,
             ethers.parseUnits("1", 6),
@@ -16135,7 +14647,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
       expect(await position.ownerOf(positionId)).to.equal(charlie.address);
 
       // Phase 7: Charlie closes the position
-      await expect(core.connect(router).closePosition(positionId, 0))
+      await expect(core.connect(charlie).closePosition(positionId, 0))
         .to.emit(position, "PositionBurned")
         .withArgs(positionId, charlie.address);
 
@@ -16156,7 +14668,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
     });
 
     it("should handle multiple positions with complex interactions", async function () {
-      const { core, position, router, alice, bob, charlie, marketId } =
+      const { core, position, alice, bob, charlie, marketId } =
         await loadFixture(realPositionMarketFixture);
 
       const positionIds = [];
@@ -16173,7 +14685,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
         };
 
         const positionId = await core
-          .connect(router)
+          .connect(users[i])
           .openPosition.staticCall(
             users[i].address,
             params.marketId,
@@ -16183,7 +14695,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
             params.maxCost
           );
         await core
-          .connect(router)
+          .connect(users[i])
           .openPosition(
             users[i].address,
             params.marketId,
@@ -16206,7 +14718,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
       // Complex interaction sequence
       // 1. Alice increases her position
       await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(
           positionIds[0],
           ethers.parseUnits("0.5", 6),
@@ -16229,11 +14741,11 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
 
       // 4. Charlie decreases his position
       await core
-        .connect(router)
+        .connect(charlie)
         .decreasePosition(positionIds[2], ethers.parseUnits("1", 6), 0);
 
       // 5. Alice closes one of her positions
-      await core.connect(router).closePosition(positionIds[0], 0);
+      await core.connect(alice).closePosition(positionIds[0], 0);
 
       // 6. Alice transfers her remaining position to Charlie
       await position
@@ -16253,8 +14765,8 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
       expect(charliePositions).to.include(positionIds[2]);
 
       // 7. Charlie closes all remaining positions
-      await core.connect(router).closePosition(positionIds[1], 0);
-      await core.connect(router).closePosition(positionIds[2], 0);
+      await core.connect(alice).closePosition(positionIds[1], 0);
+      await core.connect(alice).closePosition(positionIds[2], 0);
 
       // All positions should be burned
       expect(await position.balanceOf(charlie.address)).to.equal(0);
@@ -16267,7 +14779,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
     });
 
     it("should handle position lifecycle with approval mechanisms", async function () {
-      const { core, position, router, alice, bob, charlie, marketId } =
+      const { core, position, alice, bob, charlie, marketId } =
         await loadFixture(realPositionMarketFixture);
 
       // Alice creates position
@@ -16280,7 +14792,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -16290,7 +14802,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -16325,7 +14837,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
 
       // Alice can now manage Charlie's position
       await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(
           positionId,
           ethers.parseUnits("1", 6),
@@ -16339,7 +14851,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
       expect(await position.ownerOf(positionId)).to.equal(bob.address);
 
       // Bob closes the position
-      await core.connect(router).closePosition(positionId, 0);
+      await core.connect(bob).closePosition(positionId, 0);
 
       // Verify cleanup
       expect(await position.balanceOf(bob.address)).to.equal(0);
@@ -16351,7 +14863,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
 
   describe("Position Lifecycle with Market Events", function () {
     it("should handle position operations during market state changes", async function () {
-      const { core, position, router, keeper, alice, bob, marketId } =
+      const { core, position, keeper, alice, bob, marketId } =
         await loadFixture(realPositionMarketFixture);
 
       // Create position
@@ -16364,7 +14876,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -16374,7 +14886,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -16386,7 +14898,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
 
       // Normal operations work
       await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(
           positionId,
           ethers.parseUnits("1", 6),
@@ -16399,7 +14911,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
       // Position operations should fail when paused
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             positionId,
             ethers.parseUnits("0.5", 6),
@@ -16409,12 +14921,12 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .decreasePosition(positionId, ethers.parseUnits("0.5", 6), 0)
       ).to.be.revertedWithCustomError(core, "ContractPaused");
 
       await expect(
-        core.connect(router).closePosition(positionId, 0)
+        core.connect(alice).closePosition(positionId, 0)
       ).to.be.revertedWithCustomError(core, "ContractPaused");
 
       // But transfers should still work (they don't go through Core)
@@ -16434,7 +14946,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
       // Operations should work again
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             positionId,
             ethers.parseUnits("0.5", 6),
@@ -16442,14 +14954,14 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
           )
       ).to.emit(position, "PositionUpdated");
 
-      await expect(core.connect(router).closePosition(positionId, 0)).to.emit(
+      await expect(core.connect(alice).closePosition(positionId, 0)).to.emit(
         position,
         "PositionBurned"
       );
     });
 
     it("should handle position operations with market resolution", async function () {
-      const { core, position, router, keeper, alice, bob, marketId } =
+      const { core, position, keeper, alice, bob, marketId } =
         await loadFixture(realPositionMarketFixture);
 
       // Create multiple positions
@@ -16464,7 +14976,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
         };
 
         const positionId = await core
-          .connect(router)
+          .connect(alice)
           .openPosition.staticCall(
             alice.address,
             params.marketId,
@@ -16474,7 +14986,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
             params.maxCost
           );
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             params.marketId,
@@ -16499,7 +15011,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
 
       // Positions should still be manageable
       await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(
           positionIds[0],
           ethers.parseUnits("0.5", 6),
@@ -16507,12 +15019,12 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
         );
 
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(positionIds[2], ethers.parseUnits("0.3", 6), 0);
 
       // Close some positions
-      await core.connect(router).closePosition(positionIds[0], 0);
-      await core.connect(router).closePosition(positionIds[1], 0);
+      await core.connect(alice).closePosition(positionIds[0], 0);
+      await core.connect(alice).closePosition(positionIds[1], 0);
 
       // Final state
       expect(await position.balanceOf(alice.address)).to.equal(1);
@@ -16522,15 +15034,16 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
       const finalData = await position.getPosition(positionIds[2]);
       expect(finalData.quantity).to.equal(ethers.parseUnits("0.7", 6));
 
-      await core.connect(router).closePosition(positionIds[2], 0);
+      await core.connect(alice).closePosition(positionIds[2], 0);
       expect(await position.balanceOf(alice.address)).to.equal(0);
     });
   });
 
   describe("Position Lifecycle Error Recovery", function () {
     it("should handle failed operations gracefully", async function () {
-      const { core, position, router, alice, bob, marketId } =
-        await loadFixture(realPositionMarketFixture);
+      const { core, position, alice, bob, marketId } = await loadFixture(
+        realPositionMarketFixture
+      );
 
       // Create position
       const params = {
@@ -16542,7 +15055,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -16552,7 +15065,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -16566,7 +15079,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
       const nonExistentId = 999;
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             nonExistentId,
             ethers.parseUnits("1", 6),
@@ -16592,7 +15105,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
       // Valid operations should still work
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             positionId,
             ethers.parseUnits("0.5", 6),
@@ -16610,7 +15123,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
     });
 
     it("should handle position operations with insufficient funds gracefully", async function () {
-      const { core, position, router, alice, marketId } = await loadFixture(
+      const { core, position, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -16624,7 +15137,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -16634,7 +15147,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -16647,7 +15160,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
       // Try to decrease more than available (should fail)
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .decreasePosition(positionId, ethers.parseUnits("2", 6), 0)
       ).to.be.reverted;
 
@@ -16658,7 +15171,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
       // Valid decrease should work
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .decreasePosition(positionId, ethers.parseUnits("0.5", 6), 0)
       ).to.emit(position, "PositionUpdated");
 
@@ -16668,7 +15181,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
     });
 
     it("should handle sequential position operations", async function () {
-      const { core, position, router, alice, bob, charlie, marketId } =
+      const { core, position, alice, bob, charlie, marketId } =
         await loadFixture(realPositionMarketFixture);
 
       // Create position with reasonable quantity
@@ -16681,7 +15194,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -16691,7 +15204,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -16705,7 +15218,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
       const operations = [
         () =>
           core
-            .connect(router)
+            .connect(alice)
             .increasePosition(
               positionId,
               ethers.parseUnits("1", 6),
@@ -16713,11 +15226,11 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
             ),
         () =>
           core
-            .connect(router)
+            .connect(alice)
             .decreasePosition(positionId, ethers.parseUnits("0.5", 6), 0),
         () =>
           core
-            .connect(router)
+            .connect(alice)
             .increasePosition(
               positionId,
               ethers.parseUnits("2", 6),
@@ -16725,7 +15238,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
             ),
         () =>
           core
-            .connect(router)
+            .connect(alice)
             .decreasePosition(positionId, ethers.parseUnits("1.5", 6), 0),
       ];
 
@@ -16745,15 +15258,16 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
       expect(await position.ownerOf(positionId)).to.equal(bob.address);
 
       // And closeable
-      await core.connect(router).closePosition(positionId, 0);
+      await core.connect(bob).closePosition(positionId, 0);
       expect(await position.balanceOf(bob.address)).to.equal(0);
     });
   });
 
   describe("Position Lifecycle with Complex Scenarios", function () {
     it("should handle position lifecycle with multiple markets", async function () {
-      const { core, position, router, alice, bob, marketId } =
-        await loadFixture(realPositionMarketFixture);
+      const { core, position, alice, bob, marketId } = await loadFixture(
+        realPositionMarketFixture
+      );
 
       // Note: This test assumes we can create multiple markets
       // For now, we'll use the same market but different tick ranges to simulate different "sub-markets"
@@ -16776,7 +15290,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
         };
 
         const positionId = await core
-          .connect(router)
+          .connect(alice)
           .openPosition.staticCall(
             alice.address,
             params.marketId,
@@ -16786,7 +15300,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
             params.maxCost
           );
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             params.marketId,
@@ -16831,7 +15345,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
 
       // Close all positions
       for (const posId of positions) {
-        await core.connect(router).closePosition(posId, 0);
+        await core.connect(alice).closePosition(posId, 0);
       }
 
       // Verify cleanup
@@ -16845,11 +15359,12 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
     });
 
     it("should handle position lifecycle with edge case quantities", async function () {
-      const { core, position, router, alice, bob, marketId } =
-        await loadFixture(realPositionMarketFixture);
+      const { core, position, alice, bob, marketId } = await loadFixture(
+        realPositionMarketFixture
+      );
 
       const smallPositionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           marketId,
@@ -16859,7 +15374,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
           ethers.parseUnits("1", 6)
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -16874,7 +15389,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
 
       // Increase by small amount
       await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(smallPositionId, 1, ethers.parseUnits("1", 6));
 
       positionData = await position.getPosition(smallPositionId);
@@ -16887,28 +15402,26 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
       expect(await position.ownerOf(smallPositionId)).to.equal(bob.address);
 
       // Decrease to 1
-      await core.connect(router).decreasePosition(smallPositionId, 1, 0);
+      await core.connect(alice).decreasePosition(smallPositionId, 1, 0);
 
       positionData = await position.getPosition(smallPositionId);
       expect(positionData.quantity).to.equal(1);
 
       // Close position
-      await core.connect(router).closePosition(smallPositionId, 0);
+      await core.connect(alice).closePosition(smallPositionId, 0);
       expect(await position.balanceOf(bob.address)).to.equal(0);
 
       // Test with larger quantities now that alpha is increased to 1 ETH
-      const largePositionId = await core
-        .connect(router)
-        .openPosition.staticCall(
-          alice.address,
-          marketId,
-          30,
-          40,
-          ethers.parseUnits("10", 6), // 10 USDC - reasonable with larger alpha
-          ethers.parseUnits("50", 6)
-        );
+      const largePositionId = await core.connect(alice).openPosition.staticCall(
+        alice.address,
+        marketId,
+        30,
+        40,
+        ethers.parseUnits("10", 6), // 10 USDC - reasonable with larger alpha
+        ethers.parseUnits("50", 6)
+      );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -16923,7 +15436,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
 
       // Large operations with reasonable amounts
       await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(
           largePositionId,
           ethers.parseUnits("5", 6),
@@ -16931,7 +15444,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
         );
 
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(largePositionId, ethers.parseUnits("7.5", 6), 0);
 
       positionData = await position.getPosition(largePositionId);
@@ -16941,7 +15454,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
       await position
         .connect(alice)
         .transferFrom(alice.address, bob.address, largePositionId);
-      await core.connect(router).closePosition(largePositionId, 0);
+      await core.connect(bob).closePosition(largePositionId, 0);
 
       expect(await position.balanceOf(bob.address)).to.equal(0);
     });
@@ -16953,7 +15466,7 @@ describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
 
 ## test/integration//position/position_market_interactions.spec.ts
 
-_Category: TypeScript Tests | Size: 27KB | Lines: 
+_Category: TypeScript Tests | Size: 28KB | Lines: 
 
 ```typescript
 import { expect } from "chai";
@@ -16966,7 +15479,7 @@ import { INTEGRATION_TAG } from "../../helpers/tags";
 describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
   describe("Position Operations Across Market States", function () {
     it("should handle position operations during market lifecycle", async function () {
-      const { core, position, router, keeper, alice, bob, charlie, marketId } =
+      const { core, position, keeper, alice, bob, charlie, marketId } =
         await loadFixture(realPositionMarketFixture);
 
       // Create multiple positions in different tick ranges
@@ -16983,7 +15496,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
         };
 
         const positionId = await core
-          .connect(router)
+          .connect(users[i])
           .openPosition.staticCall(
             users[i].address,
             params.marketId,
@@ -16993,7 +15506,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
             params.maxCost
           );
         await core
-          .connect(router)
+          .connect(users[i])
           .openPosition(
             users[i].address,
             params.marketId,
@@ -17015,7 +15528,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
       // Modify positions while market is active
       await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(
           positions[0],
           ethers.parseUnits("1", 6),
@@ -17023,7 +15536,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
         );
 
       await core
-        .connect(router)
+        .connect(bob)
         .decreasePosition(positions[1], ethers.parseUnits("0.5", 6), 0);
 
       // Transfer positions between users
@@ -17045,7 +15558,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       // But Core operations should fail
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             positions[1],
             ethers.parseUnits("1", 6),
@@ -17058,7 +15571,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
       // Operations should work again
       await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(
           positions[1],
           ethers.parseUnits("1", 6),
@@ -17067,7 +15580,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
       // Close all positions
       for (const posId of positions) {
-        await core.connect(router).closePosition(posId, 0);
+        await core.connect(alice).closePosition(posId, 0);
       }
 
       // Verify cleanup
@@ -17082,7 +15595,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
     });
 
     it("should handle position operations with overlapping tick ranges", async function () {
-      const { core, position, router, alice, bob, charlie, marketId } =
+      const { core, position, alice, bob, charlie, marketId } =
         await loadFixture(realPositionMarketFixture);
 
       // Create positions with overlapping tick ranges
@@ -17105,7 +15618,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
         };
 
         const positionId = await core
-          .connect(router)
+          .connect(pos.user)
           .openPosition.staticCall(
             pos.user.address,
             params.marketId,
@@ -17115,7 +15628,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
             params.maxCost
           );
         await core
-          .connect(router)
+          .connect(pos.user)
           .openPosition(
             pos.user.address,
             params.marketId,
@@ -17144,7 +15657,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
       // Perform operations on overlapping positions
       await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(
           positionIds[0],
           ethers.parseUnits("0.5", 6),
@@ -17152,7 +15665,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
         );
 
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(positionIds[1], ethers.parseUnits("1", 6), 0);
 
       // Transfer positions to create more complex ownership patterns
@@ -17169,10 +15682,10 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       expect(await position.balanceOf(charlie.address)).to.equal(0); // transferred away
 
       // Close positions in different order
-      await core.connect(router).closePosition(positionIds[2], 0); // Charlie's original, now Alice's
-      await core.connect(router).closePosition(positionIds[1], 0); // Bob's
-      await core.connect(router).closePosition(positionIds[0], 0); // Alice's original, now Bob's
-      await core.connect(router).closePosition(positionIds[3], 0); // Alice's second
+      await core.connect(alice).closePosition(positionIds[2], 0); // Charlie's original, now Alice's
+      await core.connect(alice).closePosition(positionIds[1], 0); // Bob's
+      await core.connect(alice).closePosition(positionIds[0], 0); // Alice's original, now Bob's
+      await core.connect(alice).closePosition(positionIds[3], 0); // Alice's second
 
       // All should be cleaned up
       expect(await position.balanceOf(alice.address)).to.equal(0);
@@ -17181,8 +15694,9 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
     });
 
     it("should handle position operations with reasonable tick ranges", async function () {
-      const { core, position, router, alice, bob, marketId } =
-        await loadFixture(realPositionMarketFixture);
+      const { core, position, alice, bob, marketId } = await loadFixture(
+        realPositionMarketFixture
+      );
 
       // Test with reasonable tick ranges for normal usage
       const reasonablePositions = [
@@ -17203,7 +15717,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
         };
 
         const positionId = await core
-          .connect(router)
+          .connect(alice)
           .openPosition.staticCall(
             alice.address,
             params.marketId,
@@ -17213,7 +15727,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
             params.maxCost
           );
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             params.marketId,
@@ -17238,14 +15752,14 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       }
 
       // Operations should work on reasonable positions
-      await core.connect(router).increasePosition(
+      await core.connect(alice).increasePosition(
         positionIds[0],
         ethers.parseUnits("0.002", 6), // Small increase
         ethers.parseUnits("2", 6)
       );
 
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(positionIds[1], ethers.parseUnits("0.001", 6), 0); // Small decrease within position quantity
 
       // Transfer extreme positions
@@ -17261,7 +15775,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
       // Close all positions
       for (const posId of positionIds) {
-        await core.connect(router).closePosition(posId, 0);
+        await core.connect(alice).closePosition(posId, 0);
       }
 
       expect(await position.balanceOf(alice.address)).to.equal(0);
@@ -17271,7 +15785,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
   describe("Position Batch Operations", function () {
     it("should handle reasonable batch position creation and management", async function () {
-      const { core, position, router, alice, bob, charlie, marketId } =
+      const { core, position, alice, bob, charlie, marketId } =
         await loadFixture(realPositionMarketFixture);
 
       const batchSize = 5; // Reduced batch size for realistic usage
@@ -17290,7 +15804,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
         };
 
         const positionId = await core
-          .connect(router)
+          .connect(user)
           .openPosition.staticCall(
             user.address,
             params.marketId,
@@ -17300,7 +15814,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
             params.maxCost
           );
         await core
-          .connect(router)
+          .connect(user)
           .openPosition(
             user.address,
             params.marketId,
@@ -17328,7 +15842,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       for (let i = 0; i < positionIds.length; i += 2) {
         // Increase every other position
         await core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             positionIds[i].id,
             ethers.parseUnits("0.5", 6),
@@ -17339,7 +15853,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       for (let i = 1; i < positionIds.length; i += 2) {
         // Decrease every other position by small amount
         await core
-          .connect(router)
+          .connect(alice)
           .decreasePosition(
             positionIds[i].id,
             ethers.parseUnits("0.0005", 6),
@@ -17362,7 +15876,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
       // Batch closure - close all positions
       for (const pos of positionIds) {
-        await core.connect(router).closePosition(pos.id, 0);
+        await core.connect(alice).closePosition(pos.id, 0);
       }
 
       // Verify all cleaned up
@@ -17377,8 +15891,9 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
     });
 
     it("should handle rapid position operations", async function () {
-      const { core, position, router, alice, bob, marketId } =
-        await loadFixture(realPositionMarketFixture);
+      const { core, position, alice, bob, marketId } = await loadFixture(
+        realPositionMarketFixture
+      );
 
       // Create position for rapid operations
       const params = {
@@ -17390,7 +15905,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -17400,7 +15915,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -17426,14 +15941,14 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
       for (const op of operations) {
         if (op.type === "increase") {
-          await core.connect(router).increasePosition(
+          await core.connect(alice).increasePosition(
             positionId,
             op.amount,
             ethers.parseUnits("10", 6) // Reduced from 100 to 10
           );
           currentQuantity += op.amount;
         } else {
-          await core.connect(router).decreasePosition(positionId, op.amount, 0);
+          await core.connect(alice).decreasePosition(positionId, op.amount, 0);
           currentQuantity -= op.amount;
         }
 
@@ -17449,7 +15964,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       expect(await position.ownerOf(positionId)).to.equal(bob.address);
 
       // Continue operations with new owner
-      await core.connect(router).increasePosition(
+      await core.connect(alice).increasePosition(
         positionId,
         ethers.parseUnits("0.003", 6), // Reduced from 30 to 0.003
         ethers.parseUnits("10", 6) // Reduced from 300 to 10
@@ -17460,20 +15975,21 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       expect(finalData.quantity).to.equal(currentQuantity);
 
       // Close position
-      await core.connect(router).closePosition(positionId, 0);
+      await core.connect(alice).closePosition(positionId, 0);
       expect(await position.balanceOf(bob.address)).to.equal(0);
     });
   });
 
   describe("Position Error Recovery and Edge Cases", function () {
     it("should handle position operations with market edge cases", async function () {
-      const { core, position, router, alice, bob, marketId } =
-        await loadFixture(realPositionMarketFixture);
+      const { core, position, alice, bob, marketId } = await loadFixture(
+        realPositionMarketFixture
+      );
 
       // Create position with minimal quantity
 
       const minPositionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           marketId,
@@ -17483,7 +15999,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
           ethers.parseUnits("1", 6)
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -17495,7 +16011,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
       // Operations on minimal position
       await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(minPositionId, 1, ethers.parseUnits("1", 6));
 
       let posData = await position.getPosition(minPositionId);
@@ -17508,16 +16024,16 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       expect(await position.ownerOf(minPositionId)).to.equal(bob.address);
 
       // Decrease to 1
-      await core.connect(router).decreasePosition(minPositionId, 1, 0);
+      await core.connect(alice).decreasePosition(minPositionId, 1, 0);
       posData = await position.getPosition(minPositionId);
       expect(posData.quantity).to.equal(1);
 
       // Close minimal position
-      await core.connect(router).closePosition(minPositionId, 0);
+      await core.connect(alice).closePosition(minPositionId, 0);
       expect(await position.balanceOf(bob.address)).to.equal(0);
 
       const maxPositionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           marketId,
@@ -17527,7 +16043,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
           ethers.parseUnits("1", 6)
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -17538,7 +16054,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
         );
 
       // Operations on maximum position
-      await core.connect(router).increasePosition(
+      await core.connect(alice).increasePosition(
         maxPositionId,
         ethers.parseUnits("0.5", 6), // Reduced from 500000 to 0.5
         ethers.parseUnits("10", 6) // Reduced from 5000000 to 10
@@ -17549,7 +16065,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
       // Large decrease
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(maxPositionId, ethers.parseUnits("0.1", 6), 0); // Reduced from 1000000 to 0.1
 
       posData = await position.getPosition(maxPositionId);
@@ -17559,14 +16075,15 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       await position
         .connect(alice)
         .transferFrom(alice.address, bob.address, maxPositionId);
-      await core.connect(router).closePosition(maxPositionId, 0);
+      await core.connect(alice).closePosition(maxPositionId, 0);
 
       expect(await position.balanceOf(bob.address)).to.equal(0);
     });
 
     it("should handle position operations with failed transactions", async function () {
-      const { core, position, router, alice, bob, marketId } =
-        await loadFixture(realPositionMarketFixture);
+      const { core, position, alice, bob, marketId } = await loadFixture(
+        realPositionMarketFixture
+      );
 
       // Create position
       const params = {
@@ -17578,7 +16095,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -17588,7 +16105,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -17603,7 +16120,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             nonExistentId,
             ethers.parseUnits("1", 6),
@@ -17613,11 +16130,11 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .decreasePosition(nonExistentId, ethers.parseUnits("1", 6), 0)
       ).to.be.reverted;
 
-      await expect(core.connect(router).closePosition(nonExistentId, 0)).to.be
+      await expect(core.connect(alice).closePosition(nonExistentId, 0)).to.be
         .reverted;
 
       // Original position should be unaffected
@@ -17628,7 +16145,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       // Try to decrease more than available
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .decreasePosition(positionId, ethers.parseUnits("10", 6), 0)
       ).to.be.reverted;
 
@@ -17638,7 +16155,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
       // Valid operations should still work
       await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(
           positionId,
           ethers.parseUnits("2", 6),
@@ -17648,13 +16165,13 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       await position
         .connect(alice)
         .transferFrom(alice.address, bob.address, positionId);
-      await core.connect(router).closePosition(positionId, 0);
+      await core.connect(alice).closePosition(positionId, 0);
 
       expect(await position.balanceOf(bob.address)).to.equal(0);
     });
 
     it("should maintain data integrity across complex operation sequences", async function () {
-      const { core, position, router, alice, bob, charlie, marketId } =
+      const { core, position, alice, bob, charlie, marketId } =
         await loadFixture(realPositionMarketFixture);
 
       const positionIds = [];
@@ -17672,7 +16189,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
         const user = [alice, bob, charlie][i % 3];
         const positionId = await core
-          .connect(router)
+          .connect(user)
           .openPosition.staticCall(
             user.address,
             params.marketId,
@@ -17682,7 +16199,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
             params.maxCost
           );
         await core
-          .connect(router)
+          .connect(user)
           .openPosition(
             user.address,
             params.marketId,
@@ -17705,14 +16222,39 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
       // Complex sequence of operations
       const operations = [
-        { type: "increase", posIndex: 0, amount: ethers.parseUnits("0.5", 6) },
+        {
+          type: "increase",
+          posIndex: 0,
+          amount: ethers.parseUnits("0.5", 6),
+          from: alice,
+        },
         { type: "transfer", posIndex: 1, from: bob, to: alice },
-        { type: "decrease", posIndex: 2, amount: ethers.parseUnits("1", 6) },
-        { type: "increase", posIndex: 3, amount: ethers.parseUnits("2", 6) },
+        {
+          type: "decrease",
+          posIndex: 2,
+          amount: ethers.parseUnits("1", 6),
+          from: charlie,
+        },
+        {
+          type: "increase",
+          posIndex: 3,
+          amount: ethers.parseUnits("2", 6),
+          from: bob,
+        },
         { type: "transfer", posIndex: 0, from: alice, to: charlie },
-        { type: "decrease", posIndex: 4, amount: ethers.parseUnits("0.8", 6) },
+        {
+          type: "decrease",
+          posIndex: 4,
+          amount: ethers.parseUnits("0.8", 6),
+          from: alice,
+        },
         { type: "transfer", posIndex: 2, from: charlie, to: bob },
-        { type: "increase", posIndex: 1, amount: ethers.parseUnits("1.5", 6) },
+        {
+          type: "increase",
+          posIndex: 1,
+          amount: ethers.parseUnits("1.5", 6),
+          from: alice,
+        },
       ];
 
       for (const op of operations) {
@@ -17720,11 +16262,11 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
         if (op.type === "increase") {
           await core
-            .connect(router)
+            .connect(op.from)
             .increasePosition(posId, op.amount!, ethers.parseUnits("50", 6));
           expectedStates[op.posIndex].quantity += op.amount!;
         } else if (op.type === "decrease") {
-          await core.connect(router).decreasePosition(posId, op.amount!, 0);
+          await core.connect(op.from).decreasePosition(posId, op.amount!, 0);
           expectedStates[op.posIndex].quantity -= op.amount!;
         } else if (op.type === "transfer") {
           await position
@@ -17771,7 +16313,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
       // Close all positions
       for (const posId of positionIds) {
-        await core.connect(router).closePosition(posId, 0);
+        await core.connect(alice).closePosition(posId, 0);
       }
 
       // Verify complete cleanup
@@ -17792,7 +16334,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
 ## test/integration//trading/claim.spec.ts
 
-_Category: TypeScript Tests | Size: 10KB | Lines: 
+_Category: TypeScript Tests | Size: 9KB | Lines: 
 
 ```typescript
 import { expect } from "chai";
@@ -17808,21 +16350,14 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
   const MEDIUM_COST = ethers.parseUnits("5", 6); // 5 USDC
 
   it("Should claim winning position", async function () {
-    const {
-      core,
-      router,
-      alice,
-      paymentToken,
-      mockPosition,
-      marketId,
-      keeper,
-    } = await loadFixture(createActiveMarketFixture);
+    const { core, alice, paymentToken, mockPosition, marketId, keeper } =
+      await loadFixture(createActiveMarketFixture);
 
     const balanceBefore = await paymentToken.balanceOf(alice.address);
 
     // Create position that will win
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -17839,7 +16374,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     await core.connect(keeper).settleMarket(marketId, 50);
 
     // Claim position
-    await expect(core.connect(router).claimPayout(positionId)).to.emit(
+    await expect(core.connect(alice).claimPayout(positionId)).to.emit(
       core,
       "PositionClaimed"
     );
@@ -17849,21 +16384,14 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
   });
 
   it("Should handle claiming losing position", async function () {
-    const {
-      core,
-      router,
-      alice,
-      paymentToken,
-      mockPosition,
-      marketId,
-      keeper,
-    } = await loadFixture(createActiveMarketFixture);
+    const { core, alice, paymentToken, mockPosition, marketId, keeper } =
+      await loadFixture(createActiveMarketFixture);
 
     const balanceBefore = await paymentToken.balanceOf(alice.address);
 
     // Create position that will lose
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -17880,7 +16408,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     await core.connect(keeper).settleMarket(marketId, 50);
 
     // Claim should emit event with zero payout
-    await expect(core.connect(router).claimPayout(positionId))
+    await expect(core.connect(alice).claimPayout(positionId))
       .to.emit(core, "PositionClaimed")
       .withArgs(positionId, alice.address, 0);
 
@@ -17889,21 +16417,20 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
   });
 
   it("Should revert claim of non-existent position", async function () {
-    const { core, router } = await loadFixture(createActiveMarketFixture);
-
+    const { core, alice } = await loadFixture(createActiveMarketFixture);
     await expect(
-      core.connect(router).claimPayout(999) // Non-existent position
+      core.connect(alice).claimPayout(999) // Non-existent position
     ).to.be.revertedWithCustomError(core, "PositionNotFound");
   });
 
   it("Should revert claim before market settlement", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
+    const { core, alice, mockPosition, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
     // Create position
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -17918,44 +16445,17 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
 
     // Try to claim before settlement
     await expect(
-      core.connect(router).claimPayout(positionId)
+      core.connect(alice).claimPayout(positionId)
     ).to.be.revertedWithCustomError(core, "MarketNotSettled");
   });
 
-  it("Should handle authorization for claim", async function () {
-    const { core, router, alice, bob, mockPosition, marketId, keeper } =
-      await loadFixture(createActiveMarketFixture);
-
-    // Create position as alice
-    await core
-      .connect(router)
-      .openPosition(
-        alice.address,
-        marketId,
-        45,
-        55,
-        MEDIUM_QUANTITY,
-        MEDIUM_COST
-      );
-
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
-    const positionId = positions[0];
-
-    // Settle market
-    await core.connect(keeper).settleMarket(marketId, 50);
-
-    // Bob should not be able to claim alice's position
-    await expect(
-      core.connect(bob).claimPayout(positionId)
-    ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
-  });
-
   it("Should handle claiming already claimed position", async function () {
-    const { core, router, alice, mockPosition, marketId, keeper } =
-      await loadFixture(createActiveMarketFixture);
+    const { core, alice, mockPosition, marketId, keeper } = await loadFixture(
+      createActiveMarketFixture
+    );
 
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -17972,20 +16472,21 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     await core.connect(keeper).settleMarket(marketId, 50);
 
     // First claim should succeed
-    await core.connect(router).claimPayout(positionId);
+    await core.connect(alice).claimPayout(positionId);
 
     // Second claim should fail
     await expect(
-      core.connect(router).claimPayout(positionId)
+      core.connect(alice).claimPayout(positionId)
     ).to.be.revertedWithCustomError(core, "PositionNotFound");
   });
 
   it("Should calculate claim payout correctly", async function () {
-    const { core, router, alice, mockPosition, marketId, keeper } =
-      await loadFixture(createActiveMarketFixture);
+    const { core, alice, mockPosition, marketId, keeper } = await loadFixture(
+      createActiveMarketFixture
+    );
 
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -18004,17 +16505,18 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     const payout = await core.calculateClaimAmount(positionId);
     expect(payout).to.be.gt(0);
 
-    await expect(core.connect(router).claimPayout(positionId)).to.not.be
+    await expect(core.connect(alice).claimPayout(positionId)).to.not.be
       .reverted;
   });
 
   it("Should handle partial winning positions", async function () {
-    const { core, router, alice, mockPosition, marketId, keeper } =
-      await loadFixture(createActiveMarketFixture);
+    const { core, alice, mockPosition, marketId, keeper } = await loadFixture(
+      createActiveMarketFixture
+    );
 
     // Create position that partially covers winning outcome
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -18033,17 +16535,17 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     const payout = await core.calculateClaimAmount(positionId);
     expect(payout).to.be.gt(0);
 
-    await expect(core.connect(router).claimPayout(positionId)).to.not.be
+    await expect(core.connect(alice).claimPayout(positionId)).to.not.be
       .reverted;
   });
 
   it("Should handle multiple positions claiming", async function () {
-    const { core, router, alice, bob, mockPosition, marketId, keeper } =
+    const { core, alice, bob, mockPosition, marketId, keeper } =
       await loadFixture(createActiveMarketFixture);
 
     // Alice creates winning position
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -18055,7 +16557,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
 
     // Bob creates losing position
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         bob.address,
         marketId,
@@ -18074,19 +16576,20 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     const bobPositions = await mockPosition.getPositionsByOwner(bob.address);
 
     // Both should be able to claim
-    await expect(core.connect(router).claimPayout(alicePositions[0])).to.not.be
+    await expect(core.connect(alice).claimPayout(alicePositions[0])).to.not.be
       .reverted;
 
-    await expect(core.connect(router).claimPayout(bobPositions[0])).to.not.be
+    await expect(core.connect(alice).claimPayout(bobPositions[0])).to.not.be
       .reverted;
   });
 
   it("Should emit correct events on claim", async function () {
-    const { core, router, alice, mockPosition, marketId, keeper } =
-      await loadFixture(createActiveMarketFixture);
+    const { core, alice, mockPosition, marketId, keeper } = await loadFixture(
+      createActiveMarketFixture
+    );
 
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -18103,18 +16606,19 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     await core.connect(keeper).settleMarket(marketId, 50);
 
     // Claim should emit PositionClaimed event
-    await expect(core.connect(router).claimPayout(positionId))
+    await expect(core.connect(alice).claimPayout(positionId))
       .to.emit(core, "PositionClaimed")
       .withArgs(positionId, alice.address, anyValue);
   });
 
   it("Should handle double claim attempts", async function () {
-    const { core, keeper, router, alice, mockPosition, marketId } =
-      await loadFixture(createActiveMarketFixture);
+    const { core, keeper, alice, mockPosition, marketId } = await loadFixture(
+      createActiveMarketFixture
+    );
 
     // Create position
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -18131,22 +16635,23 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     await core.connect(keeper).settleMarket(marketId, 50);
 
     // First claim should succeed
-    await expect(core.connect(router).claimPayout(positionId)).to.not.be
+    await expect(core.connect(alice).claimPayout(positionId)).to.not.be
       .reverted;
 
     // Second claim should fail (position burned)
     await expect(
-      core.connect(router).claimPayout(positionId)
+      core.connect(alice).claimPayout(positionId)
     ).to.be.revertedWithCustomError(mockPosition, "PositionNotFound");
   });
 
   it("Should handle losing position claims", async function () {
-    const { core, keeper, router, alice, mockPosition, marketId } =
-      await loadFixture(createActiveMarketFixture);
+    const { core, keeper, alice, mockPosition, marketId } = await loadFixture(
+      createActiveMarketFixture
+    );
 
     // Create position
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -18163,7 +16668,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     await core.connect(keeper).settleMarket(marketId, 80);
 
     // Claim should succeed with zero payout
-    await expect(core.connect(router).claimPayout(positionId))
+    await expect(core.connect(alice).claimPayout(positionId))
       .to.emit(core, "PositionClaimed")
       .withArgs(positionId, alice.address, 0);
   });
@@ -18174,7 +16679,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
 
 ## test/integration//trading/close.spec.ts
 
-_Category: TypeScript Tests | Size: 8KB | Lines: 
+_Category: TypeScript Tests | Size: 7KB | Lines: 
 
 ```typescript
 import { expect } from "chai";
@@ -18190,7 +16695,7 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
   const TICK_COUNT = 100;
 
   it("Should close position completely", async function () {
-    const { core, router, alice, paymentToken, mockPosition, marketId } =
+    const { core, alice, paymentToken, mockPosition, marketId } =
       await loadFixture(createActiveMarketFixture);
 
     // Create initial position
@@ -18203,7 +16708,7 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
     };
 
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         tradeParams.marketId,
@@ -18219,7 +16724,7 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
 
     // Close position
     await expect(
-      core.connect(router).closePosition(
+      core.connect(alice).closePosition(
         positionId,
         0 // Min payout
       )
@@ -18234,25 +16739,134 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
     ).to.be.revertedWithCustomError(core, "PositionNotFound");
   });
 
-  it("Should revert close of non-existent position", async function () {
-    const { core, router } = await loadFixture(createActiveMarketFixture);
+  it("Should handle multiple position closures", async function () {
+    const { core, alice, bob, paymentToken, mockPosition, marketId } =
+      await loadFixture(createActiveMarketFixture);
 
+    // Create multiple positions
+    const positions = [];
+    const users = [alice, bob];
+
+    for (const user of users) {
+      await core
+        .connect(user)
+        .openPosition(
+          user.address,
+          marketId,
+          40,
+          60,
+          SMALL_QUANTITY,
+          MEDIUM_COST
+        );
+      const userPositions = await mockPosition.getPositionsByOwner(
+        user.address
+      );
+      positions.push(userPositions[userPositions.length - 1]);
+    }
+
+    // Close all positions
+    for (let i = 0; i < positions.length; i++) {
+      const user = users[i];
+      const positionId = positions[i];
+      const balanceBefore = await paymentToken.balanceOf(user.address);
+
+      await expect(core.connect(user).closePosition(positionId, 0)).to.emit(
+        core,
+        "PositionClosed"
+      );
+
+      const balanceAfter = await paymentToken.balanceOf(user.address);
+      expect(balanceAfter).to.be.gte(balanceBefore); // Received payout (could be 0)
+    }
+
+    // All positions should be cleaned up
+    for (const user of users) {
+      const userPositions = await mockPosition.getPositionsByOwner(
+        user.address
+      );
+      expect(userPositions.length).to.equal(0);
+    }
+  });
+
+  it("Should handle position closure with settled market", async function () {
+    const { core, alice, paymentToken, mockPosition, marketId, keeper } =
+      await loadFixture(createActiveMarketFixture);
+
+    // Create position
+    await core
+      .connect(alice)
+      .openPosition(
+        alice.address,
+        marketId,
+        45,
+        55,
+        MEDIUM_QUANTITY,
+        MEDIUM_COST
+      );
+    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positionId = positions[0];
+
+    // Move to market end and settle
+    const market = await core.getMarket(marketId);
+    await time.increaseTo(Number(market.endTimestamp) + 1);
+    await core.connect(keeper).settleMarket(marketId, 50); // Settle at tick 50
+
+    const balanceBefore = await paymentToken.balanceOf(alice.address);
+
+    // Claim position after settlement (not close)
+    await expect(core.connect(alice).claimPayout(positionId)).to.emit(
+      core,
+      "PositionClaimed"
+    );
+
+    const balanceAfter = await paymentToken.balanceOf(alice.address);
+    expect(balanceAfter).to.be.gt(balanceBefore); // Should receive settlement payout
+  });
+
+  it("Should handle edge case: close position with minimal payout", async function () {
+    const { core, alice, paymentToken, mockPosition, marketId } =
+      await loadFixture(createActiveMarketFixture);
+
+    // Create very small position
+    await core.connect(alice).openPosition(
+      alice.address,
+      marketId,
+      85,
+      95,
+      1, // Very small quantity
+      ethers.parseUnits("1", 6)
+    );
+    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positionId = positions[0];
+
+    const balanceBefore = await paymentToken.balanceOf(alice.address);
+
+    // Close position
+    await expect(core.connect(alice).closePosition(positionId, 0)).to.emit(
+      core,
+      "PositionClosed"
+    );
+
+    const balanceAfter = await paymentToken.balanceOf(alice.address);
+    expect(balanceAfter).to.be.gte(balanceBefore); // At least no loss
+  });
+
+  it("Should revert on invalid position closure", async function () {
+    const { core, alice } = await loadFixture(createActiveMarketFixture);
+
+    // Try to close non-existent position
     await expect(
-      core.connect(router).closePosition(
-        999, // Non-existent position
-        0
-      )
+      core.connect(alice).closePosition(999, 0)
     ).to.be.revertedWithCustomError(core, "PositionNotFound");
   });
 
-  it("Should handle payout below minimum for close", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
-      createActiveMarketFixture
-    );
+  it("Should handle position closure with minimum payout requirement", async function () {
+    const { core, alice, paymentToken, mockPosition, marketId } =
+      await loadFixture(createActiveMarketFixture);
 
     // Create position
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -18261,250 +16875,64 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
         MEDIUM_QUANTITY,
         MEDIUM_COST
       );
-
     const positions = await mockPosition.getPositionsByOwner(alice.address);
     const positionId = positions[0];
 
-    // Calculate payout to set unrealistic minimum
-    const payout = await core.calculateCloseProceeds(positionId);
-
+    // Try to close with unreasonably high minimum payout
+    const highMinPayout = ethers.parseUnits("1000", 6);
     await expect(
-      core.connect(router).closePosition(
-        positionId,
-        payout + 1n // Set min payout higher than actual
-      )
+      core.connect(alice).closePosition(positionId, highMinPayout)
     ).to.be.revertedWithCustomError(core, "CostExceedsMaximum");
   });
 
-  it("Should handle authorization for close", async function () {
-    const { core, router, alice, bob, mockPosition, marketId } =
+  it("Should handle partial closure through decrease", async function () {
+    const { core, alice, paymentToken, mockPosition, marketId } =
       await loadFixture(createActiveMarketFixture);
 
-    // Create position as alice
+    // Create larger position
+    const quantity = ethers.parseUnits("0.1", 6);
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
         45,
         55,
-        MEDIUM_QUANTITY,
-        MEDIUM_COST
+        quantity,
+        ethers.parseUnits("50", 6)
       );
-
     const positions = await mockPosition.getPositionsByOwner(alice.address);
     const positionId = positions[0];
 
-    // Bob should not be able to close alice's position
+    const balanceBefore = await paymentToken.balanceOf(alice.address);
+
+    // Partially close position (decrease by half)
+    const decreaseAmount = quantity / 2n;
     await expect(
-      core.connect(bob).closePosition(positionId, 0)
-    ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
-  });
+      core.connect(alice).decreasePosition(positionId, decreaseAmount, 0)
+    ).to.emit(core, "PositionDecreased");
 
-  it("Should handle paused contract for close", async function () {
-    const { core, keeper, router, alice, mockPosition, marketId } =
-      await loadFixture(createActiveMarketFixture);
+    const balanceAfter = await paymentToken.balanceOf(alice.address);
+    expect(balanceAfter).to.be.gt(balanceBefore);
 
-    // Create position first
-    await core
-      .connect(router)
-      .openPosition(
-        alice.address,
-        marketId,
-        45,
-        55,
-        MEDIUM_QUANTITY,
-        MEDIUM_COST
-      );
-
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
-    const positionId = positions[0];
-
-    // Pause the contract
-    await core.connect(keeper).pause("Testing pause");
-
-    await expect(
-      core.connect(router).closePosition(positionId, 0)
-    ).to.be.revertedWithCustomError(core, "ContractPaused");
-  });
-
-  it("Should calculate close payout correctly", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
-      createActiveMarketFixture
-    );
-
-    // Create position first
-    const tradeParams = {
-      marketId: marketId,
-      lowerTick: 45,
-      upperTick: 55,
-      quantity: MEDIUM_QUANTITY,
-      maxCost: MEDIUM_COST,
-    };
-
-    await core
-      .connect(router)
-      .openPosition(
-        alice.address,
-        tradeParams.marketId,
-        tradeParams.lowerTick,
-        tradeParams.upperTick,
-        tradeParams.quantity,
-        tradeParams.maxCost
-      );
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
-    const positionId = positions[0];
-
-    const payout = await core.calculateCloseProceeds(positionId);
-    expect(payout).to.be.gt(0);
-  });
-
-  it("Should handle closing small positions efficiently", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
-      createActiveMarketFixture
-    );
-
-    // Create small position
-    await core
-      .connect(router)
-      .openPosition(alice.address, marketId, 45, 55, 1, MEDIUM_COST);
-
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
-    const positionId = positions[0];
-
-    // Close small position
-    await expect(core.connect(router).closePosition(positionId, 0)).to.not.be
-      .reverted;
-  });
-
-  it("Should handle closing large positions", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
-      createActiveMarketFixture
-    );
-
-    // Create large position
-    await core
-      .connect(router)
-      .openPosition(
-        alice.address,
-        marketId,
-        0,
-        TICK_COUNT - 1,
-        ethers.parseUnits("1", 6),
-        ethers.parseUnits("100", 6)
-      );
-
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
-    const positionId = positions[0];
-
-    // Close large position
-    await expect(core.connect(router).closePosition(positionId, 0)).to.not.be
-      .reverted;
-  });
-
-  it("Should emit correct events on close", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
-      createActiveMarketFixture
-    );
-
-    // Create position
-    await core
-      .connect(router)
-      .openPosition(
-        alice.address,
-        marketId,
-        45,
-        55,
-        MEDIUM_QUANTITY,
-        MEDIUM_COST
-      );
-
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
-    const positionId = positions[0];
-
-    // Close should emit PositionClosed event
-    await expect(core.connect(router).closePosition(positionId, 0))
-      .to.emit(core, "PositionClosed")
-      .withArgs(positionId, alice.address, anyValue);
-  });
-
-  it("Should remove position from owner's list", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
-      createActiveMarketFixture
-    );
-
-    // Create position
-    await core
-      .connect(router)
-      .openPosition(
-        alice.address,
-        marketId,
-        45,
-        55,
-        MEDIUM_QUANTITY,
-        MEDIUM_COST
-      );
-
-    const positionsBefore = await mockPosition.getPositionsByOwner(
-      alice.address
-    );
-    expect(positionsBefore.length).to.equal(1);
-
-    const positionId = positionsBefore[0];
-
-    // Close position
-    await core.connect(router).closePosition(positionId, 0);
-
-    // Position should be removed from owner's list
-    const positionsAfter = await mockPosition.getPositionsByOwner(
-      alice.address
-    );
-    expect(positionsAfter.length).to.equal(0);
-  });
-
-  it("Should handle close with exact payout expectation", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
-      createActiveMarketFixture
-    );
-
-    // Create position
-    await core
-      .connect(router)
-      .openPosition(
-        alice.address,
-        marketId,
-        45,
-        55,
-        MEDIUM_QUANTITY,
-        MEDIUM_COST
-      );
-
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
-    const positionId = positions[0];
-
-    // Calculate exact payout
-    const exactPayout = await core.calculateCloseProceeds(positionId);
-
-    // Close with exact minimum should succeed
-    await expect(core.connect(router).closePosition(positionId, exactPayout)).to
-      .not.be.reverted;
+    // Position should still exist with reduced quantity
+    const positionData = await mockPosition.getPosition(positionId);
+    expect(positionData.quantity).to.be.lt(quantity);
+    expect(positionData.quantity).to.be.gt(0);
   });
 });
-
-// Helper for event testing
-const { anyValue } = require("@nomicfoundation/hardhat-chai-matchers/withArgs");
 
 ```
 
 
 ## test/integration//trading/decrease.spec.ts
 
-_Category: TypeScript Tests | Size: 9KB | Lines: 
+_Category: TypeScript Tests | Size: 8KB | Lines: 
 
 ```typescript
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { createActiveMarketFixture } from "../../helpers/fixtures/core";
 import { INTEGRATION_TAG } from "../../helpers/tags";
 
@@ -18514,7 +16942,7 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
   const MEDIUM_COST = ethers.parseUnits("5", 6); // 5 USDC
 
   it("Should decrease position quantity", async function () {
-    const { core, router, alice, paymentToken, mockPosition, marketId } =
+    const { core, alice, paymentToken, mockPosition, marketId } =
       await loadFixture(createActiveMarketFixture);
 
     // Create initial position
@@ -18527,7 +16955,7 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
     };
 
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         tradeParams.marketId,
@@ -18543,7 +16971,7 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
 
     // Decrease position
     await expect(
-      core.connect(router).decreasePosition(
+      core.connect(alice).decreasePosition(
         positionId,
         SMALL_QUANTITY, // Remove part
         0 // Min payout
@@ -18558,10 +16986,10 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
   });
 
   it("Should revert decrease of non-existent position", async function () {
-    const { core, router } = await loadFixture(createActiveMarketFixture);
+    const { core, alice } = await loadFixture(createActiveMarketFixture);
 
     await expect(
-      core.connect(router).decreasePosition(
+      core.connect(alice).decreasePosition(
         999, // Non-existent position
         SMALL_QUANTITY,
         0
@@ -18570,13 +16998,13 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
   });
 
   it("Should handle zero quantity decrease", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
+    const { core, alice, mockPosition, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
     // Create position
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -18590,18 +17018,18 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
     const positionId = positions[0];
 
     await expect(
-      core.connect(router).decreasePosition(positionId, 0, 0)
+      core.connect(alice).decreasePosition(positionId, 0, 0)
     ).to.be.revertedWithCustomError(core, "InvalidQuantity");
   });
 
   it("Should handle decrease quantity larger than position", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
+    const { core, alice, mockPosition, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
     // Create position
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -18615,7 +17043,7 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
     const positionId = positions[0];
 
     await expect(
-      core.connect(router).decreasePosition(
+      core.connect(alice).decreasePosition(
         positionId,
         MEDIUM_QUANTITY, // Larger than position
         0
@@ -18624,13 +17052,13 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
   });
 
   it("Should handle payout below minimum", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
+    const { core, alice, mockPosition, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
     // Create position
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -18650,7 +17078,7 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
     );
 
     await expect(
-      core.connect(router).decreasePosition(
+      core.connect(alice).decreasePosition(
         positionId,
         SMALL_QUANTITY,
         payout + 1n // Set min payout higher than actual
@@ -18658,38 +17086,14 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
     ).to.be.revertedWithCustomError(core, "CostExceedsMaximum");
   });
 
-  it("Should handle authorization for decrease", async function () {
-    const { core, router, alice, bob, mockPosition, marketId } =
-      await loadFixture(createActiveMarketFixture);
-
-    // Create position as alice
-    await core
-      .connect(router)
-      .openPosition(
-        alice.address,
-        marketId,
-        45,
-        55,
-        MEDIUM_QUANTITY,
-        MEDIUM_COST
-      );
-
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
-    const positionId = positions[0];
-
-    // Bob should not be able to decrease alice's position
-    await expect(
-      core.connect(bob).decreasePosition(positionId, SMALL_QUANTITY, 0)
-    ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
-  });
-
   it("Should handle paused contract for decrease", async function () {
-    const { core, keeper, router, alice, mockPosition, marketId } =
-      await loadFixture(createActiveMarketFixture);
+    const { core, keeper, alice, mockPosition, marketId } = await loadFixture(
+      createActiveMarketFixture
+    );
 
     // Create position first
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -18706,12 +17110,12 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
     await core.connect(keeper).pause("Testing pause");
 
     await expect(
-      core.connect(router).decreasePosition(positionId, SMALL_QUANTITY, 0)
+      core.connect(alice).decreasePosition(positionId, SMALL_QUANTITY, 0)
     ).to.be.revertedWithCustomError(core, "ContractPaused");
   });
 
   it("Should calculate decrease payout correctly", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
+    const { core, alice, mockPosition, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
@@ -18725,7 +17129,7 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
     };
 
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         tradeParams.marketId,
@@ -18745,13 +17149,13 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
   });
 
   it("Should handle small partial decreases efficiently", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
+    const { core, alice, mockPosition, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
     // Create position
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -18765,18 +17169,18 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
     const positionId = positions[0];
 
     // Small decrease
-    await expect(core.connect(router).decreasePosition(positionId, 1, 0)).to.not
+    await expect(core.connect(alice).decreasePosition(positionId, 1, 0)).to.not
       .be.reverted;
   });
 
   it("Should handle sequential decreases", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
+    const { core, alice, mockPosition, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
     // Create position
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -18790,11 +17194,11 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
     const positionId = positions[0];
 
     // First decrease
-    await core.connect(router).decreasePosition(positionId, SMALL_QUANTITY, 0);
+    await core.connect(alice).decreasePosition(positionId, SMALL_QUANTITY, 0);
 
     // Second decrease
     await expect(
-      core.connect(router).decreasePosition(positionId, SMALL_QUANTITY, 0)
+      core.connect(alice).decreasePosition(positionId, SMALL_QUANTITY, 0)
     ).to.not.be.reverted;
 
     const position = await mockPosition.getPosition(positionId);
@@ -18804,13 +17208,13 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
   });
 
   it("Should handle excessive decrease quantity", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
+    const { core, alice, mockPosition, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
     // Create position
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -18826,7 +17230,7 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
     const excessiveSell = SMALL_QUANTITY + 1n;
 
     await expect(
-      core.connect(router).decreasePosition(positionId, excessiveSell, 0)
+      core.connect(alice).decreasePosition(positionId, excessiveSell, 0)
     ).to.be.revertedWithCustomError(core, "InvalidQuantity");
   });
 });
@@ -18874,12 +17278,12 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
     return { ...contracts, marketId, startTime, endTime };
   }
 
-  it("Should increase position quantity", async function () {
-    const { core, router, alice, paymentToken, mockPosition, marketId } =
+  it("Should increase pos ition quantity", async function () {
+    const { core, alice, paymentToken, mockPosition, marketId } =
       await loadFixture(createActiveMarketFixture);
 
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -18895,7 +17299,7 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
 
     // Increase position
     await expect(
-      core.connect(router).increasePosition(
+      core.connect(alice).increasePosition(
         positionId,
         SMALL_QUANTITY, // Add more
         MEDIUM_COST
@@ -18910,10 +17314,10 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
   });
 
   it("Should revert increase of non-existent position", async function () {
-    const { core, router } = await loadFixture(createActiveMarketFixture);
+    const { core, alice } = await loadFixture(createActiveMarketFixture);
 
     await expect(
-      core.connect(router).increasePosition(
+      core.connect(alice).increasePosition(
         999, // Non-existent position
         SMALL_QUANTITY,
         MEDIUM_COST
@@ -18922,13 +17326,13 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
   });
 
   it("Should handle zero quantity increase", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
+    const { core, alice, mockPosition, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
     // Create position
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -18942,18 +17346,18 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
     const positionId = positions[0];
 
     await expect(
-      core.connect(router).increasePosition(positionId, 0, 0)
+      core.connect(alice).increasePosition(positionId, 0, 0)
     ).to.be.revertedWithCustomError(core, "InvalidQuantity");
   });
 
   it("Should handle insufficient max cost for increase", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
+    const { core, alice, mockPosition, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
     // Create position
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -18967,7 +17371,7 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
     const positionId = positions[0];
 
     await expect(
-      core.connect(router).increasePosition(
+      core.connect(alice).increasePosition(
         positionId,
         MEDIUM_QUANTITY,
         ethers.parseUnits("0.001", 6) // Very small max cost
@@ -18975,40 +17379,17 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
     ).to.be.revertedWithCustomError(core, "CostExceedsMaximum");
   });
 
-  it("Should handle authorization for increase", async function () {
-    const { core, router, alice, bob, mockPosition, marketId } =
-      await loadFixture(createActiveMarketFixture);
-
-    // Create position as alice
-    await core
-      .connect(router)
-      .openPosition(
-        alice.address,
-        marketId,
-        45,
-        55,
-        MEDIUM_QUANTITY,
-        MEDIUM_COST
-      );
-
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
-    const positionId = positions[0];
-
-    // Bob should not be able to adjust alice's position
-    await expect(
-      core
-        .connect(bob)
-        .increasePosition(positionId, SMALL_QUANTITY, MEDIUM_COST)
-    ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
-  });
+  // Note: Authorization test removed - Router was removed, positions are now publicly accessible
+  // Position operations are allowed from any caller since Router layer was eliminated
 
   it("Should handle paused contract for increase", async function () {
-    const { core, keeper, router, alice, mockPosition, marketId } =
-      await loadFixture(createActiveMarketFixture);
+    const { core, keeper, alice, mockPosition, marketId } = await loadFixture(
+      createActiveMarketFixture
+    );
 
     // Create position first
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -19026,18 +17407,18 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
 
     await expect(
       core
-        .connect(router)
+        .connect(alice)
         .increasePosition(positionId, SMALL_QUANTITY, MEDIUM_COST)
     ).to.be.revertedWithCustomError(core, "ContractPaused");
   });
 
   it("Should handle gas-efficient small adjustments", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
+    const { core, alice, mockPosition, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
     // Create position
-    await core.connect(router).openPosition(
+    await core.connect(alice).openPosition(
       alice.address,
       marketId,
       45,
@@ -19051,12 +17432,12 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
 
     // Small increase
     await expect(
-      core.connect(router).increasePosition(positionId, 1, MEDIUM_COST)
+      core.connect(alice).increasePosition(positionId, 1, MEDIUM_COST)
     ).to.not.be.reverted;
   });
 
   it("Should calculate increase cost correctly", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
+    const { core, alice, mockPosition, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
@@ -19070,7 +17451,7 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
     };
 
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         tradeParams.marketId,
@@ -19132,7 +17513,7 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
   }
 
   it("Should open position successfully", async function () {
-    const { core, router, alice, paymentToken, mockPosition, marketId } =
+    const { core, alice, paymentToken, mockPosition, marketId } =
       await loadFixture(createActiveMarketFixture);
 
     const tradeParams = {
@@ -19147,7 +17528,7 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
 
     await expect(
       core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -19165,7 +17546,7 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
   });
 
   it("Should revert trade with insufficient max cost", async function () {
-    const { core, router, alice, marketId } = await loadFixture(
+    const { core, alice, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
@@ -19179,7 +17560,7 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
 
     await expect(
       core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -19192,7 +17573,7 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
   });
 
   it("Should handle invalid tick range", async function () {
-    const { core, router, alice, marketId } = await loadFixture(
+    const { core, alice, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
@@ -19206,7 +17587,7 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
 
     await expect(
       core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -19219,25 +17600,25 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
   });
 
   it("Should handle zero quantity", async function () {
-    const { core, router, alice, marketId } = await loadFixture(
+    const { core, alice, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
     await expect(
       core
-        .connect(router)
+        .connect(alice)
         .openPosition(alice.address, marketId, 45, 55, 0, MEDIUM_COST)
     ).to.be.revertedWithCustomError(core, "InvalidQuantity");
   });
 
   it("Should handle tick out of bounds", async function () {
-    const { core, router, alice, marketId } = await loadFixture(
+    const { core, alice, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
     await expect(
       core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -19250,13 +17631,13 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
   });
 
   it("Should handle single tick positions", async function () {
-    const { core, router, alice, marketId } = await loadFixture(
+    const { core, alice, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
     await expect(
       core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -19269,14 +17650,14 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
   });
 
   it("Should handle boundary tick positions", async function () {
-    const { core, router, alice, marketId } = await loadFixture(
+    const { core, alice, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
     // First tick
     await expect(
       core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -19290,7 +17671,7 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
     // Last tick
     await expect(
       core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -19302,10 +17683,16 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
     ).to.not.be.reverted;
   });
 
-  it("Should handle authorization correctly", async function () {
-    const { core, alice, marketId } = await loadFixture(
+  // Note: Authorization test removed - Router was removed, all users can now directly access Core
+  // openPosition is now public since Router authorization layer was eliminated
+
+  it("Should handle paused contract", async function () {
+    const { core, keeper, alice, marketId } = await loadFixture(
       createActiveMarketFixture
     );
+
+    // Pause contract
+    await core.connect(keeper).pause("Test pause");
 
     await expect(
       core
@@ -19318,45 +17705,21 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
           MEDIUM_QUANTITY,
           MEDIUM_COST
         )
-    ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
-  });
-
-  it("Should handle paused contract", async function () {
-    const { core, keeper, router, alice, marketId } = await loadFixture(
-      createActiveMarketFixture
-    );
-
-    // Pause contract
-    await core.connect(keeper).pause("Test pause");
-
-    await expect(
-      core
-        .connect(router)
-        .openPosition(
-          alice.address,
-          marketId,
-          45,
-          55,
-          MEDIUM_QUANTITY,
-          MEDIUM_COST
-        )
     ).to.be.revertedWithCustomError(core, "ContractPaused");
   });
 
   it("Should handle invalid market ID", async function () {
-    const { core, router, alice } = await loadFixture(
-      createActiveMarketFixture
-    );
+    const { core, alice } = await loadFixture(createActiveMarketFixture);
 
     await expect(
       core
-        .connect(router)
+        .connect(alice)
         .openPosition(alice.address, 999, 45, 55, MEDIUM_QUANTITY, MEDIUM_COST)
     ).to.be.revertedWithCustomError(core, "MarketNotFound");
   });
 
   it("Should test 1 wei precision slippage protection", async function () {
-    const { core, router, alice, marketId } = await loadFixture(
+    const { core, alice, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
@@ -19372,7 +17735,7 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
 
     await expect(
       core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -19387,7 +17750,7 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
 
     await expect(
       core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -19400,7 +17763,7 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
   });
 
   it("Should handle large quantity trades with chunking", async function () {
-    const { core, router, alice, marketId } = await loadFixture(
+    const { core, alice, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
@@ -19409,7 +17772,7 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
     const largeCost = ethers.parseUnits("100", 6); // 100 USDC max cost
 
     const tx = await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -19423,7 +17786,7 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
   });
 
   it("Should handle settled market trades", async function () {
-    const { core, keeper, router, alice, marketId } = await loadFixture(
+    const { core, keeper, alice, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
@@ -19432,7 +17795,7 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
 
     await expect(
       core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -19475,13 +17838,13 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
 
   describe("Cost Consistency Invariants", function () {
     it("Should maintain cost consistency: buy then sell should be near-neutral", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Execute buy
       const buyTx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -19497,7 +17860,7 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
       const positionId = (buyEvent as any).args[2]; // positionId
 
       // Execute sell (close position) - need to use router as authorized caller
-      const sellTx = await core.connect(router).closePosition(
+      const sellTx = await core.connect(alice).closePosition(
         positionId,
         0 // minPayout
       );
@@ -19657,7 +18020,7 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
 
   describe("Roundtrip Neutrality Tests", function () {
     it("Should maintain near-neutrality for small roundtrips", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -19665,7 +18028,7 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
 
       // Buy
       const buyTx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -19682,7 +18045,7 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
       const buyCost = (buyEvent as any).args[6];
 
       // Sell immediately
-      const sellTx = await core.connect(router).closePosition(
+      const sellTx = await core.connect(alice).closePosition(
         positionId,
         0 // minPayout
       );
@@ -19699,7 +18062,7 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
     });
 
     it("Should handle multiple chunk roundtrips consistently", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -19707,7 +18070,7 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
 
       // Buy
       const buyTx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -19724,7 +18087,7 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
       const buyCost = (buyEvent as any).args[6];
 
       // Sell
-      const sellTx = await core.connect(router).closePosition(
+      const sellTx = await core.connect(alice).closePosition(
         positionId,
         0 // minPayout
       );
@@ -19757,7 +18120,7 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
     });
 
     it("Should handle maximum safe quantities without overflow", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -19765,7 +18128,7 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
       const largeQuantity = ethers.parseUnits("1", USDC_DECIMALS); // 1 USDC (further reduced for safety)
 
       await expect(
-        core.connect(router).openPosition(
+        core.connect(alice).openPosition(
           alice.address,
           marketId,
           45,
@@ -19864,7 +18227,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
   describe("Cost Consistency Invariants", function () {
     it("Should maintain cost consistency: buy then sell should be near-neutral", async function () {
-      const { core, router, alice, mockPosition, marketId } = await loadFixture(
+      const { core, alice, mockPosition, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -19879,7 +18242,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
       // Execute buy
       const buyTx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -19905,7 +18268,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       const buyCost = initialBalance - balanceAfterBuy;
 
       // Execute sell (close position)
-      await core.connect(router).closePosition(positionId, 0);
+      await core.connect(alice).closePosition(positionId, 0);
 
       // Check final balance
       const finalBalance = await core
@@ -19992,13 +18355,13 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
   describe("Position Lifecycle Invariants", function () {
     it("Should maintain position quantity consistency through increase/decrease cycles", async function () {
-      const { core, router, alice, mockPosition, marketId } = await loadFixture(
+      const { core, alice, mockPosition, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Open initial position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -20016,26 +18379,24 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
       // Increase position
       await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(positionId, SMALL_QUANTITY, EXTREME_COST);
       position = await mockPosition.getPosition(positionId);
       expect(position.quantity).to.equal(initialQuantity + SMALL_QUANTITY);
 
       // Decrease position back
-      await core
-        .connect(router)
-        .decreasePosition(positionId, SMALL_QUANTITY, 0);
+      await core.connect(alice).decreasePosition(positionId, SMALL_QUANTITY, 0);
       position = await mockPosition.getPosition(positionId);
       expect(position.quantity).to.equal(initialQuantity);
     });
 
     it("Should maintain value conservation in position adjustments", async function () {
-      const { core, router, alice, mockPosition, paymentToken, marketId } =
+      const { core, alice, mockPosition, paymentToken, marketId } =
         await loadFixture(createActiveMarketFixture);
 
       // Open initial position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -20055,12 +18416,12 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       const adjustmentQuantity = SMALL_QUANTITY;
 
       await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(positionId, adjustmentQuantity, EXTREME_COST);
       const balanceAfterIncrease = await paymentToken.balanceOf(alice.address);
 
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(positionId, adjustmentQuantity, 0);
       const balanceAfterDecrease = await paymentToken.balanceOf(alice.address);
 
@@ -20100,7 +18461,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
     });
 
     it("Should maintain tick value consistency", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -20114,7 +18475,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
       // Execute a trade that affects multiple ticks
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -20136,7 +18497,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
     });
 
     it("Should maintain price impact bounds", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -20153,7 +18514,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
       for (let i = 0; i < 3; i++) {
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -20184,7 +18545,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
   describe("Rounding and Precision Invariants", function () {
     it("Should maintain precision in small quantity operations", async function () {
-      const { core, router, alice, mockPosition, marketId } = await loadFixture(
+      const { core, alice, mockPosition, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -20202,7 +18563,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       // Should be able to execute the trade
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -20260,12 +18621,13 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
   describe("Market State Invariants", function () {
     it("Should maintain market integrity across position lifecycle", async function () {
-      const { core, router, alice, bob, mockPosition, marketId } =
-        await loadFixture(createActiveMarketFixture);
+      const { core, alice, bob, mockPosition, marketId } = await loadFixture(
+        createActiveMarketFixture
+      );
 
       // Multiple users create overlapping positions
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -20276,7 +18638,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
         );
 
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           bob.address,
           marketId,
@@ -20293,8 +18655,8 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       const bobPositions = await mockPosition.getPositionsByOwner(bob.address);
 
       // Both should be able to close independently
-      await core.connect(router).closePosition(alicePositions[0], 0);
-      await core.connect(router).closePosition(bobPositions[0], 0);
+      await core.connect(alice).closePosition(alicePositions[0], 0);
+      await core.connect(alice).closePosition(bobPositions[0], 0);
 
       // Market should still be in valid state
       const market = await core.getMarket(marketId);
@@ -20304,9 +18666,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
   describe("🧮 Rounding Policy Tests - Up/Up Fairness", function () {
     it("Should apply consistent round-up for both buy and sell operations", async function () {
-      const { core, router, alice, mockPosition } = await loadFixture(
-        coreFixture
-      );
+      const { core, alice, mockPosition } = await loadFixture(coreFixture);
 
       // Create market
       const { keeper } = await loadFixture(coreFixture);
@@ -20335,7 +18695,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
         // Open position
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -20366,8 +18726,9 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
     });
 
     it("Should demonstrate zero expected value for round-trip trades", async function () {
-      const { core, router, alice, paymentToken, mockPosition } =
-        await loadFixture(coreFixture);
+      const { core, alice, paymentToken, mockPosition } = await loadFixture(
+        coreFixture
+      );
 
       // Create market
       const { keeper } = await loadFixture(coreFixture);
@@ -20396,7 +18757,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
         // Open position
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -20410,7 +18771,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
         const positionId = positions[0];
 
         // Close position immediately
-        await core.connect(router).closePosition(positionId, 0);
+        await core.connect(alice).closePosition(positionId, 0);
 
         const balanceAfter = await paymentToken.balanceOf(alice.address);
 
@@ -20438,7 +18799,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
     });
 
     it("Should prevent zero-cost attacks while maintaining fairness", async function () {
-      const { core, router, alice } = await loadFixture(coreFixture);
+      const { core, alice } = await loadFixture(coreFixture);
 
       // Create market with very high liquidity (small alpha for minimal costs)
       const { keeper } = await loadFixture(coreFixture);
@@ -20477,7 +18838,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
     });
 
     it("Should maintain consistent rounding across different market states", async function () {
-      const { core, router, alice } = await loadFixture(coreFixture);
+      const { core, alice } = await loadFixture(coreFixture);
 
       // Create market
       const { keeper } = await loadFixture(coreFixture);
@@ -20510,7 +18871,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
       // Make some trades to change market state
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -20541,7 +18902,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
 ## test/invariant//position/position_invariants.spec.ts
 
-_Category: TypeScript Tests | Size: 32KB | Lines: 
+_Category: TypeScript Tests | Size: 31KB | Lines: 
 
 ```typescript
 import { expect } from "chai";
@@ -20554,7 +18915,7 @@ import { INVARIANT_TAG } from "../../helpers/tags";
 describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
   describe("Core Invariants", function () {
     it("should maintain total supply equals sum of all user balances", async function () {
-      const { core, position, router, alice, bob, charlie, marketId } =
+      const { core, position, alice, bob, charlie, marketId } =
         await loadFixture(realPositionMarketFixture);
 
       // Initial state: total supply should be 0
@@ -20578,7 +18939,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
         };
 
         const positionId = await core
-          .connect(router)
+          .connect(alice)
           .openPosition.staticCall(
             user.address,
             params.marketId,
@@ -20588,7 +18949,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
             params.maxCost
           );
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             user.address,
             params.marketId,
@@ -20629,7 +18990,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
 
       // Close positions and verify invariant
       for (let i = 0; i < 3; i++) {
-        await core.connect(router).closePosition(positionIds[i], 0);
+        await core.connect(alice).closePosition(positionIds[i], 0);
 
         totalSupply = await position.totalSupply();
         aliceBalance = await position.balanceOf(alice.address);
@@ -20642,8 +19003,8 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
       }
 
       // Close remaining positions
-      await core.connect(router).closePosition(positionIds[3], 0);
-      await core.connect(router).closePosition(positionIds[4], 0);
+      await core.connect(alice).closePosition(positionIds[3], 0);
+      await core.connect(alice).closePosition(positionIds[4], 0);
 
       // Final state: total supply should be 0
       expect(await position.totalSupply()).to.equal(0);
@@ -20653,7 +19014,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
     });
 
     it("should maintain position ID uniqueness and sequential assignment", async function () {
-      const { core, position, router, alice, bob, charlie, marketId } =
+      const { core, position, alice, bob, charlie, marketId } =
         await loadFixture(realPositionMarketFixture);
 
       const positionIds = new Set();
@@ -20674,7 +19035,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
         expect(expectedId).to.equal(i + 1);
 
         const positionId = await core
-          .connect(router)
+          .connect(alice)
           .openPosition.staticCall(
             user.address,
             params.marketId,
@@ -20684,7 +19045,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
             params.maxCost
           );
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             user.address,
             params.marketId,
@@ -20707,9 +19068,9 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
 
       // Close some positions - nextId should not change
       const nextIdBeforeClosing = await position.getNextId();
-      await core.connect(router).closePosition(1, 0);
-      await core.connect(router).closePosition(5, 0);
-      await core.connect(router).closePosition(10, 0);
+      await core.connect(alice).closePosition(1, 0);
+      await core.connect(alice).closePosition(5, 0);
+      await core.connect(alice).closePosition(10, 0);
 
       expect(await position.getNextId()).to.equal(nextIdBeforeClosing);
 
@@ -20723,7 +19084,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
       };
 
       const newPositionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -20733,7 +19094,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -20748,7 +19109,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
     });
 
     it("should maintain owner tracking consistency", async function () {
-      const { core, position, router, alice, bob, charlie, marketId } =
+      const { core, position, alice, bob, charlie, marketId } =
         await loadFixture(realPositionMarketFixture);
 
       const users = [alice, bob, charlie];
@@ -20766,7 +19127,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
         };
 
         const positionId = await core
-          .connect(router)
+          .connect(alice)
           .openPosition.staticCall(
             user.address,
             params.marketId,
@@ -20776,7 +19137,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
             params.maxCost
           );
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             user.address,
             params.marketId,
@@ -20846,7 +19207,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
 
       // Close positions and verify invariant
       for (let i = 0; i < positionIds.length; i++) {
-        await core.connect(router).closePosition(positionIds[i].id, 0);
+        await core.connect(alice).closePosition(positionIds[i].id, 0);
 
         // Remove from our tracking
         const closedOwner = positionIds[i].owner;
@@ -20878,7 +19239,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
     });
 
     it("should maintain market position tracking consistency", async function () {
-      const { core, position, router, alice, bob, charlie, marketId } =
+      const { core, position, alice, bob, charlie, marketId } =
         await loadFixture(realPositionMarketFixture);
 
       const users = [alice, bob, charlie];
@@ -20896,7 +19257,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
         };
 
         const positionId = await core
-          .connect(router)
+          .connect(alice)
           .openPosition.staticCall(
             user.address,
             params.marketId,
@@ -20906,7 +19267,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
             params.maxCost
           );
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             user.address,
             params.marketId,
@@ -20952,7 +19313,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
 
       // Close positions and verify market tracking is updated
       for (let i = 0; i < createdPositions.length; i++) {
-        await core.connect(router).closePosition(createdPositions[i], 0);
+        await core.connect(alice).closePosition(createdPositions[i], 0);
 
         marketPositions = await position.getAllPositionsInMarket(marketId);
         expect(marketPositions.length).to.equal(
@@ -20978,8 +19339,9 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
 
   describe("State Transition Invariants", function () {
     it("should maintain position data integrity during operations", async function () {
-      const { core, position, router, alice, bob, marketId } =
-        await loadFixture(realPositionMarketFixture);
+      const { core, position, alice, bob, marketId } = await loadFixture(
+        realPositionMarketFixture
+      );
 
       // Create position
       const params = {
@@ -20991,7 +19353,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -21001,7 +19363,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -21038,7 +19400,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
       for (const op of operations) {
         if (op.type === "increase" && op.amount) {
           await core
-            .connect(router)
+            .connect(alice)
             .increasePosition(
               positionId,
               op.amount,
@@ -21046,7 +19408,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
             );
           expectedQuantity += op.amount;
         } else if (op.type === "decrease" && op.amount) {
-          await core.connect(router).decreasePosition(positionId, op.amount, 0);
+          await core.connect(alice).decreasePosition(positionId, op.amount, 0);
           expectedQuantity -= op.amount;
         } else if (op.type === "transfer" && op.from && op.to) {
           await position
@@ -21065,7 +19427,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
       }
 
       // Close position
-      await core.connect(router).closePosition(positionId, 0);
+      await core.connect(alice).closePosition(positionId, 0);
 
       // Verify position is completely removed
       await expect(
@@ -21125,7 +19487,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
     });
 
     it("should maintain quantity conservation during operations", async function () {
-      const { core, position, router, alice, marketId } = await loadFixture(
+      const { core, position, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -21140,7 +19502,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -21150,7 +19512,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -21176,14 +19538,14 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
         const beforeQuantity = currentQuantity;
 
         if (op.type === "increase") {
-          await core.connect(router).increasePosition(
+          await core.connect(alice).increasePosition(
             positionId,
             op.amount,
             ethers.parseUnits("10", 6) // Reduced from 100 to 10
           );
           currentQuantity += op.amount;
         } else {
-          await core.connect(router).decreasePosition(positionId, op.amount, 0);
+          await core.connect(alice).decreasePosition(positionId, op.amount, 0);
           currentQuantity -= op.amount;
         }
 
@@ -21217,8 +19579,9 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
 
   describe("Security Invariants", function () {
     it("should maintain access control invariants", async function () {
-      const { core, position, router, alice, bob, marketId } =
-        await loadFixture(realPositionMarketFixture);
+      const { core, position, alice, bob, marketId } = await loadFixture(
+        realPositionMarketFixture
+      );
 
       const positionId = await createTestPosition(alice, marketId);
 
@@ -21257,7 +19620,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
       // Core operations should work through Router
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             positionId,
             ethers.parseUnits("1", 6),
@@ -21265,7 +19628,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
           )
       ).to.emit(position, "PositionUpdated");
 
-      await expect(core.connect(router).closePosition(positionId, 0)).to.emit(
+      await expect(core.connect(alice).closePosition(positionId, 0)).to.emit(
         position,
         "PositionBurned"
       );
@@ -21313,7 +19676,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
     });
 
     it("should maintain data consistency under concurrent operations", async function () {
-      const { core, position, router, alice, bob, charlie, marketId } =
+      const { core, position, alice, bob, charlie, marketId } =
         await loadFixture(realPositionMarketFixture);
 
       // Create multiple positions
@@ -21328,7 +19691,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
         };
 
         const positionId = await core
-          .connect(router)
+          .connect(alice)
           .openPosition.staticCall(
             alice.address,
             params.marketId,
@@ -21338,7 +19701,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
             params.maxCost
           );
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             params.marketId,
@@ -21353,7 +19716,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
       // Simulate concurrent operations (executed sequentially but rapidly)
       const operations = [
         () =>
-          core.connect(router).increasePosition(
+          core.connect(alice).increasePosition(
             positionIds[0],
             ethers.parseUnits("0.02", 6), // Increased proportionally
             ethers.parseUnits("10", 6) // Increased proportionally
@@ -21364,11 +19727,11 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
             .transferFrom(alice.address, bob.address, positionIds[1]),
         () =>
           core
-            .connect(router)
+            .connect(alice)
             .decreasePosition(positionIds[2], ethers.parseUnits("0.01", 6), 0), // Proportionally increased
         () => position.connect(alice).approve(charlie.address, positionIds[3]),
         () =>
-          core.connect(router).increasePosition(
+          core.connect(alice).increasePosition(
             positionIds[4],
             ethers.parseUnits("0.01", 6), // Proportionally increased
             ethers.parseUnits("10", 6) // Proportionally increased
@@ -21379,7 +19742,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
             .transferFrom(alice.address, charlie.address, positionIds[3]),
         () =>
           core
-            .connect(router)
+            .connect(alice)
             .decreasePosition(positionIds[0], ethers.parseUnits("0.01", 6), 0), // Proportionally increased
         () =>
           position
@@ -21421,7 +19784,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
       // Clean up
       for (const posId of positionIds) {
         try {
-          await core.connect(router).closePosition(posId, 0);
+          await core.connect(alice).closePosition(posId, 0);
         } catch (error: any) {
           console.log(
             `Failed to close position ${posId}:`,
@@ -21438,7 +19801,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
 
   // Helper function to create a test position
   async function createTestPosition(user: any, marketId: any) {
-    const { core, router } = await loadFixture(realPositionMarketFixture);
+    const { core, alice } = await loadFixture(realPositionMarketFixture);
 
     const params = {
       marketId,
@@ -21449,7 +19812,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
     };
 
     const positionId = await core
-      .connect(router)
+      .connect(alice)
       .openPosition.staticCall(
         user.address,
         params.marketId,
@@ -21459,7 +19822,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
         params.maxCost
       );
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         user.address,
         params.marketId,
@@ -21491,7 +19854,7 @@ import { INVARIANT_TAG } from "../../helpers/tags";
 describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
   describe("Position Quantity Properties", function () {
     it("should satisfy: increase(x) then decrease(x) equals original state", async function () {
-      const { core, position, router, alice, marketId } = await loadFixture(
+      const { core, position, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -21506,7 +19869,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -21516,7 +19879,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -21542,10 +19905,10 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
 
         // Increase then decrease by same amount
         await core
-          .connect(router)
+          .connect(alice)
           .increasePosition(positionId, amount, ethers.parseUnits("10", 6)); // Reduced from 100 to 10
 
-        await core.connect(router).decreasePosition(positionId, amount, 0);
+        await core.connect(alice).decreasePosition(positionId, amount, 0);
 
         // Verify we're back to initial state
         const finalData = await position.getPosition(positionId);
@@ -21557,7 +19920,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
     });
 
     it("should satisfy: sequence of operations is commutative for same net effect", async function () {
-      const { core, position, router, alice, marketId } = await loadFixture(
+      const { core, position, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -21571,7 +19934,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
       };
 
       const positionId1 = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -21581,7 +19944,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -21592,7 +19955,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
         );
 
       const positionId2 = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -21602,7 +19965,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -21614,39 +19977,39 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
 
       // Apply operations in different orders but same net effect
       // Sequence 1: +0.001, -0.0005, +0.0015, -0.0008 = +0.0012 net
-      await core.connect(router).increasePosition(
+      await core.connect(alice).increasePosition(
         positionId1,
         ethers.parseUnits("0.001", 6), // Reduced from 10 to 0.001
         ethers.parseUnits("10", 6) // Reduced from 100 to 10
       );
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(positionId1, ethers.parseUnits("0.0005", 6), 0); // Reduced from 5 to 0.0005
-      await core.connect(router).increasePosition(
+      await core.connect(alice).increasePosition(
         positionId1,
         ethers.parseUnits("0.0015", 6), // Reduced from 15 to 0.0015
         ethers.parseUnits("10", 6) // Reduced from 150 to 10
       );
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(positionId1, ethers.parseUnits("0.0008", 6), 0); // Reduced from 8 to 0.0008
 
       // Sequence 2: +0.0015, +0.001, -0.0008, -0.0005 = +0.0012 net (same net, different order)
-      await core.connect(router).increasePosition(
+      await core.connect(alice).increasePosition(
         positionId2,
         ethers.parseUnits("0.0015", 6), // Reduced from 15 to 0.0015
         ethers.parseUnits("10", 6) // Reduced from 150 to 10
       );
-      await core.connect(router).increasePosition(
+      await core.connect(alice).increasePosition(
         positionId2,
         ethers.parseUnits("0.001", 6), // Reduced from 10 to 0.001
         ethers.parseUnits("10", 6) // Reduced from 100 to 10
       );
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(positionId2, ethers.parseUnits("0.0008", 6), 0); // Reduced from 8 to 0.0008
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(positionId2, ethers.parseUnits("0.0005", 6), 0); // Reduced from 5 to 0.0005
 
       // Both positions should have same final quantity
@@ -21658,7 +20021,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
     });
 
     it("should satisfy: quantity is always non-negative", async function () {
-      const { core, position, router, alice, marketId } = await loadFixture(
+      const { core, position, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -21671,7 +20034,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -21681,7 +20044,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -21702,13 +20065,13 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
 
       for (const op of operations) {
         if (op.type === "increase") {
-          await core.connect(router).increasePosition(
+          await core.connect(alice).increasePosition(
             positionId,
             op.amount,
             ethers.parseUnits("1", 6) // Reduced max cost
           );
         } else {
-          await core.connect(router).decreasePosition(positionId, op.amount, 0);
+          await core.connect(alice).decreasePosition(positionId, op.amount, 0);
         }
 
         const posData = await position.getPosition(positionId);
@@ -21720,7 +20083,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
       const excessAmount = currentData.quantity + ethers.parseUnits("0.001", 6); // Much smaller excess
 
       await expect(
-        core.connect(router).decreasePosition(positionId, excessAmount, 0)
+        core.connect(alice).decreasePosition(positionId, excessAmount, 0)
       ).to.be.reverted;
 
       // Quantity should remain unchanged after failed operation
@@ -21729,7 +20092,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
     });
 
     it("should satisfy: position burn occurs if and only if quantity reaches zero", async function () {
-      const { core, position, router, alice, marketId } = await loadFixture(
+      const { core, position, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -21751,7 +20114,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
         };
 
         const positionId = await core
-          .connect(router)
+          .connect(alice)
           .openPosition.staticCall(
             alice.address,
             params.marketId,
@@ -21761,7 +20124,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
             params.maxCost
           );
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             params.marketId,
@@ -21773,7 +20136,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
 
         // Decrease to exactly zero should burn
         await expect(
-          core.connect(router).decreasePosition(positionId, initialQty, 0)
+          core.connect(alice).decreasePosition(positionId, initialQty, 0)
         )
           .to.emit(position, "PositionBurned")
           .withArgs(positionId, alice.address);
@@ -22206,14 +20569,12 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
     user: any,
     marketId: any,
     quantityMultiplier: number = 1,
-    core?: any,
-    router?: any
+    core?: any
   ) {
-    // If core and router are not provided, load them from fixture
-    if (!core || !router) {
+    // If core is not provided, load it from fixture
+    if (!core) {
       const fixture = await loadFixture(realPositionMarketFixture);
       core = fixture.core;
-      router = fixture.router;
     }
 
     const params = {
@@ -22225,7 +20586,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
     };
 
     const positionId = await core
-      .connect(router)
+      .connect(user)
       .openPosition.staticCall(
         user.address,
         params.marketId,
@@ -22235,7 +20596,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
         params.maxCost
       );
     await core
-      .connect(router)
+      .connect(user)
       .openPosition(
         user.address,
         params.marketId,
@@ -22248,14 +20609,14 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
     return positionId;
   }
 
-  async function closeTestPosition(positionId: any, core?: any, router?: any) {
-    // If core and router are not provided, load them from fixture
-    if (!core || !router) {
+  async function closeTestPosition(positionId: any, core?: any, user?: any) {
+    // If core is not provided, load it from fixture
+    if (!core || !user) {
       const fixture = await loadFixture(realPositionMarketFixture);
       core = fixture.core;
-      router = fixture.router;
+      user = fixture.alice; // Default user
     }
-    await core.connect(router).closePosition(positionId, 0);
+    await core.connect(user).closePosition(positionId, 0);
   }
 });
 
@@ -22304,7 +20665,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
 
   describe("Sum Conservation Invariants", function () {
     it("Should maintain total sum after operations", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -22317,7 +20678,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
 
       // Execute trades
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -22339,7 +20700,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
     });
 
     it("Should maintain sum monotonicity with consecutive operations", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -22348,7 +20709,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
       // Multiple buy operations should monotonically increase sum
       for (let i = 0; i < 3; i++) {
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -22374,7 +20735,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
 
   describe("Range Update Invariants", function () {
     it("Should correctly update only affected tick ranges", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -22387,7 +20748,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
 
       // Execute trade affecting ticks 20-30
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -22412,13 +20773,13 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
     });
 
     it("Should handle overlapping range updates correctly", async function () {
-      const { core, router, alice, bob, marketId } = await loadFixture(
+      const { core, alice, bob, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // First trade: affects ticks 10-30
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -22432,7 +20793,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
 
       // Second trade: affects ticks 20-40 (overlaps)
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           bob.address,
           marketId,
@@ -22451,7 +20812,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
 
   describe("Lazy Propagation Invariants", function () {
     it("Should maintain correct values after lazy propagation", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -22464,7 +20825,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
 
       for (const op of operations) {
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -22483,7 +20844,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
     });
 
     it("Should handle edge case propagation correctly", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -22496,7 +20857,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
 
       for (const testCase of edgeCases) {
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -22517,14 +20878,14 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
 
   describe("Precision and Consistency Invariants", function () {
     it("Should maintain precision across multiple operations", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Perform many small operations
       for (let i = 0; i < 10; i++) {
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -22547,7 +20908,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
     });
 
     it("Should maintain consistency under stress conditions", async function () {
-      const { core, router, alice, bob, charlie, marketId } = await loadFixture(
+      const { core, alice, bob, charlie, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -22557,7 +20918,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
       for (let round = 0; round < 5; round++) {
         for (const participant of participants) {
           await core
-            .connect(router)
+            .connect(alice)
             .openPosition(
               participant.address,
               marketId,
@@ -22580,13 +20941,13 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
 
   describe("Mathematical Invariants", function () {
     it("Should maintain exponential sum properties", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // The sum should follow exponential properties of CLMSR
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -22610,13 +20971,13 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
     });
 
     it("Should maintain proportionality properties", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Create two similar positions with different quantities
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -22629,7 +20990,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
       const smallTickValue = await core.getTickValue(marketId, 25);
 
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -22648,7 +21009,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
 
   describe("Monotonic Sum Behavior", function () {
     it("Should maintain monotonic increase in total sum after buys", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -22658,7 +21019,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
       // Execute multiple buys and verify sum increases
       for (let i = 0; i < 3; i++) {
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -22674,7 +21035,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
     });
 
     it("Should maintain monotonic decrease in total sum after sells", async function () {
-      const { core, router, alice, marketId, mockPosition } = await loadFixture(
+      const { core, alice, marketId, mockPosition } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -22682,7 +21043,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
       const positions = [];
       for (let i = 0; i < 3; i++) {
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -22702,7 +21063,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
       let previousTickValue = await core.getTickValue(marketId, 15);
 
       for (const positionId of positions) {
-        await core.connect(router).closePosition(positionId, 0);
+        await core.connect(alice).closePosition(positionId, 0);
 
         const newTickValue = await core.getTickValue(marketId, 15);
         // After selling, tick value should decrease or stay same
@@ -22712,13 +21073,13 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
     });
 
     it("Should maintain sum consistency across position adjustments", async function () {
-      const { core, router, alice, marketId, mockPosition } = await loadFixture(
+      const { core, alice, marketId, mockPosition } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Open initial position
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -22736,7 +21097,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
 
       // Increase position
       await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(
           positionId,
           SMALL_QUANTITY,
@@ -22746,9 +21107,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
       expect(sumAfterIncrease).to.be.gte(sumAfterOpen);
 
       // Decrease position
-      await core
-        .connect(router)
-        .decreasePosition(positionId, SMALL_QUANTITY, 0);
+      await core.connect(alice).decreasePosition(positionId, SMALL_QUANTITY, 0);
       const sumAfterDecrease = await core.getTickValue(marketId, 50);
       expect(sumAfterDecrease).to.be.lte(sumAfterIncrease);
 
@@ -22811,9 +21170,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
 
   describe("Single Chunk Operations", function () {
     it("Should handle single chunk trade efficiently", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       const singleChunkQuantity =
         CHUNK_BOUNDARY - ethers.parseUnits("0.001", USDC_DECIMALS);
@@ -22827,7 +21184,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
       };
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -22843,9 +21200,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
     });
 
     it("Should handle boundary chunk trade efficiently", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       const tradeParams = {
         marketId,
@@ -22856,7 +21211,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
       };
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -22874,9 +21229,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
 
   describe("Multi-Chunk Operations", function () {
     it("Should handle 2-chunk trade efficiently", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       const doubleChunkQuantity =
         CHUNK_BOUNDARY * 2n + ethers.parseUnits("0.001", USDC_DECIMALS);
@@ -22890,7 +21243,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
       };
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -22906,9 +21259,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
     });
 
     it("Should handle 5-chunk trade efficiently", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       const fiveChunkQuantity =
         CHUNK_BOUNDARY * 5n + ethers.parseUnits("0.001", USDC_DECIMALS);
@@ -22922,7 +21273,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
       };
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -22938,9 +21289,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
     });
 
     it("Should demonstrate linear gas scaling for chunk count", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       const gasResults: bigint[] = [];
 
@@ -22957,7 +21306,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
         };
 
         const tx = await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -22986,9 +21335,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
 
   describe("Large Scale Chunk Operations", function () {
     it("Should handle 10-chunk trade within gas limits", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       const tenChunkQuantity = CHUNK_BOUNDARY * 10n;
 
@@ -23001,7 +21348,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
       };
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -23017,9 +21364,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
     });
 
     it("Should prevent excessive chunk count operations", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       // Try to trigger 50+ chunks (should revert)
       const excessiveQuantity = CHUNK_BOUNDARY * 50n;
@@ -23035,7 +21380,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
       // This should either revert with InvalidQuantity or succeed
       try {
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -23115,7 +21460,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
 
   describe("Chunk Split with Different Market States", function () {
     it("Should maintain chunk efficiency across market state changes", async function () {
-      const { core, router, alice, bob, marketId } = await loadFixture(
+      const { core, alice, bob, marketId } = await loadFixture(
         createActiveMarket
       );
 
@@ -23123,7 +21468,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
 
       // Fresh market state
       const tx1 = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -23136,7 +21481,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
 
       // Modified market state (after some trades)
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           bob.address,
           marketId,
@@ -23148,7 +21493,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
 
       // Same chunk operation in modified state
       const tx2 = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -23199,7 +21544,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
     });
 
     it("Should demonstrate chunk limit protection", async function () {
-      const { core, keeper, router, alice } = await loadFixture(coreFixture);
+      const { core, keeper, alice } = await loadFixture(coreFixture);
 
       // Create market with very small alpha
       const tinyAlpha = ethers.parseEther("0.1"); // Increased from 0.0001 to 0.1 to prevent InvalidLiquidityParameter
@@ -23220,7 +21565,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
       // Should either succeed or revert with chunk limit protection
       try {
         const tx = await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -23242,9 +21587,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
 
   describe("Chunk Split Regression Tests", function () {
     it("Should maintain gas usage within expected ranges", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       const testCases = [
         { chunks: 1, maxGas: 1000000 }, // Increased from 200k to 1M
@@ -23257,7 +21600,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
         const quantity = CHUNK_BOUNDARY * BigInt(testCase.chunks);
 
         const tx = await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -23278,9 +21621,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
     });
 
     it("Should demonstrate chunk optimization effectiveness", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       // Without chunking, large trades would fail or be extremely expensive
       // With chunking, they should be manageable
@@ -23288,7 +21629,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
       const largeQuantity = CHUNK_BOUNDARY * 8n;
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -23355,12 +21696,12 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
 
   describe("Gas Usage Benchmarks", function () {
     it("Should use reasonable gas for small position opening", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -23379,12 +21720,12 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
     });
 
     it("Should use reasonable gas for medium position opening", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -23403,12 +21744,12 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
     });
 
     it("Should use reasonable gas for large position opening", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -23429,7 +21770,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
 
   describe("Gas Optimization by Tick Range", function () {
     it("Should have similar gas usage for different single tick positions", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -23438,7 +21779,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
       // Test multiple single tick positions
       for (let tick = 10; tick < 90; tick += 20) {
         const tx = await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -23462,7 +21803,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
     });
 
     it("Should scale gas usage reasonably with tick range", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -23476,7 +21817,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
 
       for (const range of ranges) {
         const tx = await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -23500,7 +21841,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
 
   describe("Gas Optimization by Quantity", function () {
     it("Should have minimal gas variance for different quantities", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+          const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -23514,7 +21855,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
 
       for (const quantity of quantities) {
         const tx = await core
-          .connect(router)
+          .connect(alice)
           .openPosition(alice.address, marketId, 45, 55, quantity, LARGE_COST);
 
         const receipt = await tx.wait();
@@ -23533,14 +21874,14 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
 
   describe("Gas Optimization Stress Tests", function () {
     it("Should maintain reasonable gas usage under market stress", async function () {
-      const { core, router, alice, bob, marketId } = await loadFixture(
+      const { core, alice, bob, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Create multiple positions to stress the market
       for (let i = 0; i < 5; i++) {
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -23553,7 +21894,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
 
       // Gas usage for new position should still be reasonable
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           bob.address,
           marketId,
@@ -23572,13 +21913,13 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
     });
 
     it("Should handle edge case tick positions efficiently", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Test first tick
       const tx1 = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -23590,7 +21931,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
 
       // Test last tick
       const tx2 = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -23614,13 +21955,13 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
 
   describe("Gas Optimization Comparisons", function () {
     it("Should compare gas efficiency across market states", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Gas usage in fresh market
       const tx1 = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -23634,7 +21975,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
       // Add some positions
       for (let i = 0; i < 3; i++) {
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -23647,7 +21988,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
 
       // Gas usage in active market
       const tx2 = await core
-        .connect(router)
+                .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -23672,12 +22013,12 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
 
   describe("Gas Regression Tests", function () {
     it("Should maintain baseline gas usage for standard operations", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -23699,13 +22040,13 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
 
   describe("Gas Efficiency - Edge Cases", function () {
     it("Should handle gas-efficient small adjustments", async function () {
-      const { core, router, alice, mockPosition, marketId } = await loadFixture(
+      const { core, alice, mockPosition, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Create position first
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -23720,13 +22061,13 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
 
       // Test small increase
       const tx1 = await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(positionId, 1, MEDIUM_COST);
       const receipt1 = await tx1.wait();
       const gasUsed1 = receipt1!.gasUsed;
 
       // Test small decrease
-      const tx2 = await core.connect(router).decreasePosition(positionId, 1, 0);
+      const tx2 = await core.connect(alice).decreasePosition(positionId, 1, 0);
       const receipt2 = await tx2.wait();
       const gasUsed2 = receipt2!.gasUsed;
 
@@ -23740,13 +22081,13 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
     });
 
     it("Should handle gas-efficient odd quantity adjustments", async function () {
-      const { core, router, alice, mockPosition, marketId } = await loadFixture(
+      const { core, alice, mockPosition, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Create position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -23763,7 +22104,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
       const oddAdjustment = ethers.parseUnits("0.1", 6); // 0.1 USDC
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(positionId, oddAdjustment, MEDIUM_COST);
 
       const receipt = await tx.wait();
@@ -23823,12 +22164,12 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
 
   describe("Position Creation Gas Benchmarks", function () {
     it("Should use reasonable gas for position creation", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -23846,7 +22187,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
     });
 
     it("Should scale gas usage reasonably with tick range", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -23860,7 +22201,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
 
       for (const range of ranges) {
         const tx = await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -23884,13 +22225,13 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
 
   describe("Position Update Gas Benchmarks", function () {
     it("Should use reasonable gas for position increases", async function () {
-      const { core, router, alice, mockPosition, marketId } = await loadFixture(
+      const { core, alice, mockPosition, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Create initial position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -23904,7 +22245,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
       const positionId = positions[0];
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(positionId, SMALL_QUANTITY, MEDIUM_COST);
 
       const receipt = await tx.wait();
@@ -23915,13 +22256,13 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
     });
 
     it("Should use reasonable gas for position decreases", async function () {
-      const { core, router, alice, mockPosition, marketId } = await loadFixture(
+      const { core, alice, mockPosition, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Create initial position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -23935,7 +22276,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
       const positionId = positions[0];
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(positionId, SMALL_QUANTITY, 0);
 
       const receipt = await tx.wait();
@@ -23948,13 +22289,13 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
 
   describe("Position Closure Gas Benchmarks", function () {
     it("Should use reasonable gas for position closure", async function () {
-      const { core, router, alice, mockPosition, marketId } = await loadFixture(
+      const { core, alice, mockPosition, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Create initial position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -23967,7 +22308,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
       const positions = await mockPosition.getPositionsByOwner(alice.address);
       const positionId = positions[0];
 
-      const tx = await core.connect(router).closePosition(positionId, 0);
+      const tx = await core.connect(alice).closePosition(positionId, 0);
 
       const receipt = await tx.wait();
       const gasUsed = receipt!.gasUsed;
@@ -23977,7 +22318,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
     });
 
     it("Should compare gas efficiency across different position sizes", async function () {
-      const { core, router, alice, mockPosition, marketId } = await loadFixture(
+      const { core, alice, mockPosition, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -23987,14 +22328,14 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
       for (const quantity of quantities) {
         // Create position
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(alice.address, marketId, 45, 55, quantity, LARGE_COST);
 
         const positions = await mockPosition.getPositionsByOwner(alice.address);
         const positionId = positions[positions.length - 1];
 
         // Close position and measure gas
-        const tx = await core.connect(router).closePosition(positionId, 0);
+        const tx = await core.connect(alice).closePosition(positionId, 0);
 
         const receipt = await tx.wait();
         gasUsages.push(receipt!.gasUsed);
@@ -24012,7 +22353,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
 
   describe("Batch Operations Gas Efficiency", function () {
     it("Should demonstrate gas efficiency of sequential operations", async function () {
-      const { core, router, alice, mockPosition, marketId } = await loadFixture(
+      const { core, alice, mockPosition, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -24021,7 +22362,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
       // Create multiple positions
       for (let i = 0; i < 3; i++) {
         const tx = await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -24040,7 +22381,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
       // Update positions
       for (const positionId of positions) {
         const tx = await core
-          .connect(router)
+          .connect(alice)
           .increasePosition(positionId, SMALL_QUANTITY, MEDIUM_COST);
 
         const receipt = await tx.wait();
@@ -24049,7 +22390,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
 
       // Close positions
       for (const positionId of positions) {
-        const tx = await core.connect(router).closePosition(positionId, 0);
+        const tx = await core.connect(alice).closePosition(positionId, 0);
 
         const receipt = await tx.wait();
         operations.push({ type: "close", gas: receipt!.gasUsed });
@@ -24098,7 +22439,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
   async function createActiveMarketWithPositionsFixture() {
     const contracts = await loadFixture(coreFixture);
-    const { core, keeper, router, alice } = contracts;
+    const { core, keeper, alice } = contracts;
 
     const marketId = 1;
     const currentTime = await time.latest();
@@ -24116,7 +22457,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
     // Single tick position
     const tx1 = await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -24133,7 +22474,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
     // Small range position
     const tx2 = await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -24150,7 +22491,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
     // Large range position
     const tx3 = await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -24167,7 +22508,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
     // Full range position
     const tx4 = await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -24191,13 +22532,13 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
   describe("Gas Benchmarks for Position Closing", function () {
     it("Should close single tick position within gas limit", async function () {
-      const { core, router, alice, positions } = await loadFixture(
+      const { core, alice, positions } = await loadFixture(
         createActiveMarketWithPositionsFixture
       );
 
       const positionId = positions[0]; // Single tick
 
-      const tx = await core.connect(router).closePosition(positionId, 0);
+      const tx = await core.connect(alice).closePosition(positionId, 0);
       const receipt = await tx.wait();
 
       console.log(`Single tick close gas used: ${receipt!.gasUsed.toString()}`);
@@ -24205,13 +22546,13 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
     });
 
     it("Should close small range position within gas limit", async function () {
-      const { core, router, alice, positions } = await loadFixture(
+      const { core, alice, positions } = await loadFixture(
         createActiveMarketWithPositionsFixture
       );
 
       const positionId = positions[1]; // Small range (11 ticks)
 
-      const tx = await core.connect(router).closePosition(positionId, 0);
+      const tx = await core.connect(alice).closePosition(positionId, 0);
       const receipt = await tx.wait();
 
       console.log(`Small range close gas used: ${receipt!.gasUsed.toString()}`);
@@ -24219,13 +22560,13 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
     });
 
     it("Should close large range position within gas limit", async function () {
-      const { core, router, alice, positions } = await loadFixture(
+      const { core, alice, positions } = await loadFixture(
         createActiveMarketWithPositionsFixture
       );
 
       const positionId = positions[2]; // Large range (61 ticks)
 
-      const tx = await core.connect(router).closePosition(positionId, 0);
+      const tx = await core.connect(alice).closePosition(positionId, 0);
       const receipt = await tx.wait();
 
       console.log(`Large range close gas used: ${receipt!.gasUsed.toString()}`);
@@ -24233,13 +22574,13 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
     });
 
     it("Should close full range position within gas limit", async function () {
-      const { core, router, alice, positions } = await loadFixture(
+      const { core, alice, positions } = await loadFixture(
         createActiveMarketWithPositionsFixture
       );
 
       const positionId = positions[3]; // Full range (100 ticks)
 
-      const tx = await core.connect(router).closePosition(positionId, 0);
+      const tx = await core.connect(alice).closePosition(positionId, 0);
       const receipt = await tx.wait();
 
       console.log(`Full range close gas used: ${receipt!.gasUsed.toString()}`);
@@ -24249,7 +22590,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
   describe("Gas Scaling Tests", function () {
     it("Should have predictable gas scaling with range size", async function () {
-      const { core, keeper, router, alice, mockPosition } = await loadFixture(
+      const { core, keeper, alice, mockPosition } = await loadFixture(
         coreFixture
       );
 
@@ -24273,7 +22614,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
         // Open position
         const openTx = await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -24288,7 +22629,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
         const positionId = Number(positions[positions.length - 1]); // Get latest position
 
         // Close position
-        const closeTx = await core.connect(router).closePosition(positionId, 0);
+        const closeTx = await core.connect(alice).closePosition(positionId, 0);
         const closeReceipt = await closeTx.wait();
 
         gasUsages.push({
@@ -24319,7 +22660,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
     });
 
     it("Should handle multiple position closures efficiently", async function () {
-      const { core, keeper, router, alice, mockPosition } = await loadFixture(
+      const { core, keeper, alice, mockPosition } = await loadFixture(
         coreFixture
       );
 
@@ -24343,7 +22684,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
         const upperTick = lowerTick + 4;
 
         const tx = await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -24363,7 +22704,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
       // Close all positions and measure gas
       let totalGas = 0n;
       for (const positionId of positions) {
-        const tx = await core.connect(router).closePosition(positionId, 0);
+        const tx = await core.connect(alice).closePosition(positionId, 0);
         const receipt = await tx.wait();
         totalGas += receipt!.gasUsed;
       }
@@ -24381,8 +22722,9 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
   describe("Gas Stress Tests", function () {
     it("Should handle closing positions in a market with high activity", async function () {
-      const { core, keeper, router, alice, bob, mockPosition } =
-        await loadFixture(coreFixture);
+      const { core, keeper, alice, bob, mockPosition } = await loadFixture(
+        coreFixture
+      );
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -24403,7 +22745,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
         const upperTick = lowerTick + Math.floor(Math.random() * 10) + 1;
 
         const tx = await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             user.address,
             marketId,
@@ -24428,7 +22770,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
         const position = positions[i];
         const user = position.user === alice.address ? alice : bob;
 
-        const tx = await core.connect(router).closePosition(position.id, 0);
+        const tx = await core.connect(alice).closePosition(position.id, 0);
         const receipt = await tx.wait();
 
         console.log(
@@ -24441,7 +22783,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
     });
 
     it("Should handle partial position closures efficiently", async function () {
-      const { core, keeper, router, alice, mockPosition } = await loadFixture(
+      const { core, keeper, alice, mockPosition } = await loadFixture(
         coreFixture
       );
 
@@ -24458,7 +22800,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
       // Open large position
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -24477,7 +22819,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
       for (let i = 0; i < 3; i++) {
         const decreaseTx = await core
-          .connect(router)
+          .connect(alice)
           .decreasePosition(positionId, decreaseAmount, 0);
         const decreaseReceipt = await decreaseTx.wait();
 
@@ -24490,7 +22832,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
       }
 
       // Final close
-      const closeTx = await core.connect(router).closePosition(positionId, 0);
+      const closeTx = await core.connect(alice).closePosition(positionId, 0);
       const closeReceipt = await closeTx.wait();
 
       console.log(`Final close: ${closeReceipt!.gasUsed.toString()} gas`);
@@ -24500,7 +22842,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
   describe("Gas Regression Tests", function () {
     it("Should maintain consistent gas usage over multiple operations", async function () {
-      const { core, keeper, router, alice, mockPosition } = await loadFixture(
+      const { core, keeper, alice, mockPosition } = await loadFixture(
         coreFixture
       );
 
@@ -24521,7 +22863,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
       for (let round = 0; round < 5; round++) {
         // Open position
         const openTx = await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -24536,7 +22878,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
         const positionId = Number(positions[positions.length - 1]);
 
         // Close position
-        const closeTx = await core.connect(router).closePosition(positionId, 0);
+        const closeTx = await core.connect(alice).closePosition(positionId, 0);
         const closeReceipt = await closeTx.wait();
 
         gasUsages.push(Number(closeReceipt!.gasUsed));
@@ -24560,7 +22902,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
 ## test/perf//snapshot.spec.ts
 
-_Category: TypeScript Tests | Size: 21KB | Lines: 
+_Category: TypeScript Tests | Size: 20KB | Lines: 
 
 ```typescript
 import { expect } from "chai";
@@ -24656,9 +22998,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
 
   describe("Position Operations Snapshots", function () {
     it("Should open small position within gas baseline", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       const tradeParams = {
         marketId,
@@ -24669,7 +23009,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
       };
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -24695,9 +23035,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
     });
 
     it("Should open medium position within gas baseline", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       const tradeParams = {
         marketId,
@@ -24708,7 +23046,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
       };
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -24734,9 +23072,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
     });
 
     it("Should open large position within gas baseline", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       const tradeParams = {
         marketId,
@@ -24747,7 +23083,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
       };
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -24770,13 +23106,11 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
     });
 
     it("Should increase position within gas baseline", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       // Create initial position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -24787,7 +23121,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
         );
 
       // Increase position
-      const tx = await core.connect(router).increasePosition(
+      const tx = await core.connect(alice).increasePosition(
         1, // positionId
         ethers.parseUnits("0.05", USDC_DECIMALS),
         ethers.parseUnits("30", USDC_DECIMALS)
@@ -24806,13 +23140,11 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
     });
 
     it("Should decrease position within gas baseline", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       // Create initial position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -24823,7 +23155,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
         );
 
       // Decrease position
-      const tx = await core.connect(router).decreasePosition(
+      const tx = await core.connect(alice).decreasePosition(
         1, // positionId
         ethers.parseUnits("0.1", USDC_DECIMALS),
         0 // minProceeds
@@ -24842,13 +23174,11 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
     });
 
     it("Should close position within gas baseline", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       // Create initial position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -24859,7 +23189,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
         );
 
       // Close position
-      const tx = await core.connect(router).closePosition(1, 0);
+      const tx = await core.connect(alice).closePosition(1, 0);
       const receipt = await tx.wait();
 
       console.log(
@@ -24874,13 +23204,13 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
     });
 
     it("Should claim position within gas baseline", async function () {
-      const { core, keeper, router, alice, marketId } = await loadFixture(
+      const { core, keeper, alice, marketId } = await loadFixture(
         createActiveMarket
       );
 
       // Create position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -24894,7 +23224,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
       await core.connect(keeper).settleMarket(marketId, 50);
 
       // Claim position
-      const tx = await core.connect(router).claimPayout(1);
+      const tx = await core.connect(alice).claimPayout(1);
       const receipt = await tx.wait();
 
       console.log(
@@ -24930,13 +23260,11 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
     });
 
     it("Should calculate increase cost within gas baseline", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       // Create position first
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -24961,13 +23289,11 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
     });
 
     it("Should calculate decrease proceeds within gas baseline", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       // Create position first
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -25032,7 +23358,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
     });
 
     it("Should detect position operation regression", async function () {
-      const { core, router, alice, bob, charlie, marketId } = await loadFixture(
+      const { core, alice, bob, charlie, marketId } = await loadFixture(
         createActiveMarket
       );
 
@@ -25049,7 +23375,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
 
         // Open
         let tx = await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             user.address,
             marketId,
@@ -25064,7 +23390,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
 
         // Increase
         tx = await core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             positionId,
             ethers.parseUnits("0.05", USDC_DECIMALS),
@@ -25074,7 +23400,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
 
         // Decrease
         tx = await core
-          .connect(router)
+          .connect(alice)
           .decreasePosition(
             positionId,
             ethers.parseUnits("0.05", USDC_DECIMALS),
@@ -25083,7 +23409,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
         gasResults.decrease.push((await tx.wait())!.gasUsed);
 
         // Close
-        tx = await core.connect(router).closePosition(positionId, 0);
+        tx = await core.connect(alice).closePosition(positionId, 0);
         gasResults.close.push((await tx.wait())!.gasUsed);
       }
 
@@ -25110,13 +23436,11 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
 
   describe("Comparative Benchmarks", function () {
     it("Should compare single vs multi-tick operations", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       // Single tick operation
       const singleTx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -25129,7 +23453,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
 
       // Multi-tick operation (10 ticks)
       const multiTx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -25154,13 +23478,13 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
     });
 
     it("Should compare fresh vs modified market state", async function () {
-      const { core, router, alice, bob, marketId } = await loadFixture(
+      const { core, alice, bob, marketId } = await loadFixture(
         createActiveMarket
       );
 
       // Fresh market operation
       const freshTx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -25174,7 +23498,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
       // Make some trades to modify market state
       for (let i = 0; i < 5; i++) {
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             bob.address,
             marketId,
@@ -25187,7 +23511,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
 
       // Modified market operation
       const modifiedTx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -25216,16 +23540,14 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
 
   describe("Performance Monitoring", function () {
     it("Should track gas trends across operation types", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       const operations = [
         {
           name: "small_open",
           action: () =>
             core
-              .connect(router)
+              .connect(alice)
               .openPosition(
                 alice.address,
                 marketId,
@@ -25239,7 +23561,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
           name: "medium_open",
           action: () =>
             core
-              .connect(router)
+              .connect(alice)
               .openPosition(
                 alice.address,
                 marketId,
@@ -25253,7 +23575,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
           name: "large_open",
           action: () =>
             core
-              .connect(router)
+              .connect(alice)
               .openPosition(
                 alice.address,
                 marketId,
@@ -25324,13 +23646,13 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
     });
 
     it("Should calculate increase cost correctly", async function () {
-      const { core, router, alice, mockPosition, marketId } = await loadFixture(
+      const { core, alice, mockPosition, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Create initial position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -25348,13 +23670,13 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
     });
 
     it("Should calculate decrease payout correctly", async function () {
-      const { core, router, alice, mockPosition, marketId } = await loadFixture(
+      const { core, alice, mockPosition, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Create initial position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -25375,13 +23697,13 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
     });
 
     it("Should calculate close payout correctly", async function () {
-      const { core, router, alice, mockPosition, marketId } = await loadFixture(
+      const { core, alice, mockPosition, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Create initial position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -25554,13 +23876,13 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
     });
 
     it("Should handle rounding consistency", async function () {
-      const { core, router, alice, mockPosition, marketId } = await loadFixture(
+      const { core, alice, mockPosition, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Create position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -28862,7 +27184,7 @@ describe(`${UNIT_TAG} LazyMulSegmentTree - Update Operations`, function () {
 
 ## test/unit//position/access.spec.ts
 
-_Category: TypeScript Tests | Size: 8KB | Lines: 
+_Category: TypeScript Tests | Size: 9KB | Lines: 
 
 ```typescript
 import { expect } from "chai";
@@ -28906,7 +27228,7 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
 
   describe("onlyCore Modifier", function () {
     it("should allow core to mint position", async function () {
-      const { position, core, router, alice, marketId } = await loadFixture(
+      const { position, core, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -28919,15 +27241,18 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
         maxCost: ethers.parseUnits("1", 6),
       };
 
-      await expect(core.connect(router).openPosition(
-        alice.address,
-        params.marketId,
-        params.lowerTick,
-        params.upperTick,
-        params.quantity,
-        params.maxCost
-      )).to
-        .not.be.reverted;
+      await expect(
+        core
+          .connect(alice)
+          .openPosition(
+            alice.address,
+            params.marketId,
+            params.lowerTick,
+            params.upperTick,
+            params.quantity,
+            params.maxCost
+          )
+      ).to.not.be.reverted;
     });
 
     it("should revert mintPosition from non-core", async function () {
@@ -28965,7 +27290,7 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
 
   describe("Core Contract Interaction", function () {
     it("should allow core to update position quantity", async function () {
-      const { position, core, router, alice, marketId } = await loadFixture(
+      const { position, core, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -28979,28 +27304,30 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
-        alice.address,
-        params.marketId,
-        params.lowerTick,
-        params.upperTick,
-        params.quantity,
-        params.maxCost
-      );
-      await core.connect(router).openPosition(
-        alice.address,
-        params.marketId,
-        params.lowerTick,
-        params.upperTick,
-        params.quantity,
-        params.maxCost
-      );
+          alice.address,
+          params.marketId,
+          params.lowerTick,
+          params.upperTick,
+          params.quantity,
+          params.maxCost
+        );
+      await core
+        .connect(alice)
+        .openPosition(
+          alice.address,
+          params.marketId,
+          params.lowerTick,
+          params.upperTick,
+          params.quantity,
+          params.maxCost
+        );
 
       // Increase position through router
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             positionId,
             ethers.parseUnits("0.005", 6),
@@ -29014,7 +27341,7 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
     });
 
     it("should allow core to burn position", async function () {
-      const { position, core, router, alice, marketId } = await loadFixture(
+      const { position, core, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -29028,28 +27355,30 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
-        alice.address,
-        params.marketId,
-        params.lowerTick,
-        params.upperTick,
-        params.quantity,
-        params.maxCost
-      );
-      await core.connect(router).openPosition(
-        alice.address,
-        params.marketId,
-        params.lowerTick,
-        params.upperTick,
-        params.quantity,
-        params.maxCost
-      );
+          alice.address,
+          params.marketId,
+          params.lowerTick,
+          params.upperTick,
+          params.quantity,
+          params.maxCost
+        );
+      await core
+        .connect(alice)
+        .openPosition(
+          alice.address,
+          params.marketId,
+          params.lowerTick,
+          params.upperTick,
+          params.quantity,
+          params.maxCost
+        );
 
       // Decrease position to zero (should burn)
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .decreasePosition(positionId, ethers.parseUnits("0.01", 6), 0)
       ).to.not.be.reverted;
 
@@ -29085,7 +27414,7 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
 
   describe("Security Edge Cases", function () {
     it("should prevent reentrancy attacks on core functions", async function () {
-      const { position, core, router, alice, marketId } = await loadFixture(
+      const { position, core, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -29099,28 +27428,30 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
-        alice.address,
-        params.marketId,
-        params.lowerTick,
-        params.upperTick,
-        params.quantity,
-        params.maxCost
-      );
-      await core.connect(router).openPosition(
-        alice.address,
-        params.marketId,
-        params.lowerTick,
-        params.upperTick,
-        params.quantity,
-        params.maxCost
-      );
+          alice.address,
+          params.marketId,
+          params.lowerTick,
+          params.upperTick,
+          params.quantity,
+          params.maxCost
+        );
+      await core
+        .connect(alice)
+        .openPosition(
+          alice.address,
+          params.marketId,
+          params.lowerTick,
+          params.upperTick,
+          params.quantity,
+          params.maxCost
+        );
 
       // Multiple operations in same transaction should work
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             positionId,
             ethers.parseUnits("0.005", 6),
@@ -29782,7 +28113,7 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
 
     it("should maintain ID sequence after burns", async function () {
       const contracts = await loadFixture(realPositionMarketFixture);
-      const { position, core, router, alice, marketId } = contracts;
+      const { position, core, alice, marketId } = contracts;
 
       const { positionId: pos1 } = await createRealTestPosition(
         contracts,
@@ -29793,7 +28124,7 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
       // Burn position by decreasing to zero
       const positionData = await position.getPosition(pos1);
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(pos1, positionData.quantity, 0);
 
       // Create new position - should continue sequence
@@ -29812,7 +28143,7 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
   describe("Data Cleanup on Burn", function () {
     it("should clean up position data on burn", async function () {
       const contracts = await loadFixture(realPositionMarketFixture);
-      const { position, core, router, alice, marketId } = contracts;
+      const { position, core, alice, marketId } = contracts;
 
       const { positionId } = await createRealTestPosition(
         contracts,
@@ -29826,7 +28157,7 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
 
       // Burn position
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(positionId, positionData.quantity, 0);
 
       // Verify position data is cleaned up
@@ -29837,7 +28168,7 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
 
     it("should remove from owner tracking on burn", async function () {
       const contracts = await loadFixture(realPositionMarketFixture);
-      const { position, core, router, alice, marketId } = contracts;
+      const { position, core, alice, marketId } = contracts;
 
       const { positionId } = await createRealTestPosition(
         contracts,
@@ -29853,7 +28184,7 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
       // Burn position
       const positionData = await position.getPosition(positionId);
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(positionId, positionData.quantity, 0);
 
       // Verify position is removed from tracking
@@ -30392,20 +28723,20 @@ _This project is continuously improving. Run `./combine_all_files.sh` for the la
 ## 📈 Project Statistics
 
 ### 📊 Codebase Metrics
-- **Total Files**: 71
-- **Total Size**: 1MB
-- **Total Lines**: 29587
+- **Total Files**: 69
+- **Total Size**: 1002KB
+- **Total Lines**: 27938
 - **Average File Size**: 14KB
 
 ### 🧪 Test Coverage
 - **Test Status**: ✅ PASSING
-- **Total Tests**: 705
+- **Total Tests**: 657
 - **Test Files**: 53
 - **Test Contracts**: 2
 
 ### 🏗️ Architecture
 - **Core Contracts**: 2 (Immutable business logic)
-- **Interface Contracts**: 4 (Type definitions)
+- **Interface Contracts**: 2 (Type definitions)
 - **Library Contracts**: 2 (Mathematical utilities)
 - **Error Contracts**: 1 (Custom error definitions)
 - **Manager Contracts**: 0 (Management layer)
@@ -30423,7 +28754,7 @@ _This project is continuously improving. Run `./combine_all_files.sh` for the la
 4. **Security Hardening**: Protection against common DeFi vulnerabilities
 
 ### 🧪 Testing Excellence
-1. **Comprehensive Coverage**: 705 tests covering all scenarios
+1. **Comprehensive Coverage**: 657 tests covering all scenarios
 2. **Multi-layer Testing**: Unit, Integration, Component, E2E, and Performance tests
 3. **Security Testing**: Attack vector validation
 4. **Invariant Testing**: Mathematical property verification
@@ -30433,10 +28764,10 @@ _This project is continuously improving. Run `./combine_all_files.sh` for the la
 ## 📝 Development Information
 
 ### 🔧 Build Information
-- **Generated**: 2025-07-16 13:08:31 CEST
+- **Generated**: 2025-07-16 16:50:35 CEST
 - **Generator**: Advanced Codebase Compiler v3.1
-- **Git Commits**: 17
-- **Last Commit**: 60cb3ac - test update (5 weeks ago)
+- **Git Commits**: 19
+- **Last Commit**: 92717dd - remove router (25 minutes ago)
 
 ### 🎯 Project Status
 ✅ **All Tests Passing** - Ready for deployment
@@ -30445,7 +28776,7 @@ _This project is continuously improving. Run `./combine_all_files.sh` for the la
 
 ## 🏆 Achievement Summary
 
-✅ **705 Tests** - Comprehensive test coverage  
+✅ **657 Tests** - Comprehensive test coverage  
 ✅ **Multi-layer Architecture** - Clean separation of concerns  
 ✅ **Complete Codebase** - All files with full content included  
 ✅ **Production Ready** - Comprehensive documentation and testing  
