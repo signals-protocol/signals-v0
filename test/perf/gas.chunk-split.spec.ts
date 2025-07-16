@@ -38,9 +38,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
 
   describe("Single Chunk Operations", function () {
     it("Should handle single chunk trade efficiently", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       const singleChunkQuantity =
         CHUNK_BOUNDARY - ethers.parseUnits("0.001", USDC_DECIMALS);
@@ -54,7 +52,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
       };
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -70,9 +68,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
     });
 
     it("Should handle boundary chunk trade efficiently", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       const tradeParams = {
         marketId,
@@ -83,7 +79,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
       };
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -101,9 +97,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
 
   describe("Multi-Chunk Operations", function () {
     it("Should handle 2-chunk trade efficiently", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       const doubleChunkQuantity =
         CHUNK_BOUNDARY * 2n + ethers.parseUnits("0.001", USDC_DECIMALS);
@@ -117,7 +111,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
       };
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -133,9 +127,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
     });
 
     it("Should handle 5-chunk trade efficiently", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       const fiveChunkQuantity =
         CHUNK_BOUNDARY * 5n + ethers.parseUnits("0.001", USDC_DECIMALS);
@@ -149,7 +141,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
       };
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -165,9 +157,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
     });
 
     it("Should demonstrate linear gas scaling for chunk count", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       const gasResults: bigint[] = [];
 
@@ -184,7 +174,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
         };
 
         const tx = await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -213,9 +203,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
 
   describe("Large Scale Chunk Operations", function () {
     it("Should handle 10-chunk trade within gas limits", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       const tenChunkQuantity = CHUNK_BOUNDARY * 10n;
 
@@ -228,7 +216,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
       };
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -244,9 +232,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
     });
 
     it("Should prevent excessive chunk count operations", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       // Try to trigger 50+ chunks (should revert)
       const excessiveQuantity = CHUNK_BOUNDARY * 50n;
@@ -262,7 +248,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
       // This should either revert with InvalidQuantity or succeed
       try {
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -342,7 +328,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
 
   describe("Chunk Split with Different Market States", function () {
     it("Should maintain chunk efficiency across market state changes", async function () {
-      const { core, router, alice, bob, marketId } = await loadFixture(
+      const { core, alice, bob, marketId } = await loadFixture(
         createActiveMarket
       );
 
@@ -350,7 +336,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
 
       // Fresh market state
       const tx1 = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -363,7 +349,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
 
       // Modified market state (after some trades)
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           bob.address,
           marketId,
@@ -375,7 +361,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
 
       // Same chunk operation in modified state
       const tx2 = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -426,7 +412,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
     });
 
     it("Should demonstrate chunk limit protection", async function () {
-      const { core, keeper, router, alice } = await loadFixture(coreFixture);
+      const { core, keeper, alice } = await loadFixture(coreFixture);
 
       // Create market with very small alpha
       const tinyAlpha = ethers.parseEther("0.1"); // Increased from 0.0001 to 0.1 to prevent InvalidLiquidityParameter
@@ -447,7 +433,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
       // Should either succeed or revert with chunk limit protection
       try {
         const tx = await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -469,9 +455,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
 
   describe("Chunk Split Regression Tests", function () {
     it("Should maintain gas usage within expected ranges", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       const testCases = [
         { chunks: 1, maxGas: 1000000 }, // Increased from 200k to 1M
@@ -484,7 +468,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
         const quantity = CHUNK_BOUNDARY * BigInt(testCase.chunks);
 
         const tx = await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -505,9 +489,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
     });
 
     it("Should demonstrate chunk optimization effectiveness", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       // Without chunking, large trades would fail or be extremely expensive
       // With chunking, they should be manageable
@@ -515,7 +497,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
       const largeQuantity = CHUNK_BOUNDARY * 8n;
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,

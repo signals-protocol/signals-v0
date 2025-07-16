@@ -8,7 +8,7 @@ import { INVARIANT_TAG } from "../../helpers/tags";
 describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
   describe("Position Quantity Properties", function () {
     it("should satisfy: increase(x) then decrease(x) equals original state", async function () {
-      const { core, position, router, alice, marketId } = await loadFixture(
+      const { core, position, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -23,7 +23,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -33,7 +33,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -59,10 +59,10 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
 
         // Increase then decrease by same amount
         await core
-          .connect(router)
+          .connect(alice)
           .increasePosition(positionId, amount, ethers.parseUnits("10", 6)); // Reduced from 100 to 10
 
-        await core.connect(router).decreasePosition(positionId, amount, 0);
+        await core.connect(alice).decreasePosition(positionId, amount, 0);
 
         // Verify we're back to initial state
         const finalData = await position.getPosition(positionId);
@@ -74,7 +74,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
     });
 
     it("should satisfy: sequence of operations is commutative for same net effect", async function () {
-      const { core, position, router, alice, marketId } = await loadFixture(
+      const { core, position, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -88,7 +88,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
       };
 
       const positionId1 = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -98,7 +98,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -109,7 +109,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
         );
 
       const positionId2 = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -119,7 +119,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -131,39 +131,39 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
 
       // Apply operations in different orders but same net effect
       // Sequence 1: +0.001, -0.0005, +0.0015, -0.0008 = +0.0012 net
-      await core.connect(router).increasePosition(
+      await core.connect(alice).increasePosition(
         positionId1,
         ethers.parseUnits("0.001", 6), // Reduced from 10 to 0.001
         ethers.parseUnits("10", 6) // Reduced from 100 to 10
       );
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(positionId1, ethers.parseUnits("0.0005", 6), 0); // Reduced from 5 to 0.0005
-      await core.connect(router).increasePosition(
+      await core.connect(alice).increasePosition(
         positionId1,
         ethers.parseUnits("0.0015", 6), // Reduced from 15 to 0.0015
         ethers.parseUnits("10", 6) // Reduced from 150 to 10
       );
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(positionId1, ethers.parseUnits("0.0008", 6), 0); // Reduced from 8 to 0.0008
 
       // Sequence 2: +0.0015, +0.001, -0.0008, -0.0005 = +0.0012 net (same net, different order)
-      await core.connect(router).increasePosition(
+      await core.connect(alice).increasePosition(
         positionId2,
         ethers.parseUnits("0.0015", 6), // Reduced from 15 to 0.0015
         ethers.parseUnits("10", 6) // Reduced from 150 to 10
       );
-      await core.connect(router).increasePosition(
+      await core.connect(alice).increasePosition(
         positionId2,
         ethers.parseUnits("0.001", 6), // Reduced from 10 to 0.001
         ethers.parseUnits("10", 6) // Reduced from 100 to 10
       );
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(positionId2, ethers.parseUnits("0.0008", 6), 0); // Reduced from 8 to 0.0008
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(positionId2, ethers.parseUnits("0.0005", 6), 0); // Reduced from 5 to 0.0005
 
       // Both positions should have same final quantity
@@ -175,7 +175,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
     });
 
     it("should satisfy: quantity is always non-negative", async function () {
-      const { core, position, router, alice, marketId } = await loadFixture(
+      const { core, position, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -188,7 +188,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -198,7 +198,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -219,13 +219,13 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
 
       for (const op of operations) {
         if (op.type === "increase") {
-          await core.connect(router).increasePosition(
+          await core.connect(alice).increasePosition(
             positionId,
             op.amount,
             ethers.parseUnits("1", 6) // Reduced max cost
           );
         } else {
-          await core.connect(router).decreasePosition(positionId, op.amount, 0);
+          await core.connect(alice).decreasePosition(positionId, op.amount, 0);
         }
 
         const posData = await position.getPosition(positionId);
@@ -237,7 +237,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
       const excessAmount = currentData.quantity + ethers.parseUnits("0.001", 6); // Much smaller excess
 
       await expect(
-        core.connect(router).decreasePosition(positionId, excessAmount, 0)
+        core.connect(alice).decreasePosition(positionId, excessAmount, 0)
       ).to.be.reverted;
 
       // Quantity should remain unchanged after failed operation
@@ -246,7 +246,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
     });
 
     it("should satisfy: position burn occurs if and only if quantity reaches zero", async function () {
-      const { core, position, router, alice, marketId } = await loadFixture(
+      const { core, position, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -268,7 +268,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
         };
 
         const positionId = await core
-          .connect(router)
+          .connect(alice)
           .openPosition.staticCall(
             alice.address,
             params.marketId,
@@ -278,7 +278,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
             params.maxCost
           );
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             params.marketId,
@@ -290,7 +290,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
 
         // Decrease to exactly zero should burn
         await expect(
-          core.connect(router).decreasePosition(positionId, initialQty, 0)
+          core.connect(alice).decreasePosition(positionId, initialQty, 0)
         )
           .to.emit(position, "PositionBurned")
           .withArgs(positionId, alice.address);
@@ -723,14 +723,12 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
     user: any,
     marketId: any,
     quantityMultiplier: number = 1,
-    core?: any,
-    router?: any
+    core?: any
   ) {
-    // If core and router are not provided, load them from fixture
-    if (!core || !router) {
+    // If core is not provided, load it from fixture
+    if (!core) {
       const fixture = await loadFixture(realPositionMarketFixture);
       core = fixture.core;
-      router = fixture.router;
     }
 
     const params = {
@@ -742,7 +740,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
     };
 
     const positionId = await core
-      .connect(router)
+      .connect(user)
       .openPosition.staticCall(
         user.address,
         params.marketId,
@@ -752,7 +750,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
         params.maxCost
       );
     await core
-      .connect(router)
+      .connect(user)
       .openPosition(
         user.address,
         params.marketId,
@@ -765,13 +763,13 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
     return positionId;
   }
 
-  async function closeTestPosition(positionId: any, core?: any, router?: any) {
-    // If core and router are not provided, load them from fixture
-    if (!core || !router) {
+  async function closeTestPosition(positionId: any, core?: any, user?: any) {
+    // If core is not provided, load it from fixture
+    if (!core || !user) {
       const fixture = await loadFixture(realPositionMarketFixture);
       core = fixture.core;
-      router = fixture.router;
+      user = fixture.alice; // Default user
     }
-    await core.connect(router).closePosition(positionId, 0);
+    await core.connect(user).closePosition(positionId, 0);
   }
 });

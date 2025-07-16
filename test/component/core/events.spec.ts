@@ -99,7 +99,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
   describe("Position Events", function () {
     it("Should emit PositionOpened event with correct parameters", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -135,7 +135,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -159,7 +159,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
 
     it("Should emit PositionIncreased event with correct parameters", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -180,7 +180,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
 
       // Open initial position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -205,7 +205,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
       };
 
       await expect(
-        core.connect(router).increasePosition(
+        core.connect(alice).increasePosition(
           1, // positionId
           additionalQuantity,
           ethers.parseUnits("10", 6) // maxCost
@@ -223,7 +223,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
 
     it("Should emit PositionDecreased event with correct parameters", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -252,7 +252,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
       };
 
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -276,7 +276,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
       };
 
       await expect(
-        core.connect(router).decreasePosition(
+        core.connect(alice).decreasePosition(
           1, // positionId
           quantityToRemove,
           0 // minPayout
@@ -294,7 +294,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
 
     it("Should emit PositionClosed event with correct parameters", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -323,7 +323,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
       };
 
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -336,12 +336,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
       // Close position
       const expectedPayout = await core.calculateCloseProceeds(1);
 
-      const closeParams = {
-        positionId: 1,
-        minPayout: 0,
-      };
-
-      await expect(core.connect(router).closePosition(1, 0))
+      await expect(core.connect(alice).closePosition(1, 0))
         .to.emit(core, "PositionClosed")
         .withArgs(
           1, // positionId
@@ -352,7 +347,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
 
     it("Should emit PositionClaimed event with correct parameters", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -381,7 +376,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
       };
 
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -398,7 +393,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
       // Calculate expected payout
       const expectedPayout = await core.calculateClaimAmount(1);
 
-      await expect(core.connect(router).claimPayout(1))
+      await expect(core.connect(alice).claimPayout(1))
         .to.emit(core, "PositionClaimed")
         .withArgs(
           1, // positionId
@@ -411,7 +406,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
   describe("Trading Events with Detailed Parameters", function () {
     it("Should emit detailed events for complex position operations", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -440,7 +435,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
 
       // Check that multiple events are emitted in correct order
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -474,7 +469,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
 
     it("Should emit events with proper gas tracking", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -502,7 +497,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
       };
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -522,7 +517,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
   describe("Error Events", function () {
     it("Should emit error-related events on failed operations", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -552,7 +547,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -566,7 +561,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
 
     it("Should handle event emissions during edge cases", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -597,7 +592,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
       // Should still emit proper events even for minimal trades
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -684,7 +679,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
   describe("Event Data Integrity", function () {
     it("Should maintain event parameter consistency across operations", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -713,7 +708,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
       };
 
       const openTx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -738,7 +733,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
 
       // Close position and verify consistency
       await expect(
-        core.connect(router).closePosition(positionData.positionId, 0)
+        core.connect(alice).closePosition(positionData.positionId, 0)
       )
         .to.emit(core, "PositionClosed")
         .withArgs(
@@ -750,7 +745,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
 
     it("Should handle large numeric values in events", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -777,7 +772,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -797,34 +792,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
           largeQuantity,
           anyValue // cost
         );
-    });
-  });
-
-  describe("Router Events", function () {
-    it("Should emit RouterSet when router is updated", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { keeper, alice } = contracts;
-
-      // Deploy new core without router set
-      const CLMSRMarketCoreFactory = await ethers.getContractFactory(
-        "CLMSRMarketCore",
-        {
-          libraries: {
-            FixedPointMathU: await contracts.fixedPointMathU.getAddress(),
-            LazyMulSegmentTree: await contracts.lazyMulSegmentTree.getAddress(),
-          },
-        }
-      );
-
-      const newCore = await CLMSRMarketCoreFactory.deploy(
-        await contracts.paymentToken.getAddress(),
-        await contracts.mockPosition.getAddress(),
-        keeper.address
-      );
-
-      await expect(newCore.connect(keeper).setRouterContract(alice.address))
-        .to.emit(newCore, "RouterSet")
-        .withArgs(alice.address);
     });
   });
 });

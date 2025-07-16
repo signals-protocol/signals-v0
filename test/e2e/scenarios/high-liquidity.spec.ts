@@ -37,7 +37,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
   describe("Large Volume Trading", function () {
     it("Should handle institutional-size trades efficiently", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createHighLiquidityMarket
       );
 
@@ -58,7 +58,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       );
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -86,7 +86,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
     });
 
     it("Should support multiple large concurrent positions", async function () {
-      const { core, router, alice, bob, charlie, marketId, mockPosition } =
+      const { core, alice, bob, charlie, marketId, mockPosition } =
         await loadFixture(createHighLiquidityMarket);
 
       const traders = [alice, bob, charlie];
@@ -106,7 +106,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
         };
 
         await core
-          .connect(router)
+          .connect(trader)
           .openPosition(
             trader.address,
             tradeParams.marketId,
@@ -144,7 +144,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
     });
 
     it("Should maintain price stability under high volume", async function () {
-      const { core, router, alice, bob, marketId } = await loadFixture(
+      const { core, alice, bob, marketId } = await loadFixture(
         createHighLiquidityMarket
       );
 
@@ -170,7 +170,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
         };
 
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -206,7 +206,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
   describe("Market Maker Activity", function () {
     it("Should support high-frequency market making", async function () {
-      const { core, router, alice, bob, marketId } = await loadFixture(
+      const { core, alice, bob, marketId } = await loadFixture(
         createHighLiquidityMarket
       );
 
@@ -222,7 +222,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
         // Place bid
         const bidTx = await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -235,7 +235,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
         // Place ask (counter-trade)
         const askTx = await core
-          .connect(router)
+          .connect(bob)
           .openPosition(
             bob.address,
             marketId,
@@ -259,13 +259,13 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
     });
 
     it("Should handle rapid position adjustments", async function () {
-      const { core, router, alice, marketId, mockPosition } = await loadFixture(
+      const { core, alice, marketId, mockPosition } = await loadFixture(
         createHighLiquidityMarket
       );
 
       // Open initial large position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -285,7 +285,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
         if (i % 2 === 0) {
           // Increase position
           await core
-            .connect(router)
+            .connect(alice)
             .increasePosition(
               positionId,
               adjustmentSize,
@@ -294,7 +294,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
         } else {
           // Decrease position
           await core
-            .connect(router)
+            .connect(alice)
             .decreasePosition(positionId, adjustmentSize, 0);
         }
       }
@@ -314,7 +314,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
   describe("Stress Testing Under Load", function () {
     it("Should maintain performance under concurrent high-volume trades", async function () {
-      const { core, router, alice, bob, charlie, marketId } = await loadFixture(
+      const { core, alice, bob, charlie, marketId } = await loadFixture(
         createHighLiquidityMarket
       );
 
@@ -328,7 +328,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
       for (let i = 0; i < concurrentTrades; i++) {
         const tradePromise = core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -361,14 +361,14 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
     });
 
     it("Should handle whale trade followed by many small trades", async function () {
-      const { core, router, alice, bob, marketId } = await loadFixture(
+      const { core, alice, bob, marketId } = await loadFixture(
         createHighLiquidityMarket
       );
 
       // Whale trade: $100 position (large for testing but within chunk limits)
       const whaleQuantity = ethers.parseUnits("100", USDC_DECIMALS);
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -391,7 +391,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
       for (let i = 0; i < smallTrades; i++) {
         await core
-          .connect(router)
+          .connect(bob)
           .openPosition(
             bob.address,
             marketId,
@@ -421,8 +421,9 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
   describe("High Liquidity Market Settlement", function () {
     it("Should settle high-volume market efficiently", async function () {
-      const { core, keeper, router, alice, bob, charlie, marketId } =
-        await loadFixture(createHighLiquidityMarket);
+      const { core, keeper, alice, bob, charlie, marketId } = await loadFixture(
+        createHighLiquidityMarket
+      );
 
       // Create moderate volume before settlement - reduced to prevent LazyFactorOverflow
       const traders = [alice, bob, charlie];
@@ -432,7 +433,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       for (let i = 0; i < traders.length; i++) {
         const trader = traders[i];
         for (let j = 0; j < positionsPerTrader; j++) {
-          await core.connect(router).openPosition(
+          await core.connect(trader).openPosition(
             trader.address,
             marketId,
             10 + j * 10, // Spread out more
@@ -471,16 +472,8 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
     });
 
     it("Should handle mass claiming after high-volume settlement", async function () {
-      const {
-        core,
-        keeper,
-        router,
-        alice,
-        bob,
-        charlie,
-        marketId,
-        mockPosition,
-      } = await loadFixture(createHighLiquidityMarket);
+      const { core, keeper, alice, bob, charlie, marketId, mockPosition } =
+        await loadFixture(createHighLiquidityMarket);
 
       // Create many positions
       const traders = [alice, bob, charlie];
@@ -490,7 +483,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       for (let i = 0; i < 9; i++) {
         // Reduced from 15 to 9
         const trader = traders[i % traders.length];
-        const tx = await core.connect(router).openPosition(
+        const tx = await core.connect(trader).openPosition(
           trader.address,
           marketId,
           10 + i * 3, // Ensure lower < upper
@@ -520,7 +513,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
       for (const positionId of positionIds) {
         try {
-          const claimTx = await core.connect(router).claimPayout(positionId);
+          const claimTx = await core.connect(alice).claimPayout(positionId);
           const claimReceipt = await claimTx.wait();
           totalClaimGas += claimReceipt!.gasUsed;
 
@@ -566,7 +559,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
   describe("High Liquidity Edge Cases", function () {
     it("Should handle maximum position sizes gracefully", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createHighLiquidityMarket
       );
 
@@ -589,7 +582,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
         // If it doesn't revert, the high liquidity is working
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -608,7 +601,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
     });
 
     it("Should maintain precision under extreme volumes", async function () {
-      const { core, router, alice, bob, marketId } = await loadFixture(
+      const { core, alice, bob, marketId } = await loadFixture(
         createHighLiquidityMarket
       );
 
@@ -620,7 +613,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
       for (let i = 0; i < extremeTrades; i++) {
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,

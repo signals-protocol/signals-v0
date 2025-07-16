@@ -157,8 +157,9 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
     });
 
     it("should handle transfers of multiple positions", async function () {
-      const { core, position, router, alice, bob, marketId } =
-        await loadFixture(realPositionMarketFixture);
+      const { core, position, alice, bob, marketId } = await loadFixture(
+        realPositionMarketFixture
+      );
 
       // Create multiple positions for Alice
       const positionIds = [];
@@ -172,7 +173,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
         };
 
         const positionId = await core
-          .connect(router)
+          .connect(alice)
           .openPosition.staticCall(
             alice.address,
             params.marketId,
@@ -182,7 +183,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
             params.maxCost
           );
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             params.marketId,
@@ -507,8 +508,9 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
 
   describe("Transfer Impact on Position Operations", function () {
     it("should allow new owner to manage transferred position", async function () {
-      const { core, position, router, alice, bob, marketId } =
-        await loadFixture(realPositionMarketFixture);
+      const { core, position, alice, bob, marketId } = await loadFixture(
+        realPositionMarketFixture
+      );
 
       // Alice opens position
       const params = {
@@ -520,7 +522,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -530,7 +532,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -548,7 +550,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
       // Bob should be able to manage the position
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             positionId,
             ethers.parseUnits("1", 6),
@@ -558,11 +560,11 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .decreasePosition(positionId, ethers.parseUnits("0.5", 6), 0)
       ).to.emit(position, "PositionUpdated");
 
-      await expect(core.connect(router).closePosition(positionId, 0)).to.emit(
+      await expect(core.connect(alice).closePosition(positionId, 0)).to.emit(
         position,
         "PositionBurned"
       );
@@ -572,8 +574,9 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
     });
 
     it("should prevent original owner from managing transferred position", async function () {
-      const { core, position, router, alice, bob, marketId } =
-        await loadFixture(realPositionMarketFixture);
+      const { core, position, alice, bob, marketId } = await loadFixture(
+        realPositionMarketFixture
+      );
 
       // Alice opens position
       const params = {
@@ -585,7 +588,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -595,7 +598,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -624,8 +627,9 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
     });
 
     it("should handle position transfer during active operations", async function () {
-      const { core, position, router, alice, bob, marketId } =
-        await loadFixture(realPositionMarketFixture);
+      const { core, position, alice, bob, marketId } = await loadFixture(
+        realPositionMarketFixture
+      );
 
       // Alice opens position
       const params = {
@@ -637,7 +641,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -647,7 +651,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -659,7 +663,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
 
       // Increase position
       await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(
           positionId,
           ethers.parseUnits("2", 6),
@@ -683,7 +687,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
 
       // Bob can continue operations
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(positionId, ethers.parseUnits("3", 6), 0);
 
       positionData = await position.getPosition(positionId);

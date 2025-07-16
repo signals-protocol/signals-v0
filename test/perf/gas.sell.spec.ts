@@ -21,7 +21,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
   async function createActiveMarketWithPositionsFixture() {
     const contracts = await loadFixture(coreFixture);
-    const { core, keeper, router, alice } = contracts;
+    const { core, keeper, alice } = contracts;
 
     const marketId = 1;
     const currentTime = await time.latest();
@@ -39,7 +39,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
     // Single tick position
     const tx1 = await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -56,7 +56,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
     // Small range position
     const tx2 = await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -73,7 +73,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
     // Large range position
     const tx3 = await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -90,7 +90,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
     // Full range position
     const tx4 = await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -114,13 +114,13 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
   describe("Gas Benchmarks for Position Closing", function () {
     it("Should close single tick position within gas limit", async function () {
-      const { core, router, alice, positions } = await loadFixture(
+      const { core, alice, positions } = await loadFixture(
         createActiveMarketWithPositionsFixture
       );
 
       const positionId = positions[0]; // Single tick
 
-      const tx = await core.connect(router).closePosition(positionId, 0);
+      const tx = await core.connect(alice).closePosition(positionId, 0);
       const receipt = await tx.wait();
 
       console.log(`Single tick close gas used: ${receipt!.gasUsed.toString()}`);
@@ -128,13 +128,13 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
     });
 
     it("Should close small range position within gas limit", async function () {
-      const { core, router, alice, positions } = await loadFixture(
+      const { core, alice, positions } = await loadFixture(
         createActiveMarketWithPositionsFixture
       );
 
       const positionId = positions[1]; // Small range (11 ticks)
 
-      const tx = await core.connect(router).closePosition(positionId, 0);
+      const tx = await core.connect(alice).closePosition(positionId, 0);
       const receipt = await tx.wait();
 
       console.log(`Small range close gas used: ${receipt!.gasUsed.toString()}`);
@@ -142,13 +142,13 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
     });
 
     it("Should close large range position within gas limit", async function () {
-      const { core, router, alice, positions } = await loadFixture(
+      const { core, alice, positions } = await loadFixture(
         createActiveMarketWithPositionsFixture
       );
 
       const positionId = positions[2]; // Large range (61 ticks)
 
-      const tx = await core.connect(router).closePosition(positionId, 0);
+      const tx = await core.connect(alice).closePosition(positionId, 0);
       const receipt = await tx.wait();
 
       console.log(`Large range close gas used: ${receipt!.gasUsed.toString()}`);
@@ -156,13 +156,13 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
     });
 
     it("Should close full range position within gas limit", async function () {
-      const { core, router, alice, positions } = await loadFixture(
+      const { core, alice, positions } = await loadFixture(
         createActiveMarketWithPositionsFixture
       );
 
       const positionId = positions[3]; // Full range (100 ticks)
 
-      const tx = await core.connect(router).closePosition(positionId, 0);
+      const tx = await core.connect(alice).closePosition(positionId, 0);
       const receipt = await tx.wait();
 
       console.log(`Full range close gas used: ${receipt!.gasUsed.toString()}`);
@@ -172,7 +172,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
   describe("Gas Scaling Tests", function () {
     it("Should have predictable gas scaling with range size", async function () {
-      const { core, keeper, router, alice, mockPosition } = await loadFixture(
+      const { core, keeper, alice, mockPosition } = await loadFixture(
         coreFixture
       );
 
@@ -196,7 +196,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
         // Open position
         const openTx = await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -211,7 +211,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
         const positionId = Number(positions[positions.length - 1]); // Get latest position
 
         // Close position
-        const closeTx = await core.connect(router).closePosition(positionId, 0);
+        const closeTx = await core.connect(alice).closePosition(positionId, 0);
         const closeReceipt = await closeTx.wait();
 
         gasUsages.push({
@@ -242,7 +242,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
     });
 
     it("Should handle multiple position closures efficiently", async function () {
-      const { core, keeper, router, alice, mockPosition } = await loadFixture(
+      const { core, keeper, alice, mockPosition } = await loadFixture(
         coreFixture
       );
 
@@ -266,7 +266,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
         const upperTick = lowerTick + 4;
 
         const tx = await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -286,7 +286,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
       // Close all positions and measure gas
       let totalGas = 0n;
       for (const positionId of positions) {
-        const tx = await core.connect(router).closePosition(positionId, 0);
+        const tx = await core.connect(alice).closePosition(positionId, 0);
         const receipt = await tx.wait();
         totalGas += receipt!.gasUsed;
       }
@@ -304,8 +304,9 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
   describe("Gas Stress Tests", function () {
     it("Should handle closing positions in a market with high activity", async function () {
-      const { core, keeper, router, alice, bob, mockPosition } =
-        await loadFixture(coreFixture);
+      const { core, keeper, alice, bob, mockPosition } = await loadFixture(
+        coreFixture
+      );
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -326,7 +327,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
         const upperTick = lowerTick + Math.floor(Math.random() * 10) + 1;
 
         const tx = await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             user.address,
             marketId,
@@ -351,7 +352,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
         const position = positions[i];
         const user = position.user === alice.address ? alice : bob;
 
-        const tx = await core.connect(router).closePosition(position.id, 0);
+        const tx = await core.connect(alice).closePosition(position.id, 0);
         const receipt = await tx.wait();
 
         console.log(
@@ -364,7 +365,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
     });
 
     it("Should handle partial position closures efficiently", async function () {
-      const { core, keeper, router, alice, mockPosition } = await loadFixture(
+      const { core, keeper, alice, mockPosition } = await loadFixture(
         coreFixture
       );
 
@@ -381,7 +382,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
       // Open large position
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -400,7 +401,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
       for (let i = 0; i < 3; i++) {
         const decreaseTx = await core
-          .connect(router)
+          .connect(alice)
           .decreasePosition(positionId, decreaseAmount, 0);
         const decreaseReceipt = await decreaseTx.wait();
 
@@ -413,7 +414,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
       }
 
       // Final close
-      const closeTx = await core.connect(router).closePosition(positionId, 0);
+      const closeTx = await core.connect(alice).closePosition(positionId, 0);
       const closeReceipt = await closeTx.wait();
 
       console.log(`Final close: ${closeReceipt!.gasUsed.toString()} gas`);
@@ -423,7 +424,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
   describe("Gas Regression Tests", function () {
     it("Should maintain consistent gas usage over multiple operations", async function () {
-      const { core, keeper, router, alice, mockPosition } = await loadFixture(
+      const { core, keeper, alice, mockPosition } = await loadFixture(
         coreFixture
       );
 
@@ -444,7 +445,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
       for (let round = 0; round < 5; round++) {
         // Open position
         const openTx = await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -459,7 +460,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
         const positionId = Number(positions[positions.length - 1]);
 
         // Close position
-        const closeTx = await core.connect(router).closePosition(positionId, 0);
+        const closeTx = await core.connect(alice).closePosition(positionId, 0);
         const closeReceipt = await closeTx.wait();
 
         gasUsages.push(Number(closeReceipt!.gasUsed));

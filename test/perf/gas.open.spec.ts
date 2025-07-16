@@ -37,12 +37,12 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
 
   describe("Gas Usage Benchmarks", function () {
     it("Should use reasonable gas for small position opening", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -61,12 +61,12 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
     });
 
     it("Should use reasonable gas for medium position opening", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -85,12 +85,12 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
     });
 
     it("Should use reasonable gas for large position opening", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -111,7 +111,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
 
   describe("Gas Optimization by Tick Range", function () {
     it("Should have similar gas usage for different single tick positions", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -120,7 +120,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
       // Test multiple single tick positions
       for (let tick = 10; tick < 90; tick += 20) {
         const tx = await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -144,7 +144,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
     });
 
     it("Should scale gas usage reasonably with tick range", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -158,7 +158,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
 
       for (const range of ranges) {
         const tx = await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -182,7 +182,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
 
   describe("Gas Optimization by Quantity", function () {
     it("Should have minimal gas variance for different quantities", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+          const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -196,7 +196,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
 
       for (const quantity of quantities) {
         const tx = await core
-          .connect(router)
+          .connect(alice)
           .openPosition(alice.address, marketId, 45, 55, quantity, LARGE_COST);
 
         const receipt = await tx.wait();
@@ -215,14 +215,14 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
 
   describe("Gas Optimization Stress Tests", function () {
     it("Should maintain reasonable gas usage under market stress", async function () {
-      const { core, router, alice, bob, marketId } = await loadFixture(
+      const { core, alice, bob, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Create multiple positions to stress the market
       for (let i = 0; i < 5; i++) {
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -235,7 +235,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
 
       // Gas usage for new position should still be reasonable
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           bob.address,
           marketId,
@@ -254,13 +254,13 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
     });
 
     it("Should handle edge case tick positions efficiently", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Test first tick
       const tx1 = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -272,7 +272,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
 
       // Test last tick
       const tx2 = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -296,13 +296,13 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
 
   describe("Gas Optimization Comparisons", function () {
     it("Should compare gas efficiency across market states", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Gas usage in fresh market
       const tx1 = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -316,7 +316,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
       // Add some positions
       for (let i = 0; i < 3; i++) {
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -329,7 +329,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
 
       // Gas usage in active market
       const tx2 = await core
-        .connect(router)
+                .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -354,12 +354,12 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
 
   describe("Gas Regression Tests", function () {
     it("Should maintain baseline gas usage for standard operations", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -381,13 +381,13 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
 
   describe("Gas Efficiency - Edge Cases", function () {
     it("Should handle gas-efficient small adjustments", async function () {
-      const { core, router, alice, mockPosition, marketId } = await loadFixture(
+      const { core, alice, mockPosition, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Create position first
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -402,13 +402,13 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
 
       // Test small increase
       const tx1 = await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(positionId, 1, MEDIUM_COST);
       const receipt1 = await tx1.wait();
       const gasUsed1 = receipt1!.gasUsed;
 
       // Test small decrease
-      const tx2 = await core.connect(router).decreasePosition(positionId, 1, 0);
+      const tx2 = await core.connect(alice).decreasePosition(positionId, 1, 0);
       const receipt2 = await tx2.wait();
       const gasUsed2 = receipt2!.gasUsed;
 
@@ -422,13 +422,13 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
     });
 
     it("Should handle gas-efficient odd quantity adjustments", async function () {
-      const { core, router, alice, mockPosition, marketId } = await loadFixture(
+      const { core, alice, mockPosition, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Create position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -445,7 +445,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
       const oddAdjustment = ethers.parseUnits("0.1", 6); // 0.1 USDC
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(positionId, oddAdjustment, MEDIUM_COST);
 
       const receipt = await tx.wait();

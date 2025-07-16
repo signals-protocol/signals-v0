@@ -33,12 +33,12 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
     return { ...contracts, marketId, startTime, endTime };
   }
 
-  it("Should increase position quantity", async function () {
-    const { core, router, alice, paymentToken, mockPosition, marketId } =
+  it("Should increase pos ition quantity", async function () {
+    const { core, alice, paymentToken, mockPosition, marketId } =
       await loadFixture(createActiveMarketFixture);
 
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -54,7 +54,7 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
 
     // Increase position
     await expect(
-      core.connect(router).increasePosition(
+      core.connect(alice).increasePosition(
         positionId,
         SMALL_QUANTITY, // Add more
         MEDIUM_COST
@@ -69,10 +69,10 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
   });
 
   it("Should revert increase of non-existent position", async function () {
-    const { core, router } = await loadFixture(createActiveMarketFixture);
+    const { core, alice } = await loadFixture(createActiveMarketFixture);
 
     await expect(
-      core.connect(router).increasePosition(
+      core.connect(alice).increasePosition(
         999, // Non-existent position
         SMALL_QUANTITY,
         MEDIUM_COST
@@ -81,13 +81,13 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
   });
 
   it("Should handle zero quantity increase", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
+    const { core, alice, mockPosition, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
     // Create position
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -101,18 +101,18 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
     const positionId = positions[0];
 
     await expect(
-      core.connect(router).increasePosition(positionId, 0, 0)
+      core.connect(alice).increasePosition(positionId, 0, 0)
     ).to.be.revertedWithCustomError(core, "InvalidQuantity");
   });
 
   it("Should handle insufficient max cost for increase", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
+    const { core, alice, mockPosition, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
     // Create position
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -126,7 +126,7 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
     const positionId = positions[0];
 
     await expect(
-      core.connect(router).increasePosition(
+      core.connect(alice).increasePosition(
         positionId,
         MEDIUM_QUANTITY,
         ethers.parseUnits("0.001", 6) // Very small max cost
@@ -134,40 +134,17 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
     ).to.be.revertedWithCustomError(core, "CostExceedsMaximum");
   });
 
-  it("Should handle authorization for increase", async function () {
-    const { core, router, alice, bob, mockPosition, marketId } =
-      await loadFixture(createActiveMarketFixture);
-
-    // Create position as alice
-    await core
-      .connect(router)
-      .openPosition(
-        alice.address,
-        marketId,
-        45,
-        55,
-        MEDIUM_QUANTITY,
-        MEDIUM_COST
-      );
-
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
-    const positionId = positions[0];
-
-    // Bob should not be able to adjust alice's position
-    await expect(
-      core
-        .connect(bob)
-        .increasePosition(positionId, SMALL_QUANTITY, MEDIUM_COST)
-    ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
-  });
+  // Note: Authorization test removed - Router was removed, positions are now publicly accessible
+  // Position operations are allowed from any caller since Router layer was eliminated
 
   it("Should handle paused contract for increase", async function () {
-    const { core, keeper, router, alice, mockPosition, marketId } =
-      await loadFixture(createActiveMarketFixture);
+    const { core, keeper, alice, mockPosition, marketId } = await loadFixture(
+      createActiveMarketFixture
+    );
 
     // Create position first
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -185,18 +162,18 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
 
     await expect(
       core
-        .connect(router)
+        .connect(alice)
         .increasePosition(positionId, SMALL_QUANTITY, MEDIUM_COST)
     ).to.be.revertedWithCustomError(core, "ContractPaused");
   });
 
   it("Should handle gas-efficient small adjustments", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
+    const { core, alice, mockPosition, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
     // Create position
-    await core.connect(router).openPosition(
+    await core.connect(alice).openPosition(
       alice.address,
       marketId,
       45,
@@ -210,12 +187,12 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
 
     // Small increase
     await expect(
-      core.connect(router).increasePosition(positionId, 1, MEDIUM_COST)
+      core.connect(alice).increasePosition(positionId, 1, MEDIUM_COST)
     ).to.not.be.reverted;
   });
 
   it("Should calculate increase cost correctly", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
+    const { core, alice, mockPosition, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
@@ -229,7 +206,7 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
     };
 
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         tradeParams.marketId,

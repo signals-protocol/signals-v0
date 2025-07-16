@@ -8,7 +8,7 @@ import { INTEGRATION_TAG } from "../../helpers/tags";
 describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
   describe("Position Operations Across Market States", function () {
     it("should handle position operations during market lifecycle", async function () {
-      const { core, position, router, keeper, alice, bob, charlie, marketId } =
+      const { core, position, keeper, alice, bob, charlie, marketId } =
         await loadFixture(realPositionMarketFixture);
 
       // Create multiple positions in different tick ranges
@@ -25,7 +25,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
         };
 
         const positionId = await core
-          .connect(router)
+          .connect(users[i])
           .openPosition.staticCall(
             users[i].address,
             params.marketId,
@@ -35,7 +35,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
             params.maxCost
           );
         await core
-          .connect(router)
+          .connect(users[i])
           .openPosition(
             users[i].address,
             params.marketId,
@@ -57,7 +57,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
       // Modify positions while market is active
       await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(
           positions[0],
           ethers.parseUnits("1", 6),
@@ -65,7 +65,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
         );
 
       await core
-        .connect(router)
+        .connect(bob)
         .decreasePosition(positions[1], ethers.parseUnits("0.5", 6), 0);
 
       // Transfer positions between users
@@ -87,7 +87,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       // But Core operations should fail
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             positions[1],
             ethers.parseUnits("1", 6),
@@ -100,7 +100,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
       // Operations should work again
       await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(
           positions[1],
           ethers.parseUnits("1", 6),
@@ -109,7 +109,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
       // Close all positions
       for (const posId of positions) {
-        await core.connect(router).closePosition(posId, 0);
+        await core.connect(alice).closePosition(posId, 0);
       }
 
       // Verify cleanup
@@ -124,7 +124,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
     });
 
     it("should handle position operations with overlapping tick ranges", async function () {
-      const { core, position, router, alice, bob, charlie, marketId } =
+      const { core, position, alice, bob, charlie, marketId } =
         await loadFixture(realPositionMarketFixture);
 
       // Create positions with overlapping tick ranges
@@ -147,7 +147,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
         };
 
         const positionId = await core
-          .connect(router)
+          .connect(pos.user)
           .openPosition.staticCall(
             pos.user.address,
             params.marketId,
@@ -157,7 +157,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
             params.maxCost
           );
         await core
-          .connect(router)
+          .connect(pos.user)
           .openPosition(
             pos.user.address,
             params.marketId,
@@ -186,7 +186,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
       // Perform operations on overlapping positions
       await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(
           positionIds[0],
           ethers.parseUnits("0.5", 6),
@@ -194,7 +194,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
         );
 
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(positionIds[1], ethers.parseUnits("1", 6), 0);
 
       // Transfer positions to create more complex ownership patterns
@@ -211,10 +211,10 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       expect(await position.balanceOf(charlie.address)).to.equal(0); // transferred away
 
       // Close positions in different order
-      await core.connect(router).closePosition(positionIds[2], 0); // Charlie's original, now Alice's
-      await core.connect(router).closePosition(positionIds[1], 0); // Bob's
-      await core.connect(router).closePosition(positionIds[0], 0); // Alice's original, now Bob's
-      await core.connect(router).closePosition(positionIds[3], 0); // Alice's second
+      await core.connect(alice).closePosition(positionIds[2], 0); // Charlie's original, now Alice's
+      await core.connect(alice).closePosition(positionIds[1], 0); // Bob's
+      await core.connect(alice).closePosition(positionIds[0], 0); // Alice's original, now Bob's
+      await core.connect(alice).closePosition(positionIds[3], 0); // Alice's second
 
       // All should be cleaned up
       expect(await position.balanceOf(alice.address)).to.equal(0);
@@ -223,8 +223,9 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
     });
 
     it("should handle position operations with reasonable tick ranges", async function () {
-      const { core, position, router, alice, bob, marketId } =
-        await loadFixture(realPositionMarketFixture);
+      const { core, position, alice, bob, marketId } = await loadFixture(
+        realPositionMarketFixture
+      );
 
       // Test with reasonable tick ranges for normal usage
       const reasonablePositions = [
@@ -245,7 +246,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
         };
 
         const positionId = await core
-          .connect(router)
+          .connect(alice)
           .openPosition.staticCall(
             alice.address,
             params.marketId,
@@ -255,7 +256,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
             params.maxCost
           );
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             params.marketId,
@@ -280,14 +281,14 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       }
 
       // Operations should work on reasonable positions
-      await core.connect(router).increasePosition(
+      await core.connect(alice).increasePosition(
         positionIds[0],
         ethers.parseUnits("0.002", 6), // Small increase
         ethers.parseUnits("2", 6)
       );
 
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(positionIds[1], ethers.parseUnits("0.001", 6), 0); // Small decrease within position quantity
 
       // Transfer extreme positions
@@ -303,7 +304,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
       // Close all positions
       for (const posId of positionIds) {
-        await core.connect(router).closePosition(posId, 0);
+        await core.connect(alice).closePosition(posId, 0);
       }
 
       expect(await position.balanceOf(alice.address)).to.equal(0);
@@ -313,7 +314,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
   describe("Position Batch Operations", function () {
     it("should handle reasonable batch position creation and management", async function () {
-      const { core, position, router, alice, bob, charlie, marketId } =
+      const { core, position, alice, bob, charlie, marketId } =
         await loadFixture(realPositionMarketFixture);
 
       const batchSize = 5; // Reduced batch size for realistic usage
@@ -332,7 +333,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
         };
 
         const positionId = await core
-          .connect(router)
+          .connect(user)
           .openPosition.staticCall(
             user.address,
             params.marketId,
@@ -342,7 +343,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
             params.maxCost
           );
         await core
-          .connect(router)
+          .connect(user)
           .openPosition(
             user.address,
             params.marketId,
@@ -370,7 +371,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       for (let i = 0; i < positionIds.length; i += 2) {
         // Increase every other position
         await core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             positionIds[i].id,
             ethers.parseUnits("0.5", 6),
@@ -381,7 +382,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       for (let i = 1; i < positionIds.length; i += 2) {
         // Decrease every other position by small amount
         await core
-          .connect(router)
+          .connect(alice)
           .decreasePosition(
             positionIds[i].id,
             ethers.parseUnits("0.0005", 6),
@@ -404,7 +405,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
       // Batch closure - close all positions
       for (const pos of positionIds) {
-        await core.connect(router).closePosition(pos.id, 0);
+        await core.connect(alice).closePosition(pos.id, 0);
       }
 
       // Verify all cleaned up
@@ -419,8 +420,9 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
     });
 
     it("should handle rapid position operations", async function () {
-      const { core, position, router, alice, bob, marketId } =
-        await loadFixture(realPositionMarketFixture);
+      const { core, position, alice, bob, marketId } = await loadFixture(
+        realPositionMarketFixture
+      );
 
       // Create position for rapid operations
       const params = {
@@ -432,7 +434,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -442,7 +444,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -468,14 +470,14 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
       for (const op of operations) {
         if (op.type === "increase") {
-          await core.connect(router).increasePosition(
+          await core.connect(alice).increasePosition(
             positionId,
             op.amount,
             ethers.parseUnits("10", 6) // Reduced from 100 to 10
           );
           currentQuantity += op.amount;
         } else {
-          await core.connect(router).decreasePosition(positionId, op.amount, 0);
+          await core.connect(alice).decreasePosition(positionId, op.amount, 0);
           currentQuantity -= op.amount;
         }
 
@@ -491,7 +493,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       expect(await position.ownerOf(positionId)).to.equal(bob.address);
 
       // Continue operations with new owner
-      await core.connect(router).increasePosition(
+      await core.connect(alice).increasePosition(
         positionId,
         ethers.parseUnits("0.003", 6), // Reduced from 30 to 0.003
         ethers.parseUnits("10", 6) // Reduced from 300 to 10
@@ -502,20 +504,21 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       expect(finalData.quantity).to.equal(currentQuantity);
 
       // Close position
-      await core.connect(router).closePosition(positionId, 0);
+      await core.connect(alice).closePosition(positionId, 0);
       expect(await position.balanceOf(bob.address)).to.equal(0);
     });
   });
 
   describe("Position Error Recovery and Edge Cases", function () {
     it("should handle position operations with market edge cases", async function () {
-      const { core, position, router, alice, bob, marketId } =
-        await loadFixture(realPositionMarketFixture);
+      const { core, position, alice, bob, marketId } = await loadFixture(
+        realPositionMarketFixture
+      );
 
       // Create position with minimal quantity
 
       const minPositionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           marketId,
@@ -525,7 +528,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
           ethers.parseUnits("1", 6)
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -537,7 +540,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
       // Operations on minimal position
       await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(minPositionId, 1, ethers.parseUnits("1", 6));
 
       let posData = await position.getPosition(minPositionId);
@@ -550,16 +553,16 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       expect(await position.ownerOf(minPositionId)).to.equal(bob.address);
 
       // Decrease to 1
-      await core.connect(router).decreasePosition(minPositionId, 1, 0);
+      await core.connect(alice).decreasePosition(minPositionId, 1, 0);
       posData = await position.getPosition(minPositionId);
       expect(posData.quantity).to.equal(1);
 
       // Close minimal position
-      await core.connect(router).closePosition(minPositionId, 0);
+      await core.connect(alice).closePosition(minPositionId, 0);
       expect(await position.balanceOf(bob.address)).to.equal(0);
 
       const maxPositionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           marketId,
@@ -569,7 +572,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
           ethers.parseUnits("1", 6)
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -580,7 +583,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
         );
 
       // Operations on maximum position
-      await core.connect(router).increasePosition(
+      await core.connect(alice).increasePosition(
         maxPositionId,
         ethers.parseUnits("0.5", 6), // Reduced from 500000 to 0.5
         ethers.parseUnits("10", 6) // Reduced from 5000000 to 10
@@ -591,7 +594,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
       // Large decrease
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(maxPositionId, ethers.parseUnits("0.1", 6), 0); // Reduced from 1000000 to 0.1
 
       posData = await position.getPosition(maxPositionId);
@@ -601,14 +604,15 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       await position
         .connect(alice)
         .transferFrom(alice.address, bob.address, maxPositionId);
-      await core.connect(router).closePosition(maxPositionId, 0);
+      await core.connect(alice).closePosition(maxPositionId, 0);
 
       expect(await position.balanceOf(bob.address)).to.equal(0);
     });
 
     it("should handle position operations with failed transactions", async function () {
-      const { core, position, router, alice, bob, marketId } =
-        await loadFixture(realPositionMarketFixture);
+      const { core, position, alice, bob, marketId } = await loadFixture(
+        realPositionMarketFixture
+      );
 
       // Create position
       const params = {
@@ -620,7 +624,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -630,7 +634,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -645,7 +649,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             nonExistentId,
             ethers.parseUnits("1", 6),
@@ -655,11 +659,11 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .decreasePosition(nonExistentId, ethers.parseUnits("1", 6), 0)
       ).to.be.reverted;
 
-      await expect(core.connect(router).closePosition(nonExistentId, 0)).to.be
+      await expect(core.connect(alice).closePosition(nonExistentId, 0)).to.be
         .reverted;
 
       // Original position should be unaffected
@@ -670,7 +674,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       // Try to decrease more than available
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .decreasePosition(positionId, ethers.parseUnits("10", 6), 0)
       ).to.be.reverted;
 
@@ -680,7 +684,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
       // Valid operations should still work
       await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(
           positionId,
           ethers.parseUnits("2", 6),
@@ -690,13 +694,13 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       await position
         .connect(alice)
         .transferFrom(alice.address, bob.address, positionId);
-      await core.connect(router).closePosition(positionId, 0);
+      await core.connect(alice).closePosition(positionId, 0);
 
       expect(await position.balanceOf(bob.address)).to.equal(0);
     });
 
     it("should maintain data integrity across complex operation sequences", async function () {
-      const { core, position, router, alice, bob, charlie, marketId } =
+      const { core, position, alice, bob, charlie, marketId } =
         await loadFixture(realPositionMarketFixture);
 
       const positionIds = [];
@@ -714,7 +718,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
         const user = [alice, bob, charlie][i % 3];
         const positionId = await core
-          .connect(router)
+          .connect(user)
           .openPosition.staticCall(
             user.address,
             params.marketId,
@@ -724,7 +728,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
             params.maxCost
           );
         await core
-          .connect(router)
+          .connect(user)
           .openPosition(
             user.address,
             params.marketId,
@@ -747,14 +751,39 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
       // Complex sequence of operations
       const operations = [
-        { type: "increase", posIndex: 0, amount: ethers.parseUnits("0.5", 6) },
+        {
+          type: "increase",
+          posIndex: 0,
+          amount: ethers.parseUnits("0.5", 6),
+          from: alice,
+        },
         { type: "transfer", posIndex: 1, from: bob, to: alice },
-        { type: "decrease", posIndex: 2, amount: ethers.parseUnits("1", 6) },
-        { type: "increase", posIndex: 3, amount: ethers.parseUnits("2", 6) },
+        {
+          type: "decrease",
+          posIndex: 2,
+          amount: ethers.parseUnits("1", 6),
+          from: charlie,
+        },
+        {
+          type: "increase",
+          posIndex: 3,
+          amount: ethers.parseUnits("2", 6),
+          from: bob,
+        },
         { type: "transfer", posIndex: 0, from: alice, to: charlie },
-        { type: "decrease", posIndex: 4, amount: ethers.parseUnits("0.8", 6) },
+        {
+          type: "decrease",
+          posIndex: 4,
+          amount: ethers.parseUnits("0.8", 6),
+          from: alice,
+        },
         { type: "transfer", posIndex: 2, from: charlie, to: bob },
-        { type: "increase", posIndex: 1, amount: ethers.parseUnits("1.5", 6) },
+        {
+          type: "increase",
+          posIndex: 1,
+          amount: ethers.parseUnits("1.5", 6),
+          from: alice,
+        },
       ];
 
       for (const op of operations) {
@@ -762,11 +791,11 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
         if (op.type === "increase") {
           await core
-            .connect(router)
+            .connect(op.from)
             .increasePosition(posId, op.amount!, ethers.parseUnits("50", 6));
           expectedStates[op.posIndex].quantity += op.amount!;
         } else if (op.type === "decrease") {
-          await core.connect(router).decreasePosition(posId, op.amount!, 0);
+          await core.connect(op.from).decreasePosition(posId, op.amount!, 0);
           expectedStates[op.posIndex].quantity -= op.amount!;
         } else if (op.type === "transfer") {
           await position
@@ -813,7 +842,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
       // Close all positions
       for (const posId of positionIds) {
-        await core.connect(router).closePosition(posId, 0);
+        await core.connect(alice).closePosition(posId, 0);
       }
 
       // Verify complete cleanup

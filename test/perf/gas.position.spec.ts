@@ -37,12 +37,12 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
 
   describe("Position Creation Gas Benchmarks", function () {
     it("Should use reasonable gas for position creation", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -60,7 +60,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
     });
 
     it("Should scale gas usage reasonably with tick range", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -74,7 +74,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
 
       for (const range of ranges) {
         const tx = await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -98,13 +98,13 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
 
   describe("Position Update Gas Benchmarks", function () {
     it("Should use reasonable gas for position increases", async function () {
-      const { core, router, alice, mockPosition, marketId } = await loadFixture(
+      const { core, alice, mockPosition, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Create initial position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -118,7 +118,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
       const positionId = positions[0];
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(positionId, SMALL_QUANTITY, MEDIUM_COST);
 
       const receipt = await tx.wait();
@@ -129,13 +129,13 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
     });
 
     it("Should use reasonable gas for position decreases", async function () {
-      const { core, router, alice, mockPosition, marketId } = await loadFixture(
+      const { core, alice, mockPosition, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Create initial position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -149,7 +149,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
       const positionId = positions[0];
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(positionId, SMALL_QUANTITY, 0);
 
       const receipt = await tx.wait();
@@ -162,13 +162,13 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
 
   describe("Position Closure Gas Benchmarks", function () {
     it("Should use reasonable gas for position closure", async function () {
-      const { core, router, alice, mockPosition, marketId } = await loadFixture(
+      const { core, alice, mockPosition, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Create initial position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -181,7 +181,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
       const positions = await mockPosition.getPositionsByOwner(alice.address);
       const positionId = positions[0];
 
-      const tx = await core.connect(router).closePosition(positionId, 0);
+      const tx = await core.connect(alice).closePosition(positionId, 0);
 
       const receipt = await tx.wait();
       const gasUsed = receipt!.gasUsed;
@@ -191,7 +191,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
     });
 
     it("Should compare gas efficiency across different position sizes", async function () {
-      const { core, router, alice, mockPosition, marketId } = await loadFixture(
+      const { core, alice, mockPosition, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -201,14 +201,14 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
       for (const quantity of quantities) {
         // Create position
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(alice.address, marketId, 45, 55, quantity, LARGE_COST);
 
         const positions = await mockPosition.getPositionsByOwner(alice.address);
         const positionId = positions[positions.length - 1];
 
         // Close position and measure gas
-        const tx = await core.connect(router).closePosition(positionId, 0);
+        const tx = await core.connect(alice).closePosition(positionId, 0);
 
         const receipt = await tx.wait();
         gasUsages.push(receipt!.gasUsed);
@@ -226,7 +226,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
 
   describe("Batch Operations Gas Efficiency", function () {
     it("Should demonstrate gas efficiency of sequential operations", async function () {
-      const { core, router, alice, mockPosition, marketId } = await loadFixture(
+      const { core, alice, mockPosition, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -235,7 +235,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
       // Create multiple positions
       for (let i = 0; i < 3; i++) {
         const tx = await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -254,7 +254,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
       // Update positions
       for (const positionId of positions) {
         const tx = await core
-          .connect(router)
+          .connect(alice)
           .increasePosition(positionId, SMALL_QUANTITY, MEDIUM_COST);
 
         const receipt = await tx.wait();
@@ -263,7 +263,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
 
       // Close positions
       for (const positionId of positions) {
-        const tx = await core.connect(router).closePosition(positionId, 0);
+        const tx = await core.connect(alice).closePosition(positionId, 0);
 
         const receipt = await tx.wait();
         operations.push({ type: "close", gas: receipt!.gasUsed });

@@ -8,7 +8,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
   describe("Trade Timing Validation", function () {
     it("Should handle trade at exact market start time", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -38,7 +38,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -52,7 +52,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
     it("Should handle trade 1 second before market end", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -82,7 +82,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -96,7 +96,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
     it("Should deactivate market when trading after end time", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -126,7 +126,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -140,7 +140,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
     it("Should prevent trading before market start", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, keeper, router, alice } = contracts;
+      const { core, keeper, alice } = contracts;
 
       const futureStart = (await time.latest()) + 3600; // 1 hour from now
       const futureEnd = futureStart + 86400; // 1 day duration
@@ -166,7 +166,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -182,7 +182,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
   describe("Block Timestamp Edge Cases", function () {
     it("Should handle block timestamp jumps correctly", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -212,7 +212,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -228,7 +228,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -266,7 +266,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
   describe("Market Expiry Operations", function () {
     it("Should handle market expiry edge cases during operations", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, keeper, router, alice } = contracts;
+      const { core, keeper, alice } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -295,7 +295,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       };
 
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           openParams.marketId,
@@ -312,7 +312,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       // All operations should fail after expiry
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             positionId,
             ethers.parseUnits("0.01", 6),
@@ -322,12 +322,12 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .decreasePosition(positionId, ethers.parseUnits("0.01", 6), 0)
       ).to.be.revertedWithCustomError(core, "MarketExpired");
 
       await expect(
-        core.connect(router).closePosition(positionId, 0)
+        core.connect(alice).closePosition(positionId, 0)
       ).to.be.revertedWithCustomError(core, "MarketExpired");
     });
 
@@ -362,7 +362,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
   describe("Extended Time Boundaries", function () {
     it("Should handle trade at exact market start time", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -392,7 +392,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -406,7 +406,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
     it("Should handle trade 1 second before market end", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -436,7 +436,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -450,7 +450,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
     it("Should deactivate market when trading after end time", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -480,7 +480,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -494,7 +494,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
     it("Should prevent trading before market start", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, keeper, router, alice } = contracts;
+      const { core, keeper, alice } = contracts;
 
       const futureStart = (await time.latest()) + 3600; // 1 hour from now
       const futureEnd = futureStart + 86400; // 1 day duration
@@ -513,7 +513,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -527,7 +527,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
     it("Should handle block timestamp jumps correctly", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -557,7 +557,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -573,7 +573,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -608,7 +608,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
     it("Should handle market expiry edge cases during operations", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -637,7 +637,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       };
 
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           openParams.marketId,
@@ -654,7 +654,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       // All operations should fail after expiry
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             positionId,
             ethers.parseUnits("0.01", 6),
@@ -664,12 +664,12 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .decreasePosition(positionId, ethers.parseUnits("0.01", 6), 0)
       ).to.be.revertedWithCustomError(core, "MarketExpired");
 
       await expect(
-        core.connect(router).closePosition(positionId, 0)
+        core.connect(alice).closePosition(positionId, 0)
       ).to.be.revertedWithCustomError(core, "MarketExpired");
     });
   });

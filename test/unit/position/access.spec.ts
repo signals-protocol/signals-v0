@@ -39,7 +39,7 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
 
   describe("onlyCore Modifier", function () {
     it("should allow core to mint position", async function () {
-      const { position, core, router, alice, marketId } = await loadFixture(
+      const { position, core, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -52,15 +52,18 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
         maxCost: ethers.parseUnits("1", 6),
       };
 
-      await expect(core.connect(router).openPosition(
-        alice.address,
-        params.marketId,
-        params.lowerTick,
-        params.upperTick,
-        params.quantity,
-        params.maxCost
-      )).to
-        .not.be.reverted;
+      await expect(
+        core
+          .connect(alice)
+          .openPosition(
+            alice.address,
+            params.marketId,
+            params.lowerTick,
+            params.upperTick,
+            params.quantity,
+            params.maxCost
+          )
+      ).to.not.be.reverted;
     });
 
     it("should revert mintPosition from non-core", async function () {
@@ -98,7 +101,7 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
 
   describe("Core Contract Interaction", function () {
     it("should allow core to update position quantity", async function () {
-      const { position, core, router, alice, marketId } = await loadFixture(
+      const { position, core, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -112,28 +115,30 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
-        alice.address,
-        params.marketId,
-        params.lowerTick,
-        params.upperTick,
-        params.quantity,
-        params.maxCost
-      );
-      await core.connect(router).openPosition(
-        alice.address,
-        params.marketId,
-        params.lowerTick,
-        params.upperTick,
-        params.quantity,
-        params.maxCost
-      );
+          alice.address,
+          params.marketId,
+          params.lowerTick,
+          params.upperTick,
+          params.quantity,
+          params.maxCost
+        );
+      await core
+        .connect(alice)
+        .openPosition(
+          alice.address,
+          params.marketId,
+          params.lowerTick,
+          params.upperTick,
+          params.quantity,
+          params.maxCost
+        );
 
       // Increase position through router
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             positionId,
             ethers.parseUnits("0.005", 6),
@@ -147,7 +152,7 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
     });
 
     it("should allow core to burn position", async function () {
-      const { position, core, router, alice, marketId } = await loadFixture(
+      const { position, core, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -161,28 +166,30 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
-        alice.address,
-        params.marketId,
-        params.lowerTick,
-        params.upperTick,
-        params.quantity,
-        params.maxCost
-      );
-      await core.connect(router).openPosition(
-        alice.address,
-        params.marketId,
-        params.lowerTick,
-        params.upperTick,
-        params.quantity,
-        params.maxCost
-      );
+          alice.address,
+          params.marketId,
+          params.lowerTick,
+          params.upperTick,
+          params.quantity,
+          params.maxCost
+        );
+      await core
+        .connect(alice)
+        .openPosition(
+          alice.address,
+          params.marketId,
+          params.lowerTick,
+          params.upperTick,
+          params.quantity,
+          params.maxCost
+        );
 
       // Decrease position to zero (should burn)
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .decreasePosition(positionId, ethers.parseUnits("0.01", 6), 0)
       ).to.not.be.reverted;
 
@@ -218,7 +225,7 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
 
   describe("Security Edge Cases", function () {
     it("should prevent reentrancy attacks on core functions", async function () {
-      const { position, core, router, alice, marketId } = await loadFixture(
+      const { position, core, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -232,28 +239,30 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
-        alice.address,
-        params.marketId,
-        params.lowerTick,
-        params.upperTick,
-        params.quantity,
-        params.maxCost
-      );
-      await core.connect(router).openPosition(
-        alice.address,
-        params.marketId,
-        params.lowerTick,
-        params.upperTick,
-        params.quantity,
-        params.maxCost
-      );
+          alice.address,
+          params.marketId,
+          params.lowerTick,
+          params.upperTick,
+          params.quantity,
+          params.maxCost
+        );
+      await core
+        .connect(alice)
+        .openPosition(
+          alice.address,
+          params.marketId,
+          params.lowerTick,
+          params.upperTick,
+          params.quantity,
+          params.maxCost
+        );
 
       // Multiple operations in same transaction should work
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             positionId,
             ethers.parseUnits("0.005", 6),

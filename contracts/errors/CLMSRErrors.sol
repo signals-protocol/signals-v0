@@ -22,7 +22,6 @@ interface CLMSRErrors {
     error UnauthorizedCaller(address caller);
 
     /* ───────────────────── Misc / config ────────────────────── */
-    error RouterAlreadySet();
     error ZeroAddress();
     error TickCountExceedsLimit(uint32 requested, uint32 maxAllowed);
     error ContractPaused();

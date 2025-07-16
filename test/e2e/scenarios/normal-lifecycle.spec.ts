@@ -38,7 +38,6 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
     it("Should handle complete market lifecycle with multiple participants", async function () {
       const {
         core,
-        router,
         keeper,
         alice,
         bob,
@@ -75,7 +74,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       // Alice creates multiple positions
       for (let i = 0; i < 3; i++) {
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -96,7 +95,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
 
       // Bob creates overlapping positions
       await core
-        .connect(router)
+        .connect(bob)
         .openPosition(
           bob.address,
           marketId,
@@ -108,7 +107,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
 
       // Charlie creates focused position
       await core
-        .connect(router)
+        .connect(charlie)
         .openPosition(
           charlie.address,
           marketId,
@@ -124,13 +123,13 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
 
       // Bob increases his position
       await core
-        .connect(router)
+        .connect(bob)
         .increasePosition(bobPositionId, MEDIUM_QUANTITY, LARGE_COST);
 
       // Alice decreases one of her positions
       const alicePositionId = alicePositionList[0];
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(alicePositionId, SMALL_QUANTITY, 0);
 
       // Phase 6: Some users exit early
@@ -144,7 +143,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
         charlie.address
       );
 
-      await core.connect(router).closePosition(charliePositions[0], 0);
+      await core.connect(charlie).closePosition(charliePositions[0], 0);
 
       const charlieFinalBalance = await paymentToken.balanceOf(charlie.address);
       expect(charlieFinalBalance).to.be.gt(charlieInitialBalance);
@@ -165,7 +164,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       );
       const bobBalanceBefore = await paymentToken.balanceOf(bob.address);
 
-      await core.connect(router).claimPayout(bobFinalPositions[0]);
+      await core.connect(bob).claimPayout(bobFinalPositions[0]);
 
       const bobBalanceAfter = await paymentToken.balanceOf(bob.address);
       expect(bobBalanceAfter).to.be.gt(bobBalanceBefore);
@@ -179,7 +178,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       for (const positionId of aliceFinalPositions) {
         try {
           const balanceBefore = await paymentToken.balanceOf(alice.address);
-          await core.connect(router).claimPayout(positionId);
+          await core.connect(alice).claimPayout(positionId);
           const balanceAfter = await paymentToken.balanceOf(alice.address);
           if (balanceAfter > balanceBefore) {
             aliceClaimedAny = true;
@@ -213,7 +212,6 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
     it("Should handle single participant market", async function () {
       const {
         core,
-        router,
         keeper,
         alice,
         paymentToken,
@@ -227,7 +225,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
 
       // Alice is the only participant
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -244,7 +242,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       const positions = await mockPosition.getPositionsByOwner(alice.address);
       const balanceBefore = await paymentToken.balanceOf(alice.address);
 
-      await core.connect(router).claimPayout(positions[0]);
+      await core.connect(alice).claimPayout(positions[0]);
 
       const balanceAfter = await paymentToken.balanceOf(alice.address);
       expect(balanceAfter).to.be.gt(balanceBefore);
@@ -253,16 +251,8 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
 
   describe("Market Edge Cases", function () {
     it("Should handle last-minute trading rush", async function () {
-      const {
-        core,
-        router,
-        alice,
-        bob,
-        charlie,
-        marketId,
-        startTime,
-        endTime,
-      } = await loadFixture(createMarketLifecycleFixture);
+      const { core, alice, bob, charlie, marketId, startTime, endTime } =
+        await loadFixture(createMarketLifecycleFixture);
 
       await time.increaseTo(startTime + 1);
 
@@ -273,7 +263,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       const participants = [alice, bob, charlie];
       const promises = participants.map((participant, i) =>
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             participant.address,
             marketId,
@@ -289,7 +279,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
     });
 
     it("Should handle market with extreme tick concentration", async function () {
-      const { core, router, alice, bob, charlie, marketId, startTime } =
+      const { core, alice, bob, charlie, marketId, startTime } =
         await loadFixture(createMarketLifecycleFixture);
 
       await time.increaseTo(startTime + 1);
@@ -299,7 +289,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
 
       for (const participant of participants) {
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             participant.address,
             marketId,
@@ -316,22 +306,14 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
     });
 
     it("Should handle mixed trading strategies", async function () {
-      const {
-        core,
-        router,
-        alice,
-        bob,
-        charlie,
-        marketId,
-        startTime,
-        mockPosition,
-      } = await loadFixture(createMarketLifecycleFixture);
+      const { core, alice, bob, charlie, marketId, startTime, mockPosition } =
+        await loadFixture(createMarketLifecycleFixture);
 
       await time.increaseTo(startTime + 1);
 
       // Alice: Wide range strategy
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -343,7 +325,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
 
       // Bob: Focused strategy
       await core
-        .connect(router)
+        .connect(bob)
         .openPosition(
           bob.address,
           marketId,
@@ -355,7 +337,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
 
       // Charlie: Edge strategy
       await core
-        .connect(router)
+        .connect(charlie)
         .openPosition(
           charlie.address,
           marketId,
@@ -382,14 +364,14 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
 
   describe("Market Stress Scenarios", function () {
     it("Should handle high-frequency position adjustments", async function () {
-      const { core, router, alice, mockPosition, marketId, startTime } =
+      const { core, alice, mockPosition, marketId, startTime } =
         await loadFixture(createMarketLifecycleFixture);
 
       await time.increaseTo(startTime + 1);
 
       // Create initial position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -405,10 +387,10 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       // Rapidly adjust position multiple times
       for (let i = 0; i < 5; i++) {
         await core
-          .connect(router)
+          .connect(alice)
           .increasePosition(positionId, SMALL_QUANTITY, MEDIUM_COST);
         await core
-          .connect(router)
+          .connect(alice)
           .decreasePosition(positionId, SMALL_QUANTITY / 2n, 0);
       }
 
@@ -418,7 +400,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
     });
 
     it("Should maintain system integrity under maximum load", async function () {
-      const { core, router, alice, bob, charlie, marketId, startTime } =
+      const { core, alice, bob, charlie, marketId, startTime } =
         await loadFixture(createMarketLifecycleFixture);
 
       await time.increaseTo(startTime + 1);
@@ -429,7 +411,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       for (let i = 0; i < 10; i++) {
         const participant = participants[i % 3];
         await core
-          .connect(router)
+          .connect(participant)
           .openPosition(
             participant.address,
             marketId,

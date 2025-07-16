@@ -128,7 +128,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
 
     it("Should prevent position opening when paused", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -153,20 +153,22 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(
-        alice.address,
-        tradeParams.marketId,
-        tradeParams.lowerTick,
-        tradeParams.upperTick,
-        tradeParams.quantity,
-        tradeParams.maxCost
-      )
+        core
+          .connect(alice)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.be.revertedWithCustomError(core, "ContractPaused");
     });
 
     it("Should prevent position modification when paused", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -188,14 +190,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
         maxCost: ethers.parseUnits("1", 6),
       };
 
-      await core.connect(router).openPosition(
-        alice.address,
-        tradeParams.marketId,
-        tradeParams.lowerTick,
-        tradeParams.upperTick,
-        tradeParams.quantity,
-        tradeParams.maxCost
-      );
+      await core
+        .connect(alice)
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        );
 
       // Pause the contract
       await core.connect(keeper).pause("Emergency");
@@ -203,7 +207,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
       // Try to increase position while paused
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             1,
             ethers.parseUnits("0.01", 6),
@@ -213,20 +217,18 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
 
       // Try to decrease position while paused
       await expect(
-        core
-          .connect(router)
-          .decreasePosition(1, ethers.parseUnits("0.01", 6), 0)
+        core.connect(alice).decreasePosition(1, ethers.parseUnits("0.01", 6), 0)
       ).to.be.revertedWithCustomError(core, "ContractPaused");
 
       // Try to close position while paused
       await expect(
-        core.connect(router).closePosition(1, 0)
+        core.connect(alice).closePosition(1, 0)
       ).to.be.revertedWithCustomError(core, "ContractPaused");
     });
 
     it("Should prevent position claiming when paused", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -247,14 +249,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
         maxCost: ethers.parseUnits("10", 6),
       };
 
-      await core.connect(router).openPosition(
-        alice.address,
-        tradeParams.marketId,
-        tradeParams.lowerTick,
-        tradeParams.upperTick,
-        tradeParams.quantity,
-        tradeParams.maxCost
-      );
+      await core
+        .connect(alice)
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        );
 
       // Settle market
       await time.increaseTo(endTime + 1);
@@ -265,7 +269,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
 
       // Try to claim settled position while paused
       await expect(
-        core.connect(router).claimPayout(1)
+        core.connect(alice).claimPayout(1)
       ).to.be.revertedWithCustomError(core, "ContractPaused");
     });
   });
@@ -305,7 +309,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
 
     it("Should allow cost calculations when paused", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -326,14 +330,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
         maxCost: ethers.parseUnits("10", 6),
       };
 
-      await core.connect(router).openPosition(
-        alice.address,
-        tradeParams.marketId,
-        tradeParams.lowerTick,
-        tradeParams.upperTick,
-        tradeParams.quantity,
-        tradeParams.maxCost
-      );
+      await core
+        .connect(alice)
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        );
 
       // Pause the contract
       await core.connect(keeper).pause("Emergency");
@@ -355,7 +361,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
   describe("Resume Operations After Unpause", function () {
     it("Should allow all operations after unpause", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       // Pause and then unpause
       await core.connect(keeper).pause("Emergency");
@@ -384,20 +390,22 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
       };
 
       await expect(
-        core.connect(router).openPosition(
-        alice.address,
-        tradeParams.marketId,
-        tradeParams.lowerTick,
-        tradeParams.upperTick,
-        tradeParams.quantity,
-        tradeParams.maxCost
-      )
+        core
+          .connect(alice)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.not.be.reverted;
 
       // Should allow position modifications after unpause
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             1,
             ethers.parseUnits("0.01", 6),
@@ -408,7 +416,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
 
     it("Should maintain state consistency across pause/unpause cycles", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -429,14 +437,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
         maxCost: ethers.parseUnits("10", 6),
       };
 
-      await core.connect(router).openPosition(
-        alice.address,
-        tradeParams.marketId,
-        tradeParams.lowerTick,
-        tradeParams.upperTick,
-        tradeParams.quantity,
-        tradeParams.maxCost
-      );
+      await core
+        .connect(alice)
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        );
 
       // Get initial state
       const initialMarket = await core.getMarket(1);
@@ -499,7 +509,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
   describe("Emergency Scenarios", function () {
     it("Should handle pause during active trading", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -520,28 +530,32 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
         maxCost: ethers.parseUnits("10", 6),
       };
 
-      await core.connect(router).openPosition(
-        alice.address,
-        tradeParams.marketId,
-        tradeParams.lowerTick,
-        tradeParams.upperTick,
-        tradeParams.quantity,
-        tradeParams.maxCost
-      );
+      await core
+        .connect(alice)
+        .openPosition(
+          alice.address,
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity,
+          tradeParams.maxCost
+        );
 
       // Emergency pause during active market
       await core.connect(keeper).pause("Emergency during trading");
 
       // All trading should be stopped
       await expect(
-        core.connect(router).openPosition(
-        alice.address,
-        tradeParams.marketId,
-        tradeParams.lowerTick,
-        tradeParams.upperTick,
-        tradeParams.quantity,
-        tradeParams.maxCost
-      )
+        core
+          .connect(alice)
+          .openPosition(
+            alice.address,
+            tradeParams.marketId,
+            tradeParams.lowerTick,
+            tradeParams.upperTick,
+            tradeParams.quantity,
+            tradeParams.maxCost
+          )
       ).to.be.revertedWithCustomError(core, "ContractPaused");
 
       // But view functions should work

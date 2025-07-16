@@ -91,9 +91,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
 
   describe("Position Operations Snapshots", function () {
     it("Should open small position within gas baseline", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       const tradeParams = {
         marketId,
@@ -104,7 +102,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
       };
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -130,9 +128,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
     });
 
     it("Should open medium position within gas baseline", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       const tradeParams = {
         marketId,
@@ -143,7 +139,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
       };
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -169,9 +165,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
     });
 
     it("Should open large position within gas baseline", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       const tradeParams = {
         marketId,
@@ -182,7 +176,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
       };
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -205,13 +199,11 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
     });
 
     it("Should increase position within gas baseline", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       // Create initial position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -222,7 +214,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
         );
 
       // Increase position
-      const tx = await core.connect(router).increasePosition(
+      const tx = await core.connect(alice).increasePosition(
         1, // positionId
         ethers.parseUnits("0.05", USDC_DECIMALS),
         ethers.parseUnits("30", USDC_DECIMALS)
@@ -241,13 +233,11 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
     });
 
     it("Should decrease position within gas baseline", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       // Create initial position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -258,7 +248,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
         );
 
       // Decrease position
-      const tx = await core.connect(router).decreasePosition(
+      const tx = await core.connect(alice).decreasePosition(
         1, // positionId
         ethers.parseUnits("0.1", USDC_DECIMALS),
         0 // minProceeds
@@ -277,13 +267,11 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
     });
 
     it("Should close position within gas baseline", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       // Create initial position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -294,7 +282,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
         );
 
       // Close position
-      const tx = await core.connect(router).closePosition(1, 0);
+      const tx = await core.connect(alice).closePosition(1, 0);
       const receipt = await tx.wait();
 
       console.log(
@@ -309,13 +297,13 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
     });
 
     it("Should claim position within gas baseline", async function () {
-      const { core, keeper, router, alice, marketId } = await loadFixture(
+      const { core, keeper, alice, marketId } = await loadFixture(
         createActiveMarket
       );
 
       // Create position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -329,7 +317,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
       await core.connect(keeper).settleMarket(marketId, 50);
 
       // Claim position
-      const tx = await core.connect(router).claimPayout(1);
+      const tx = await core.connect(alice).claimPayout(1);
       const receipt = await tx.wait();
 
       console.log(
@@ -365,13 +353,11 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
     });
 
     it("Should calculate increase cost within gas baseline", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       // Create position first
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -396,13 +382,11 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
     });
 
     it("Should calculate decrease proceeds within gas baseline", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       // Create position first
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -467,7 +451,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
     });
 
     it("Should detect position operation regression", async function () {
-      const { core, router, alice, bob, charlie, marketId } = await loadFixture(
+      const { core, alice, bob, charlie, marketId } = await loadFixture(
         createActiveMarket
       );
 
@@ -484,7 +468,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
 
         // Open
         let tx = await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             user.address,
             marketId,
@@ -499,7 +483,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
 
         // Increase
         tx = await core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             positionId,
             ethers.parseUnits("0.05", USDC_DECIMALS),
@@ -509,7 +493,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
 
         // Decrease
         tx = await core
-          .connect(router)
+          .connect(alice)
           .decreasePosition(
             positionId,
             ethers.parseUnits("0.05", USDC_DECIMALS),
@@ -518,7 +502,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
         gasResults.decrease.push((await tx.wait())!.gasUsed);
 
         // Close
-        tx = await core.connect(router).closePosition(positionId, 0);
+        tx = await core.connect(alice).closePosition(positionId, 0);
         gasResults.close.push((await tx.wait())!.gasUsed);
       }
 
@@ -545,13 +529,11 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
 
   describe("Comparative Benchmarks", function () {
     it("Should compare single vs multi-tick operations", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       // Single tick operation
       const singleTx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -564,7 +546,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
 
       // Multi-tick operation (10 ticks)
       const multiTx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -589,13 +571,13 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
     });
 
     it("Should compare fresh vs modified market state", async function () {
-      const { core, router, alice, bob, marketId } = await loadFixture(
+      const { core, alice, bob, marketId } = await loadFixture(
         createActiveMarket
       );
 
       // Fresh market operation
       const freshTx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -609,7 +591,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
       // Make some trades to modify market state
       for (let i = 0; i < 5; i++) {
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             bob.address,
             marketId,
@@ -622,7 +604,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
 
       // Modified market operation
       const modifiedTx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -651,16 +633,14 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
 
   describe("Performance Monitoring", function () {
     it("Should track gas trends across operation types", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
-        createActiveMarket
-      );
+      const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       const operations = [
         {
           name: "small_open",
           action: () =>
             core
-              .connect(router)
+              .connect(alice)
               .openPosition(
                 alice.address,
                 marketId,
@@ -674,7 +654,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
           name: "medium_open",
           action: () =>
             core
-              .connect(router)
+              .connect(alice)
               .openPosition(
                 alice.address,
                 marketId,
@@ -688,7 +668,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
           name: "large_open",
           action: () =>
             core
-              .connect(router)
+              .connect(alice)
               .openPosition(
                 alice.address,
                 marketId,

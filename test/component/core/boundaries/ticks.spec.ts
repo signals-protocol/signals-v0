@@ -9,7 +9,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
   describe("Single Tick Trading", function () {
     it("Should allow single tick trades (lowerTick == upperTick)", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -38,7 +38,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -62,7 +62,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
     it("Should handle single tick at market boundaries", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, bob, keeper } = contracts;
+      const { core, alice, bob, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -83,7 +83,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -98,7 +98,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(bob)
           .openPosition(
             bob.address,
             marketId,
@@ -114,7 +114,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
   describe("Tick Range Boundaries", function () {
     it("Should handle trades at first tick (0)", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -143,7 +143,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -157,7 +157,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
     it("Should handle trades at last tick (99)", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -186,7 +186,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -200,7 +200,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
     it("Should handle maximum tick range (0 to 99)", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -229,7 +229,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+                .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -243,7 +243,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
     it("Should revert when tick exceeds market bounds", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -272,7 +272,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -288,7 +288,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
   describe("Edge Cases for Tick Handling", function () {
     it("Should handle boundary tick positions", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -310,7 +310,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
       // First tick
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -324,7 +324,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
       // Last tick
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -338,7 +338,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
     it("Should handle large tick range operations efficiently", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -358,7 +358,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
       await time.increaseTo(startTime + 1);
 
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -375,7 +375,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
     it("Should handle overlapping tick ranges", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, bob, keeper } = contracts;
+      const { core, alice, bob, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -396,7 +396,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
       // Alice: 40-60
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -408,7 +408,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
       // Bob: 50-70 (overlaps with Alice)
       await core
-        .connect(router)
+        .connect(bob)
         .openPosition(
           bob.address,
           marketId,
@@ -424,7 +424,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
     it("Should validate tick order (lowerTick <= upperTick)", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+          const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -445,7 +445,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Tick Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,

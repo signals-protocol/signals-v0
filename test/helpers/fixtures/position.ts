@@ -14,7 +14,7 @@ import {
  */
 export async function positionFixture() {
   const baseFixture = await unitFixture();
-  const { keeper, router, alice, bob, charlie } = baseFixture;
+  const { keeper, alice, bob, charlie } = baseFixture;
 
   // Deploy USDC token
   const MockERC20Factory = await ethers.getContractFactory("MockERC20");
@@ -55,7 +55,6 @@ export async function positionFixture() {
 
   // Setup contracts
   await paymentToken.mint(await core.getAddress(), INITIAL_SUPPLY);
-  await core.connect(keeper).setRouterContract(router.address);
 
   // Approve tokens
   for (const user of users) {
@@ -77,7 +76,7 @@ export async function positionFixture() {
  */
 export async function realPositionFixture() {
   const baseFixture = await unitFixture();
-  const { keeper, router, alice, bob, charlie } = baseFixture;
+  const { keeper, alice, bob, charlie } = baseFixture;
 
   // Deploy USDC token
   const MockERC20Factory = await ethers.getContractFactory("MockERC20");
@@ -137,7 +136,6 @@ export async function realPositionFixture() {
 
   // Setup contracts
   await paymentToken.mint(await core.getAddress(), INITIAL_SUPPLY);
-  await core.connect(keeper).setRouterContract(router.address);
 
   // Approve tokens
   for (const user of users) {
@@ -341,12 +339,9 @@ export async function createRealTestPosition(
   upperTick: number = 20,
   quantity: bigint = ethers.parseUnits("0.01", 6)
 ) {
-  // Ensure core and router exist
+  // Ensure core exists
   if (!contracts.core) {
     throw new Error("Core contract not found in contracts");
-  }
-  if (!contracts.router) {
-    throw new Error("Router contract not found in contracts");
   }
 
   const params = {
@@ -357,9 +352,9 @@ export async function createRealTestPosition(
     maxCost: ethers.parseUnits("10", 6), // High max cost
   };
 
-  // Call through router (authorized caller) instead of directly to core
+  // Call directly to core (no router needed)
   const positionId = await contracts.core
-    .connect(contracts.router)
+    .connect(user)
     .openPosition.staticCall(
       user.address,
       params.marketId,
@@ -369,7 +364,7 @@ export async function createRealTestPosition(
       params.maxCost
     );
   await contracts.core
-    .connect(contracts.router)
+    .connect(user)
     .openPosition(
       user.address,
       params.marketId,

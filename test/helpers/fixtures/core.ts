@@ -29,8 +29,7 @@ export const MAX_FACTOR = ethers.parseEther("10000");
  * Unit fixture - 라이브러리만
  */
 export async function unitFixture() {
-  const [deployer, keeper, router, alice, bob, charlie] =
-    await ethers.getSigners();
+  const [deployer, keeper, alice, bob, charlie] = await ethers.getSigners();
 
   // Deploy libraries
   const FixedPointMathUFactory = await ethers.getContractFactory(
@@ -53,7 +52,6 @@ export async function unitFixture() {
     lazyMulSegmentTree,
     deployer,
     keeper,
-    router,
     alice,
     bob,
     charlie,
@@ -65,7 +63,7 @@ export async function unitFixture() {
  */
 export async function coreFixture() {
   const baseFixture = await unitFixture();
-  const { keeper, router, alice, bob, charlie } = baseFixture;
+  const { keeper, alice, bob, charlie } = baseFixture;
 
   // Deploy USDC token
   const MockERC20Factory = await ethers.getContractFactory("MockERC20");
@@ -104,7 +102,6 @@ export async function coreFixture() {
   // Setup contracts
   await paymentToken.mint(await core.getAddress(), INITIAL_SUPPLY);
   await mockPosition.setCore(await core.getAddress());
-  await core.connect(keeper).setRouterContract(router.address);
 
   // Approve tokens
   for (const user of users) {

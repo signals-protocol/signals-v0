@@ -312,7 +312,7 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
 
     it("should maintain ID sequence after burns", async function () {
       const contracts = await loadFixture(realPositionMarketFixture);
-      const { position, core, router, alice, marketId } = contracts;
+      const { position, core, alice, marketId } = contracts;
 
       const { positionId: pos1 } = await createRealTestPosition(
         contracts,
@@ -323,7 +323,7 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
       // Burn position by decreasing to zero
       const positionData = await position.getPosition(pos1);
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(pos1, positionData.quantity, 0);
 
       // Create new position - should continue sequence
@@ -342,7 +342,7 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
   describe("Data Cleanup on Burn", function () {
     it("should clean up position data on burn", async function () {
       const contracts = await loadFixture(realPositionMarketFixture);
-      const { position, core, router, alice, marketId } = contracts;
+      const { position, core, alice, marketId } = contracts;
 
       const { positionId } = await createRealTestPosition(
         contracts,
@@ -356,7 +356,7 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
 
       // Burn position
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(positionId, positionData.quantity, 0);
 
       // Verify position data is cleaned up
@@ -367,7 +367,7 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
 
     it("should remove from owner tracking on burn", async function () {
       const contracts = await loadFixture(realPositionMarketFixture);
-      const { position, core, router, alice, marketId } = contracts;
+      const { position, core, alice, marketId } = contracts;
 
       const { positionId } = await createRealTestPosition(
         contracts,
@@ -383,7 +383,7 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
       // Burn position
       const positionData = await position.getPosition(positionId);
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(positionId, positionData.quantity, 0);
 
       // Verify position is removed from tracking

@@ -28,13 +28,13 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
     });
 
     it("Should calculate increase cost correctly", async function () {
-      const { core, router, alice, mockPosition, marketId } = await loadFixture(
+      const { core, alice, mockPosition, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Create initial position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -52,13 +52,13 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
     });
 
     it("Should calculate decrease payout correctly", async function () {
-      const { core, router, alice, mockPosition, marketId } = await loadFixture(
+      const { core, alice, mockPosition, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Create initial position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -79,13 +79,13 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
     });
 
     it("Should calculate close payout correctly", async function () {
-      const { core, router, alice, mockPosition, marketId } = await loadFixture(
+      const { core, alice, mockPosition, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Create initial position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -258,13 +258,13 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
     });
 
     it("Should handle rounding consistency", async function () {
-      const { core, router, alice, mockPosition, marketId } = await loadFixture(
+      const { core, alice, mockPosition, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Create position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,

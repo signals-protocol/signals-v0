@@ -11,21 +11,14 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
   const MEDIUM_COST = ethers.parseUnits("5", 6); // 5 USDC
 
   it("Should claim winning position", async function () {
-    const {
-      core,
-      router,
-      alice,
-      paymentToken,
-      mockPosition,
-      marketId,
-      keeper,
-    } = await loadFixture(createActiveMarketFixture);
+    const { core, alice, paymentToken, mockPosition, marketId, keeper } =
+      await loadFixture(createActiveMarketFixture);
 
     const balanceBefore = await paymentToken.balanceOf(alice.address);
 
     // Create position that will win
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -42,7 +35,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     await core.connect(keeper).settleMarket(marketId, 50);
 
     // Claim position
-    await expect(core.connect(router).claimPayout(positionId)).to.emit(
+    await expect(core.connect(alice).claimPayout(positionId)).to.emit(
       core,
       "PositionClaimed"
     );
@@ -52,21 +45,14 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
   });
 
   it("Should handle claiming losing position", async function () {
-    const {
-      core,
-      router,
-      alice,
-      paymentToken,
-      mockPosition,
-      marketId,
-      keeper,
-    } = await loadFixture(createActiveMarketFixture);
+    const { core, alice, paymentToken, mockPosition, marketId, keeper } =
+      await loadFixture(createActiveMarketFixture);
 
     const balanceBefore = await paymentToken.balanceOf(alice.address);
 
     // Create position that will lose
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -83,7 +69,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     await core.connect(keeper).settleMarket(marketId, 50);
 
     // Claim should emit event with zero payout
-    await expect(core.connect(router).claimPayout(positionId))
+    await expect(core.connect(alice).claimPayout(positionId))
       .to.emit(core, "PositionClaimed")
       .withArgs(positionId, alice.address, 0);
 
@@ -92,21 +78,20 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
   });
 
   it("Should revert claim of non-existent position", async function () {
-    const { core, router } = await loadFixture(createActiveMarketFixture);
-
+    const { core, alice } = await loadFixture(createActiveMarketFixture);
     await expect(
-      core.connect(router).claimPayout(999) // Non-existent position
+      core.connect(alice).claimPayout(999) // Non-existent position
     ).to.be.revertedWithCustomError(core, "PositionNotFound");
   });
 
   it("Should revert claim before market settlement", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
+    const { core, alice, mockPosition, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
     // Create position
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -121,44 +106,17 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
 
     // Try to claim before settlement
     await expect(
-      core.connect(router).claimPayout(positionId)
+      core.connect(alice).claimPayout(positionId)
     ).to.be.revertedWithCustomError(core, "MarketNotSettled");
   });
 
-  it("Should handle authorization for claim", async function () {
-    const { core, router, alice, bob, mockPosition, marketId, keeper } =
-      await loadFixture(createActiveMarketFixture);
-
-    // Create position as alice
-    await core
-      .connect(router)
-      .openPosition(
-        alice.address,
-        marketId,
-        45,
-        55,
-        MEDIUM_QUANTITY,
-        MEDIUM_COST
-      );
-
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
-    const positionId = positions[0];
-
-    // Settle market
-    await core.connect(keeper).settleMarket(marketId, 50);
-
-    // Bob should not be able to claim alice's position
-    await expect(
-      core.connect(bob).claimPayout(positionId)
-    ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
-  });
-
   it("Should handle claiming already claimed position", async function () {
-    const { core, router, alice, mockPosition, marketId, keeper } =
-      await loadFixture(createActiveMarketFixture);
+    const { core, alice, mockPosition, marketId, keeper } = await loadFixture(
+      createActiveMarketFixture
+    );
 
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -175,20 +133,21 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     await core.connect(keeper).settleMarket(marketId, 50);
 
     // First claim should succeed
-    await core.connect(router).claimPayout(positionId);
+    await core.connect(alice).claimPayout(positionId);
 
     // Second claim should fail
     await expect(
-      core.connect(router).claimPayout(positionId)
+      core.connect(alice).claimPayout(positionId)
     ).to.be.revertedWithCustomError(core, "PositionNotFound");
   });
 
   it("Should calculate claim payout correctly", async function () {
-    const { core, router, alice, mockPosition, marketId, keeper } =
-      await loadFixture(createActiveMarketFixture);
+    const { core, alice, mockPosition, marketId, keeper } = await loadFixture(
+      createActiveMarketFixture
+    );
 
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -207,17 +166,18 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     const payout = await core.calculateClaimAmount(positionId);
     expect(payout).to.be.gt(0);
 
-    await expect(core.connect(router).claimPayout(positionId)).to.not.be
+    await expect(core.connect(alice).claimPayout(positionId)).to.not.be
       .reverted;
   });
 
   it("Should handle partial winning positions", async function () {
-    const { core, router, alice, mockPosition, marketId, keeper } =
-      await loadFixture(createActiveMarketFixture);
+    const { core, alice, mockPosition, marketId, keeper } = await loadFixture(
+      createActiveMarketFixture
+    );
 
     // Create position that partially covers winning outcome
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -236,17 +196,17 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     const payout = await core.calculateClaimAmount(positionId);
     expect(payout).to.be.gt(0);
 
-    await expect(core.connect(router).claimPayout(positionId)).to.not.be
+    await expect(core.connect(alice).claimPayout(positionId)).to.not.be
       .reverted;
   });
 
   it("Should handle multiple positions claiming", async function () {
-    const { core, router, alice, bob, mockPosition, marketId, keeper } =
+    const { core, alice, bob, mockPosition, marketId, keeper } =
       await loadFixture(createActiveMarketFixture);
 
     // Alice creates winning position
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -258,7 +218,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
 
     // Bob creates losing position
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         bob.address,
         marketId,
@@ -277,19 +237,20 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     const bobPositions = await mockPosition.getPositionsByOwner(bob.address);
 
     // Both should be able to claim
-    await expect(core.connect(router).claimPayout(alicePositions[0])).to.not.be
+    await expect(core.connect(alice).claimPayout(alicePositions[0])).to.not.be
       .reverted;
 
-    await expect(core.connect(router).claimPayout(bobPositions[0])).to.not.be
+    await expect(core.connect(alice).claimPayout(bobPositions[0])).to.not.be
       .reverted;
   });
 
   it("Should emit correct events on claim", async function () {
-    const { core, router, alice, mockPosition, marketId, keeper } =
-      await loadFixture(createActiveMarketFixture);
+    const { core, alice, mockPosition, marketId, keeper } = await loadFixture(
+      createActiveMarketFixture
+    );
 
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -306,18 +267,19 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     await core.connect(keeper).settleMarket(marketId, 50);
 
     // Claim should emit PositionClaimed event
-    await expect(core.connect(router).claimPayout(positionId))
+    await expect(core.connect(alice).claimPayout(positionId))
       .to.emit(core, "PositionClaimed")
       .withArgs(positionId, alice.address, anyValue);
   });
 
   it("Should handle double claim attempts", async function () {
-    const { core, keeper, router, alice, mockPosition, marketId } =
-      await loadFixture(createActiveMarketFixture);
+    const { core, keeper, alice, mockPosition, marketId } = await loadFixture(
+      createActiveMarketFixture
+    );
 
     // Create position
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -334,22 +296,23 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     await core.connect(keeper).settleMarket(marketId, 50);
 
     // First claim should succeed
-    await expect(core.connect(router).claimPayout(positionId)).to.not.be
+    await expect(core.connect(alice).claimPayout(positionId)).to.not.be
       .reverted;
 
     // Second claim should fail (position burned)
     await expect(
-      core.connect(router).claimPayout(positionId)
+      core.connect(alice).claimPayout(positionId)
     ).to.be.revertedWithCustomError(mockPosition, "PositionNotFound");
   });
 
   it("Should handle losing position claims", async function () {
-    const { core, keeper, router, alice, mockPosition, marketId } =
-      await loadFixture(createActiveMarketFixture);
+    const { core, keeper, alice, mockPosition, marketId } = await loadFixture(
+      createActiveMarketFixture
+    );
 
     // Create position
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -366,7 +329,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     await core.connect(keeper).settleMarket(marketId, 80);
 
     // Claim should succeed with zero payout
-    await expect(core.connect(router).claimPayout(positionId))
+    await expect(core.connect(alice).claimPayout(positionId))
       .to.emit(core, "PositionClaimed")
       .withArgs(positionId, alice.address, 0);
   });

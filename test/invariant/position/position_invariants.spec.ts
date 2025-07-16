@@ -8,7 +8,7 @@ import { INVARIANT_TAG } from "../../helpers/tags";
 describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
   describe("Core Invariants", function () {
     it("should maintain total supply equals sum of all user balances", async function () {
-      const { core, position, router, alice, bob, charlie, marketId } =
+      const { core, position, alice, bob, charlie, marketId } =
         await loadFixture(realPositionMarketFixture);
 
       // Initial state: total supply should be 0
@@ -32,7 +32,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
         };
 
         const positionId = await core
-          .connect(router)
+          .connect(alice)
           .openPosition.staticCall(
             user.address,
             params.marketId,
@@ -42,7 +42,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
             params.maxCost
           );
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             user.address,
             params.marketId,
@@ -83,7 +83,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
 
       // Close positions and verify invariant
       for (let i = 0; i < 3; i++) {
-        await core.connect(router).closePosition(positionIds[i], 0);
+        await core.connect(alice).closePosition(positionIds[i], 0);
 
         totalSupply = await position.totalSupply();
         aliceBalance = await position.balanceOf(alice.address);
@@ -96,8 +96,8 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
       }
 
       // Close remaining positions
-      await core.connect(router).closePosition(positionIds[3], 0);
-      await core.connect(router).closePosition(positionIds[4], 0);
+      await core.connect(alice).closePosition(positionIds[3], 0);
+      await core.connect(alice).closePosition(positionIds[4], 0);
 
       // Final state: total supply should be 0
       expect(await position.totalSupply()).to.equal(0);
@@ -107,7 +107,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
     });
 
     it("should maintain position ID uniqueness and sequential assignment", async function () {
-      const { core, position, router, alice, bob, charlie, marketId } =
+      const { core, position, alice, bob, charlie, marketId } =
         await loadFixture(realPositionMarketFixture);
 
       const positionIds = new Set();
@@ -128,7 +128,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
         expect(expectedId).to.equal(i + 1);
 
         const positionId = await core
-          .connect(router)
+          .connect(alice)
           .openPosition.staticCall(
             user.address,
             params.marketId,
@@ -138,7 +138,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
             params.maxCost
           );
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             user.address,
             params.marketId,
@@ -161,9 +161,9 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
 
       // Close some positions - nextId should not change
       const nextIdBeforeClosing = await position.getNextId();
-      await core.connect(router).closePosition(1, 0);
-      await core.connect(router).closePosition(5, 0);
-      await core.connect(router).closePosition(10, 0);
+      await core.connect(alice).closePosition(1, 0);
+      await core.connect(alice).closePosition(5, 0);
+      await core.connect(alice).closePosition(10, 0);
 
       expect(await position.getNextId()).to.equal(nextIdBeforeClosing);
 
@@ -177,7 +177,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
       };
 
       const newPositionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -187,7 +187,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -202,7 +202,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
     });
 
     it("should maintain owner tracking consistency", async function () {
-      const { core, position, router, alice, bob, charlie, marketId } =
+      const { core, position, alice, bob, charlie, marketId } =
         await loadFixture(realPositionMarketFixture);
 
       const users = [alice, bob, charlie];
@@ -220,7 +220,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
         };
 
         const positionId = await core
-          .connect(router)
+          .connect(alice)
           .openPosition.staticCall(
             user.address,
             params.marketId,
@@ -230,7 +230,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
             params.maxCost
           );
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             user.address,
             params.marketId,
@@ -300,7 +300,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
 
       // Close positions and verify invariant
       for (let i = 0; i < positionIds.length; i++) {
-        await core.connect(router).closePosition(positionIds[i].id, 0);
+        await core.connect(alice).closePosition(positionIds[i].id, 0);
 
         // Remove from our tracking
         const closedOwner = positionIds[i].owner;
@@ -332,7 +332,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
     });
 
     it("should maintain market position tracking consistency", async function () {
-      const { core, position, router, alice, bob, charlie, marketId } =
+      const { core, position, alice, bob, charlie, marketId } =
         await loadFixture(realPositionMarketFixture);
 
       const users = [alice, bob, charlie];
@@ -350,7 +350,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
         };
 
         const positionId = await core
-          .connect(router)
+          .connect(alice)
           .openPosition.staticCall(
             user.address,
             params.marketId,
@@ -360,7 +360,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
             params.maxCost
           );
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             user.address,
             params.marketId,
@@ -406,7 +406,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
 
       // Close positions and verify market tracking is updated
       for (let i = 0; i < createdPositions.length; i++) {
-        await core.connect(router).closePosition(createdPositions[i], 0);
+        await core.connect(alice).closePosition(createdPositions[i], 0);
 
         marketPositions = await position.getAllPositionsInMarket(marketId);
         expect(marketPositions.length).to.equal(
@@ -432,8 +432,9 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
 
   describe("State Transition Invariants", function () {
     it("should maintain position data integrity during operations", async function () {
-      const { core, position, router, alice, bob, marketId } =
-        await loadFixture(realPositionMarketFixture);
+      const { core, position, alice, bob, marketId } = await loadFixture(
+        realPositionMarketFixture
+      );
 
       // Create position
       const params = {
@@ -445,7 +446,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -455,7 +456,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -492,7 +493,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
       for (const op of operations) {
         if (op.type === "increase" && op.amount) {
           await core
-            .connect(router)
+            .connect(alice)
             .increasePosition(
               positionId,
               op.amount,
@@ -500,7 +501,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
             );
           expectedQuantity += op.amount;
         } else if (op.type === "decrease" && op.amount) {
-          await core.connect(router).decreasePosition(positionId, op.amount, 0);
+          await core.connect(alice).decreasePosition(positionId, op.amount, 0);
           expectedQuantity -= op.amount;
         } else if (op.type === "transfer" && op.from && op.to) {
           await position
@@ -519,7 +520,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
       }
 
       // Close position
-      await core.connect(router).closePosition(positionId, 0);
+      await core.connect(alice).closePosition(positionId, 0);
 
       // Verify position is completely removed
       await expect(
@@ -579,7 +580,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
     });
 
     it("should maintain quantity conservation during operations", async function () {
-      const { core, position, router, alice, marketId } = await loadFixture(
+      const { core, position, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -594,7 +595,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -604,7 +605,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -630,14 +631,14 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
         const beforeQuantity = currentQuantity;
 
         if (op.type === "increase") {
-          await core.connect(router).increasePosition(
+          await core.connect(alice).increasePosition(
             positionId,
             op.amount,
             ethers.parseUnits("10", 6) // Reduced from 100 to 10
           );
           currentQuantity += op.amount;
         } else {
-          await core.connect(router).decreasePosition(positionId, op.amount, 0);
+          await core.connect(alice).decreasePosition(positionId, op.amount, 0);
           currentQuantity -= op.amount;
         }
 
@@ -671,8 +672,9 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
 
   describe("Security Invariants", function () {
     it("should maintain access control invariants", async function () {
-      const { core, position, router, alice, bob, marketId } =
-        await loadFixture(realPositionMarketFixture);
+      const { core, position, alice, bob, marketId } = await loadFixture(
+        realPositionMarketFixture
+      );
 
       const positionId = await createTestPosition(alice, marketId);
 
@@ -711,7 +713,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
       // Core operations should work through Router
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             positionId,
             ethers.parseUnits("1", 6),
@@ -719,7 +721,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
           )
       ).to.emit(position, "PositionUpdated");
 
-      await expect(core.connect(router).closePosition(positionId, 0)).to.emit(
+      await expect(core.connect(alice).closePosition(positionId, 0)).to.emit(
         position,
         "PositionBurned"
       );
@@ -767,7 +769,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
     });
 
     it("should maintain data consistency under concurrent operations", async function () {
-      const { core, position, router, alice, bob, charlie, marketId } =
+      const { core, position, alice, bob, charlie, marketId } =
         await loadFixture(realPositionMarketFixture);
 
       // Create multiple positions
@@ -782,7 +784,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
         };
 
         const positionId = await core
-          .connect(router)
+          .connect(alice)
           .openPosition.staticCall(
             alice.address,
             params.marketId,
@@ -792,7 +794,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
             params.maxCost
           );
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             params.marketId,
@@ -807,7 +809,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
       // Simulate concurrent operations (executed sequentially but rapidly)
       const operations = [
         () =>
-          core.connect(router).increasePosition(
+          core.connect(alice).increasePosition(
             positionIds[0],
             ethers.parseUnits("0.02", 6), // Increased proportionally
             ethers.parseUnits("10", 6) // Increased proportionally
@@ -818,11 +820,11 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
             .transferFrom(alice.address, bob.address, positionIds[1]),
         () =>
           core
-            .connect(router)
+            .connect(alice)
             .decreasePosition(positionIds[2], ethers.parseUnits("0.01", 6), 0), // Proportionally increased
         () => position.connect(alice).approve(charlie.address, positionIds[3]),
         () =>
-          core.connect(router).increasePosition(
+          core.connect(alice).increasePosition(
             positionIds[4],
             ethers.parseUnits("0.01", 6), // Proportionally increased
             ethers.parseUnits("10", 6) // Proportionally increased
@@ -833,7 +835,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
             .transferFrom(alice.address, charlie.address, positionIds[3]),
         () =>
           core
-            .connect(router)
+            .connect(alice)
             .decreasePosition(positionIds[0], ethers.parseUnits("0.01", 6), 0), // Proportionally increased
         () =>
           position
@@ -875,7 +877,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
       // Clean up
       for (const posId of positionIds) {
         try {
-          await core.connect(router).closePosition(posId, 0);
+          await core.connect(alice).closePosition(posId, 0);
         } catch (error: any) {
           console.log(
             `Failed to close position ${posId}:`,
@@ -892,7 +894,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
 
   // Helper function to create a test position
   async function createTestPosition(user: any, marketId: any) {
-    const { core, router } = await loadFixture(realPositionMarketFixture);
+    const { core, alice } = await loadFixture(realPositionMarketFixture);
 
     const params = {
       marketId,
@@ -903,7 +905,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
     };
 
     const positionId = await core
-      .connect(router)
+      .connect(alice)
       .openPosition.staticCall(
         user.address,
         params.marketId,
@@ -913,7 +915,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
         params.maxCost
       );
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         user.address,
         params.marketId,

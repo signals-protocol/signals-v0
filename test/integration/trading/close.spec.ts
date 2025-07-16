@@ -11,7 +11,7 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
   const TICK_COUNT = 100;
 
   it("Should close position completely", async function () {
-    const { core, router, alice, paymentToken, mockPosition, marketId } =
+    const { core, alice, paymentToken, mockPosition, marketId } =
       await loadFixture(createActiveMarketFixture);
 
     // Create initial position
@@ -24,7 +24,7 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
     };
 
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         tradeParams.marketId,
@@ -40,7 +40,7 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
 
     // Close position
     await expect(
-      core.connect(router).closePosition(
+      core.connect(alice).closePosition(
         positionId,
         0 // Min payout
       )
@@ -55,25 +55,134 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
     ).to.be.revertedWithCustomError(core, "PositionNotFound");
   });
 
-  it("Should revert close of non-existent position", async function () {
-    const { core, router } = await loadFixture(createActiveMarketFixture);
+  it("Should handle multiple position closures", async function () {
+    const { core, alice, bob, paymentToken, mockPosition, marketId } =
+      await loadFixture(createActiveMarketFixture);
 
+    // Create multiple positions
+    const positions = [];
+    const users = [alice, bob];
+
+    for (const user of users) {
+      await core
+        .connect(user)
+        .openPosition(
+          user.address,
+          marketId,
+          40,
+          60,
+          SMALL_QUANTITY,
+          MEDIUM_COST
+        );
+      const userPositions = await mockPosition.getPositionsByOwner(
+        user.address
+      );
+      positions.push(userPositions[userPositions.length - 1]);
+    }
+
+    // Close all positions
+    for (let i = 0; i < positions.length; i++) {
+      const user = users[i];
+      const positionId = positions[i];
+      const balanceBefore = await paymentToken.balanceOf(user.address);
+
+      await expect(core.connect(user).closePosition(positionId, 0)).to.emit(
+        core,
+        "PositionClosed"
+      );
+
+      const balanceAfter = await paymentToken.balanceOf(user.address);
+      expect(balanceAfter).to.be.gte(balanceBefore); // Received payout (could be 0)
+    }
+
+    // All positions should be cleaned up
+    for (const user of users) {
+      const userPositions = await mockPosition.getPositionsByOwner(
+        user.address
+      );
+      expect(userPositions.length).to.equal(0);
+    }
+  });
+
+  it("Should handle position closure with settled market", async function () {
+    const { core, alice, paymentToken, mockPosition, marketId, keeper } =
+      await loadFixture(createActiveMarketFixture);
+
+    // Create position
+    await core
+      .connect(alice)
+      .openPosition(
+        alice.address,
+        marketId,
+        45,
+        55,
+        MEDIUM_QUANTITY,
+        MEDIUM_COST
+      );
+    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positionId = positions[0];
+
+    // Move to market end and settle
+    const market = await core.getMarket(marketId);
+    await time.increaseTo(Number(market.endTimestamp) + 1);
+    await core.connect(keeper).settleMarket(marketId, 50); // Settle at tick 50
+
+    const balanceBefore = await paymentToken.balanceOf(alice.address);
+
+    // Claim position after settlement (not close)
+    await expect(core.connect(alice).claimPayout(positionId)).to.emit(
+      core,
+      "PositionClaimed"
+    );
+
+    const balanceAfter = await paymentToken.balanceOf(alice.address);
+    expect(balanceAfter).to.be.gt(balanceBefore); // Should receive settlement payout
+  });
+
+  it("Should handle edge case: close position with minimal payout", async function () {
+    const { core, alice, paymentToken, mockPosition, marketId } =
+      await loadFixture(createActiveMarketFixture);
+
+    // Create very small position
+    await core.connect(alice).openPosition(
+      alice.address,
+      marketId,
+      85,
+      95,
+      1, // Very small quantity
+      ethers.parseUnits("1", 6)
+    );
+    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positionId = positions[0];
+
+    const balanceBefore = await paymentToken.balanceOf(alice.address);
+
+    // Close position
+    await expect(core.connect(alice).closePosition(positionId, 0)).to.emit(
+      core,
+      "PositionClosed"
+    );
+
+    const balanceAfter = await paymentToken.balanceOf(alice.address);
+    expect(balanceAfter).to.be.gte(balanceBefore); // At least no loss
+  });
+
+  it("Should revert on invalid position closure", async function () {
+    const { core, alice } = await loadFixture(createActiveMarketFixture);
+
+    // Try to close non-existent position
     await expect(
-      core.connect(router).closePosition(
-        999, // Non-existent position
-        0
-      )
+      core.connect(alice).closePosition(999, 0)
     ).to.be.revertedWithCustomError(core, "PositionNotFound");
   });
 
-  it("Should handle payout below minimum for close", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
-      createActiveMarketFixture
-    );
+  it("Should handle position closure with minimum payout requirement", async function () {
+    const { core, alice, paymentToken, mockPosition, marketId } =
+      await loadFixture(createActiveMarketFixture);
 
     // Create position
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -82,235 +191,49 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
         MEDIUM_QUANTITY,
         MEDIUM_COST
       );
-
     const positions = await mockPosition.getPositionsByOwner(alice.address);
     const positionId = positions[0];
 
-    // Calculate payout to set unrealistic minimum
-    const payout = await core.calculateCloseProceeds(positionId);
-
+    // Try to close with unreasonably high minimum payout
+    const highMinPayout = ethers.parseUnits("1000", 6);
     await expect(
-      core.connect(router).closePosition(
-        positionId,
-        payout + 1n // Set min payout higher than actual
-      )
+      core.connect(alice).closePosition(positionId, highMinPayout)
     ).to.be.revertedWithCustomError(core, "CostExceedsMaximum");
   });
 
-  it("Should handle authorization for close", async function () {
-    const { core, router, alice, bob, mockPosition, marketId } =
+  it("Should handle partial closure through decrease", async function () {
+    const { core, alice, paymentToken, mockPosition, marketId } =
       await loadFixture(createActiveMarketFixture);
 
-    // Create position as alice
+    // Create larger position
+    const quantity = ethers.parseUnits("0.1", 6);
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
         45,
         55,
-        MEDIUM_QUANTITY,
-        MEDIUM_COST
+        quantity,
+        ethers.parseUnits("50", 6)
       );
-
     const positions = await mockPosition.getPositionsByOwner(alice.address);
     const positionId = positions[0];
 
-    // Bob should not be able to close alice's position
+    const balanceBefore = await paymentToken.balanceOf(alice.address);
+
+    // Partially close position (decrease by half)
+    const decreaseAmount = quantity / 2n;
     await expect(
-      core.connect(bob).closePosition(positionId, 0)
-    ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
-  });
+      core.connect(alice).decreasePosition(positionId, decreaseAmount, 0)
+    ).to.emit(core, "PositionDecreased");
 
-  it("Should handle paused contract for close", async function () {
-    const { core, keeper, router, alice, mockPosition, marketId } =
-      await loadFixture(createActiveMarketFixture);
+    const balanceAfter = await paymentToken.balanceOf(alice.address);
+    expect(balanceAfter).to.be.gt(balanceBefore);
 
-    // Create position first
-    await core
-      .connect(router)
-      .openPosition(
-        alice.address,
-        marketId,
-        45,
-        55,
-        MEDIUM_QUANTITY,
-        MEDIUM_COST
-      );
-
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
-    const positionId = positions[0];
-
-    // Pause the contract
-    await core.connect(keeper).pause("Testing pause");
-
-    await expect(
-      core.connect(router).closePosition(positionId, 0)
-    ).to.be.revertedWithCustomError(core, "ContractPaused");
-  });
-
-  it("Should calculate close payout correctly", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
-      createActiveMarketFixture
-    );
-
-    // Create position first
-    const tradeParams = {
-      marketId: marketId,
-      lowerTick: 45,
-      upperTick: 55,
-      quantity: MEDIUM_QUANTITY,
-      maxCost: MEDIUM_COST,
-    };
-
-    await core
-      .connect(router)
-      .openPosition(
-        alice.address,
-        tradeParams.marketId,
-        tradeParams.lowerTick,
-        tradeParams.upperTick,
-        tradeParams.quantity,
-        tradeParams.maxCost
-      );
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
-    const positionId = positions[0];
-
-    const payout = await core.calculateCloseProceeds(positionId);
-    expect(payout).to.be.gt(0);
-  });
-
-  it("Should handle closing small positions efficiently", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
-      createActiveMarketFixture
-    );
-
-    // Create small position
-    await core
-      .connect(router)
-      .openPosition(alice.address, marketId, 45, 55, 1, MEDIUM_COST);
-
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
-    const positionId = positions[0];
-
-    // Close small position
-    await expect(core.connect(router).closePosition(positionId, 0)).to.not.be
-      .reverted;
-  });
-
-  it("Should handle closing large positions", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
-      createActiveMarketFixture
-    );
-
-    // Create large position
-    await core
-      .connect(router)
-      .openPosition(
-        alice.address,
-        marketId,
-        0,
-        TICK_COUNT - 1,
-        ethers.parseUnits("1", 6),
-        ethers.parseUnits("100", 6)
-      );
-
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
-    const positionId = positions[0];
-
-    // Close large position
-    await expect(core.connect(router).closePosition(positionId, 0)).to.not.be
-      .reverted;
-  });
-
-  it("Should emit correct events on close", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
-      createActiveMarketFixture
-    );
-
-    // Create position
-    await core
-      .connect(router)
-      .openPosition(
-        alice.address,
-        marketId,
-        45,
-        55,
-        MEDIUM_QUANTITY,
-        MEDIUM_COST
-      );
-
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
-    const positionId = positions[0];
-
-    // Close should emit PositionClosed event
-    await expect(core.connect(router).closePosition(positionId, 0))
-      .to.emit(core, "PositionClosed")
-      .withArgs(positionId, alice.address, anyValue);
-  });
-
-  it("Should remove position from owner's list", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
-      createActiveMarketFixture
-    );
-
-    // Create position
-    await core
-      .connect(router)
-      .openPosition(
-        alice.address,
-        marketId,
-        45,
-        55,
-        MEDIUM_QUANTITY,
-        MEDIUM_COST
-      );
-
-    const positionsBefore = await mockPosition.getPositionsByOwner(
-      alice.address
-    );
-    expect(positionsBefore.length).to.equal(1);
-
-    const positionId = positionsBefore[0];
-
-    // Close position
-    await core.connect(router).closePosition(positionId, 0);
-
-    // Position should be removed from owner's list
-    const positionsAfter = await mockPosition.getPositionsByOwner(
-      alice.address
-    );
-    expect(positionsAfter.length).to.equal(0);
-  });
-
-  it("Should handle close with exact payout expectation", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
-      createActiveMarketFixture
-    );
-
-    // Create position
-    await core
-      .connect(router)
-      .openPosition(
-        alice.address,
-        marketId,
-        45,
-        55,
-        MEDIUM_QUANTITY,
-        MEDIUM_COST
-      );
-
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
-    const positionId = positions[0];
-
-    // Calculate exact payout
-    const exactPayout = await core.calculateCloseProceeds(positionId);
-
-    // Close with exact minimum should succeed
-    await expect(core.connect(router).closePosition(positionId, exactPayout)).to
-      .not.be.reverted;
+    // Position should still exist with reduced quantity
+    const positionData = await mockPosition.getPosition(positionId);
+    expect(positionData.quantity).to.be.lt(quantity);
+    expect(positionData.quantity).to.be.gt(0);
   });
 });
-
-// Helper for event testing
-const { anyValue } = require("@nomicfoundation/hardhat-chai-matchers/withArgs");

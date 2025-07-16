@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { createActiveMarketFixture } from "../../helpers/fixtures/core";
 import { INTEGRATION_TAG } from "../../helpers/tags";
 
@@ -10,7 +10,7 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
   const MEDIUM_COST = ethers.parseUnits("5", 6); // 5 USDC
 
   it("Should decrease position quantity", async function () {
-    const { core, router, alice, paymentToken, mockPosition, marketId } =
+    const { core, alice, paymentToken, mockPosition, marketId } =
       await loadFixture(createActiveMarketFixture);
 
     // Create initial position
@@ -23,7 +23,7 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
     };
 
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         tradeParams.marketId,
@@ -39,7 +39,7 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
 
     // Decrease position
     await expect(
-      core.connect(router).decreasePosition(
+      core.connect(alice).decreasePosition(
         positionId,
         SMALL_QUANTITY, // Remove part
         0 // Min payout
@@ -54,10 +54,10 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
   });
 
   it("Should revert decrease of non-existent position", async function () {
-    const { core, router } = await loadFixture(createActiveMarketFixture);
+    const { core, alice } = await loadFixture(createActiveMarketFixture);
 
     await expect(
-      core.connect(router).decreasePosition(
+      core.connect(alice).decreasePosition(
         999, // Non-existent position
         SMALL_QUANTITY,
         0
@@ -66,13 +66,13 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
   });
 
   it("Should handle zero quantity decrease", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
+    const { core, alice, mockPosition, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
     // Create position
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -86,18 +86,18 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
     const positionId = positions[0];
 
     await expect(
-      core.connect(router).decreasePosition(positionId, 0, 0)
+      core.connect(alice).decreasePosition(positionId, 0, 0)
     ).to.be.revertedWithCustomError(core, "InvalidQuantity");
   });
 
   it("Should handle decrease quantity larger than position", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
+    const { core, alice, mockPosition, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
     // Create position
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -111,7 +111,7 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
     const positionId = positions[0];
 
     await expect(
-      core.connect(router).decreasePosition(
+      core.connect(alice).decreasePosition(
         positionId,
         MEDIUM_QUANTITY, // Larger than position
         0
@@ -120,13 +120,13 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
   });
 
   it("Should handle payout below minimum", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
+    const { core, alice, mockPosition, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
     // Create position
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -146,7 +146,7 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
     );
 
     await expect(
-      core.connect(router).decreasePosition(
+      core.connect(alice).decreasePosition(
         positionId,
         SMALL_QUANTITY,
         payout + 1n // Set min payout higher than actual
@@ -154,38 +154,14 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
     ).to.be.revertedWithCustomError(core, "CostExceedsMaximum");
   });
 
-  it("Should handle authorization for decrease", async function () {
-    const { core, router, alice, bob, mockPosition, marketId } =
-      await loadFixture(createActiveMarketFixture);
-
-    // Create position as alice
-    await core
-      .connect(router)
-      .openPosition(
-        alice.address,
-        marketId,
-        45,
-        55,
-        MEDIUM_QUANTITY,
-        MEDIUM_COST
-      );
-
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
-    const positionId = positions[0];
-
-    // Bob should not be able to decrease alice's position
-    await expect(
-      core.connect(bob).decreasePosition(positionId, SMALL_QUANTITY, 0)
-    ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
-  });
-
   it("Should handle paused contract for decrease", async function () {
-    const { core, keeper, router, alice, mockPosition, marketId } =
-      await loadFixture(createActiveMarketFixture);
+    const { core, keeper, alice, mockPosition, marketId } = await loadFixture(
+      createActiveMarketFixture
+    );
 
     // Create position first
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -202,12 +178,12 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
     await core.connect(keeper).pause("Testing pause");
 
     await expect(
-      core.connect(router).decreasePosition(positionId, SMALL_QUANTITY, 0)
+      core.connect(alice).decreasePosition(positionId, SMALL_QUANTITY, 0)
     ).to.be.revertedWithCustomError(core, "ContractPaused");
   });
 
   it("Should calculate decrease payout correctly", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
+    const { core, alice, mockPosition, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
@@ -221,7 +197,7 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
     };
 
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         tradeParams.marketId,
@@ -241,13 +217,13 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
   });
 
   it("Should handle small partial decreases efficiently", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
+    const { core, alice, mockPosition, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
     // Create position
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -261,18 +237,18 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
     const positionId = positions[0];
 
     // Small decrease
-    await expect(core.connect(router).decreasePosition(positionId, 1, 0)).to.not
+    await expect(core.connect(alice).decreasePosition(positionId, 1, 0)).to.not
       .be.reverted;
   });
 
   it("Should handle sequential decreases", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
+    const { core, alice, mockPosition, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
     // Create position
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -286,11 +262,11 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
     const positionId = positions[0];
 
     // First decrease
-    await core.connect(router).decreasePosition(positionId, SMALL_QUANTITY, 0);
+    await core.connect(alice).decreasePosition(positionId, SMALL_QUANTITY, 0);
 
     // Second decrease
     await expect(
-      core.connect(router).decreasePosition(positionId, SMALL_QUANTITY, 0)
+      core.connect(alice).decreasePosition(positionId, SMALL_QUANTITY, 0)
     ).to.not.be.reverted;
 
     const position = await mockPosition.getPosition(positionId);
@@ -300,13 +276,13 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
   });
 
   it("Should handle excessive decrease quantity", async function () {
-    const { core, router, alice, mockPosition, marketId } = await loadFixture(
+    const { core, alice, mockPosition, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
     // Create position
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -322,7 +298,7 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
     const excessiveSell = SMALL_QUANTITY + 1n;
 
     await expect(
-      core.connect(router).decreasePosition(positionId, excessiveSell, 0)
+      core.connect(alice).decreasePosition(positionId, excessiveSell, 0)
     ).to.be.revertedWithCustomError(core, "InvalidQuantity");
   });
 });

@@ -20,13 +20,13 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
 
   describe("Cost Consistency Invariants", function () {
     it("Should maintain cost consistency: buy then sell should be near-neutral", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Execute buy
       const buyTx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -42,7 +42,7 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
       const positionId = (buyEvent as any).args[2]; // positionId
 
       // Execute sell (close position) - need to use router as authorized caller
-      const sellTx = await core.connect(router).closePosition(
+      const sellTx = await core.connect(alice).closePosition(
         positionId,
         0 // minPayout
       );
@@ -202,7 +202,7 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
 
   describe("Roundtrip Neutrality Tests", function () {
     it("Should maintain near-neutrality for small roundtrips", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -210,7 +210,7 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
 
       // Buy
       const buyTx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -227,7 +227,7 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
       const buyCost = (buyEvent as any).args[6];
 
       // Sell immediately
-      const sellTx = await core.connect(router).closePosition(
+      const sellTx = await core.connect(alice).closePosition(
         positionId,
         0 // minPayout
       );
@@ -244,7 +244,7 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
     });
 
     it("Should handle multiple chunk roundtrips consistently", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -252,7 +252,7 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
 
       // Buy
       const buyTx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -269,7 +269,7 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
       const buyCost = (buyEvent as any).args[6];
 
       // Sell
-      const sellTx = await core.connect(router).closePosition(
+      const sellTx = await core.connect(alice).closePosition(
         positionId,
         0 // minPayout
       );
@@ -302,7 +302,7 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
     });
 
     it("Should handle maximum safe quantities without overflow", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -310,7 +310,7 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
       const largeQuantity = ethers.parseUnits("1", USDC_DECIMALS); // 1 USDC (further reduced for safety)
 
       await expect(
-        core.connect(router).openPosition(
+        core.connect(alice).openPosition(
           alice.address,
           marketId,
           45,

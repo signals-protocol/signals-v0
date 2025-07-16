@@ -8,7 +8,7 @@ import { COMPONENT_TAG } from "../../helpers/tags";
 describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
   describe("Position Minting via Core", function () {
     it("should mint position when Core.openPosition is called", async function () {
-      const { core, position, router, alice, marketId } = await loadFixture(
+      const { core, position, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -26,7 +26,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
       // Open position through Core
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -38,7 +38,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             params.marketId,
@@ -66,12 +66,13 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
     });
 
     it("should handle multiple position mints correctly", async function () {
-      const { core, position, router, alice, bob, marketId } =
-        await loadFixture(realPositionMarketFixture);
+      const { core, position, alice, bob, marketId } = await loadFixture(
+        realPositionMarketFixture
+      );
 
       // Alice opens first position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -83,7 +84,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
       // Bob opens second position
       await core
-        .connect(router)
+        .connect(bob)
         .openPosition(
           bob.address,
           marketId,
@@ -131,13 +132,13 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
     });
 
     it("should handle position mint with edge case parameters", async function () {
-      const { core, position, router, alice, marketId } = await loadFixture(
+      const { core, position, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -156,7 +157,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
   describe("Position Updates via Core", function () {
     it("should update position quantity when Core.increasePosition is called", async function () {
-      const { core, position, router, alice, marketId } = await loadFixture(
+      const { core, position, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -170,7 +171,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -180,7 +181,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -197,7 +198,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       const increaseAmount = ethers.parseUnits("0.5", 6);
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             positionId,
             increaseAmount,
@@ -217,7 +218,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
     });
 
     it("should update position quantity when Core.decreasePosition is called", async function () {
-      const { core, position, router, alice, marketId } = await loadFixture(
+      const { core, position, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -231,7 +232,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -241,7 +242,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -257,7 +258,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       // Decrease position
       const decreaseAmount = ethers.parseUnits("0.5", 6);
       await expect(
-        core.connect(router).decreasePosition(positionId, decreaseAmount, 0)
+        core.connect(alice).decreasePosition(positionId, decreaseAmount, 0)
       )
         .to.emit(position, "PositionUpdated")
         .withArgs(
@@ -284,7 +285,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
     });
 
     it("should handle multiple sequential updates", async function () {
-      const { core, position, router, alice, marketId } = await loadFixture(
+      const { core, position, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -298,7 +299,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -308,7 +309,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -334,7 +335,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
         if (op.type === "increase") {
           await core
-            .connect(router)
+            .connect(alice)
             .increasePosition(
               positionId,
               op.amount,
@@ -342,7 +343,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
             );
           currentQuantity += op.amount;
         } else {
-          await core.connect(router).decreasePosition(positionId, op.amount, 0);
+          await core.connect(alice).decreasePosition(positionId, op.amount, 0);
           currentQuantity -= op.amount;
         }
 
@@ -355,7 +356,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
   describe("Position Burning via Core", function () {
     it("should burn position when Core.closePosition is called", async function () {
-      const { core, position, router, alice, marketId } = await loadFixture(
+      const { core, position, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -369,7 +370,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -379,7 +380,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -394,7 +395,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       expect(await position.ownerOf(positionId)).to.equal(alice.address);
 
       // Close position
-      await expect(core.connect(router).closePosition(positionId, 0))
+      await expect(core.connect(alice).closePosition(positionId, 0))
         .to.emit(position, "PositionBurned")
         .withArgs(positionId, alice.address)
         .and.to.emit(core, "PositionClosed");
@@ -411,7 +412,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
     });
 
     it("should burn position when decreased to zero", async function () {
-      const { core, position, router, alice, marketId } = await loadFixture(
+      const { core, position, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -425,7 +426,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -435,7 +436,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -450,7 +451,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       // Decrease to zero (should burn)
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .decreasePosition(positionId, positionData.quantity, 0)
       )
         .to.emit(position, "PositionBurned")
@@ -472,7 +473,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
     });
 
     it("should handle burning multiple positions", async function () {
-      const { core, position, router, alice, marketId } = await loadFixture(
+      const { core, position, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -488,7 +489,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
         };
 
         const positionId = await core
-          .connect(router)
+          .connect(alice)
           .openPosition.staticCall(
             alice.address,
             params.marketId,
@@ -498,7 +499,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
             params.maxCost
           );
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             params.marketId,
@@ -514,7 +515,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
       // Close all positions
       for (const positionId of positions) {
-        await core.connect(router).closePosition(positionId, 0);
+        await core.connect(alice).closePosition(positionId, 0);
       }
 
       expect(await position.balanceOf(alice.address)).to.equal(0);
@@ -530,7 +531,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
   describe("Position State Consistency", function () {
     it("should maintain consistent state across Core operations", async function () {
-      const { core, position, router, alice, marketId } = await loadFixture(
+      const { core, position, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -544,7 +545,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -554,7 +555,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -570,7 +571,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
       // Increase position
       await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(
           positionId,
           ethers.parseUnits("1", 6),
@@ -582,14 +583,14 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
       // Decrease position
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(positionId, ethers.parseUnits("2", 6), 0);
 
       positionData = await position.getPosition(positionId);
       expect(positionData.quantity).to.equal(ethers.parseUnits("2", 6));
 
       // Close position
-      await core.connect(router).closePosition(positionId, 0);
+      await core.connect(alice).closePosition(positionId, 0);
 
       // Verify position is completely removed
       await expect(
@@ -598,7 +599,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
     });
 
     it("should handle Core operations with different users", async function () {
-      const { core, position, router, alice, bob, charlie, marketId } =
+      const { core, position, alice, bob, charlie, marketId } =
         await loadFixture(realPositionMarketFixture);
 
       const users = [alice, bob, charlie];
@@ -615,7 +616,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
         };
 
         const positionId = await core
-          .connect(router)
+          .connect(alice)
           .openPosition.staticCall(
             users[i].address,
             params.marketId,
@@ -625,7 +626,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
             params.maxCost
           );
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             users[i].address,
             params.marketId,
@@ -652,7 +653,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
       // Alice increases her position
       await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(
           positionIds[0],
           ethers.parseUnits("0.5", 6),
@@ -660,11 +661,11 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
         );
 
       // Bob closes his position
-      await core.connect(router).closePosition(positionIds[1], 0);
+      await core.connect(alice).closePosition(positionIds[1], 0);
 
       // Charlie decreases his position
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(positionIds[2], ethers.parseUnits("0.5", 6), 0);
 
       // Verify final states
@@ -686,13 +687,13 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
   describe("Error Handling and Edge Cases", function () {
     it("should handle Core operations on non-existent positions", async function () {
-      const { core, router } = await loadFixture(realPositionMarketFixture);
+      const { core, alice } = await loadFixture(realPositionMarketFixture);
 
       const nonExistentId = 999;
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             nonExistentId,
             ethers.parseUnits("1", 6),
@@ -702,17 +703,18 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .decreasePosition(nonExistentId, ethers.parseUnits("1", 6), 0)
       ).to.be.reverted;
 
-      await expect(core.connect(router).closePosition(nonExistentId, 0)).to.be
+      await expect(core.connect(alice).closePosition(nonExistentId, 0)).to.be
         .reverted;
     });
 
     it("should handle position operations during market state changes", async function () {
-      const { core, position, router, keeper, alice, marketId } =
-        await loadFixture(realPositionMarketFixture);
+      const { core, position, keeper, alice, marketId } = await loadFixture(
+        realPositionMarketFixture
+      );
 
       // Open position
       const params = {
@@ -724,7 +726,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -734,7 +736,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -750,7 +752,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       // Operations should fail when paused
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             positionId,
             ethers.parseUnits("0.5", 6),
@@ -763,7 +765,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .increasePosition(
             positionId,
             ethers.parseUnits("0.5", 6),
@@ -773,7 +775,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
     });
 
     it("should maintain position integrity during sequential operations", async function () {
-      const { core, position, router, alice, marketId } = await loadFixture(
+      const { core, position, alice, marketId } = await loadFixture(
         realPositionMarketFixture
       );
 
@@ -787,7 +789,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       };
 
       const positionId = await core
-        .connect(router)
+        .connect(alice)
         .openPosition.staticCall(
           alice.address,
           params.marketId,
@@ -797,7 +799,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
           params.maxCost
         );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           params.marketId,
@@ -811,7 +813,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       const operations = [
         () =>
           core
-            .connect(router)
+            .connect(alice)
             .increasePosition(
               positionId,
               ethers.parseUnits("0.001", 6),
@@ -819,11 +821,11 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
             ),
         () =>
           core
-            .connect(router)
+            .connect(alice)
             .decreasePosition(positionId, ethers.parseUnits("0.0005", 6), 0),
         () =>
           core
-            .connect(router)
+            .connect(alice)
             .increasePosition(
               positionId,
               ethers.parseUnits("0.002", 6),
@@ -831,7 +833,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
             ),
         () =>
           core
-            .connect(router)
+            .connect(alice)
             .decreasePosition(positionId, ethers.parseUnits("0.0015", 6), 0),
       ];
 

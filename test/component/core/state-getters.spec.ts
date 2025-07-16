@@ -186,7 +186,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
   describe("Position Information Getters", function () {
     it("Should return correct position information after opening", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -214,7 +214,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
       };
 
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -241,7 +241,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
 
     it("Should track position count correctly", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, bob, keeper } = contracts;
+      const { core, alice, bob, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -272,7 +272,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
 
       // Open first position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -283,17 +283,8 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
         );
       expect(await position.balanceOf(alice.address)).to.equal(1);
 
-      // Open second position
-      const tradeParams2 = {
-        marketId,
-        lowerTick: 30,
-        upperTick: 40,
-        quantity: ethers.parseUnits("0.5", 6),
-        maxCost: ethers.parseUnits("5", 6),
-      };
-
       await core
-        .connect(router)
+        .connect(bob)
         .openPosition(
           bob.address,
           marketId,
@@ -307,7 +298,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
 
     it("Should handle position ownership correctly", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, bob, keeper } = contracts;
+      const { core, alice, bob, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -335,7 +326,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
       };
 
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -388,7 +379,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
 
     it("Should calculate close costs correctly", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -417,7 +408,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
       };
 
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -436,7 +427,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
 
     it("Should calculate settled payouts correctly", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -465,7 +456,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
       };
 
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -697,7 +688,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
   describe("State Consistency Checks", function () {
     it("Should maintain consistent state after multiple operations", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const marketId = 1;
       const currentTime = await time.latest();
@@ -726,7 +717,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
       };
 
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,

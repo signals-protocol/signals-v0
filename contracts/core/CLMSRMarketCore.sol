@@ -34,8 +34,6 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     /// @notice Maximum number of ticks per market (segment tree safety)
     uint32 public constant MAX_TICK_COUNT = 1_000_000;
     
-    // Note: MAX_ACTIVE_MARKETS removed - managed by Manager contract
-    
     /// @notice Minimum liquidity parameter (alpha)
     uint256 public constant MIN_LIQUIDITY_PARAMETER = 1e15; // 0.001 ETH
     
@@ -64,9 +62,6 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     /// @notice Manager contract address
     address public immutable managerContract;
     
-    /// @notice Router contract address
-    address public router;
-    
     /// @notice Contract pause state
     bool public paused;
     
@@ -92,13 +87,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         _;
     }
     
-    /// @notice Only authorized callers (Manager, Router, Position)
-    modifier onlyAuthorized() {
-        if (!_isAuthorizedCaller(msg.sender)) {
-            revert CE.UnauthorizedCaller(msg.sender);
-        }
-        _;
-    }
+
     
     /// @notice Contract must not be paused
     modifier whenNotPaused() {
@@ -172,8 +161,6 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             revert CE.InvalidLiquidityParameter();
         }
         
-        // Note: Active market limit check removed - managed by Manager contract
-        
         // Create market
         markets[marketId] = Market({
             isActive: true,
@@ -187,8 +174,6 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         
         // Initialize segment tree
         LazyMulSegmentTree.init(marketTrees[marketId], numTicks);
-        
-        // Note: Active market tracking removed - managed by Manager contract
         
         emit MarketCreated(marketId, startTimestamp, endTimestamp, numTicks, liquidityParameter);
     }
@@ -211,8 +196,6 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         market.settlementTick = winningTick;
         market.isActive = false;
         
-        // Note: Active market removal handled by Manager contract
-        
         emit MarketSettled(marketId, winningTick);
     }
 
@@ -225,12 +208,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         return markets[marketId].numTicks > 0;
     }
     
-    /// @notice Internal function to check if caller is authorized
-    function _isAuthorizedCaller(address caller) internal view returns (bool) {
-        return caller == managerContract || 
-               caller == router || 
-               caller == address(positionContract);
-    }
+
     
     /// @notice Pull USDC from user (6-decimal amount)
     function _pullUSDC(address from, uint256 amt6) internal {
@@ -349,21 +327,13 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         return address(paymentToken);
     }
     
-    /// @inheritdoc ICLMSRMarketCore
-    function isAuthorizedCaller(address caller) external view override returns (bool) {
-        return _isAuthorizedCaller(caller);
-    }
+
     
     /// @inheritdoc ICLMSRMarketCore
     function getManagerContract() external view override returns (address) {
         return managerContract;
     }
     
-    /// @inheritdoc ICLMSRMarketCore
-    function getRouterContract() external view override returns (address) {
-        return router;
-    }
-
     // ========================================
     // EMERGENCY FUNCTIONS
     // ========================================
@@ -396,23 +366,6 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     }
 
     // ========================================
-    // ROUTER SETUP (One-time only)
-    // ========================================
-    
-    /// @notice Set router contract address (one-time setup)
-    /// @param _routerContract Router contract address
-    function setRouterContract(address _routerContract) external onlyManager {
-        if (router != address(0)) {
-            revert CE.RouterAlreadySet();
-        }
-        if (_routerContract == address(0)) {
-            revert CE.ZeroAddress();
-        }
-        router = _routerContract;
-        emit RouterSet(_routerContract);
-    }
-
-    // ========================================
     // EXECUTION FUNCTIONS
     // ========================================
     
@@ -424,7 +377,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         uint32 upperTick,
         uint128 quantity,
         uint256 maxCost
-    ) external override onlyAuthorized whenNotPaused nonReentrant returns (uint256 positionId) {
+    ) external override whenNotPaused nonReentrant returns (uint256 positionId) {
         // Validate parameters
         if (trader == address(0)) {
             revert CE.ZeroAddress();
@@ -498,7 +451,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         uint256 positionId,
         uint128 additionalQuantity,
         uint256 maxCost
-    ) external override onlyAuthorized whenNotPaused nonReentrant returns (uint128 newQuantity) {
+    ) external override whenNotPaused nonReentrant returns (uint128 newQuantity) {
         if (additionalQuantity == 0) {
             revert CE.InvalidQuantity(additionalQuantity);
         }
@@ -540,7 +493,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         uint256 positionId,
         uint128 sellQuantity,
         uint256 minProceeds
-    ) external override onlyAuthorized whenNotPaused nonReentrant returns (uint128 newQuantity, uint256 proceeds) {
+    ) external override whenNotPaused nonReentrant returns (uint128 newQuantity, uint256 proceeds) {
         if (sellQuantity == 0) {
             revert CE.InvalidQuantity(sellQuantity);
         }
@@ -591,7 +544,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     /// @inheritdoc ICLMSRMarketCore
     function claimPayout(
         uint256 positionId
-    ) external override onlyAuthorized whenNotPaused nonReentrant returns (uint256 payout) {
+    ) external override whenNotPaused nonReentrant returns (uint256 payout) {
         // Get position data
         ICLMSRPosition.Position memory position = positionContract.getPosition(positionId);
         address trader = positionContract.ownerOf(positionId);
@@ -1180,7 +1133,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     function closePosition(
         uint256 positionId,
         uint256 minProceeds
-    ) external override onlyAuthorized whenNotPaused nonReentrant returns (uint256 proceeds) {
+    ) external override whenNotPaused nonReentrant returns (uint256 proceeds) {
         // Get position data and validate market
         ICLMSRPosition.Position memory position = positionContract.getPosition(positionId);
         address trader = positionContract.ownerOf(positionId);

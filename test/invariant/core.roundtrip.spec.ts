@@ -17,7 +17,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
   describe("Cost Consistency Invariants", function () {
     it("Should maintain cost consistency: buy then sell should be near-neutral", async function () {
-      const { core, router, alice, mockPosition, marketId } = await loadFixture(
+      const { core, alice, mockPosition, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -32,7 +32,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
       // Execute buy
       const buyTx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -58,7 +58,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       const buyCost = initialBalance - balanceAfterBuy;
 
       // Execute sell (close position)
-      await core.connect(router).closePosition(positionId, 0);
+      await core.connect(alice).closePosition(positionId, 0);
 
       // Check final balance
       const finalBalance = await core
@@ -145,13 +145,13 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
   describe("Position Lifecycle Invariants", function () {
     it("Should maintain position quantity consistency through increase/decrease cycles", async function () {
-      const { core, router, alice, mockPosition, marketId } = await loadFixture(
+      const { core, alice, mockPosition, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Open initial position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -169,26 +169,24 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
       // Increase position
       await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(positionId, SMALL_QUANTITY, EXTREME_COST);
       position = await mockPosition.getPosition(positionId);
       expect(position.quantity).to.equal(initialQuantity + SMALL_QUANTITY);
 
       // Decrease position back
-      await core
-        .connect(router)
-        .decreasePosition(positionId, SMALL_QUANTITY, 0);
+      await core.connect(alice).decreasePosition(positionId, SMALL_QUANTITY, 0);
       position = await mockPosition.getPosition(positionId);
       expect(position.quantity).to.equal(initialQuantity);
     });
 
     it("Should maintain value conservation in position adjustments", async function () {
-      const { core, router, alice, mockPosition, paymentToken, marketId } =
+      const { core, alice, mockPosition, paymentToken, marketId } =
         await loadFixture(createActiveMarketFixture);
 
       // Open initial position
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -208,12 +206,12 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       const adjustmentQuantity = SMALL_QUANTITY;
 
       await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(positionId, adjustmentQuantity, EXTREME_COST);
       const balanceAfterIncrease = await paymentToken.balanceOf(alice.address);
 
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(positionId, adjustmentQuantity, 0);
       const balanceAfterDecrease = await paymentToken.balanceOf(alice.address);
 
@@ -253,7 +251,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
     });
 
     it("Should maintain tick value consistency", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -267,7 +265,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
       // Execute a trade that affects multiple ticks
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -289,7 +287,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
     });
 
     it("Should maintain price impact bounds", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -306,7 +304,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
       for (let i = 0; i < 3; i++) {
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -337,7 +335,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
   describe("Rounding and Precision Invariants", function () {
     it("Should maintain precision in small quantity operations", async function () {
-      const { core, router, alice, mockPosition, marketId } = await loadFixture(
+      const { core, alice, mockPosition, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -355,7 +353,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       // Should be able to execute the trade
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -413,12 +411,13 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
   describe("Market State Invariants", function () {
     it("Should maintain market integrity across position lifecycle", async function () {
-      const { core, router, alice, bob, mockPosition, marketId } =
-        await loadFixture(createActiveMarketFixture);
+      const { core, alice, bob, mockPosition, marketId } = await loadFixture(
+        createActiveMarketFixture
+      );
 
       // Multiple users create overlapping positions
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -429,7 +428,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
         );
 
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           bob.address,
           marketId,
@@ -446,8 +445,8 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       const bobPositions = await mockPosition.getPositionsByOwner(bob.address);
 
       // Both should be able to close independently
-      await core.connect(router).closePosition(alicePositions[0], 0);
-      await core.connect(router).closePosition(bobPositions[0], 0);
+      await core.connect(alice).closePosition(alicePositions[0], 0);
+      await core.connect(alice).closePosition(bobPositions[0], 0);
 
       // Market should still be in valid state
       const market = await core.getMarket(marketId);
@@ -457,9 +456,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
   describe("🧮 Rounding Policy Tests - Up/Up Fairness", function () {
     it("Should apply consistent round-up for both buy and sell operations", async function () {
-      const { core, router, alice, mockPosition } = await loadFixture(
-        coreFixture
-      );
+      const { core, alice, mockPosition } = await loadFixture(coreFixture);
 
       // Create market
       const { keeper } = await loadFixture(coreFixture);
@@ -488,7 +485,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
         // Open position
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -519,8 +516,9 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
     });
 
     it("Should demonstrate zero expected value for round-trip trades", async function () {
-      const { core, router, alice, paymentToken, mockPosition } =
-        await loadFixture(coreFixture);
+      const { core, alice, paymentToken, mockPosition } = await loadFixture(
+        coreFixture
+      );
 
       // Create market
       const { keeper } = await loadFixture(coreFixture);
@@ -549,7 +547,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
         // Open position
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -563,7 +561,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
         const positionId = positions[0];
 
         // Close position immediately
-        await core.connect(router).closePosition(positionId, 0);
+        await core.connect(alice).closePosition(positionId, 0);
 
         const balanceAfter = await paymentToken.balanceOf(alice.address);
 
@@ -591,7 +589,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
     });
 
     it("Should prevent zero-cost attacks while maintaining fairness", async function () {
-      const { core, router, alice } = await loadFixture(coreFixture);
+      const { core, alice } = await loadFixture(coreFixture);
 
       // Create market with very high liquidity (small alpha for minimal costs)
       const { keeper } = await loadFixture(coreFixture);
@@ -630,7 +628,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
     });
 
     it("Should maintain consistent rounding across different market states", async function () {
-      const { core, router, alice } = await loadFixture(coreFixture);
+      const { core, alice } = await loadFixture(coreFixture);
 
       // Create market
       const { keeper } = await loadFixture(coreFixture);
@@ -663,7 +661,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
       // Make some trades to change market state
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,

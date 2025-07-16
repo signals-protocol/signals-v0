@@ -35,7 +35,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
 
   describe("Sum Conservation Invariants", function () {
     it("Should maintain total sum after operations", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -48,7 +48,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
 
       // Execute trades
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -70,7 +70,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
     });
 
     it("Should maintain sum monotonicity with consecutive operations", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -79,7 +79,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
       // Multiple buy operations should monotonically increase sum
       for (let i = 0; i < 3; i++) {
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -105,7 +105,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
 
   describe("Range Update Invariants", function () {
     it("Should correctly update only affected tick ranges", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -118,7 +118,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
 
       // Execute trade affecting ticks 20-30
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -143,13 +143,13 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
     });
 
     it("Should handle overlapping range updates correctly", async function () {
-      const { core, router, alice, bob, marketId } = await loadFixture(
+      const { core, alice, bob, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // First trade: affects ticks 10-30
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -163,7 +163,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
 
       // Second trade: affects ticks 20-40 (overlaps)
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           bob.address,
           marketId,
@@ -182,7 +182,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
 
   describe("Lazy Propagation Invariants", function () {
     it("Should maintain correct values after lazy propagation", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -195,7 +195,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
 
       for (const op of operations) {
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -214,7 +214,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
     });
 
     it("Should handle edge case propagation correctly", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -227,7 +227,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
 
       for (const testCase of edgeCases) {
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -248,14 +248,14 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
 
   describe("Precision and Consistency Invariants", function () {
     it("Should maintain precision across multiple operations", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Perform many small operations
       for (let i = 0; i < 10; i++) {
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -278,7 +278,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
     });
 
     it("Should maintain consistency under stress conditions", async function () {
-      const { core, router, alice, bob, charlie, marketId } = await loadFixture(
+      const { core, alice, bob, charlie, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -288,7 +288,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
       for (let round = 0; round < 5; round++) {
         for (const participant of participants) {
           await core
-            .connect(router)
+            .connect(alice)
             .openPosition(
               participant.address,
               marketId,
@@ -311,13 +311,13 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
 
   describe("Mathematical Invariants", function () {
     it("Should maintain exponential sum properties", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // The sum should follow exponential properties of CLMSR
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -341,13 +341,13 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
     });
 
     it("Should maintain proportionality properties", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Create two similar positions with different quantities
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -360,7 +360,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
       const smallTickValue = await core.getTickValue(marketId, 25);
 
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -379,7 +379,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
 
   describe("Monotonic Sum Behavior", function () {
     it("Should maintain monotonic increase in total sum after buys", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -389,7 +389,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
       // Execute multiple buys and verify sum increases
       for (let i = 0; i < 3; i++) {
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -405,7 +405,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
     });
 
     it("Should maintain monotonic decrease in total sum after sells", async function () {
-      const { core, router, alice, marketId, mockPosition } = await loadFixture(
+      const { core, alice, marketId, mockPosition } = await loadFixture(
         createActiveMarketFixture
       );
 
@@ -413,7 +413,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
       const positions = [];
       for (let i = 0; i < 3; i++) {
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -433,7 +433,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
       let previousTickValue = await core.getTickValue(marketId, 15);
 
       for (const positionId of positions) {
-        await core.connect(router).closePosition(positionId, 0);
+        await core.connect(alice).closePosition(positionId, 0);
 
         const newTickValue = await core.getTickValue(marketId, 15);
         // After selling, tick value should decrease or stay same
@@ -443,13 +443,13 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
     });
 
     it("Should maintain sum consistency across position adjustments", async function () {
-      const { core, router, alice, marketId, mockPosition } = await loadFixture(
+      const { core, alice, marketId, mockPosition } = await loadFixture(
         createActiveMarketFixture
       );
 
       // Open initial position
       const tx = await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -467,7 +467,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
 
       // Increase position
       await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(
           positionId,
           SMALL_QUANTITY,
@@ -477,9 +477,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
       expect(sumAfterIncrease).to.be.gte(sumAfterOpen);
 
       // Decrease position
-      await core
-        .connect(router)
-        .decreasePosition(positionId, SMALL_QUANTITY, 0);
+      await core.connect(alice).decreasePosition(positionId, SMALL_QUANTITY, 0);
       const sumAfterDecrease = await core.getTickValue(marketId, 50);
       expect(sumAfterDecrease).to.be.lte(sumAfterIncrease);
 

@@ -8,7 +8,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
   describe("Quantity Validation", function () {
     it("Should handle minimum possible quantity (1 wei)", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -37,7 +37,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -51,7 +51,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
     it("Should revert with zero quantity", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -80,7 +80,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -94,7 +94,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
     it("Should handle very small quantities without underflow", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -134,7 +134,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -150,7 +150,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
   describe("Chunk-Split Boundaries", function () {
     it("Should handle quantity exactly at chunk boundary", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -181,7 +181,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -195,7 +195,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
     it("Should handle quantity slightly above chunk boundary", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -228,7 +228,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -242,7 +242,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
     it("Should handle multiple chunk splits correctly", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -274,7 +274,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -329,7 +329,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
     it("Should handle massive chunk-split scenarios", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -362,7 +362,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
       // Should handle massive chunk-split without reverting
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -429,7 +429,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
     it("Should handle multiple chunk calculations consistently", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -451,7 +451,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
       const CHUNK_BOUNDARY_QUANTITY = ethers.parseUnits("0.013", 6);
 
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           marketId,
@@ -471,7 +471,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -494,7 +494,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
     it("Should handle first trade scenario (sumBefore == 0)", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
@@ -533,7 +533,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -586,8 +586,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
   describe("Security Tests", function () {
     it("Should prevent zero-cost position attacks with round-up", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, keeper, router, alice, paymentToken, mockPosition } =
-        contracts;
+      const { core, keeper, alice, paymentToken, mockPosition } = contracts;
 
       // Create market with very high alpha to make costs extremely small
       const highAlpha = ethers.parseEther("1000"); // Very high liquidity parameter
@@ -626,7 +625,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
       // Should be able to open position with minimum cost
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(
           alice.address,
           tradeParams.marketId,
@@ -645,7 +644,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
     it("Should prevent repeated tiny trades from accumulating free positions", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, keeper, router, alice, paymentToken } = contracts;
+      const { core, keeper, alice, paymentToken } = contracts;
 
       // Create market with very high alpha
       const highAlpha = ethers.parseEther("1000");
@@ -683,7 +682,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
         );
 
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -705,7 +704,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
     it("Should prevent gas DoS attacks with excessive chunk splitting", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, keeper, router, alice, paymentToken } = contracts;
+      const { core, keeper, alice, paymentToken } = contracts;
 
       // Create market with very small alpha to maximize chunk count
       const smallAlpha = ethers.parseEther("0.001"); // Very small liquidity parameter
@@ -735,7 +734,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
       // Should revert due to excessive chunk count
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -749,7 +748,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
     it("Should handle maximum allowed chunks successfully", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, keeper, router, alice, paymentToken } = contracts;
+      const { core, keeper, alice, paymentToken } = contracts;
 
       // Create market with small alpha
       const smallAlpha = ethers.parseEther("0.001");
@@ -779,7 +778,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
       // Should succeed with moderate chunk count
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,

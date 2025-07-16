@@ -112,13 +112,14 @@ describe(`${INTEGRATION_TAG} Market Lifecycle`, function () {
     expect(market3.isActive).to.be.true;
   });
 
-  it("Should handle complete position lifecycle", async function () {
-    const { core, keeper, router, alice, mockPosition, marketId } =
-      await loadFixture(createActiveMarketFixture);
+  it("Should handle complete positio  n lifecycle", async function () {
+    const { core, keeper, alice, mockPosition, marketId } = await loadFixture(
+      createActiveMarketFixture
+    );
 
     // 1. Open position
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -133,28 +134,29 @@ describe(`${INTEGRATION_TAG} Market Lifecycle`, function () {
 
     // 2. Increase position
     await core
-      .connect(router)
+      .connect(alice)
       .increasePosition(positionId, MEDIUM_QUANTITY, MEDIUM_COST);
 
     // 3. Decrease position partially
     await expect(
-      core.connect(router).decreasePosition(positionId, MEDIUM_QUANTITY, 0)
+      core.connect(alice).decreasePosition(positionId, MEDIUM_QUANTITY, 0)
     ).to.not.be.reverted;
 
     // 4. Close remaining position
-    await core.connect(router).closePosition(positionId, 0);
+    await core.connect(alice).closePosition(positionId, 0);
 
     // Position should be burned
     expect(await mockPosition.balanceOf(alice.address)).to.equal(0);
   });
 
   it("Should handle position lifecycle with settlement", async function () {
-    const { core, keeper, router, alice, mockPosition, marketId } =
-      await loadFixture(createActiveMarketFixture);
+    const { core, keeper, alice, mockPosition, marketId } = await loadFixture(
+      createActiveMarketFixture
+    );
 
     // 1. Open position
     await core
-      .connect(router)
+      .connect(alice)
       .openPosition(
         alice.address,
         marketId,
@@ -171,7 +173,7 @@ describe(`${INTEGRATION_TAG} Market Lifecycle`, function () {
     await core.connect(keeper).settleMarket(marketId, 50);
 
     // 3. Claim payout
-    await expect(core.connect(router).claimPayout(positionId)).to.emit(
+    await expect(core.connect(alice).claimPayout(positionId)).to.emit(
       core,
       "PositionClaimed"
     );

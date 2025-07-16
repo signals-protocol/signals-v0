@@ -86,10 +86,6 @@ interface ICLMSRMarketCore {
         address indexed by
     );
 
-    event RouterSet(
-        address indexed routerContract
-    );
-
     // ========================================
     // ERRORS
     // ========================================
@@ -268,19 +264,11 @@ interface ICLMSRMarketCore {
     /// @return Payment token address
     function getPaymentToken() external view returns (address);
     
-    /// @notice Check if caller is authorized
-    /// @param caller Address to check
-    /// @return True if authorized
-    function isAuthorizedCaller(address caller) external view returns (bool);
     
     /// @notice Get manager contract address
     /// @return Manager contract address
     function getManagerContract() external view returns (address);
     
-    /// @notice Get router contract address
-    /// @return Router contract address
-    function getRouterContract() external view returns (address);
-
     // ========================================
     // SEGMENT TREE FUNCTIONS
     // ========================================

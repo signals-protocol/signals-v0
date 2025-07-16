@@ -8,7 +8,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
   describe("Factor Limits", function () {
     it("Should handle trades that approach MIN_FACTOR boundary", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       // Create market with extreme parameters
       const currentTime = await time.latest();
@@ -36,7 +36,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -50,7 +50,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
 
     it("Should handle trades that approach MAX_FACTOR boundary", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       // Create market with extreme parameters
       const currentTime = await time.latest();
@@ -78,7 +78,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -92,7 +92,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
 
     it("Should revert when factor exceeds MAX_FACTOR", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, router, alice, keeper } = contracts;
+      const { core, alice, keeper } = contracts;
 
       // Create market with extreme parameters
       const currentTime = await time.latest();
@@ -120,7 +120,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -136,7 +136,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
   describe("Liquidity Parameter Boundaries", function () {
     it("Should handle minimum liquidity parameter", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, keeper, router, alice } = contracts;
+      const { core, keeper, alice } = contracts;
 
       const minAlpha = ethers.parseEther("0.001"); // MIN_LIQUIDITY_PARAMETER
       const currentTime = await time.latest();
@@ -161,7 +161,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -175,7 +175,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
 
     it("Should handle maximum liquidity parameter", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, keeper, router, alice } = contracts;
+      const { core, keeper, alice } = contracts;
 
       const maxAlpha = ethers.parseEther("1000"); // MAX_LIQUIDITY_PARAMETER
       const currentTime = await time.latest();
@@ -200,7 +200,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -216,7 +216,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
   describe("Extreme Alpha Values with Large Trades", function () {
     it("Should handle low alpha values with moderate trades", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, keeper, router, alice } = contracts;
+      const { core, keeper, alice } = contracts;
 
       // Test with relatively low alpha (but not minimum to avoid overflow)
       const lowAlphaMarketId = 10;
@@ -453,7 +453,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
   describe("Liquidity Parameter Boundaries", function () {
     it("Should handle minimum liquidity parameter", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, keeper, router, alice } = contracts;
+      const { core, keeper, alice } = contracts;
 
       const minAlpha = ethers.parseEther("0.001"); // MIN_LIQUIDITY_PARAMETER
       const currentTime = await time.latest();
@@ -475,7 +475,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,
@@ -489,7 +489,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
 
     it("Should handle maximum liquidity parameter", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, keeper, router, alice } = contracts;
+      const { core, keeper, alice } = contracts;
 
       const maxAlpha = ethers.parseEther("1000"); // MAX_LIQUIDITY_PARAMETER
       const currentTime = await time.latest();
@@ -511,7 +511,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
 
       await expect(
         core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             tradeParams.marketId,

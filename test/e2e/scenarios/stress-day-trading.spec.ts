@@ -45,7 +45,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
 
   describe("High Frequency Trading", function () {
     it("Should handle rapid fire trading", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createDayTradingMarket
       );
 
@@ -72,7 +72,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
           quantity
         );
 
-        const tx = await core.connect(router).openPosition(
+        const tx = await core.connect(alice).openPosition(
           alice.address,
           marketId,
           lowerTick,
@@ -110,7 +110,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
     });
 
     it("Should handle scalping strategy", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createDayTradingMarket
       );
 
@@ -132,7 +132,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
         );
 
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -148,7 +148,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
         if (i > 10 && i % 5 === 0) {
           const positionToClose =
             positions[Math.floor(Math.random() * (positions.length - 5))];
-          await core.connect(router).closePosition(positionToClose, 0);
+          await core.connect(alice).closePosition(positionToClose, 0);
         }
       }
 
@@ -173,7 +173,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
     });
 
     it("Should handle algorithmic trading patterns", async function () {
-      const { core, router, alice, bob, charlie, marketId } = await loadFixture(
+      const { core, alice, bob, charlie, marketId } = await loadFixture(
         createDayTradingMarket
       );
 
@@ -206,7 +206,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
           );
 
           const tx = await core
-            .connect(router)
+            .connect(alice)
             .openPosition(
               algo.trader.address,
               marketId,
@@ -250,7 +250,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
 
   describe("Day Trading Position Management", function () {
     it("Should handle rapid position adjustments", async function () {
-      const { core, router, alice, marketId, mockPosition } = await loadFixture(
+      const { core, alice, marketId, mockPosition } = await loadFixture(
         createDayTradingMarket
       );
 
@@ -262,7 +262,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
         SWING_SIZE
       );
       await core
-        .connect(router)
+        .connect(alice)
         .openPosition(alice.address, marketId, 30, 70, SWING_SIZE, initialCost);
 
       // Get actual position ID from MockPosition
@@ -281,12 +281,12 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
               adjustmentSize
             );
             await core
-              .connect(router)
+              .connect(alice)
               .increasePosition(positionId, adjustmentSize, increaseCost);
           } else {
             // Decrease position
             await core
-              .connect(router)
+              .connect(alice)
               .decreasePosition(positionId, adjustmentSize, 0);
           }
         } catch (error: any) {
@@ -325,7 +325,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
     });
 
     it("Should handle stop-loss and take-profit patterns", async function () {
-      const { core, router, alice, marketId } = await loadFixture(
+      const { core, alice, marketId } = await loadFixture(
         createDayTradingMarket
       );
 
@@ -349,7 +349,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
           DAY_TRADE_SIZE
         );
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             alice.address,
             marketId,
@@ -365,7 +365,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
         if (i % 3 === 0) {
           // Add some noise to market
           await core
-            .connect(router)
+            .connect(alice)
             .openPosition(
               alice.address,
               marketId,
@@ -388,14 +388,14 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
           openCost - closeProceeds > stopLossThreshold
         ) {
           // Stop loss
-          await core.connect(router).closePosition(positionId, 0);
+          await core.connect(alice).closePosition(positionId, 0);
           stoppedOut++;
         } else if (
           closeProceeds > openCost &&
           closeProceeds - openCost > takeProfitThreshold
         ) {
           // Take profit
-          await core.connect(router).closePosition(positionId, 0);
+          await core.connect(alice).closePosition(positionId, 0);
           tookProfit++;
         }
 
@@ -415,7 +415,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
     });
 
     it("Should handle portfolio rebalancing", async function () {
-      const { core, router, alice, marketId, mockPosition } = await loadFixture(
+      const { core, alice, marketId, mockPosition } = await loadFixture(
         createDayTradingMarket
       );
 
@@ -444,7 +444,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
             allocation
           );
           await core
-            .connect(router)
+            .connect(alice)
             .openPosition(
               alice.address,
               marketId,
@@ -480,7 +480,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
 
       // Reduce position 1
       await core
-        .connect(router)
+        .connect(alice)
         .decreasePosition(positionIds[0], rebalanceAmount, 0);
 
       // Increase position 2
@@ -489,7 +489,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
         rebalanceAmount
       );
       await core
-        .connect(router)
+        .connect(alice)
         .increasePosition(positionIds[1], rebalanceAmount, increaseCost);
 
       console.log("Portfolio rebalanced");
@@ -509,7 +509,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
 
   describe("Market Stress Under Day Trading", function () {
     it("Should handle overlapping ranges with high activity", async function () {
-      const { core, router, alice, bob, charlie, marketId } = await loadFixture(
+      const { core, alice, bob, charlie, marketId } = await loadFixture(
         createDayTradingMarket
       );
 
@@ -537,7 +537,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
           );
 
           const tx = await core
-            .connect(router)
+            .connect(alice)
             .openPosition(
               trader.address,
               marketId,
@@ -585,7 +585,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
     });
 
     it("Should maintain performance under sustained high volume", async function () {
-      const { core, router, alice, bob, charlie, marketId } = await loadFixture(
+      const { core, alice, bob, charlie, marketId } = await loadFixture(
         createDayTradingMarket
       );
 
@@ -620,7 +620,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
           );
 
           const tx = await core
-            .connect(router)
+            .connect(alice)
             .openPosition(
               trader.address,
               marketId,
@@ -673,16 +673,8 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
     });
 
     it("Should handle end-of-day settlement rush", async function () {
-      const {
-        core,
-        keeper,
-        router,
-        alice,
-        bob,
-        charlie,
-        marketId,
-        mockPosition,
-      } = await loadFixture(createDayTradingMarket);
+      const { core, keeper, alice, bob, charlie, marketId, mockPosition } =
+        await loadFixture(createDayTradingMarket);
 
       const traders = [alice, bob, charlie];
       const dayTradingPositions = 20; // Reduced from 50 to prevent LazyFactorOverflow
@@ -709,7 +701,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
         );
 
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             trader.address,
             marketId,
@@ -737,7 +729,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
         try {
           const position = await mockPosition.getPosition(positionId);
           if (position.quantity > 0) {
-            const tx = await core.connect(router).closePosition(positionId, 0);
+            const tx = await core.connect(alice).closePosition(positionId, 0);
             const receipt = await tx.wait();
             rushGasUsed += receipt!.gasUsed;
           }
@@ -773,7 +765,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
 
   describe("Day Trading Error Recovery", function () {
     it("Should handle failed trades gracefully during high activity", async function () {
-      const { core, router, alice, bob, marketId } = await loadFixture(
+      const { core, alice, bob, marketId } = await loadFixture(
         createDayTradingMarket
       );
 
@@ -801,7 +793,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
               : actualCost; // Correct cost (should succeed)
 
           await core
-            .connect(router)
+            .connect(alice)
             .openPosition(
               alice.address,
               marketId,
@@ -839,7 +831,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
     });
 
     it("Should maintain state consistency during concurrent operations", async function () {
-      const { core, router, alice, bob, charlie, marketId, mockPosition } =
+      const { core, alice, bob, charlie, marketId, mockPosition } =
         await loadFixture(createDayTradingMarket);
 
       // Create initial positions
@@ -854,7 +846,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
           SWING_SIZE
         );
         await core
-          .connect(router)
+          .connect(alice)
           .openPosition(
             traders[i].address,
             marketId,
@@ -883,7 +875,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
           );
           operations.push(
             core
-              .connect(router)
+              .connect(alice)
               .increasePosition(positionId, DAY_TRADE_SIZE, increaseCost)
           );
         } else if (opType === 1 && i < initialPositions.length) {
@@ -891,7 +883,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
           const positionId = initialPositions[i % initialPositions.length];
           operations.push(
             core
-              .connect(router)
+              .connect(alice)
               .decreasePosition(positionId, DAY_TRADE_SIZE / 2n, 0)
           );
         } else {
@@ -908,7 +900,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
             );
             operations.push(
               core
-                .connect(router)
+                .connect(alice)
                 .openPosition(
                   trader.address,
                   marketId,
