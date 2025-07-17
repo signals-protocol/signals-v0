@@ -327,6 +327,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             revert CE.InvalidTick(hi, market.numTicks - 1);
         }
         LazyMulSegmentTree.applyRangeFactor(marketTrees[marketId], lo, hi, factor);
+        emit RangeFactorApplied(marketId, lo, hi, factor);
     }
     
     /// @inheritdoc ICLMSRMarketCore
@@ -589,6 +590,14 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         uint32 upperTick,
         uint128 quantity
     ) external view override marketExists(marketId) returns (uint256 cost) {
+        if (quantity == 0) {
+            revert CE.InvalidQuantity(quantity);
+        }
+        
+        if (lowerTick > upperTick || upperTick >= markets[marketId].numTicks) {
+            revert CE.InvalidTickRange(lowerTick, upperTick);
+        }
+        
         // Convert quantity to WAD for internal calculation
         uint256 quantityWad = uint256(quantity).toWad();
         uint256 costWad = _calculateTradeCostInternal(marketId, lowerTick, upperTick, quantityWad);
@@ -1085,6 +1094,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             if (factor < LazyMulSegmentTree.MIN_FACTOR || factor > LazyMulSegmentTree.MAX_FACTOR) revert CE.FactorOutOfBounds();
             
             LazyMulSegmentTree.applyRangeFactor(marketTrees[marketId], lowerTick, upperTick, factor);
+            emit RangeFactorApplied(marketId, lowerTick, upperTick, factor);
         } else {
             // Calculate required number of chunks and prevent gas DoS
             uint256 requiredChunks = (quantity + maxSafeQuantityPerChunk - 1) / maxSafeQuantityPerChunk;
@@ -1114,6 +1124,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
                 if (factor < LazyMulSegmentTree.MIN_FACTOR || factor > LazyMulSegmentTree.MAX_FACTOR) revert CE.FactorOutOfBounds();
                 
                 LazyMulSegmentTree.applyRangeFactor(marketTrees[marketId], lowerTick, upperTick, factor);
+                emit RangeFactorApplied(marketId, lowerTick, upperTick, factor);
                 
                 remainingQuantity -= chunkQuantity;
                 chunkCount++;

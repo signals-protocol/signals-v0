@@ -1,0 +1,916 @@
+[
+  {
+    "inputs": [
+      { "internalType": "address", "name": "_paymentToken", "type": "address" },
+      {
+        "internalType": "address",
+        "name": "_positionContract",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_managerContract",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  { "inputs": [], "name": "ContractPaused", "type": "error" },
+  { "inputs": [], "name": "ContractPaused", "type": "error" },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "cost", "type": "uint256" },
+      { "internalType": "uint256", "name": "maxAllowed", "type": "uint256" }
+    ],
+    "name": "CostExceedsMaximum",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "actualCost", "type": "uint256" },
+      { "internalType": "uint256", "name": "maxCost", "type": "uint256" }
+    ],
+    "name": "CostExceedsMaximum",
+    "type": "error"
+  },
+  { "inputs": [], "name": "EmptyPoolAfterSell", "type": "error" },
+  { "inputs": [], "name": "FactorOutOfBounds", "type": "error" },
+  { "inputs": [], "name": "IncompleteChunkProcessing", "type": "error" },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "account", "type": "address" },
+      { "internalType": "uint256", "name": "required", "type": "uint256" },
+      { "internalType": "uint256", "name": "available", "type": "uint256" }
+    ],
+    "name": "InsufficientBalance",
+    "type": "error"
+  },
+  { "inputs": [], "name": "InvalidChunkCalculation", "type": "error" },
+  { "inputs": [], "name": "InvalidLiquidityParameter", "type": "error" },
+  {
+    "inputs": [{ "internalType": "uint128", "name": "qty", "type": "uint128" }],
+    "name": "InvalidQuantity",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint128", "name": "quantity", "type": "uint128" }
+    ],
+    "name": "InvalidQuantity",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint32", "name": "tick", "type": "uint32" },
+      { "internalType": "uint32", "name": "max", "type": "uint32" }
+    ],
+    "name": "InvalidTick",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint32", "name": "tick", "type": "uint32" },
+      { "internalType": "uint32", "name": "maxTick", "type": "uint32" }
+    ],
+    "name": "InvalidTick",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint32", "name": "lowerTick", "type": "uint32" },
+      { "internalType": "uint32", "name": "upperTick", "type": "uint32" }
+    ],
+    "name": "InvalidTickRange",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint32", "name": "lowerTick", "type": "uint32" },
+      { "internalType": "uint32", "name": "upperTick", "type": "uint32" }
+    ],
+    "name": "InvalidTickRange",
+    "type": "error"
+  },
+  { "inputs": [], "name": "InvalidTimeRange", "type": "error" },
+  {
+    "inputs": [
+      { "internalType": "uint32", "name": "lowerTick", "type": "uint32" },
+      { "internalType": "uint32", "name": "upperTick", "type": "uint32" }
+    ],
+    "name": "InvalidWinningRange",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "marketId", "type": "uint256" }
+    ],
+    "name": "MarketAlreadyExists",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "marketId", "type": "uint256" }
+    ],
+    "name": "MarketAlreadyExists",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "marketId", "type": "uint256" }
+    ],
+    "name": "MarketAlreadySettled",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "marketId", "type": "uint256" }
+    ],
+    "name": "MarketAlreadySettled",
+    "type": "error"
+  },
+  { "inputs": [], "name": "MarketExpired", "type": "error" },
+  { "inputs": [], "name": "MarketNotActive", "type": "error" },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "marketId", "type": "uint256" }
+    ],
+    "name": "MarketNotFound",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "marketId", "type": "uint256" }
+    ],
+    "name": "MarketNotFound",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "marketId", "type": "uint256" }
+    ],
+    "name": "MarketNotSettled",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "marketId", "type": "uint256" }
+    ],
+    "name": "MarketNotSettled",
+    "type": "error"
+  },
+  { "inputs": [], "name": "MarketNotStarted", "type": "error" },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "positionId", "type": "uint256" }
+    ],
+    "name": "PositionNotFound",
+    "type": "error"
+  },
+  { "inputs": [], "name": "ReentrancyGuardReentrantCall", "type": "error" },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "token", "type": "address" }
+    ],
+    "name": "SafeERC20FailedOperation",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint32", "name": "requested", "type": "uint32" },
+      { "internalType": "uint32", "name": "maxAllowed", "type": "uint32" }
+    ],
+    "name": "TickCountExceedsLimit",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint32", "name": "numTicks", "type": "uint32" },
+      { "internalType": "uint32", "name": "maxAllowed", "type": "uint32" }
+    ],
+    "name": "TickCountExceedsLimit",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "token", "type": "address" },
+      { "internalType": "address", "name": "from", "type": "address" },
+      { "internalType": "address", "name": "to", "type": "address" },
+      { "internalType": "uint256", "name": "amount", "type": "uint256" }
+    ],
+    "name": "TransferFailed",
+    "type": "error"
+  },
+  { "inputs": [], "name": "TreeNotInitialized", "type": "error" },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "caller", "type": "address" }
+    ],
+    "name": "UnauthorizedCaller",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "caller", "type": "address" }
+    ],
+    "name": "UnauthorizedCaller",
+    "type": "error"
+  },
+  { "inputs": [], "name": "ZeroAddress", "type": "error" },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "by",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "reason",
+        "type": "string"
+      }
+    ],
+    "name": "EmergencyPaused",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "by",
+        "type": "address"
+      }
+    ],
+    "name": "EmergencyUnpaused",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "marketId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "startTimestamp",
+        "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "endTimestamp",
+        "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint32",
+        "name": "numTicks",
+        "type": "uint32"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "liquidityParameter",
+        "type": "uint256"
+      }
+    ],
+    "name": "MarketCreated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "marketId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint32",
+        "name": "settlementLowerTick",
+        "type": "uint32"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint32",
+        "name": "settlementUpperTick",
+        "type": "uint32"
+      }
+    ],
+    "name": "MarketSettled",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "positionId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "trader",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "payout",
+        "type": "uint256"
+      }
+    ],
+    "name": "PositionClaimed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "positionId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "trader",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "proceeds",
+        "type": "uint256"
+      }
+    ],
+    "name": "PositionClosed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "positionId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "trader",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint128",
+        "name": "sellQuantity",
+        "type": "uint128"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint128",
+        "name": "newQuantity",
+        "type": "uint128"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "proceeds",
+        "type": "uint256"
+      }
+    ],
+    "name": "PositionDecreased",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "positionId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "trader",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint128",
+        "name": "additionalQuantity",
+        "type": "uint128"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint128",
+        "name": "newQuantity",
+        "type": "uint128"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "cost",
+        "type": "uint256"
+      }
+    ],
+    "name": "PositionIncreased",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "positionId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "trader",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "marketId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint32",
+        "name": "lowerTick",
+        "type": "uint32"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint32",
+        "name": "upperTick",
+        "type": "uint32"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint128",
+        "name": "quantity",
+        "type": "uint128"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "cost",
+        "type": "uint256"
+      }
+    ],
+    "name": "PositionOpened",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "marketId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint32",
+        "name": "lo",
+        "type": "uint32"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint32",
+        "name": "hi",
+        "type": "uint32"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "factor",
+        "type": "uint256"
+      }
+    ],
+    "name": "RangeFactorApplied",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "MAX_LIQUIDITY_PARAMETER",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "MAX_TICK_COUNT",
+    "outputs": [{ "internalType": "uint32", "name": "", "type": "uint32" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "MIN_LIQUIDITY_PARAMETER",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "marketId", "type": "uint256" },
+      { "internalType": "uint32", "name": "lo", "type": "uint32" },
+      { "internalType": "uint32", "name": "hi", "type": "uint32" },
+      { "internalType": "uint256", "name": "factor", "type": "uint256" }
+    ],
+    "name": "applyRangeFactor",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "positionId", "type": "uint256" }
+    ],
+    "name": "calculateClaimAmount",
+    "outputs": [
+      { "internalType": "uint256", "name": "amount", "type": "uint256" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "positionId", "type": "uint256" }
+    ],
+    "name": "calculateCloseProceeds",
+    "outputs": [
+      { "internalType": "uint256", "name": "proceeds", "type": "uint256" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "positionId", "type": "uint256" },
+      { "internalType": "uint128", "name": "sellQuantity", "type": "uint128" }
+    ],
+    "name": "calculateDecreaseProceeds",
+    "outputs": [
+      { "internalType": "uint256", "name": "proceeds", "type": "uint256" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "positionId", "type": "uint256" },
+      {
+        "internalType": "uint128",
+        "name": "additionalQuantity",
+        "type": "uint128"
+      }
+    ],
+    "name": "calculateIncreaseCost",
+    "outputs": [
+      { "internalType": "uint256", "name": "cost", "type": "uint256" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "marketId", "type": "uint256" },
+      { "internalType": "uint32", "name": "lowerTick", "type": "uint32" },
+      { "internalType": "uint32", "name": "upperTick", "type": "uint32" },
+      { "internalType": "uint128", "name": "quantity", "type": "uint128" }
+    ],
+    "name": "calculateOpenCost",
+    "outputs": [
+      { "internalType": "uint256", "name": "cost", "type": "uint256" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "positionId", "type": "uint256" }
+    ],
+    "name": "claimPayout",
+    "outputs": [
+      { "internalType": "uint256", "name": "payout", "type": "uint256" }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "positionId", "type": "uint256" },
+      { "internalType": "uint256", "name": "minProceeds", "type": "uint256" }
+    ],
+    "name": "closePosition",
+    "outputs": [
+      { "internalType": "uint256", "name": "proceeds", "type": "uint256" }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "marketId", "type": "uint256" },
+      { "internalType": "uint32", "name": "numTicks", "type": "uint32" },
+      { "internalType": "uint64", "name": "startTimestamp", "type": "uint64" },
+      { "internalType": "uint64", "name": "endTimestamp", "type": "uint64" },
+      {
+        "internalType": "uint256",
+        "name": "liquidityParameter",
+        "type": "uint256"
+      }
+    ],
+    "name": "createMarket",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "positionId", "type": "uint256" },
+      { "internalType": "uint128", "name": "sellQuantity", "type": "uint128" },
+      { "internalType": "uint256", "name": "minProceeds", "type": "uint256" }
+    ],
+    "name": "decreasePosition",
+    "outputs": [
+      { "internalType": "uint128", "name": "newQuantity", "type": "uint128" },
+      { "internalType": "uint256", "name": "proceeds", "type": "uint256" }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getManagerContract",
+    "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "marketId", "type": "uint256" }
+    ],
+    "name": "getMarket",
+    "outputs": [
+      {
+        "components": [
+          { "internalType": "bool", "name": "isActive", "type": "bool" },
+          { "internalType": "bool", "name": "settled", "type": "bool" },
+          {
+            "internalType": "uint64",
+            "name": "startTimestamp",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "endTimestamp",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint32",
+            "name": "settlementLowerTick",
+            "type": "uint32"
+          },
+          {
+            "internalType": "uint32",
+            "name": "settlementUpperTick",
+            "type": "uint32"
+          },
+          { "internalType": "uint32", "name": "numTicks", "type": "uint32" },
+          {
+            "internalType": "uint256",
+            "name": "liquidityParameter",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ICLMSRMarketCore.Market",
+        "name": "market",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getPaymentToken",
+    "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getPositionContract",
+    "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "marketId", "type": "uint256" },
+      { "internalType": "uint32", "name": "lo", "type": "uint32" },
+      { "internalType": "uint32", "name": "hi", "type": "uint32" }
+    ],
+    "name": "getRangeSum",
+    "outputs": [
+      { "internalType": "uint256", "name": "sum", "type": "uint256" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "marketId", "type": "uint256" },
+      { "internalType": "uint32", "name": "tick", "type": "uint32" }
+    ],
+    "name": "getTickValue",
+    "outputs": [
+      { "internalType": "uint256", "name": "value", "type": "uint256" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "positionId", "type": "uint256" },
+      {
+        "internalType": "uint128",
+        "name": "additionalQuantity",
+        "type": "uint128"
+      },
+      { "internalType": "uint256", "name": "maxCost", "type": "uint256" }
+    ],
+    "name": "increasePosition",
+    "outputs": [
+      { "internalType": "uint128", "name": "newQuantity", "type": "uint128" }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "isPaused",
+    "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "managerContract",
+    "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "name": "marketTrees",
+    "outputs": [
+      { "internalType": "uint32", "name": "root", "type": "uint32" },
+      { "internalType": "uint32", "name": "nextIndex", "type": "uint32" },
+      { "internalType": "uint32", "name": "size", "type": "uint32" },
+      { "internalType": "uint256", "name": "cachedRootSum", "type": "uint256" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "name": "markets",
+    "outputs": [
+      { "internalType": "bool", "name": "isActive", "type": "bool" },
+      { "internalType": "bool", "name": "settled", "type": "bool" },
+      { "internalType": "uint64", "name": "startTimestamp", "type": "uint64" },
+      { "internalType": "uint64", "name": "endTimestamp", "type": "uint64" },
+      {
+        "internalType": "uint32",
+        "name": "settlementLowerTick",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "settlementUpperTick",
+        "type": "uint32"
+      },
+      { "internalType": "uint32", "name": "numTicks", "type": "uint32" },
+      {
+        "internalType": "uint256",
+        "name": "liquidityParameter",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "trader", "type": "address" },
+      { "internalType": "uint256", "name": "marketId", "type": "uint256" },
+      { "internalType": "uint32", "name": "lowerTick", "type": "uint32" },
+      { "internalType": "uint32", "name": "upperTick", "type": "uint32" },
+      { "internalType": "uint128", "name": "quantity", "type": "uint128" },
+      { "internalType": "uint256", "name": "maxCost", "type": "uint256" }
+    ],
+    "name": "openPosition",
+    "outputs": [
+      { "internalType": "uint256", "name": "positionId", "type": "uint256" }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "string", "name": "reason", "type": "string" }
+    ],
+    "name": "pause",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "paused",
+    "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "paymentToken",
+    "outputs": [
+      { "internalType": "contract IERC20", "name": "", "type": "address" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "positionContract",
+    "outputs": [
+      {
+        "internalType": "contract ICLMSRPosition",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "marketId", "type": "uint256" },
+      { "internalType": "uint32", "name": "lo", "type": "uint32" },
+      { "internalType": "uint32", "name": "hi", "type": "uint32" }
+    ],
+    "name": "propagateLazy",
+    "outputs": [
+      { "internalType": "uint256", "name": "sum", "type": "uint256" }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "marketId", "type": "uint256" },
+      { "internalType": "uint32", "name": "lowerTick", "type": "uint32" },
+      { "internalType": "uint32", "name": "upperTick", "type": "uint32" }
+    ],
+    "name": "settleMarket",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "unpause",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]

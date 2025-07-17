@@ -88,6 +88,18 @@ interface ICLMSRMarketCore {
         address indexed by
     );
 
+    /// @notice Emitted when range multiplication factor is applied
+    /// @param marketId Market identifier
+    /// @param lo Left boundary (inclusive)
+    /// @param hi Right boundary (inclusive)
+    /// @param factor Multiplication factor in WAD format
+    event RangeFactorApplied(
+        uint256 indexed marketId,
+        uint32 indexed lo,
+        uint32 indexed hi,
+        uint256 factor
+    );
+
     // ========================================
     // ERRORS
     // ========================================

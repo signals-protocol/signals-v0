@@ -8,13 +8,13 @@ _Auto-generated comprehensive documentation with live test results_
 
 | Metric | Value |
 |--------|-------|
-| **Generated** | 2025-07-16 16:50:34 CEST |
-| **Test Status** | ✅ PASSING |
-| **Total Tests** | 657 tests (23s) |
+| **Generated** | 2025-07-17 12:01:01 CEST |
+| **Test Status** | ❌ FAILING |
+| **Total Tests** | 656 tests  |
 | **Total Files** | 69 files |
-| **Total Size** | 1002KB |
-| **Total Lines** | 27938 lines |
-| **Git Commits** | 19 |
+| **Total Size** | 1007KB |
+| **Total Lines** | 28059 lines |
+| **Git Commits** | 20 |
 | **Contributors** |        1 |
 
 ---
@@ -22,25 +22,25 @@ _Auto-generated comprehensive documentation with live test results_
 ## 🎯 Latest Test Results
 
 ```
-      ✔ should track owner tokens correctly with EnumerableSet (85ms)
-      ✔ should update owner tracking on transfer
-      ✔ should handle multiple transfers correctly
-    Market-Specific Position Queries
-      ✔ should filter positions by market correctly
-      ✔ should return empty array for non-existent market
-      ✔ should handle empty positions for user (41ms)
-    Position ID Management
-      ✔ should increment position IDs correctly
-      ✔ should maintain ID sequence after burns
-    Data Cleanup on Burn
-      ✔ should clean up position data on burn
-      ✔ should remove from owner tracking on burn
-    Gas Optimization Verification
-      ✔ should use EnumerableSet for O(1) operations
 
 
-  657 passing (23s)
+  656 passing (22s)
   3 pending
+  1 failing
+
+  1) @unit CLMSR Math Internal Functions
+       Edge Case Calculations
+         Should handle zero quantity edge case:
+     Error: VM Exception while processing transaction: reverted with custom error 'InvalidQuantity(0)'
+    at CLMSRMarketCore.calculateOpenCost (contracts/core/CLMSRMarketCore.sol:593)
+    at EdrProviderWrapper.request (node_modules/hardhat/src/internal/hardhat-network/provider/provider.ts:359:41)
+    at async staticCallResult (node_modules/ethers/src.ts/contract/contract.ts:337:22)
+    at async staticCall (node_modules/ethers/src.ts/contract/contract.ts:303:24)
+    at async Proxy.calculateOpenCost (node_modules/ethers/src.ts/contract/contract.ts:351:41)
+    at async Context.<anonymous> (test/unit/core/clmsrMath.internal.spec.ts:183:20)
+  
+
+
 
 ```
 
@@ -333,7 +333,8 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             settled: false,
             startTimestamp: startTimestamp,
             endTimestamp: endTimestamp,
-            settlementTick: 0,
+            settlementLowerTick: 0,
+            settlementUpperTick: 0,
             numTicks: numTicks,
             liquidityParameter: liquidityParameter
         });
@@ -345,7 +346,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     }
     
     /// @inheritdoc ICLMSRMarketCore
-    function settleMarket(uint256 marketId, uint32 winningTick) 
+    function settleMarket(uint256 marketId, uint32 lowerTick, uint32 upperTick) 
         external override onlyManager marketExists(marketId) {
         Market storage market = markets[marketId];
         
@@ -353,16 +354,27 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             revert CE.MarketAlreadySettled(marketId);
         }
         
-        if (winningTick >= market.numTicks) {
-            revert CE.InvalidTick(winningTick, market.numTicks - 1);
+        // Validate winning range
+        if (lowerTick > upperTick) {
+            revert CE.InvalidWinningRange(lowerTick, upperTick);
+        }
+        
+        // CLMSR requires consecutive ticks (exactly 2 adjacent ticks forming a range)
+        if (upperTick != lowerTick + 1) {
+            revert CE.InvalidWinningRange(lowerTick, upperTick);
+        }
+        
+        if (upperTick >= market.numTicks) {
+            revert CE.InvalidTick(upperTick, market.numTicks - 1);
         }
         
         // Settle market
         market.settled = true;
-        market.settlementTick = winningTick;
+        market.settlementLowerTick = lowerTick;
+        market.settlementUpperTick = upperTick;
         market.isActive = false;
         
-        emit MarketSettled(marketId, winningTick);
+        emit MarketSettled(marketId, lowerTick, upperTick);
     }
 
     // ========================================
@@ -743,6 +755,14 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         uint32 upperTick,
         uint128 quantity
     ) external view override marketExists(marketId) returns (uint256 cost) {
+        if (quantity == 0) {
+            revert CE.InvalidQuantity(quantity);
+        }
+        
+        if (lowerTick > upperTick || upperTick >= markets[marketId].numTicks) {
+            revert CE.InvalidTickRange(lowerTick, upperTick);
+        }
+        
         // Convert quantity to WAD for internal calculation
         uint256 quantityWad = uint256(quantity).toWad();
         uint256 costWad = _calculateTradeCostInternal(marketId, lowerTick, upperTick, quantityWad);
@@ -1163,9 +1183,11 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             return 0;
         }
         
-        // Check if position covers winning tick
-        if (market.settlementTick >= position.lowerTick && 
-            market.settlementTick <= position.upperTick) {
+        // Check if position range overlaps with winning range
+        bool hasOverlap = (position.lowerTick <= market.settlementUpperTick && 
+                          position.upperTick >= market.settlementLowerTick);
+        
+        if (hasOverlap) {
             // Position wins - return quantity as payout
             amount = uint256(position.quantity);
         } else {
@@ -1685,6 +1707,7 @@ interface CLMSRErrors {
     /* ───────────────────── Trade params ─────────────────────── */
     error InvalidTick(uint32 tick, uint32 max);
     error InvalidTickRange(uint32 lowerTick, uint32 upperTick);
+    error InvalidWinningRange(uint32 lowerTick, uint32 upperTick);
     error InvalidQuantity(uint128 qty);
     error CostExceedsMaximum(uint256 cost, uint256 maxAllowed);
 
@@ -1741,7 +1764,8 @@ interface ICLMSRMarketCore {
         bool settled;                   // Market is settled
         uint64 startTimestamp;          // Market start time
         uint64 endTimestamp;            // Market end time
-        uint32 settlementTick;          // Winning tick (only if settled)
+        uint32 settlementLowerTick;     // Winning range lower bound (only if settled)
+        uint32 settlementUpperTick;     // Winning range upper bound (only if settled)
         uint32 numTicks;                // Number of ticks in market
         uint256 liquidityParameter;    // Alpha parameter (1e18 scale)
     }
@@ -1762,7 +1786,8 @@ interface ICLMSRMarketCore {
 
     event MarketSettled(
         uint256 indexed marketId,
-        uint32 settlementTick
+        uint32 settlementLowerTick,
+        uint32 settlementUpperTick
     );
 
     event PositionOpened(
@@ -1853,10 +1878,11 @@ interface ICLMSRMarketCore {
     ) external;
     
     /// @notice Settle a market (only callable by Manager)
-    /// @dev Sets winning tick and enables position claiming
+    /// @dev Sets winning range and enables position claiming
     /// @param marketId Market identifier
-    /// @param winningTick Winning tick determined by oracle
-    function settleMarket(uint256 marketId, uint32 winningTick) external;
+    /// @param lowerTick Winning range lower bound (inclusive)
+    /// @param upperTick Winning range upper bound (inclusive)
+    function settleMarket(uint256 marketId, uint32 lowerTick, uint32 upperTick) external;
 
     // ========================================
     // EXECUTION FUNCTIONS
@@ -6255,8 +6281,8 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       await time.increaseTo(endTime + 1);
 
       // Settlement should still work after expiry
-      await expect(core.connect(keeper).settleMarket(marketId, 50)).to.not.be
-        .reverted;
+      await expect(core.connect(keeper).settleMarket(marketId, 49, 50)).to.not
+        .be.reverted;
     });
   });
 
@@ -6992,11 +7018,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
       // Fast forward past end time
       await time.increaseTo(endTime + 1);
 
-      const winningTick = 50;
+      const winningLowerTick = 49;
+      const winningUpperTick = 50;
 
-      await expect(core.connect(keeper).settleMarket(marketId, winningTick))
+      await expect(
+        core
+          .connect(keeper)
+          .settleMarket(marketId, winningLowerTick, winningUpperTick)
+      )
         .to.emit(core, "MarketSettled")
-        .withArgs(marketId, winningTick);
+        .withArgs(marketId, winningLowerTick, winningUpperTick);
     });
 
     it("Should emit MarketStatusChanged event on status transitions", async function () {
@@ -7324,7 +7355,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
 
       // Settle market
       await time.increaseTo(endTime + 1);
-      await core.connect(keeper).settleMarket(marketId, 15); // Winning outcome in range
+      await core.connect(keeper).settleMarket(marketId, 15, 16); // Winning outcome in range
 
       // Calculate expected payout
       const expectedPayout = await core.calculateClaimAmount(1);
@@ -7578,7 +7609,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
       await time.increaseTo(endTime + 1);
 
       // Market settlement should emit events
-      await expect(core.connect(keeper).settleMarket(marketId, 50)).to.emit(
+      await expect(core.connect(keeper).settleMarket(marketId, 49, 50)).to.emit(
         core,
         "MarketSettled"
       );
@@ -7737,7 +7768,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
 
 ## test/component//core/pause.spec.ts
 
-_Category: TypeScript Tests | Size: 17KB | Lines: 
+_Category: TypeScript Tests | Size: 18KB | Lines: 
 
 ```typescript
 import { expect } from "chai";
@@ -7865,7 +7896,8 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
       await core.connect(keeper).pause("Emergency");
 
       // Settlement should work even when paused (emergency functionality)
-      await expect(core.connect(keeper).settleMarket(1, 50)).to.not.be.reverted;
+      await expect(core.connect(keeper).settleMarket(1, 49, 50)).to.not.be
+        .reverted;
     });
 
     it("Should prevent position opening when paused", async function () {
@@ -8004,7 +8036,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
 
       // Settle market
       await time.increaseTo(endTime + 1);
-      await core.connect(keeper).settleMarket(1, 15); // Winning outcome
+      await core.connect(keeper).settleMarket(1, 15, 16); // Winning outcome
 
       // Pause the contract
       await core.connect(keeper).pause("Emergency");
@@ -8325,7 +8357,8 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
       await core.connect(keeper).pause("Emergency during settlement");
 
       // Settlement should work even when paused (emergency functionality)
-      await expect(core.connect(keeper).settleMarket(1, 50)).to.not.be.reverted;
+      await expect(core.connect(keeper).settleMarket(1, 49, 50)).to.not.be
+        .reverted;
 
       // Market should show as ended
       const market = await core.getMarket(1);
@@ -8415,9 +8448,10 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
       expect(market.endTimestamp).to.be.lte(await time.latest()); // ENDED
 
       // Settle market - should become SETTLED
-      await core.connect(keeper).settleMarket(marketId, 50);
+      await core.connect(keeper).settleMarket(marketId, 49, 50);
       market = await core.getMarket(marketId);
-      expect(market.settlementTick).to.equal(50); // SETTLED
+      expect(market.settlementLowerTick).to.equal(49); // SETTLED
+      expect(market.settlementUpperTick).to.equal(50);
     });
 
     it("Should handle multiple markets independently", async function () {
@@ -8812,7 +8846,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
 
       // Settle market
       await time.increaseTo(endTime + 1);
-      await core.connect(keeper).settleMarket(marketId, 15); // Winning outcome in range
+      await core.connect(keeper).settleMarket(marketId, 15, 16); // Winning outcome in range
 
       const payout = await core.calculateClaimAmount(1);
       expect(payout).to.be.gt(0);
@@ -8984,7 +9018,8 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
       expect(market.settled).to.be.false;
       expect(market.startTimestamp).to.equal(startTime);
       expect(market.endTimestamp).to.equal(endTime);
-      expect(market.settlementTick).to.equal(0);
+      expect(market.settlementLowerTick).to.equal(0);
+      expect(market.settlementUpperTick).to.equal(0);
       expect(market.numTicks).to.equal(100);
       expect(market.liquidityParameter).to.equal(ethers.parseEther("1"));
     });
@@ -9129,7 +9164,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
       expect(marketInfo.isActive).to.be.true; // Still active until settled
 
       // Settle and move to SETTLED state
-      await core.connect(keeper).settleMarket(marketId, 50);
+      await core.connect(keeper).settleMarket(marketId, 49, 50);
       marketInfo = await core.getMarket(marketId);
       expect(marketInfo.settled).to.be.true;
       expect(marketInfo.isActive).to.be.false;
@@ -11173,7 +11208,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       // Settle market
       const settlementTx = await core
         .connect(keeper)
-        .settleMarket(marketId, 42);
+        .settleMarket(marketId, 41, 42);
       const settlementReceipt = await settlementTx.wait();
 
       console.log(`Settlement gas used: ${settlementReceipt!.gasUsed}`);
@@ -11221,7 +11256,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       // Settle market
       const market = await core.getMarket(marketId);
       await time.increaseTo(Number(market.endTimestamp) + 1);
-      await core.connect(keeper).settleMarket(marketId, 50);
+      await core.connect(keeper).settleMarket(marketId, 49, 50);
 
       // Mass claiming
       let totalClaimGas = 0n;
@@ -11540,8 +11575,11 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       expect(market.isActive).to.be.true; // Market remains active until settlement
 
       // Phase 8: Settlement
-      const winningTick = 50; // Charlie was close!
-      await core.connect(keeper).settleMarket(marketId, winningTick);
+      const winningLowerTick = 49; // Range around Charlie's position!
+      const winningUpperTick = 50;
+      await core
+        .connect(keeper)
+        .settleMarket(marketId, winningLowerTick, winningUpperTick);
 
       // Phase 9: Claims phase
       // Bob should win since his range included tick 50
@@ -11589,7 +11627,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       await time.increaseTo(endTime + 1);
 
       // Should still be able to settle
-      await core.connect(keeper).settleMarket(marketId, 50);
+      await core.connect(keeper).settleMarket(marketId, 49, 50);
 
       const market = await core.getMarket(marketId);
       expect(market.isActive).to.be.false;
@@ -11622,7 +11660,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
         );
 
       await time.increaseTo(endTime + 1);
-      await core.connect(keeper).settleMarket(marketId, 50);
+      await core.connect(keeper).settleMarket(marketId, 49, 50);
 
       // Alice should be able to claim her winnings
       const positions = await mockPosition.getPositionsByOwner(alice.address);
@@ -12587,7 +12625,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
       // Market settlement should work despite heavy activity
       const settlementTx = await core
         .connect(keeper)
-        .settleMarket(marketId, 50);
+        .settleMarket(marketId, 49, 50);
       const settlementReceipt = await settlementTx.wait();
 
       console.log(
@@ -12834,10 +12872,11 @@ describe(`${E2E_TAG} Market Limits and Stress Tests`, function () {
     expect(market.numTicks).to.equal(largeTicks);
 
     // Test settlement with large tick count
-    await core.connect(keeper).settleMarket(1, largeTicks - 1);
+    await core.connect(keeper).settleMarket(1, largeTicks - 2, largeTicks - 1);
 
     const settledMarket = await core.getMarket(1);
-    expect(settledMarket.settlementTick).to.equal(largeTicks - 1);
+    expect(settledMarket.settlementLowerTick).to.equal(largeTicks - 2);
+    expect(settledMarket.settlementUpperTick).to.equal(largeTicks - 1);
   });
 
   it("Should handle rapid market creation and settlement", async function () {
@@ -12858,11 +12897,13 @@ describe(`${E2E_TAG} Market Limits and Stress Tests`, function () {
           ALPHA
         );
 
-      await core.connect(keeper).settleMarket(i, i % TICK_COUNT);
+      const winningTick = i % TICK_COUNT;
+      await core.connect(keeper).settleMarket(i, winningTick, winningTick + 1);
 
       const market = await core.getMarket(i);
       expect(market.settled).to.be.true;
-      expect(market.settlementTick).to.equal(i % TICK_COUNT);
+      expect(market.settlementLowerTick).to.equal(winningTick);
+      expect(market.settlementUpperTick).to.equal(winningTick + 1);
     }
   });
 
@@ -13003,10 +13044,10 @@ describe(`${E2E_TAG} Market Operations - Stress Tests`, function () {
     expect(market.numTicks).to.equal(largeTicks);
 
     // Test settlement with large tick count
-    await core.connect(keeper).settleMarket(1, largeTicks - 1);
+    await core.connect(keeper).settleMarket(1, largeTicks - 2, largeTicks - 1);
 
     const settledMarket = await core.getMarket(1);
-    expect(settledMarket.settlementTick).to.equal(largeTicks - 1);
+    expect(settledMarket.settlementUpperTick).to.equal(largeTicks - 1);
   });
 
   it("Should handle rapid market creation and settlement", async function () {
@@ -13027,11 +13068,18 @@ describe(`${E2E_TAG} Market Operations - Stress Tests`, function () {
           ALPHA
         );
 
-      await core.connect(keeper).settleMarket(i, i % TICK_COUNT);
+      const settlementTick = i % TICK_COUNT;
+      await core
+        .connect(keeper)
+        .settleMarket(
+          i,
+          settlementTick === 0 ? 0 : settlementTick - 1,
+          settlementTick
+        );
 
       const market = await core.getMarket(i);
       expect(market.settled).to.be.true;
-      expect(market.settlementTick).to.equal(i % TICK_COUNT);
+      expect(market.settlementUpperTick).to.equal(settlementTick);
     }
   });
 
@@ -13174,12 +13222,18 @@ describe(`${E2E_TAG} Market Operations - Stress Tests`, function () {
       const config = marketConfigs[i];
       const winningTick = Math.floor(config.ticks / 2); // Middle tick
 
-      await core.connect(keeper).settleMarket(config.id, winningTick);
+      await core
+        .connect(keeper)
+        .settleMarket(
+          config.id,
+          winningTick === 0 ? 0 : winningTick - 1,
+          winningTick
+        );
 
       const market = await core.getMarket(config.id);
       expect(market.settled).to.be.true;
       expect(market.isActive).to.be.false;
-      expect(market.settlementTick).to.equal(winningTick);
+      expect(market.settlementUpperTick).to.equal(winningTick);
     }
   });
 
@@ -13239,7 +13293,14 @@ describe(`${E2E_TAG} Market Operations - Stress Tests`, function () {
 
     // Settle markets in reverse order
     for (let i = numMarkets; i >= 1; i--) {
-      await core.connect(keeper).settleMarket(i, i % TICK_COUNT);
+      const settlementTick = i % TICK_COUNT;
+      await core
+        .connect(keeper)
+        .settleMarket(
+          i,
+          settlementTick === 0 ? 0 : settlementTick - 1,
+          settlementTick
+        );
     }
 
     // Verify all settlements
@@ -13247,7 +13308,7 @@ describe(`${E2E_TAG} Market Operations - Stress Tests`, function () {
       const market = await core.getMarket(i);
       expect(market.settled).to.be.true;
       expect(market.isActive).to.be.false;
-      expect(market.settlementTick).to.equal(i % TICK_COUNT);
+      expect(market.settlementUpperTick).to.equal(i % TICK_COUNT);
     }
   });
 });
@@ -13980,7 +14041,8 @@ describe(`${INTEGRATION_TAG} Market Creation`, function () {
     expect(market.endTimestamp).to.equal(endTime);
     expect(market.isActive).to.be.true;
     expect(market.settled).to.be.false;
-    expect(market.settlementTick).to.equal(0);
+    expect(market.settlementLowerTick).to.equal(0);
+    expect(market.settlementUpperTick).to.equal(0);
   });
 
   it("Should initialize segment tree correctly", async function () {
@@ -14245,13 +14307,16 @@ describe(`${INTEGRATION_TAG} Market Lifecycle`, function () {
     // 3. Market can be settled after end time
     await time.increaseTo(endTime + 1);
     const winningTick = 42;
-    await core.connect(keeper).settleMarket(marketId, winningTick);
+    await core
+      .connect(keeper)
+      .settleMarket(marketId, winningTick, winningTick + 1);
 
     // 4. Market is settled and inactive
     market = await core.getMarket(marketId);
     expect(market.isActive).to.be.false;
     expect(market.settled).to.be.true;
-    expect(market.settlementTick).to.equal(winningTick);
+    expect(market.settlementLowerTick).to.equal(winningTick);
+    expect(market.settlementUpperTick).to.equal(winningTick + 1);
   });
 
   it("Should handle multiple markets in different states", async function () {
@@ -14275,7 +14340,7 @@ describe(`${INTEGRATION_TAG} Market Lifecycle`, function () {
     }
 
     // Settle first market
-    await core.connect(keeper).settleMarket(1, 10);
+    await core.connect(keeper).settleMarket(1, 10, 11);
 
     // Check states
     let market1 = await core.getMarket(1);
@@ -14290,7 +14355,7 @@ describe(`${INTEGRATION_TAG} Market Lifecycle`, function () {
     expect(market3.isActive).to.be.true;
 
     // Settle second market
-    await core.connect(keeper).settleMarket(2, 20);
+    await core.connect(keeper).settleMarket(2, 20, 21);
 
     market2 = await core.getMarket(2);
     expect(market2.settled).to.be.true;
@@ -14360,7 +14425,7 @@ describe(`${INTEGRATION_TAG} Market Lifecycle`, function () {
     const positionId = positions[0];
 
     // 2. Settle market
-    await core.connect(keeper).settleMarket(marketId, 50);
+    await core.connect(keeper).settleMarket(marketId, 50, 51);
 
     // 3. Claim payout
     await expect(core.connect(alice).claimPayout(positionId)).to.emit(
@@ -14378,7 +14443,7 @@ describe(`${INTEGRATION_TAG} Market Lifecycle`, function () {
 
 ## test/integration//market/settle.spec.ts
 
-_Category: TypeScript Tests | Size: 4KB | Lines: 
+_Category: TypeScript Tests | Size: 5KB | Lines: 
 
 ```typescript
 import { expect } from "chai";
@@ -14416,78 +14481,106 @@ describe(`${INTEGRATION_TAG} Market Settlement`, function () {
   it("Should settle market successfully", async function () {
     const { core, keeper, marketId } = await loadFixture(createMarketFixture);
 
-    const winningTick = 50;
+    const winningLowerTick = 49;
+    const winningUpperTick = 50;
 
-    await expect(core.connect(keeper).settleMarket(marketId, winningTick))
+    await expect(
+      core
+        .connect(keeper)
+        .settleMarket(marketId, winningLowerTick, winningUpperTick)
+    )
       .to.emit(core, "MarketSettled")
-      .withArgs(marketId, winningTick);
+      .withArgs(marketId, winningLowerTick, winningUpperTick);
 
     const market = await core.getMarket(marketId);
     expect(market.settled).to.be.true;
-    expect(market.settlementTick).to.equal(winningTick);
+    expect(market.settlementLowerTick).to.equal(winningLowerTick);
+    expect(market.settlementUpperTick).to.equal(winningUpperTick);
     expect(market.isActive).to.be.false;
   });
 
   it("Should prevent double settlement", async function () {
     const { core, keeper, marketId } = await loadFixture(createMarketFixture);
 
-    const winningTick = 50;
+    const winningLowerTick = 49;
+    const winningUpperTick = 50;
 
     // First settlement
-    await core.connect(keeper).settleMarket(marketId, winningTick);
+    await core
+      .connect(keeper)
+      .settleMarket(marketId, winningLowerTick, winningUpperTick);
 
     // Try to settle again
     await expect(
-      core.connect(keeper).settleMarket(marketId, 60)
+      core.connect(keeper).settleMarket(marketId, 60, 61)
     ).to.be.revertedWithCustomError(core, "MarketAlreadySettled");
   });
 
   it("Should validate winning tick range", async function () {
     const { core, keeper, marketId } = await loadFixture(createMarketFixture);
 
-    // Test winning tick >= tickCount
+    // Test winning upper tick >= tickCount
     await expect(
-      core.connect(keeper).settleMarket(marketId, TICK_COUNT) // exactly at limit
+      core.connect(keeper).settleMarket(marketId, TICK_COUNT - 1, TICK_COUNT) // exactly at limit
     ).to.be.revertedWithCustomError(core, "InvalidTick");
 
     await expect(
-      core.connect(keeper).settleMarket(marketId, TICK_COUNT + 1) // over limit
+      core.connect(keeper).settleMarket(marketId, TICK_COUNT, TICK_COUNT + 1) // over limit
     ).to.be.revertedWithCustomError(core, "InvalidTick");
+
+    // Test invalid range (lower > upper)
+    await expect(
+      core.connect(keeper).settleMarket(marketId, 60, 50)
+    ).to.be.revertedWithCustomError(core, "InvalidWinningRange");
+
+    // Test non-consecutive ticks (gap > 1)
+    await expect(
+      core.connect(keeper).settleMarket(marketId, 50, 52) // gap of 2
+    ).to.be.revertedWithCustomError(core, "InvalidWinningRange");
+
+    // Test same tick (should also fail since we need consecutive pair)
+    await expect(
+      core.connect(keeper).settleMarket(marketId, 50, 50) // same tick
+    ).to.be.revertedWithCustomError(core, "InvalidWinningRange");
   });
 
-  it("Should settle with edge case winning ticks", async function () {
+  it("Should settle with edge case winning ranges", async function () {
     const { core, keeper } = await loadFixture(coreFixture);
 
     const currentTime = await time.latest();
     const startTime = currentTime + 3600;
     const endTime = startTime + MARKET_DURATION;
 
-    // Test first tick (0)
+    // Test first tick range (0-1) - consecutive ticks
     const marketId1 = 1;
     await core
       .connect(keeper)
       .createMarket(marketId1, TICK_COUNT, startTime, endTime, ALPHA);
-    await core.connect(keeper).settleMarket(marketId1, 0);
+    await core.connect(keeper).settleMarket(marketId1, 0, 1);
 
     let market = await core.getMarket(marketId1);
-    expect(market.settlementTick).to.equal(0);
+    expect(market.settlementLowerTick).to.equal(0);
+    expect(market.settlementUpperTick).to.equal(1);
 
-    // Test last tick (TICK_COUNT - 1)
+    // Test last tick range (TICK_COUNT-2 to TICK_COUNT-1)
     const marketId2 = 2;
     await core
       .connect(keeper)
       .createMarket(marketId2, TICK_COUNT, startTime, endTime, ALPHA);
-    await core.connect(keeper).settleMarket(marketId2, TICK_COUNT - 1);
+    await core
+      .connect(keeper)
+      .settleMarket(marketId2, TICK_COUNT - 2, TICK_COUNT - 1);
 
     market = await core.getMarket(marketId2);
-    expect(market.settlementTick).to.equal(TICK_COUNT - 1);
+    expect(market.settlementLowerTick).to.equal(TICK_COUNT - 2);
+    expect(market.settlementUpperTick).to.equal(TICK_COUNT - 1);
   });
 
   it("Should prevent settlement of non-existent market", async function () {
     const { core, keeper } = await loadFixture(coreFixture);
 
     await expect(
-      core.connect(keeper).settleMarket(999, 50) // non-existent market
+      core.connect(keeper).settleMarket(999, 49, 50) // non-existent market
     ).to.be.revertedWithCustomError(core, "MarketNotFound");
   });
 
@@ -14497,11 +14590,11 @@ describe(`${INTEGRATION_TAG} Market Settlement`, function () {
     );
 
     await expect(
-      core.connect(alice).settleMarket(marketId, 50)
+      core.connect(alice).settleMarket(marketId, 49, 50)
     ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
 
     await expect(
-      core.connect(bob).settleMarket(marketId, 50)
+      core.connect(bob).settleMarket(marketId, 49, 50)
     ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
   });
 });
@@ -16371,7 +16464,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     const positionId = positions[0];
 
     // Settle market with winning tick
-    await core.connect(keeper).settleMarket(marketId, 50);
+    await core.connect(keeper).settleMarket(marketId, 49, 50);
 
     // Claim position
     await expect(core.connect(alice).claimPayout(positionId)).to.emit(
@@ -16405,7 +16498,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     const positionId = positions[0];
 
     // Settle market with winning tick outside position range
-    await core.connect(keeper).settleMarket(marketId, 50);
+    await core.connect(keeper).settleMarket(marketId, 49, 50);
 
     // Claim should emit event with zero payout
     await expect(core.connect(alice).claimPayout(positionId))
@@ -16469,7 +16562,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     const positionId = positions[0];
 
     // Settle market
-    await core.connect(keeper).settleMarket(marketId, 50);
+    await core.connect(keeper).settleMarket(marketId, 49, 50);
 
     // First claim should succeed
     await core.connect(alice).claimPayout(positionId);
@@ -16500,7 +16593,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     const positionId = positions[0];
 
     // Settle market
-    await core.connect(keeper).settleMarket(marketId, 50);
+    await core.connect(keeper).settleMarket(marketId, 49, 50);
 
     const payout = await core.calculateClaimAmount(positionId);
     expect(payout).to.be.gt(0);
@@ -16530,7 +16623,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     const positionId = positions[0];
 
     // Settle market
-    await core.connect(keeper).settleMarket(marketId, 50);
+    await core.connect(keeper).settleMarket(marketId, 49, 50);
 
     const payout = await core.calculateClaimAmount(positionId);
     expect(payout).to.be.gt(0);
@@ -16568,7 +16661,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
       );
 
     // Settle market
-    await core.connect(keeper).settleMarket(marketId, 50);
+    await core.connect(keeper).settleMarket(marketId, 49, 50);
 
     const alicePositions = await mockPosition.getPositionsByOwner(
       alice.address
@@ -16603,7 +16696,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     const positionId = positions[0];
 
     // Settle market
-    await core.connect(keeper).settleMarket(marketId, 50);
+    await core.connect(keeper).settleMarket(marketId, 49, 50);
 
     // Claim should emit PositionClaimed event
     await expect(core.connect(alice).claimPayout(positionId))
@@ -16632,7 +16725,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     const positionId = positions[0];
 
     // Settle market with winning tick
-    await core.connect(keeper).settleMarket(marketId, 50);
+    await core.connect(keeper).settleMarket(marketId, 49, 50);
 
     // First claim should succeed
     await expect(core.connect(alice).claimPayout(positionId)).to.not.be
@@ -16665,7 +16758,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     const positionId = positions[0];
 
     // Settle market with losing tick (outside position range)
-    await core.connect(keeper).settleMarket(marketId, 80);
+    await core.connect(keeper).settleMarket(marketId, 79, 80);
 
     // Claim should succeed with zero payout
     await expect(core.connect(alice).claimPayout(positionId))
@@ -16809,7 +16902,7 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
     // Move to market end and settle
     const market = await core.getMarket(marketId);
     await time.increaseTo(Number(market.endTimestamp) + 1);
-    await core.connect(keeper).settleMarket(marketId, 50); // Settle at tick 50
+    await core.connect(keeper).settleMarket(marketId, 49, 50); // Settle at tick range 49-50
 
     const balanceBefore = await paymentToken.balanceOf(alice.address);
 
@@ -17791,7 +17884,7 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
     );
 
     // Settle market first
-    await core.connect(keeper).settleMarket(marketId, 50);
+    await core.connect(keeper).settleMarket(marketId, 49, 50);
 
     await expect(
       core
@@ -22981,7 +23074,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
     it("Should settle market within gas baseline", async function () {
       const { core, keeper, marketId } = await loadFixture(createActiveMarket);
 
-      const tx = await core.connect(keeper).settleMarket(marketId, 50);
+      const tx = await core.connect(keeper).settleMarket(marketId, 49, 50);
       const receipt = await tx.wait();
 
       console.log(
@@ -23221,7 +23314,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
         );
 
       // Settle market
-      await core.connect(keeper).settleMarket(marketId, 50);
+      await core.connect(keeper).settleMarket(marketId, 49, 50);
 
       // Claim position
       const tx = await core.connect(alice).claimPayout(1);
@@ -28242,12 +28335,15 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
 
 ## hardhat.config.ts
 
-_Category: Configuration | Size: 844B | Lines: 
+_Category: Configuration | Size: 1KB | Lines: 
 
 ```typescript
 import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 import "hardhat-gas-reporter";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const config: HardhatUserConfig = {
   solidity: {
@@ -28256,12 +28352,20 @@ const config: HardhatUserConfig = {
       viaIR: true,
       optimizer: {
         enabled: true,
-        runs: 200, // Lower runs for smaller code size
+        runs: 200,
       },
     },
   },
   networks: {
+    // World Chain Sepolia Testnet
+    "worldchain-sepolia": {
+      url: "https://worldchain-sepolia.g.alchemy.com/public",
+      chainId: 4801,
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+    },
+    // Hardhat local network
     hardhat: {
+      chainId: 31337,
       allowUnlimitedContractSize: true,
       blockGasLimit: 30000000,
       gas: 30000000,
@@ -28275,6 +28379,14 @@ const config: HardhatUserConfig = {
         auto: true,
         interval: 0,
       },
+    },
+    localhost: {
+      url: "http://127.0.0.1:8545",
+      accounts: [
+        "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+        "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
+        "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a",
+      ],
     },
   },
   gasReporter: {
@@ -28312,7 +28424,15 @@ _Category: Configuration | Size: 1KB | Lines:
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",
-    "deploy": "hardhat ignition deploy"
+    "deploy": "hardhat ignition deploy",
+    "deploy:local": "npx hardhat run scripts/deploy.ts --network localhost",
+    "deploy:worldchain": "npx hardhat run scripts/deploy.ts --network worldchain-sepolia",
+    "market:local": "npx hardhat run scripts/create-market.ts --network localhost",
+    "market:worldchain": "npx hardhat run scripts/create-market.ts --network worldchain-sepolia",
+    "test:local": "npx hardhat run scripts/test-functionality.ts --network localhost",
+    "test:worldchain": "npx hardhat run scripts/test-functionality.ts --network worldchain-sepolia",
+    "test:comprehensive": "npx hardhat run scripts/comprehensive-test.ts --network localhost",
+    "test:comprehensive:worldchain": "npx hardhat run scripts/comprehensive-test.ts --network worldchain-sepolia"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
@@ -28327,6 +28447,7 @@ _Category: Configuration | Size: 1KB | Lines:
     "@types/chai": "^4.3.10",
     "@types/mocha": "^10.0.10",
     "chai": "^4.3.10",
+    "dotenv": "^17.2.0",
     "ethers": "^6.14.3",
     "hardhat": "^2.24.1",
     "hardhat-gas-reporter": "^2.3.0",
@@ -28724,13 +28845,13 @@ _This project is continuously improving. Run `./combine_all_files.sh` for the la
 
 ### 📊 Codebase Metrics
 - **Total Files**: 69
-- **Total Size**: 1002KB
-- **Total Lines**: 27938
+- **Total Size**: 1007KB
+- **Total Lines**: 28059
 - **Average File Size**: 14KB
 
 ### 🧪 Test Coverage
-- **Test Status**: ✅ PASSING
-- **Total Tests**: 657
+- **Test Status**: ❌ FAILING
+- **Total Tests**: 656
 - **Test Files**: 53
 - **Test Contracts**: 2
 
@@ -28754,7 +28875,7 @@ _This project is continuously improving. Run `./combine_all_files.sh` for the la
 4. **Security Hardening**: Protection against common DeFi vulnerabilities
 
 ### 🧪 Testing Excellence
-1. **Comprehensive Coverage**: 657 tests covering all scenarios
+1. **Comprehensive Coverage**: 656 tests covering all scenarios
 2. **Multi-layer Testing**: Unit, Integration, Component, E2E, and Performance tests
 3. **Security Testing**: Attack vector validation
 4. **Invariant Testing**: Mathematical property verification
@@ -28764,19 +28885,19 @@ _This project is continuously improving. Run `./combine_all_files.sh` for the la
 ## 📝 Development Information
 
 ### 🔧 Build Information
-- **Generated**: 2025-07-16 16:50:35 CEST
+- **Generated**: 2025-07-17 12:01:01 CEST
 - **Generator**: Advanced Codebase Compiler v3.1
-- **Git Commits**: 19
-- **Last Commit**: 92717dd - remove router (25 minutes ago)
+- **Git Commits**: 20
+- **Last Commit**: ceaa09a - settle as a range (14 hours ago)
 
 ### 🎯 Project Status
-✅ **All Tests Passing** - Ready for deployment
+⚠️ **Tests Need Attention** - Check test output for details
 
 ---
 
 ## 🏆 Achievement Summary
 
-✅ **657 Tests** - Comprehensive test coverage  
+✅ **656 Tests** - Comprehensive test coverage  
 ✅ **Multi-layer Architecture** - Clean separation of concerns  
 ✅ **Complete Codebase** - All files with full content included  
 ✅ **Production Ready** - Comprehensive documentation and testing  

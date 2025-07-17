@@ -1,4 +1,0 @@
-
-> signals-v0@1.0.0 test
-> hardhat test
-

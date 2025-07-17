@@ -1,0 +1,13 @@
+{
+  "network": "localhost",
+  "chainId": 31337,
+  "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+  "contracts": {
+    "FixedPointMathU": "0x5067457698Fd6Fa1C6964e416b3f42713513B3dD",
+    "LazyMulSegmentTree": "0x18E317A7D70d8fBf8e6E893616b52390EbBdb629",
+    "USDC": "0x4b6aB5F819A515382B0dEB6935D793817bB4af28",
+    "CLMSRPosition": "0xCace1b78160AE76398F486c8a18044da0d66d86D",
+    "CLMSRMarketCore": "0xD5ac451B0c50B9476107823Af206eD814a2e2580"
+  },
+  "timestamp": "2025-07-17T11:44:15.538Z"
+}

@@ -1,0 +1,107 @@
+type EmergencyPaused @entity(immutable: true) {
+  id: Bytes!
+  by: Bytes! # address
+  reason: String! # string
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type EmergencyUnpaused @entity(immutable: true) {
+  id: Bytes!
+  by: Bytes! # address
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type MarketCreated @entity(immutable: true) {
+  id: Bytes!
+  marketId: BigInt! # uint256
+  startTimestamp: BigInt! # uint64
+  endTimestamp: BigInt! # uint64
+  numTicks: BigInt! # uint32
+  liquidityParameter: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type MarketSettled @entity(immutable: true) {
+  id: Bytes!
+  marketId: BigInt! # uint256
+  settlementLowerTick: BigInt! # uint32
+  settlementUpperTick: BigInt! # uint32
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type PositionClaimed @entity(immutable: true) {
+  id: Bytes!
+  positionId: BigInt! # uint256
+  trader: Bytes! # address
+  payout: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type PositionClosed @entity(immutable: true) {
+  id: Bytes!
+  positionId: BigInt! # uint256
+  trader: Bytes! # address
+  proceeds: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type PositionDecreased @entity(immutable: true) {
+  id: Bytes!
+  positionId: BigInt! # uint256
+  trader: Bytes! # address
+  sellQuantity: BigInt! # uint128
+  newQuantity: BigInt! # uint128
+  proceeds: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type PositionIncreased @entity(immutable: true) {
+  id: Bytes!
+  positionId: BigInt! # uint256
+  trader: Bytes! # address
+  additionalQuantity: BigInt! # uint128
+  newQuantity: BigInt! # uint128
+  cost: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type PositionOpened @entity(immutable: true) {
+  id: Bytes!
+  positionId: BigInt! # uint256
+  trader: Bytes! # address
+  marketId: BigInt! # uint256
+  lowerTick: BigInt! # uint32
+  upperTick: BigInt! # uint32
+  quantity: BigInt! # uint128
+  cost: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type RangeFactorApplied @entity(immutable: true) {
+  id: Bytes!
+  marketId: BigInt! # uint256
+  lo: BigInt! # uint32
+  hi: BigInt! # uint32
+  factor: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}

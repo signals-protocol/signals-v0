@@ -8,7 +8,19 @@
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",
-    "deploy": "hardhat ignition deploy"
+    "deploy": "hardhat ignition deploy",
+    "deploy:local": "npx hardhat run scripts/deploy.ts --network localhost",
+    "deploy:arbitrum": "npx hardhat run scripts/deploy.ts --network arbitrum-sepolia",
+    "deploy:worldchain": "npx hardhat run scripts/deploy.ts --network worldchain-sepolia",
+    "market:local": "npx hardhat run scripts/create-market.ts --network localhost",
+    "market:arbitrum": "npx hardhat run scripts/create-market.ts --network arbitrum-sepolia",
+    "market:worldchain": "npx hardhat run scripts/create-market.ts --network worldchain-sepolia",
+    "test:local": "npx hardhat run scripts/test-functionality.ts --network localhost",
+    "test:arbitrum": "npx hardhat run scripts/test-functionality.ts --network arbitrum-sepolia",
+    "test:worldchain": "npx hardhat run scripts/test-functionality.ts --network worldchain-sepolia",
+    "test:comprehensive": "npx hardhat run scripts/comprehensive-test.ts --network localhost",
+    "test:comprehensive:arbitrum": "npx hardhat run scripts/comprehensive-test.ts --network arbitrum-sepolia",
+    "test:comprehensive:worldchain": "npx hardhat run scripts/comprehensive-test.ts --network worldchain-sepolia"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
@@ -23,6 +35,7 @@
     "@types/chai": "^4.3.10",
     "@types/mocha": "^10.0.10",
     "chai": "^4.3.10",
+    "dotenv": "^17.2.0",
     "ethers": "^6.14.3",
     "hardhat": "^2.24.1",
     "hardhat-gas-reporter": "^2.3.0",
