@@ -20,7 +20,9 @@
     "test:worldchain": "npx hardhat run scripts/test-functionality.ts --network worldchain-sepolia",
     "test:comprehensive": "npx hardhat run scripts/comprehensive-test.ts --network localhost",
     "test:comprehensive:arbitrum": "npx hardhat run scripts/comprehensive-test.ts --network arbitrum-sepolia",
-    "test:comprehensive:worldchain": "npx hardhat run scripts/comprehensive-test.ts --network worldchain-sepolia"
+    "test:comprehensive:worldchain": "npx hardhat run scripts/comprehensive-test.ts --network worldchain-sepolia",
+    "test:subgraph": "npx hardhat run scripts/test-subgraph.ts --network arbitrum-sepolia",
+    "test:subgraph:local": "npx hardhat run scripts/test-subgraph.ts --network localhost"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
@@ -46,6 +48,7 @@
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.3.0",
-    "@prb/math": "^4.1.0"
+    "@prb/math": "^4.1.0",
+    "axios": "^1.10.0"
   }
 }

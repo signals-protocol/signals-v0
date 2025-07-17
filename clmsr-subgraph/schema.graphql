@@ -105,3 +105,40 @@ type RangeFactorApplied @entity(immutable: true) {
   blockTimestamp: BigInt!
   transactionHash: Bytes!
 }
+
+# 마켓의 현재 상태
+type Market @entity(immutable: false) {
+  id: String! # marketId
+  marketId: BigInt!
+  startTimestamp: BigInt!
+  endTimestamp: BigInt!
+  numTicks: BigInt!
+  liquidityParameter: BigInt!
+  isSettled: Boolean!
+  settlementLowerTick: BigInt
+  settlementUpperTick: BigInt
+  lastUpdated: BigInt!
+  ticks: [TickState!]! @derivedFrom(field: "market")
+}
+
+# 각 틱의 현재 factor 상태
+type TickState @entity(immutable: false) {
+  id: String! # marketId-tickNumber
+  market: Market!
+  tickNumber: BigInt!
+  currentFactor: BigDecimal! # 현재 누적 factor 값
+  lastUpdated: BigInt!
+  updateCount: BigInt! # 업데이트된 횟수
+}
+
+# 틱 범위(구간)별 현재 상태 - 실제 거래 단위
+type TickRange @entity(immutable: false) {
+  id: String! # marketId-lowerTick-upperTick
+  market: Market!
+  lowerTick: BigInt!
+  upperTick: BigInt!
+  currentFactor: BigDecimal! # 현재 누적 factor 값
+  lastUpdated: BigInt!
+  updateCount: BigInt! # 업데이트된 횟수
+  totalVolume: BigDecimal! # 총 거래량
+}
