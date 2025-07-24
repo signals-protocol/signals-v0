@@ -14,8 +14,8 @@ interface ICLMSRPosition is IERC721 {
     /// @notice Position data structure
     struct Position {
         uint256 marketId;               // Market identifier
-        uint32 lowerTick;               // Lower tick bound (inclusive)
-        uint32 upperTick;               // Upper tick bound (inclusive)
+        int256 lowerTick;               // Lower tick bound (inclusive)
+        int256 upperTick;               // Upper tick bound (inclusive)
         uint128 quantity;               // Position quantity (always positive, Long-Only)
         uint64 createdAt;               // Creation timestamp
     }
@@ -28,8 +28,8 @@ interface ICLMSRPosition is IERC721 {
         uint256 indexed positionId,
         address indexed owner,
         uint256 indexed marketId,
-        uint32 lowerTick,
-        uint32 upperTick,
+        int256 lowerTick,
+        int256 upperTick,
         uint128 quantity
     );
 
@@ -68,8 +68,8 @@ interface ICLMSRPosition is IERC721 {
     function mintPosition(
         address to,
         uint256 marketId,
-        uint32 lowerTick,
-        uint32 upperTick,
+        int256 lowerTick,
+        int256 upperTick,
         uint128 quantity
     ) external returns (uint256 positionId);
 
@@ -113,18 +113,28 @@ interface ICLMSRPosition is IERC721 {
     /// @notice Get all positions for a specific market (all owners)
     /// @param marketId Market identifier
     /// @return positionIds Array of all position IDs for the market
-    function getAllPositionsInMarket(uint256 marketId) 
+    function getMarketPositions(uint256 marketId) 
         external view returns (uint256[] memory positionIds);
 
-    /// @notice Check if caller is authorized to manage positions
-    /// @param caller Address to check
-    /// @return True if caller is authorized
-    function isAuthorizedCaller(address caller) external view returns (bool);
-
-    /// @notice Get total supply of position tokens
-    /// @return Total number of minted positions
+    /// @notice Get total number of positions
+    /// @return Total supply of position tokens
     function totalSupply() external view returns (uint256);
 
+    /// @notice Check if a position exists
+    /// @param positionId Position identifier
+    /// @return True if position exists
+    function exists(uint256 positionId) external view returns (bool);
 
+    // ========================================
+    // METADATA & URI FUNCTIONS
+    // ========================================
+    
+    /// @notice Get the token URI for a position
+    /// @param positionId Position identifier
+    /// @return URI string for the token metadata
+    function tokenURI(uint256 positionId) external view returns (string memory);
 
+    /// @notice Get the contract URI for marketplace metadata
+    /// @return URI string for contract metadata
+    function contractURI() external view returns (string memory);
 } 

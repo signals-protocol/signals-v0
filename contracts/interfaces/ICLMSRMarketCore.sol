@@ -15,9 +15,12 @@ interface ICLMSRMarketCore {
         bool settled;                   // Market is settled
         uint64 startTimestamp;          // Market start time
         uint64 endTimestamp;            // Market end time
-        uint32 settlementLowerTick;     // Winning range lower bound (only if settled)
-        uint32 settlementUpperTick;     // Winning range upper bound (only if settled)
-        uint32 numTicks;                // Number of ticks in market
+        int256 settlementLowerTick;     // Winning range lower bound (only if settled)
+        int256 settlementUpperTick;     // Winning range upper bound (only if settled)
+        int256 minTick;                 // Minimum allowed tick value
+        int256 maxTick;                 // Maximum allowed tick value
+        int256 tickSpacing;             // Spacing between valid ticks
+        uint32 numTicks;                // Number of ticks in market (calculated)
         uint256 liquidityParameter;    // Alpha parameter (1e18 scale)
     }
     
@@ -31,22 +34,25 @@ interface ICLMSRMarketCore {
         uint256 indexed marketId,
         uint64 startTimestamp,
         uint64 endTimestamp,
+        int256 minTick,
+        int256 maxTick,
+        int256 tickSpacing,
         uint32 numTicks,
         uint256 liquidityParameter
     );
 
     event MarketSettled(
         uint256 indexed marketId,
-        uint32 settlementLowerTick,
-        uint32 settlementUpperTick
+        int256 settlementLowerTick,
+        int256 settlementUpperTick
     );
 
     event PositionOpened(
         uint256 indexed positionId,
         address indexed trader,
         uint256 indexed marketId,
-        uint32 lowerTick,
-        uint32 upperTick,
+        int256 lowerTick,
+        int256 upperTick,
         uint128 quantity,
         uint256 cost
     );
@@ -95,8 +101,8 @@ interface ICLMSRMarketCore {
     /// @param factor Multiplication factor in WAD format
     event RangeFactorApplied(
         uint256 indexed marketId,
-        uint32 indexed lo,
-        uint32 indexed hi,
+        int256 indexed lo,
+        int256 indexed hi,
         uint256 factor
     );
 
@@ -108,18 +114,18 @@ interface ICLMSRMarketCore {
     error MarketAlreadyExists(uint256 marketId);
     error MarketNotSettled(uint256 marketId);
     error MarketAlreadySettled(uint256 marketId);
-    error InvalidTickRange(uint32 lowerTick, uint32 upperTick);
-    error InvalidTick(uint32 tick, uint32 maxTick);
+    error InvalidTickRange(int256 lowerTick, int256 upperTick);
+    error InvalidTick(int256 tick, int256 minTick, int256 maxTick);
+    error InvalidTickSpacing(int256 tick, int256 tickSpacing);
     error InvalidQuantity(uint128 quantity);
     error PositionNotFound(uint256 positionId);
     error UnauthorizedCaller(address caller);
     error CostExceedsMaximum(uint256 actualCost, uint256 maxCost);
     error InsufficientBalance(address account, uint256 required, uint256 available);
     error TransferFailed(address token, address from, address to, uint256 amount);
-
-
     error ContractPaused();
     error TickCountExceedsLimit(uint32 numTicks, uint32 maxAllowed); // Max ~1M for segment-tree safety
+    error InvalidMarketParameters(int256 minTick, int256 maxTick, int256 tickSpacing);
 
     // ========================================
     // MARKET MANAGEMENT FUNCTIONS
@@ -128,13 +134,17 @@ interface ICLMSRMarketCore {
     /// @notice Create a new market (only callable by Manager)
     /// @dev Stores market data and initializes all tick values to WAD (1e18)
     /// @param marketId Market identifier
-    /// @param numTicks Number of ticks in market
+    /// @param minTick Minimum allowed tick value
+    /// @param maxTick Maximum allowed tick value
+    /// @param tickSpacing Spacing between valid ticks
     /// @param startTimestamp Market start time
     /// @param endTimestamp Market end time
     /// @param liquidityParameter Alpha parameter (1e18 scale)
     function createMarket(
         uint256 marketId,
-        uint32 numTicks,
+        int256 minTick,
+        int256 maxTick,
+        int256 tickSpacing,
         uint64 startTimestamp,
         uint64 endTimestamp,
         uint256 liquidityParameter
@@ -145,7 +155,7 @@ interface ICLMSRMarketCore {
     /// @param marketId Market identifier
     /// @param lowerTick Winning range lower bound (inclusive)
     /// @param upperTick Winning range upper bound (inclusive)
-    function settleMarket(uint256 marketId, uint32 lowerTick, uint32 upperTick) external;
+    function settleMarket(uint256 marketId, int256 lowerTick, int256 upperTick) external;
 
     // ========================================
     // EXECUTION FUNCTIONS
@@ -162,8 +172,8 @@ interface ICLMSRMarketCore {
     function openPosition(
         address trader,
         uint256 marketId,
-        uint32 lowerTick,
-        uint32 upperTick,
+        int256 lowerTick,
+        int256 upperTick,
         uint128 quantity,
         uint256 maxCost
     ) external returns (uint256 positionId);
@@ -219,8 +229,8 @@ interface ICLMSRMarketCore {
     /// @return cost Estimated cost
     function calculateOpenCost(
         uint256 marketId,
-        uint32 lowerTick,
-        uint32 upperTick,
+        int256 lowerTick,
+        int256 upperTick,
         uint128 quantity
     ) external view returns (uint256 cost);
     
@@ -265,11 +275,11 @@ interface ICLMSRMarketCore {
     /// @return market Market data
     function getMarket(uint256 marketId) external view returns (Market memory market);
     
-    /// @notice Get tick value
+    /// @notice Get tick value by actual tick value (not index)
     /// @param marketId Market identifier
-    /// @param tick Tick index
+    /// @param tick Actual tick value
     /// @return value Tick value
-    function getTickValue(uint256 marketId, uint32 tick) external view returns (uint256 value);
+    function getTickValue(uint256 marketId, int256 tick) external view returns (uint256 value);
     
     /// @notice Get position contract address
     /// @return Position contract address
@@ -291,28 +301,28 @@ interface ICLMSRMarketCore {
     /// @notice Get range sum with on-the-fly lazy calculation (view function)
     /// @dev For general users - returns latest values without state changes
     /// @param marketId Market identifier
-    /// @param lo Left boundary (inclusive)
-    /// @param hi Right boundary (inclusive)
+    /// @param lo Left boundary (inclusive, actual tick value)
+    /// @param hi Right boundary (inclusive, actual tick value)
     /// @return sum Sum of exponential values in range
-    function getRangeSum(uint256 marketId, uint32 lo, uint32 hi) 
+    function getRangeSum(uint256 marketId, int256 lo, int256 hi) 
         external view returns (uint256 sum);
     
     /// @notice Propagate lazy values and return range sum (state-changing function)
     /// @dev For Keeper/Manager - actually pushes lazy values down the tree
     /// @param marketId Market identifier
-    /// @param lo Left boundary (inclusive)
-    /// @param hi Right boundary (inclusive)
+    /// @param lo Left boundary (inclusive, actual tick value)
+    /// @param hi Right boundary (inclusive, actual tick value)
     /// @return sum Sum of exponential values in range
-    function propagateLazy(uint256 marketId, uint32 lo, uint32 hi) 
+    function propagateLazy(uint256 marketId, int256 lo, int256 hi) 
         external returns (uint256 sum);
     
     /// @notice Apply multiplication factor to range (state-changing function)
     /// @dev For Keeper/Manager - updates market state by applying factor
     /// @param marketId Market identifier
-    /// @param lo Left boundary (inclusive)
-    /// @param hi Right boundary (inclusive)
+    /// @param lo Left boundary (inclusive, actual tick value)
+    /// @param hi Right boundary (inclusive, actual tick value)
     /// @param factor Multiplication factor (WAD scale)
-    function applyRangeFactor(uint256 marketId, uint32 lo, uint32 hi, uint256 factor) 
+    function applyRangeFactor(uint256 marketId, int256 lo, int256 hi, uint256 factor) 
         external;
 
     // ========================================

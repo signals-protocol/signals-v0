@@ -119,8 +119,8 @@ contract MockPosition is ICLMSRPosition, Ownable {
     function mintPosition(
         address to,
         uint256 marketId,
-        uint32 lowerTick,
-        uint32 upperTick,
+        int256 lowerTick,
+        int256 upperTick,
         uint128 quantity
     ) external onlyCore returns (uint256 positionId) {
         if (to == address(0)) revert ZeroAddress();
@@ -214,6 +214,38 @@ contract MockPosition is ICLMSRPosition, Ownable {
                 index++;
             }
         }
+    }
+
+    function getMarketPositions(uint256 marketId) external view returns (uint256[] memory positionIds) {
+        uint256 count = 0;
+        uint256 totalPositions = _nextId - 1;
+        
+        // First pass: count matching positions
+        for (uint256 i = 1; i <= totalPositions; i++) {
+            if (_owners[i] != address(0) && _positions[i].marketId == marketId) {
+                count++;
+            }
+        }
+        
+        // Second pass: collect matching positions
+        positionIds = new uint256[](count);
+        uint256 index = 0;
+        for (uint256 i = 1; i <= totalPositions; i++) {
+            if (_owners[i] != address(0) && _positions[i].marketId == marketId) {
+                positionIds[index] = i;
+                index++;
+            }
+        }
+    }
+
+    function exists(uint256 positionId) external view returns (bool) {
+        return _owners[positionId] != address(0);
+    }
+
+
+
+    function contractURI() external pure returns (string memory) {
+        return "https://example.com/contract-metadata";
     }
 
     function isAuthorizedCaller(address caller) external view returns (bool) {

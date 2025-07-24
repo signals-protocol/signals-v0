@@ -13,11 +13,13 @@ interface CLMSRErrors {
     error MarketNotFound(uint256 marketId);
 
     /* ───────────────────── Trade params ─────────────────────── */
-    error InvalidTick(uint32 tick, uint32 max);
-    error InvalidTickRange(uint32 lowerTick, uint32 upperTick);
-    error InvalidWinningRange(uint32 lowerTick, uint32 upperTick);
+    error InvalidTick(int256 tick, int256 minTick, int256 maxTick);
+    error InvalidTickRange(int256 lowerTick, int256 upperTick);
+    error InvalidTickSpacing(int256 tick, int256 tickSpacing);
+    error InvalidWinningRange(int256 lowerTick, int256 upperTick);
     error InvalidQuantity(uint128 qty);
     error CostExceedsMaximum(uint256 cost, uint256 maxAllowed);
+    error InvalidMarketParameters(int256 minTick, int256 maxTick, int256 tickSpacing);
 
     /* ───────────────────── Access control ───────────────────── */
     error UnauthorizedCaller(address caller);
@@ -33,17 +35,13 @@ interface CLMSRErrors {
     error InsufficientBalance(address account, uint256 required, uint256 available);
     error TransferFailed(address token, address from, address to, uint256 amount);
     
-    /* ───────────────────── Calculation errors ─────────────────────── */
+    /* ───────────────────── Segment Tree errors ─────────────────────── */
     error TreeNotInitialized();
-    error EmptyPoolAfterSell();
-    error InvalidChunkCalculation();
-    error IncompleteChunkProcessing();
-    error FactorOutOfBounds();
-    
-    /* ───────────────────── Tree validation errors ─────────────────────── */
     error TreeSizeZero();
     error TreeSizeTooLarge();
     error TreeAlreadyInitialized();
     error LazyFactorOverflow();
     error ArrayLengthMismatch();
+    error FactorOutOfBounds();
+    error IncompleteChunkProcessing();
 } 

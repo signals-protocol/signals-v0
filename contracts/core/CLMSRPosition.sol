@@ -61,7 +61,7 @@ contract CLMSRPosition is ICLMSRPosition, ERC721 {
     /// @notice Override tokenURI to provide dynamic metadata
     /// @param tokenId Position token ID
     /// @return URI string with base64-encoded JSON metadata
-    function tokenURI(uint256 tokenId) public view override returns (string memory) {
+    function tokenURI(uint256 tokenId) public view override(ERC721, ICLMSRPosition) returns (string memory) {
         if (!_exists(tokenId)) revert PositionNotFound(tokenId);
         
         Position memory position = _positions[tokenId];
@@ -119,8 +119,8 @@ contract CLMSRPosition is ICLMSRPosition, ERC721 {
     function mintPosition(
         address to,
         uint256 marketId,
-        uint32 lowerTick,
-        uint32 upperTick,
+        int256 lowerTick,
+        int256 upperTick,
         uint128 quantity
     ) external onlyCore returns (uint256 positionId) {
         if (to == address(0)) revert ZeroAddress();
@@ -220,7 +220,7 @@ contract CLMSRPosition is ICLMSRPosition, ERC721 {
     }
 
     /// @inheritdoc ICLMSRPosition
-    function getAllPositionsInMarket(uint256 marketId) 
+    function getMarketPositions(uint256 marketId) 
         external 
         view 
         returns (uint256[] memory positionIds) 
@@ -252,6 +252,11 @@ contract CLMSRPosition is ICLMSRPosition, ERC721 {
     }
 
     /// @inheritdoc ICLMSRPosition
+    function exists(uint256 positionId) external view returns (bool) {
+        return _exists(positionId);
+    }
+
+    /// @notice Check if caller is authorized (core contract)
     function isAuthorizedCaller(address caller) external view returns (bool) {
         return caller == core;
     }
@@ -272,9 +277,55 @@ contract CLMSRPosition is ICLMSRPosition, ERC721 {
     }
 
     // ========================================
+    // METADATA & URI FUNCTIONS
+    // ========================================
+    
+
+
+    /// @inheritdoc ICLMSRPosition
+    function contractURI() external pure returns (string memory) {
+        string memory json = '{"name": "CLMSR Positions", "description": "Position tokens for CLMSR prediction markets"}';
+        return string(abi.encodePacked(
+            "data:application/json;base64,",
+            Base64.encode(bytes(json))
+        ));
+    }
+
+    // ========================================
     // INTERNAL HELPERS
     // ========================================
     
+    /// @notice Convert int256 to string
+    function _int256ToString(int256 value) internal pure returns (string memory) {
+        if (value == 0) {
+            return "0";
+        }
+        
+        bool negative = value < 0;
+        uint256 temp = negative ? uint256(-value) : uint256(value);
+        
+        bytes memory buffer = new bytes(78); // max length for int256
+        uint256 digits;
+        
+        while (temp != 0) {
+            digits++;
+            buffer[78 - digits] = bytes1(uint8(48 + temp % 10));
+            temp /= 10;
+        }
+        
+        if (negative) {
+            digits++;
+            buffer[78 - digits] = "-";
+        }
+        
+        bytes memory result = new bytes(digits);
+        for (uint256 i = 0; i < digits; i++) {
+            result[i] = buffer[78 - digits + i];
+        }
+        
+        return string(result);
+    }
+
     /// @notice Check if token exists
     /// @param tokenId Token ID to check
     /// @return True if token exists
