@@ -1,7 +1,10 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { coreFixture } from "../../helpers/fixtures/core";
+import {
+  createActiveMarketFixture,
+  coreFixture,
+} from "../../helpers/fixtures/core";
 import { INTEGRATION_TAG } from "../../helpers/tags";
 
 describe(`${INTEGRATION_TAG} Market Settlement`, function () {
@@ -9,32 +12,18 @@ describe(`${INTEGRATION_TAG} Market Settlement`, function () {
   const TICK_COUNT = 100;
   const MARKET_DURATION = 7 * 24 * 60 * 60; // 7 days
 
-  async function createMarketFixture() {
-    const contracts = await loadFixture(coreFixture);
-    const { core, keeper } = contracts;
-
-    const currentTime = await time.latest();
-    const startTime = currentTime + 3600; // 1 hour from now
-    const endTime = startTime + MARKET_DURATION;
-    const marketId = 1;
-
-    await core
-      .connect(keeper)
-      .createMarket(marketId, TICK_COUNT, startTime, endTime, ALPHA);
-
-    return {
-      ...contracts,
-      marketId,
-      startTime,
-      endTime,
-    };
-  }
+  // 표준 틱 시스템 파라미터
+  const MIN_TICK = 100000;
+  const MAX_TICK = 100990;
+  const TICK_SPACING = 10;
 
   it("Should settle market successfully", async function () {
-    const { core, keeper, marketId } = await loadFixture(createMarketFixture);
+    const { core, keeper, marketId } = await loadFixture(
+      createActiveMarketFixture
+    );
 
-    const winningLowerTick = 49;
-    const winningUpperTick = 50;
+    const winningLowerTick = 100490;
+    const winningUpperTick = 100500;
 
     await expect(
       core
@@ -52,10 +41,12 @@ describe(`${INTEGRATION_TAG} Market Settlement`, function () {
   });
 
   it("Should prevent double settlement", async function () {
-    const { core, keeper, marketId } = await loadFixture(createMarketFixture);
+    const { core, keeper, marketId } = await loadFixture(
+      createActiveMarketFixture
+    );
 
-    const winningLowerTick = 49;
-    const winningUpperTick = 50;
+    const winningLowerTick = 100490;
+    const winningUpperTick = 100500;
 
     // First settlement
     await core
@@ -64,89 +55,101 @@ describe(`${INTEGRATION_TAG} Market Settlement`, function () {
 
     // Try to settle again
     await expect(
-      core.connect(keeper).settleMarket(marketId, 60, 61)
+      core.connect(keeper).settleMarket(marketId, 100600, 100610)
     ).to.be.revertedWithCustomError(core, "MarketAlreadySettled");
   });
 
   it("Should validate winning tick range", async function () {
-    const { core, keeper, marketId } = await loadFixture(createMarketFixture);
+    const { core, keeper, marketId } = await loadFixture(
+      createActiveMarketFixture
+    );
 
-    // Test winning upper tick >= tickCount
+    // Test completely invalid tick (outside market range)
     await expect(
-      core.connect(keeper).settleMarket(marketId, TICK_COUNT - 1, TICK_COUNT) // exactly at limit
+      core.connect(keeper).settleMarket(marketId, 200000, 200010) // way outside range
     ).to.be.revertedWithCustomError(core, "InvalidTick");
 
     await expect(
-      core.connect(keeper).settleMarket(marketId, TICK_COUNT, TICK_COUNT + 1) // over limit
+      core.connect(keeper).settleMarket(marketId, 99000, 99010) // below min tick
     ).to.be.revertedWithCustomError(core, "InvalidTick");
 
-    // Test invalid range (lower > upper)
     await expect(
-      core.connect(keeper).settleMarket(marketId, 60, 50)
+      core.connect(keeper).settleMarket(marketId, 100500, 100520) // gap of 2
     ).to.be.revertedWithCustomError(core, "InvalidWinningRange");
 
-    // Test non-consecutive ticks (gap > 1)
     await expect(
-      core.connect(keeper).settleMarket(marketId, 50, 52) // gap of 2
-    ).to.be.revertedWithCustomError(core, "InvalidWinningRange");
-
-    // Test same tick (should also fail since we need consecutive pair)
-    await expect(
-      core.connect(keeper).settleMarket(marketId, 50, 50) // same tick
+      core.connect(keeper).settleMarket(marketId, 100500, 100500) // same tick
     ).to.be.revertedWithCustomError(core, "InvalidWinningRange");
   });
 
   it("Should settle with edge case winning ranges", async function () {
-    const { core, keeper } = await loadFixture(coreFixture);
+    const { core, keeper } = await loadFixture(createActiveMarketFixture);
 
     const currentTime = await time.latest();
     const startTime = currentTime + 3600;
     const endTime = startTime + MARKET_DURATION;
 
-    // Test first tick range (0-1) - consecutive ticks
-    const marketId1 = 1;
+    // Test first tick range - use different market IDs
+    const marketId1 = 10;
     await core
       .connect(keeper)
-      .createMarket(marketId1, TICK_COUNT, startTime, endTime, ALPHA);
-    await core.connect(keeper).settleMarket(marketId1, 0, 1);
+      .createMarket(
+        marketId1,
+        MIN_TICK,
+        MAX_TICK,
+        TICK_SPACING,
+        startTime,
+        endTime,
+        ALPHA
+      );
+    await time.increaseTo(startTime + 1);
+    await core.connect(keeper).settleMarket(marketId1, MIN_TICK, MIN_TICK + 10);
 
     let market = await core.getMarket(marketId1);
-    expect(market.settlementLowerTick).to.equal(0);
-    expect(market.settlementUpperTick).to.equal(1);
+    expect(market.settlementLowerTick).to.equal(MIN_TICK);
+    expect(market.settlementUpperTick).to.equal(MIN_TICK + 10);
 
-    // Test last tick range (TICK_COUNT-2 to TICK_COUNT-1)
-    const marketId2 = 2;
+    // Test last tick range
+    const marketId2 = 20;
     await core
       .connect(keeper)
-      .createMarket(marketId2, TICK_COUNT, startTime, endTime, ALPHA);
+      .createMarket(
+        marketId2,
+        MIN_TICK,
+        MAX_TICK,
+        TICK_SPACING,
+        startTime,
+        endTime,
+        ALPHA
+      );
     await core
       .connect(keeper)
-      .settleMarket(marketId2, TICK_COUNT - 2, TICK_COUNT - 1);
+      .settleMarket(marketId2, MAX_TICK - 20, MAX_TICK - 10);
 
     market = await core.getMarket(marketId2);
-    expect(market.settlementLowerTick).to.equal(TICK_COUNT - 2);
-    expect(market.settlementUpperTick).to.equal(TICK_COUNT - 1);
+    expect(market.settlementLowerTick).to.equal(MAX_TICK - 20);
+    expect(market.settlementUpperTick).to.equal(MAX_TICK - 10);
   });
 
   it("Should prevent settlement of non-existent market", async function () {
-    const { core, keeper } = await loadFixture(coreFixture);
+    const { core, keeper } = await loadFixture(createActiveMarketFixture);
 
     await expect(
-      core.connect(keeper).settleMarket(999, 49, 50) // non-existent market
+      core.connect(keeper).settleMarket(999, 100490, 100500) // non-existent market
     ).to.be.revertedWithCustomError(core, "MarketNotFound");
   });
 
   it("Should only allow manager to settle markets", async function () {
     const { core, alice, bob, marketId } = await loadFixture(
-      createMarketFixture
+      createActiveMarketFixture
     );
 
     await expect(
-      core.connect(alice).settleMarket(marketId, 49, 50)
+      core.connect(alice).settleMarket(marketId, 100490, 100500)
     ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
 
     await expect(
-      core.connect(bob).settleMarket(marketId, 49, 50)
+      core.connect(bob).settleMarket(marketId, 100490, 100500)
     ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
   });
 });

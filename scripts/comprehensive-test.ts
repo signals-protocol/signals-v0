@@ -146,12 +146,12 @@ async function main() {
   );
 
   // 초기 세그먼트 트리 상태 검증
-  const initialTotalSum = await core.getRangeSum(marketId, 0, 9999);
+  const initialTotalSum = await core.getRangeSum(marketId, 100000, 199999);
   const expectedInitialSum = 10000n * parseUnits("1", 18); // 10,000 ticks * 1 WAD each
 
   // 세그먼트 트리는 초기화 시 각 틱이 1 WAD 값을 가져야 함
   const isInitialSumCorrect =
-    initialTotalSum >= (expectedInitialSum * 99n) / 100n; // 1% 허용 오차
+    initialTotalSum >= (expectedInitialSum * 99n) / 100n;
 
   await logTestResult(
     "초기 세그먼트 트리 합계 검증",
@@ -189,22 +189,22 @@ async function main() {
   const testPositions = [
     {
       trader: trader1,
-      lowerTick: 100,
-      upperTick: 199,
+      lowerTick: 100100, // 실제 틱 값 (10만대)
+      upperTick: 100990, // 실제 틱 값 (10만대)
       quantity: parseUnits("100", 6),
       name: "소량 거래",
     },
     {
       trader: trader2,
-      lowerTick: 500,
-      upperTick: 699,
+      lowerTick: 150000, // 실제 틱 값 (15만대)
+      upperTick: 150990, // 실제 틱 값 (15만대)
       quantity: parseUnits("1000", 6),
       name: "중간 거래",
     },
     {
       trader: trader3,
-      lowerTick: 1000,
-      upperTick: 1199,
+      lowerTick: 180000, // 실제 틱 값 (18만대)
+      upperTick: 180990, // 실제 틱 값 (18만대)
       quantity: parseUnits("3000", 6),
       name: "대량 거래",
     },
@@ -222,8 +222,8 @@ async function main() {
     );
 
     try {
-      // 거래 전 상태 캡처
-      const beforeTotalSum = await core.getRangeSum(marketId, 0, 9999);
+      // 거래 전 상태 캡처 (전체 마켓 범위: 100000~199999)
+      const beforeTotalSum = await core.getRangeSum(marketId, 100000, 199999);
       const beforeAffectedSum = await core.getRangeSum(
         marketId,
         testPos.lowerTick,
@@ -282,8 +282,8 @@ async function main() {
 
       positionIds.push(i + 1);
 
-      // 거래 후 상태 검증
-      const afterTotalSum = await core.getRangeSum(marketId, 0, 9999);
+      // 거래 후 상태 검증 (전체 마켓 범위: 100000~199999)
+      const afterTotalSum = await core.getRangeSum(marketId, 100000, 199999);
       const afterAffectedSum = await core.getRangeSum(
         marketId,
         testPos.lowerTick,
@@ -532,9 +532,9 @@ async function main() {
   console.log("\n⚖️ 마켓 정산 시뮬레이션");
 
   try {
-    // 승리 범위 설정 (틱 100-101, 첫 번째 포지션이 이기는 구간)
-    const winningLowerTick = 100;
-    const winningUpperTick = 101;
+    // 승리 범위 설정 (틱 100100-100110, 첫 번째 포지션이 이기는 구간)
+    const winningLowerTick = 100100;
+    const winningUpperTick = 100110;
 
     // 마켓 정산 (매니저만 가능)
     const settleTx = await core.settleMarket(

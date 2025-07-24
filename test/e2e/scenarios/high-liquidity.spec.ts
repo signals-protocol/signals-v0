@@ -1,7 +1,10 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { coreFixture } from "../../helpers/fixtures/core";
+import {
+  coreFixture,
+  setupHighLiquidityMarket,
+} from "../../helpers/fixtures/core";
 import { E2E_TAG } from "../../helpers/tags";
 
 describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
@@ -19,20 +22,16 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
   async function createHighLiquidityMarket() {
     const contracts = await loadFixture(coreFixture);
-    const { core, keeper, mockPosition } = contracts;
-
-    const currentTime = await time.latest();
-    const startTime = currentTime + 100;
-    const endTime = startTime + MARKET_DURATION;
-    const marketId = 1;
-
-    await core
-      .connect(keeper)
-      .createMarket(marketId, TICK_COUNT, startTime, endTime, HIGH_ALPHA);
-
-    await time.increaseTo(startTime + 1);
-
-    return { ...contracts, marketId, startTime, endTime, mockPosition };
+    const { marketId, startTime, endTime } = await setupHighLiquidityMarket(
+      contracts
+    );
+    return {
+      ...contracts,
+      marketId,
+      startTime,
+      endTime,
+      mockPosition: contracts.mockPosition,
+    };
   }
 
   describe("Large Volume Trading", function () {
@@ -44,8 +43,8 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       // Simulate institutional trade near chunk boundary ($120)
       const tradeParams = {
         marketId,
-        lowerTick: 20,
-        upperTick: 80,
+        lowerTick: 100200, // 실제 틱값 사용
+        upperTick: 100800, // 실제 틱값 사용
         quantity: EXTREME_QUANTITY,
         maxCost: ethers.parseUnits("300", USDC_DECIMALS), // $1k max cost
       };
@@ -99,8 +98,8 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
         const tradeParams = {
           marketId,
-          lowerTick: 10 + offset,
-          upperTick: 90 - offset,
+          lowerTick: 100100 + offset * 10, // 실제 틱값 사용, 더 작은 간격
+          upperTick: 100900 - offset * 10, // 실제 틱값 사용, 더 작은 간격
           quantity: LARGE_QUANTITY,
           maxCost: ethers.parseUnits("200", USDC_DECIMALS),
         };
@@ -152,8 +151,8 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       const reducedQuantity = ethers.parseUnits("20", USDC_DECIMALS); // $20 - smaller to prevent overflow
       const initialBuyCost = await core.calculateOpenCost(
         marketId,
-        45,
-        55,
+        100450, // 실제 틱값 사용
+        100550, // 실제 틱값 사용
         reducedQuantity
       );
 
@@ -163,8 +162,8 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
         // Reduced from 10 to 5 trades
         const tradeParams = {
           marketId,
-          lowerTick: 40 + (i % 3),
-          upperTick: 60 - (i % 3),
+          lowerTick: 100400 + (i % 3) * 10, // 실제 틱값 사용
+          upperTick: 100600 - (i % 3) * 10, // 실제 틱값 사용
           quantity: reducedQuantity,
           maxCost: ethers.parseUnits("100", USDC_DECIMALS),
         };
@@ -185,8 +184,8 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       // Check price after high volume
       const finalBuyCost = await core.calculateOpenCost(
         marketId,
-        45,
-        55,
+        100450, // 실제 틱값 사용
+        100550, // 실제 틱값 사용
         reducedQuantity
       );
 
@@ -218,32 +217,28 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       // Simulate market maker placing many small trades
       for (let i = 0; i < marketMakerTrades; i++) {
         const spread = 2; // 2 tick spread
-        const midTick = 50;
+        const midTick = 100500; // 실제 틱값 사용
 
         // Place bid
-        const bidTx = await core
-          .connect(alice)
-          .openPosition(
-            alice.address,
-            marketId,
-            midTick - spread - 1,
-            midTick - 1,
-            tradeSize,
-            ethers.parseUnits("50", USDC_DECIMALS)
-          );
+        const bidTx = await core.connect(alice).openPosition(
+          alice.address,
+          marketId,
+          midTick - spread * 10 - 10, // 실제 틱값 사용
+          midTick - 10, // 실제 틱값 사용
+          tradeSize,
+          ethers.parseUnits("50", USDC_DECIMALS)
+        );
         totalGasUsed += (await bidTx.wait())!.gasUsed;
 
         // Place ask (counter-trade)
-        const askTx = await core
-          .connect(bob)
-          .openPosition(
-            bob.address,
-            marketId,
-            midTick + 1,
-            midTick + spread + 1,
-            tradeSize,
-            ethers.parseUnits("50", USDC_DECIMALS)
-          );
+        const askTx = await core.connect(bob).openPosition(
+          bob.address,
+          marketId,
+          midTick + 10, // 실제 틱값 사용
+          midTick + spread * 10 + 10, // 실제 틱값 사용
+          tradeSize,
+          ethers.parseUnits("50", USDC_DECIMALS)
+        );
         totalGasUsed += (await askTx.wait())!.gasUsed;
       }
 
@@ -264,16 +259,14 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       );
 
       // Open initial large position
-      await core
-        .connect(alice)
-        .openPosition(
-          alice.address,
-          marketId,
-          30,
-          70,
-          HUGE_QUANTITY,
-          ethers.parseUnits("300", USDC_DECIMALS)
-        );
+      await core.connect(alice).openPosition(
+        alice.address,
+        marketId,
+        100300, // 실제 틱값 사용
+        100700, // 실제 틱값 사용
+        HUGE_QUANTITY,
+        ethers.parseUnits("300", USDC_DECIMALS)
+      );
 
       // Get actual position ID from MockPosition
       const positions = await mockPosition.getPositionsByOwner(alice.address);
@@ -327,16 +320,14 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       const startTime = Date.now();
 
       for (let i = 0; i < concurrentTrades; i++) {
-        const tradePromise = core
-          .connect(alice)
-          .openPosition(
-            alice.address,
-            marketId,
-            30 + i * 5,
-            70 - i * 5,
-            tradeSize,
-            ethers.parseUnits("100", USDC_DECIMALS)
-          );
+        const tradePromise = core.connect(alice).openPosition(
+          alice.address,
+          marketId,
+          100300 + i * 50, // 실제 틱값 사용
+          100700 - i * 50, // 실제 틱값 사용
+          tradeSize,
+          ethers.parseUnits("100", USDC_DECIMALS)
+        );
 
         tradePromises.push(tradePromise);
       }
@@ -367,16 +358,14 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
       // Whale trade: $100 position (large for testing but within chunk limits)
       const whaleQuantity = ethers.parseUnits("100", USDC_DECIMALS);
-      await core
-        .connect(alice)
-        .openPosition(
-          alice.address,
-          marketId,
-          10,
-          90,
-          whaleQuantity,
-          ethers.parseUnits("300", USDC_DECIMALS)
-        );
+      await core.connect(alice).openPosition(
+        alice.address,
+        marketId,
+        100100, // 실제 틱값 사용
+        100900, // 실제 틱값 사용
+        whaleQuantity,
+        ethers.parseUnits("300", USDC_DECIMALS)
+      );
 
       console.log(
         `Whale position opened: $${ethers.formatUnits(
@@ -390,16 +379,14 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       const smallTrades = 100;
 
       for (let i = 0; i < smallTrades; i++) {
-        await core
-          .connect(bob)
-          .openPosition(
-            bob.address,
-            marketId,
-            40 + (i % 10),
-            60 - (i % 10),
-            smallTradeSize,
-            ethers.parseUnits("10", USDC_DECIMALS)
-          );
+        await core.connect(bob).openPosition(
+          bob.address,
+          marketId,
+          100400 + (i % 10) * 10, // 실제 틱값 사용
+          100600 - (i % 10) * 10, // 실제 틱값 사용
+          smallTradeSize,
+          ethers.parseUnits("10", USDC_DECIMALS)
+        );
       }
 
       console.log(`${smallTrades} small trades completed after whale trade`);
@@ -407,8 +394,8 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       // Market should still be functional
       const finalCost = await core.calculateOpenCost(
         marketId,
-        45,
-        55,
+        100450, // 실제 틱값 사용
+        100550, // 실제 틱값 사용
         smallTradeSize
       );
       expect(finalCost).to.be.gt(0);
@@ -436,8 +423,8 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
           await core.connect(trader).openPosition(
             trader.address,
             marketId,
-            10 + j * 10, // Spread out more
-            90 - j * 10,
+            100100 + j * 100, // 실제 틱값 사용 - Spread out more
+            100900 - j * 100, // 실제 틱값 사용
             settlementQuantity,
             ethers.parseUnits("100", USDC_DECIMALS)
           );
@@ -457,7 +444,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       // Settle market
       const settlementTx = await core
         .connect(keeper)
-        .settleMarket(marketId, 41, 42);
+        .settleMarket(marketId, 100410, 100420); // 실제 틱값 사용
       const settlementReceipt = await settlementTx.wait();
 
       console.log(`Settlement gas used: ${settlementReceipt!.gasUsed}`);
@@ -486,8 +473,8 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
         const tx = await core.connect(trader).openPosition(
           trader.address,
           marketId,
-          10 + i * 3, // Ensure lower < upper
-          50 + i * 3, // Move up instead of down
+          100100 + i * 30, // 실제 틱값 사용 - Ensure lower < upper
+          100500 + i * 30, // 실제 틱값 사용 - Move up instead of down
           claimingQuantity,
           ethers.parseUnits("100", USDC_DECIMALS)
         );
@@ -505,7 +492,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       // Settle market
       const market = await core.getMarket(marketId);
       await time.increaseTo(Number(market.endTimestamp) + 1);
-      await core.connect(keeper).settleMarket(marketId, 49, 50);
+      await core.connect(keeper).settleMarket(marketId, 100490, 100500); // 실제 틱값 사용
 
       // Mass claiming
       let totalClaimGas = 0n;
@@ -569,8 +556,8 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       try {
         const costEstimate = await core.calculateOpenCost(
           marketId,
-          0,
-          99,
+          100000, // 실제 틱값 사용
+          100990, // 실제 틱값 사용
           maxQuantity
         );
         console.log(
@@ -581,16 +568,14 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
         );
 
         // If it doesn't revert, the high liquidity is working
-        await core
-          .connect(alice)
-          .openPosition(
-            alice.address,
-            marketId,
-            0,
-            99,
-            maxQuantity,
-            costEstimate
-          );
+        await core.connect(alice).openPosition(
+          alice.address,
+          marketId,
+          100000, // 실제 틱값 사용
+          100990, // 실제 틱값 사용
+          maxQuantity,
+          costEstimate
+        );
 
         console.log("Large position opened successfully");
       } catch (error) {
@@ -612,16 +597,14 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       let totalVolume = 0n;
 
       for (let i = 0; i < extremeTrades; i++) {
-        await core
-          .connect(alice)
-          .openPosition(
-            alice.address,
-            marketId,
-            30 + (i % 20),
-            70 - (i % 20),
-            tradeSize,
-            ethers.parseUnits("300", USDC_DECIMALS)
-          );
+        await core.connect(alice).openPosition(
+          alice.address,
+          marketId,
+          100300 + (i % 20) * 10, // 실제 틱값 사용
+          100700 - (i % 20) * 10, // 실제 틱값 사용
+          tradeSize,
+          ethers.parseUnits("300", USDC_DECIMALS)
+        );
         totalVolume += tradeSize;
       }
 
@@ -632,8 +615,8 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       // Check precision is maintained
       const smallTradeCost = await core.calculateOpenCost(
         marketId,
-        45,
-        55,
+        100450, // 실제 틱값 사용
+        100550, // 실제 틱값 사용
         ethers.parseUnits("1", USDC_DECIMALS)
       );
 

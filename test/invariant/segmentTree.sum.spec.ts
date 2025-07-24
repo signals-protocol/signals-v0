@@ -1,40 +1,18 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { coreFixture } from "../helpers/fixtures/core";
+import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { createActiveMarketFixture } from "../helpers/fixtures/core";
 import { INVARIANT_TAG } from "../helpers/tags";
 
-describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
-  const SMALL_QUANTITY = ethers.parseUnits("0.01", 6); // 0.01 USDC
-  const MEDIUM_QUANTITY = ethers.parseUnits("0.1", 6); // 0.1 USDC
+describe(`${INVARIANT_TAG} LazyMulSegmentTree - Sum Invariants`, function () {
+  const USDC_DECIMALS = 6;
+  const SMALL_QUANTITY = ethers.parseUnits("0.01", USDC_DECIMALS); // 0.01 USDC
+  const MEDIUM_QUANTITY = ethers.parseUnits("0.1", USDC_DECIMALS); // 0.1 USDC
   const TICK_COUNT = 100;
   const WAD = ethers.parseEther("1"); // 1e18
 
-  async function createActiveMarketFixture() {
-    const contracts = await loadFixture(coreFixture);
-    const { core, keeper } = contracts;
-
-    const currentTime = await time.latest();
-    const startTime = currentTime + 2000; // Large buffer for invariant tests
-    const endTime = startTime + 7 * 24 * 60 * 60; // 7 days
-    const marketId = 1;
-
-    await core
-      .connect(keeper)
-      .createMarket(
-        marketId,
-        TICK_COUNT,
-        startTime,
-        endTime,
-        ethers.parseEther("1")
-      );
-    await time.increaseTo(startTime + 1);
-
-    return { ...contracts, marketId, startTime, endTime };
-  }
-
-  describe("Sum Conservation Invariants", function () {
-    it("Should maintain total sum after operations", async function () {
+  describe("Sum Consistency Invariants", function () {
+    it("Should maintain sum consistency after tree operations", async function () {
       const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
@@ -42,7 +20,8 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
       // Calculate total sum across all ticks before any operations
       let totalSumBefore = 0n;
       for (let i = 0; i < TICK_COUNT; i++) {
-        const tickValue = await core.getTickValue(marketId, i);
+        const actualTick = 100000 + i * 10; // Convert index to actual tick value
+        const tickValue = await core.getTickValue(marketId, actualTick);
         totalSumBefore += tickValue;
       }
 
@@ -52,16 +31,17 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
         .openPosition(
           alice.address,
           marketId,
-          10,
-          20,
+          100100,
+          100200,
           MEDIUM_QUANTITY,
-          ethers.parseUnits("100", 6)
+          ethers.parseUnits("100", USDC_DECIMALS)
         );
 
       // Calculate total sum after operations
       let totalSumAfter = 0n;
       for (let i = 0; i < TICK_COUNT; i++) {
-        const tickValue = await core.getTickValue(marketId, i);
+        const actualTick = 100000 + i * 10; // Convert index to actual tick value
+        const tickValue = await core.getTickValue(marketId, actualTick);
         totalSumAfter += tickValue;
       }
 
@@ -78,19 +58,18 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
 
       // Multiple buy operations should monotonically increase sum
       for (let i = 0; i < 3; i++) {
-        await core
-          .connect(alice)
-          .openPosition(
-            alice.address,
-            marketId,
-            30 + i * 5,
-            40 + i * 5,
-            SMALL_QUANTITY,
-            ethers.parseUnits("50", 6)
-          );
+        await core.connect(alice).openPosition(
+          alice.address,
+          marketId,
+          100300 + i * 50, // 30 + i * 5 → 100300 + i * 50 (새 틱 시스템)
+          100400 + i * 50, // 40 + i * 5 → 100400 + i * 50 (새 틱 시스템)
+          SMALL_QUANTITY,
+          ethers.parseUnits("50", USDC_DECIMALS)
+        );
 
         let currentSum = 0n;
-        for (let tick = 30; tick <= 50; tick++) {
+        for (let tick = 100300; tick <= 100500; tick += 10) {
+          // 30~50 → 100300~100500, 10간격
           const tickValue = await core.getTickValue(marketId, tick);
           currentSum += tickValue;
         }
@@ -112,7 +91,8 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
       // Record tick values before trade
       const tickValuesBefore: bigint[] = [];
       for (let i = 0; i < TICK_COUNT; i++) {
-        const value = await core.getTickValue(marketId, i);
+        const actualTick = 100000 + i * 10; // Convert index to actual tick value
+        const value = await core.getTickValue(marketId, actualTick);
         tickValuesBefore.push(value);
       }
 
@@ -122,15 +102,16 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
         .openPosition(
           alice.address,
           marketId,
-          20,
-          30,
+          100200,
+          100300,
           MEDIUM_QUANTITY,
-          ethers.parseUnits("100", 6)
+          ethers.parseUnits("100", USDC_DECIMALS)
         );
 
       // Check that only affected ticks changed
       for (let i = 0; i < TICK_COUNT; i++) {
-        const valueAfter = await core.getTickValue(marketId, i);
+        const actualTick = 100000 + i * 10; // Convert index to actual tick value
+        const valueAfter = await core.getTickValue(marketId, actualTick);
 
         if (i >= 20 && i <= 30) {
           // Ticks in range should have increased
@@ -153,13 +134,13 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
         .openPosition(
           alice.address,
           marketId,
-          10,
-          30,
+          100100,
+          100300,
           MEDIUM_QUANTITY,
-          ethers.parseUnits("100", 6)
+          ethers.parseUnits("100", USDC_DECIMALS)
         );
 
-      const tick20ValueAfterFirst = await core.getTickValue(marketId, 20);
+      const tick20ValueAfterFirst = await core.getTickValue(marketId, 100200);
 
       // Second trade: affects ticks 20-40 (overlaps)
       await core
@@ -167,13 +148,13 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
         .openPosition(
           bob.address,
           marketId,
-          20,
-          40,
+          100200,
+          100400,
           MEDIUM_QUANTITY,
-          ethers.parseUnits("100", 6)
+          ethers.parseUnits("100", USDC_DECIMALS)
         );
 
-      const tick20ValueAfterSecond = await core.getTickValue(marketId, 20);
+      const tick20ValueAfterSecond = await core.getTickValue(marketId, 100200);
 
       // Overlapping tick should have increased further
       expect(tick20ValueAfterSecond).to.be.gt(tick20ValueAfterFirst);
@@ -188,9 +169,9 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
 
       // Execute multiple overlapping operations to trigger lazy propagation
       const operations = [
-        { lower: 10, upper: 50, quantity: SMALL_QUANTITY },
-        { lower: 20, upper: 60, quantity: SMALL_QUANTITY },
-        { lower: 30, upper: 70, quantity: SMALL_QUANTITY },
+        { lower: 100100, upper: 100500, quantity: SMALL_QUANTITY },
+        { lower: 100200, upper: 100600, quantity: SMALL_QUANTITY },
+        { lower: 100300, upper: 100700, quantity: SMALL_QUANTITY },
       ];
 
       for (const op of operations) {
@@ -202,13 +183,13 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
             op.lower,
             op.upper,
             op.quantity,
-            ethers.parseUnits("100", 6)
+            ethers.parseUnits("100", USDC_DECIMALS)
           );
       }
 
       // Query values should be consistent regardless of lazy propagation state
-      const value40First = await core.getTickValue(marketId, 40);
-      const value40Second = await core.getTickValue(marketId, 40);
+      const value40First = await core.getTickValue(marketId, 100400);
+      const value40Second = await core.getTickValue(marketId, 100400);
 
       expect(value40First).to.equal(value40Second);
     });
@@ -218,11 +199,11 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
         createActiveMarketFixture
       );
 
-      // Test edge cases: first tick, last tick, and boundaries
+      // Test edge cases including boundaries
       const edgeCases = [
-        { lower: 0, upper: 0 }, // First tick only
-        { lower: TICK_COUNT - 1, upper: TICK_COUNT - 1 }, // Last tick only
-        { lower: 0, upper: TICK_COUNT - 1 }, // Full range
+        { lower: 100000, upper: 100000 }, // Single tick at start
+        { lower: 100990, upper: 100990 }, // Single tick at end
+        { lower: 100000, upper: 100990 }, // Full range
       ];
 
       for (const testCase of edgeCases) {
@@ -234,11 +215,11 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
             testCase.lower,
             testCase.upper,
             SMALL_QUANTITY,
-            ethers.parseUnits("50", 6)
+            ethers.parseUnits("50", USDC_DECIMALS)
           );
 
         // Verify affected ticks are updated
-        for (let tick = testCase.lower; tick <= testCase.upper; tick++) {
+        for (let tick = testCase.lower; tick <= testCase.upper; tick += 10) {
           const value = await core.getTickValue(marketId, tick);
           expect(value).to.be.gte(WAD);
         }
@@ -259,16 +240,16 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
           .openPosition(
             alice.address,
             marketId,
-            45,
-            55,
+            100450,
+            100550,
             1n,
-            ethers.parseUnits("10", 6)
+            ethers.parseUnits("10", USDC_DECIMALS)
           );
       }
 
       // Sum should still be calculable and reasonable
       let sum = 0n;
-      for (let i = 45; i <= 55; i++) {
+      for (let i = 100450; i <= 100550; i += 10) {
         const value = await core.getTickValue(marketId, i);
         sum += value;
         expect(value).to.be.gt(WAD); // Should be greater than base value
@@ -292,17 +273,18 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
             .openPosition(
               participant.address,
               marketId,
-              round * 15,
-              round * 15 + 20,
+              100000 + round * 150,
+              100000 + round * 150 + 200,
               SMALL_QUANTITY,
-              ethers.parseUnits("50", 6)
+              ethers.parseUnits("50", USDC_DECIMALS)
             );
         }
       }
 
       // Verify system is still in consistent state
       for (let i = 0; i < TICK_COUNT; i++) {
-        const value = await core.getTickValue(marketId, i);
+        const actualTick = 100000 + i * 10; // Convert index to actual tick value
+        const value = await core.getTickValue(marketId, actualTick);
         expect(value).to.be.gte(WAD); // All values should be valid
         expect(value).to.be.lt(WAD * 1000n); // Sanity check upper bound
       }
@@ -321,17 +303,17 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
         .openPosition(
           alice.address,
           marketId,
-          40,
-          60,
+          100400,
+          100600,
           MEDIUM_QUANTITY,
-          ethers.parseUnits("100", 6)
+          ethers.parseUnits("100", USDC_DECIMALS)
         );
 
       // Sum of exponentials should be greater than exponential of sum (Jensen's inequality)
       let sumOfExp = 0n;
       let sumOfValues = 0n;
 
-      for (let i = 40; i <= 60; i++) {
+      for (let i = 100400; i <= 100600; i += 10) {
         const value = await core.getTickValue(marketId, i);
         sumOfExp += value;
         // Note: This is simplified - in real CLMSR, we'd need to reverse the exp operation
@@ -351,26 +333,26 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
         .openPosition(
           alice.address,
           marketId,
-          20,
-          30,
+          100200,
+          100300,
           SMALL_QUANTITY,
-          ethers.parseUnits("50", 6)
+          ethers.parseUnits("50", USDC_DECIMALS)
         );
 
-      const smallTickValue = await core.getTickValue(marketId, 25);
+      const smallTickValue = await core.getTickValue(marketId, 100250);
 
       await core
         .connect(alice)
         .openPosition(
           alice.address,
           marketId,
-          40,
-          50,
+          100400,
+          100500,
           SMALL_QUANTITY * 2n,
-          ethers.parseUnits("100", 6)
+          ethers.parseUnits("100", USDC_DECIMALS)
         );
 
-      const largeTickValue = await core.getTickValue(marketId, 45);
+      const largeTickValue = await core.getTickValue(marketId, 100450);
 
       // Larger quantity should result in larger tick values
       expect(largeTickValue).to.be.gt(smallTickValue);
@@ -384,7 +366,7 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
       );
 
       // Get initial sum (should be tick_count * WAD)
-      const initialSum = await core.getTickValue(marketId, 0); // This gets one tick value
+      const initialSum = await core.getTickValue(marketId, 100000); // This gets one tick value
 
       // Execute multiple buys and verify sum increases
       for (let i = 0; i < 3; i++) {
@@ -393,13 +375,13 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
           .openPosition(
             alice.address,
             marketId,
-            10 + i * 10,
-            20 + i * 10,
+            100100 + i * 100,
+            100200 + i * 100,
             SMALL_QUANTITY,
-            ethers.parseUnits("100", 6)
+            ethers.parseUnits("100", USDC_DECIMALS)
           );
 
-        const newSum = await core.getTickValue(marketId, 10 + i * 10);
+        const newSum = await core.getTickValue(marketId, 100100 + i * 100);
         expect(newSum).to.be.gte(WAD); // Should be at least WAD
       }
     });
@@ -417,10 +399,10 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
           .openPosition(
             alice.address,
             marketId,
-            10 + i * 10,
-            20 + i * 10,
+            100100 + i * 100,
+            100200 + i * 100,
             MEDIUM_QUANTITY,
-            ethers.parseUnits("100", 6)
+            ethers.parseUnits("100", USDC_DECIMALS)
           );
         // Get position ID from MockPosition
         const userPositions = await mockPosition.getPositionsByOwner(
@@ -430,12 +412,12 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
       }
 
       // Now sell positions and verify sum decreases
-      let previousTickValue = await core.getTickValue(marketId, 15);
+      let previousTickValue = await core.getTickValue(marketId, 100150);
 
       for (const positionId of positions) {
         await core.connect(alice).closePosition(positionId, 0);
 
-        const newTickValue = await core.getTickValue(marketId, 15);
+        const newTickValue = await core.getTickValue(marketId, 100150);
         // After selling, tick value should decrease or stay same
         expect(newTickValue).to.be.lte(previousTickValue);
         previousTickValue = newTickValue;
@@ -453,17 +435,17 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
         .openPosition(
           alice.address,
           marketId,
-          40,
-          60,
+          100400,
+          100600,
           MEDIUM_QUANTITY,
-          ethers.parseUnits("100", 6)
+          ethers.parseUnits("100", USDC_DECIMALS)
         );
       await tx.wait();
       // Get position ID from MockPosition
       const positions = await mockPosition.getPositionsByOwner(alice.address);
       const positionId = Number(positions[positions.length - 1]);
 
-      const sumAfterOpen = await core.getTickValue(marketId, 50);
+      const sumAfterOpen = await core.getTickValue(marketId, 100500);
 
       // Increase position
       await core
@@ -471,14 +453,14 @@ describe(`${INVARIANT_TAG} Segment Tree Sum Invariants`, function () {
         .increasePosition(
           positionId,
           SMALL_QUANTITY,
-          ethers.parseUnits("100", 6)
+          ethers.parseUnits("100", USDC_DECIMALS)
         );
-      const sumAfterIncrease = await core.getTickValue(marketId, 50);
+      const sumAfterIncrease = await core.getTickValue(marketId, 100500);
       expect(sumAfterIncrease).to.be.gte(sumAfterOpen);
 
       // Decrease position
       await core.connect(alice).decreasePosition(positionId, SMALL_QUANTITY, 0);
-      const sumAfterDecrease = await core.getTickValue(marketId, 50);
+      const sumAfterDecrease = await core.getTickValue(marketId, 100500);
       expect(sumAfterDecrease).to.be.lte(sumAfterIncrease);
 
       // Should be back to approximately original sum

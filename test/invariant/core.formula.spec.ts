@@ -30,8 +30,8 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
         .openPosition(
           alice.address,
           marketId,
-          45,
-          55,
+          100450,
+          100550,
           MEDIUM_QUANTITY,
           EXTREME_COST
         );
@@ -73,20 +73,20 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
 
       const cost1 = await core.calculateOpenCost(
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         baseQuantity
       );
       const cost2 = await core.calculateOpenCost(
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         doubleQuantity
       );
       const cost3 = await core.calculateOpenCost(
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         tripleQuantity
       );
 
@@ -105,8 +105,8 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
       const { core, marketId } = await loadFixture(createActiveMarketFixture);
 
       const quantity = SMALL_QUANTITY;
-      const lowerTick = 45;
-      const upperTick = 55;
+      const lowerTick = 100450;
+      const upperTick = 100550;
 
       // Get actual cost from contract
       const actualCost = await core.calculateOpenCost(
@@ -131,8 +131,8 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
       // Cost should increase with range width
       const widerCost = await core.calculateOpenCost(
         marketId,
-        40,
-        60,
+        100400,
+        100600,
         quantity
       );
       expect(widerCost).to.be.gt(actualCost);
@@ -152,14 +152,14 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
       // Calculate costs for different quantities
       const cost1 = await core.calculateOpenCost(
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         baseQuantity
       );
       const cost2 = await core.calculateOpenCost(
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         doubleQuantity
       );
 
@@ -183,17 +183,25 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
       // Create markets with different liquidity parameters
       await core
         .connect(keeper)
-        .createMarket(1, TICK_COUNT, startTime, endTime, lowAlpha);
+        .createMarket(
+          Math.floor(Math.random() * 1000000) + 1,
+          100000,
+          100990,
+          10,
+          startTime,
+          endTime,
+          lowAlpha
+        );
 
       await core
         .connect(keeper)
-        .createMarket(2, TICK_COUNT, startTime, endTime, highAlpha);
+        .createMarket(2, 100000, 100990, 10, startTime, endTime, highAlpha);
 
       await time.increaseTo(startTime + 1);
 
       const quantity = MEDIUM_QUANTITY;
-      const cost1 = await core.calculateOpenCost(1, 45, 55, quantity);
-      const cost2 = await core.calculateOpenCost(2, 45, 55, quantity);
+      const cost1 = await core.calculateOpenCost(1, 100450, 100550, quantity);
+      const cost2 = await core.calculateOpenCost(2, 100450, 100550, quantity);
 
       // Higher alpha should mean lower cost for same quantity
       expect(cost2).to.be.lt(cost1);
@@ -214,8 +222,8 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
         .openPosition(
           alice.address,
           marketId,
-          45,
-          55,
+          100450,
+          100550,
           smallQuantity,
           EXTREME_COST
         );
@@ -256,8 +264,8 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
         .openPosition(
           alice.address,
           marketId,
-          30,
-          70,
+          100300,
+          100700,
           largeQuantity,
           EXTREME_COST
         );
@@ -293,8 +301,8 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
 
       const cost = await core.calculateOpenCost(
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         verySmallQuantity
       );
 
@@ -313,8 +321,8 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
         core.connect(alice).openPosition(
           alice.address,
           marketId,
-          45,
-          55,
+          100450,
+          100550,
           largeQuantity,
           ethers.parseUnits("1000000", 6) // Use very large maxCost
         )
@@ -328,9 +336,9 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
 
       // Test various tick ranges
       const ranges = [
-        { lower: 0, upper: 10 },
-        { lower: 45, upper: 55 },
-        { lower: 89, upper: 99 },
+        { lower: 100000, upper: 100010 },
+        { lower: 100450, upper: 100550 },
+        { lower: 100890, upper: 100990 },
       ];
 
       for (const range of ranges) {
@@ -342,8 +350,8 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
         );
         expect(cost).to.be.gt(0);
 
-        // Cost should be roughly proportional to range size
-        const rangeSize = range.upper - range.lower + 1;
+        // Cost should be roughly proportional to range size (considering tick spacing of 10)
+        const rangeSize = (range.upper - range.lower) / 10 + 1;
         expect(cost).to.be.gt(rangeSize * 1000); // Minimum cost proportional to range
       }
     });
@@ -356,8 +364,8 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
       // Single tick range
       const singleTickCost = await core.calculateOpenCost(
         marketId,
-        50,
-        50,
+        100500,
+        100500,
         quantity
       );
       expect(singleTickCost).to.be.gt(0);
@@ -365,15 +373,25 @@ describe(`${INVARIANT_TAG} CLMSR Formula Invariants`, function () {
       // Full range
       const fullRangeCost = await core.calculateOpenCost(
         marketId,
-        0,
-        TICK_COUNT - 1,
+        100000,
+        100990,
         quantity
       );
       expect(fullRangeCost).to.be.gt(singleTickCost);
 
       // Adjacent ranges should have similar costs
-      const cost1 = await core.calculateOpenCost(marketId, 40, 50, quantity);
-      const cost2 = await core.calculateOpenCost(marketId, 50, 60, quantity);
+      const cost1 = await core.calculateOpenCost(
+        marketId,
+        100400,
+        100500,
+        quantity
+      );
+      const cost2 = await core.calculateOpenCost(
+        marketId,
+        100500,
+        100600,
+        quantity
+      );
 
       const difference = cost1 > cost2 ? cost1 - cost2 : cost2 - cost1;
       const percentDiff = (difference * 100n) / cost1;

@@ -2,7 +2,7 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { COMPONENT_TAG } from "../../helpers/tags";
-import { coreFixture } from "../../helpers/fixtures/core";
+import { createActiveMarketFixture } from "../../helpers/fixtures/core";
 
 describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, function () {
   const WAD = ethers.parseEther("1");
@@ -15,7 +15,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
         mockPosition,
         fixedPointMathU,
         lazyMulSegmentTree,
-      } = await loadFixture(coreFixture);
+      } = await loadFixture(createActiveMarketFixture);
 
       expect(await core.getAddress()).to.not.equal(ethers.ZeroAddress);
       expect(await paymentToken.getAddress()).to.not.equal(ethers.ZeroAddress);
@@ -30,7 +30,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
 
     it("Should initialize core contract with correct parameters", async function () {
       const { core, paymentToken, mockPosition, keeper } = await loadFixture(
-        coreFixture
+        createActiveMarketFixture
       );
 
       expect(await core.getPaymentToken()).to.equal(
@@ -64,7 +64,9 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
     });
 
     it("Should verify contract state after deployment", async function () {
-      const { core, paymentToken } = await loadFixture(coreFixture);
+      const { core, paymentToken } = await loadFixture(
+        createActiveMarketFixture
+      );
 
       // Check basic state
       expect(await core.getPaymentToken()).to.equal(
@@ -80,7 +82,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
     });
 
     it("Should handle proper library linking verification", async function () {
-      const { core } = await loadFixture(coreFixture);
+      const { core } = await loadFixture(createActiveMarketFixture);
 
       // Verify libraries are properly linked by calling library-dependent functions
       await expect(core.getMarket(1)).to.be.revertedWithCustomError(
@@ -96,7 +98,9 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
 
   describe("Initial Configuration", function () {
     it("Should have tokens approved for users", async function () {
-      const { core, paymentToken, alice, bob } = await loadFixture(coreFixture);
+      const { core, paymentToken, alice, bob } = await loadFixture(
+        createActiveMarketFixture
+      );
 
       const coreAddress = await core.getAddress();
       expect(await paymentToken.allowance(alice.address, coreAddress)).to.equal(
@@ -109,7 +113,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
 
     it("Should have correct token balances", async function () {
       const { paymentToken, alice, bob, charlie } = await loadFixture(
-        coreFixture
+        createActiveMarketFixture
       );
 
       const expectedBalance = ethers.parseUnits("1000000000000", 6); // 1T USDC (INITIAL_SUPPLY)
@@ -125,7 +129,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
     });
 
     it("Should verify payment token properties", async function () {
-      const { paymentToken } = await loadFixture(coreFixture);
+      const { paymentToken } = await loadFixture(createActiveMarketFixture);
 
       expect(await paymentToken.name()).to.equal("USD Coin");
       expect(await paymentToken.symbol()).to.equal("USDC");
@@ -133,7 +137,9 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
     });
 
     it("Should link position contract correctly", async function () {
-      const { core, mockPosition } = await loadFixture(coreFixture);
+      const { core, mockPosition } = await loadFixture(
+        createActiveMarketFixture
+      );
 
       expect(await mockPosition.coreContract()).to.equal(
         await core.getAddress()
@@ -143,19 +149,19 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
 
   describe("Access Control Setup", function () {
     it("Should set keeper as manager", async function () {
-      const { core, keeper } = await loadFixture(coreFixture);
+      const { core, keeper } = await loadFixture(createActiveMarketFixture);
 
       expect(await core.getManagerContract()).to.equal(keeper.address);
     });
 
     it("Should verify initial paused state", async function () {
-      const { core } = await loadFixture(coreFixture);
+      const { core } = await loadFixture(createActiveMarketFixture);
 
       expect(await core.isPaused()).to.be.false;
     });
 
     it("Should allow keeper to pause/unpause", async function () {
-      const { core, keeper } = await loadFixture(coreFixture);
+      const { core, keeper } = await loadFixture(createActiveMarketFixture);
 
       await core.connect(keeper).pause("Test pause");
       expect(await core.isPaused()).to.be.true;
@@ -165,7 +171,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
     });
 
     it("Should prevent non-keeper from pause operations", async function () {
-      const { core, alice } = await loadFixture(coreFixture);
+      const { core, alice } = await loadFixture(createActiveMarketFixture);
 
       await expect(
         core.connect(alice).pause("Unauthorized")
@@ -180,7 +186,9 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
 
   describe("Contract Interaction Setup", function () {
     it("Should properly link position contract", async function () {
-      const { core, mockPosition } = await loadFixture(coreFixture);
+      const { core, mockPosition } = await loadFixture(
+        createActiveMarketFixture
+      );
 
       const linkedPosition = await core.getPositionContract();
       expect(linkedPosition).to.equal(await mockPosition.getAddress());
@@ -192,7 +200,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
     });
 
     it("Should handle library function calls correctly", async function () {
-      const { core } = await loadFixture(coreFixture);
+      const { core } = await loadFixture(createActiveMarketFixture);
 
       // These calls should work if libraries are properly linked
       // (will revert for business logic reasons, not linking issues)
@@ -203,7 +211,9 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
     });
 
     it("Should verify payment token integration", async function () {
-      const { core, paymentToken } = await loadFixture(coreFixture);
+      const { core, paymentToken } = await loadFixture(
+        createActiveMarketFixture
+      );
 
       expect(await core.getPaymentToken()).to.equal(
         await paymentToken.getAddress()
@@ -217,7 +227,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
 
   describe("Error Handling", function () {
     it("Should handle basic error scenarios", async function () {
-      const { core } = await loadFixture(coreFixture);
+      const { core } = await loadFixture(createActiveMarketFixture);
 
       // Market not found
       await expect(core.getMarket(999)).to.be.revertedWithCustomError(
@@ -235,7 +245,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
 
   describe("Gas and Performance", function () {
     it("Should deploy within gas limits", async function () {
-      const { core } = await loadFixture(coreFixture);
+      const { core } = await loadFixture(createActiveMarketFixture);
 
       const deploymentTx = core.deploymentTransaction();
       expect(deploymentTx).to.not.be.null;
@@ -247,7 +257,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
     });
 
     it("Should have reasonable contract size", async function () {
-      const { core } = await loadFixture(coreFixture);
+      const { core } = await loadFixture(createActiveMarketFixture);
 
       const code = await ethers.provider.getCode(await core.getAddress());
       const sizeInBytes = (code.length - 2) / 2;
@@ -260,8 +270,8 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
       // loadFixture caches deployments in the same test run
       // This is expected behavior - different tests get fresh deployments
       // but multiple loadFixtures in the same test return cached instances
-      const contracts1 = await loadFixture(coreFixture);
-      const contracts2 = await loadFixture(coreFixture);
+      const contracts1 = await loadFixture(createActiveMarketFixture);
+      const contracts2 = await loadFixture(createActiveMarketFixture);
 
       // They should be the same due to fixture caching
       expect(await contracts1.core.getAddress()).to.equal(
@@ -275,7 +285,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
 
     it("Should verify all required contracts are functional", async function () {
       const { core, paymentToken, mockPosition, keeper } = await loadFixture(
-        coreFixture
+        createActiveMarketFixture
       );
 
       // Test core functionality
@@ -299,7 +309,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
   describe("Contract Deployment from Original", function () {
     it("Should deploy all contracts successfully with linked libraries", async function () {
       const { core, paymentToken, mockPosition } = await loadFixture(
-        coreFixture
+        createActiveMarketFixture
       );
 
       expect(await core.getAddress()).to.not.equal(ethers.ZeroAddress);
@@ -309,7 +319,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
 
     it("Should initialize core contract with correct parameters", async function () {
       const { core, paymentToken, mockPosition, keeper } = await loadFixture(
-        coreFixture
+        createActiveMarketFixture
       );
 
       expect(await core.getPaymentToken()).to.equal(
@@ -323,7 +333,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
     });
 
     it("Should demonstrate contract size reduction with external libraries", async function () {
-      const { core } = await loadFixture(coreFixture);
+      const { core } = await loadFixture(createActiveMarketFixture);
 
       const code = await ethers.provider.getCode(await core.getAddress());
       const sizeInBytes = (code.length - 2) / 2;

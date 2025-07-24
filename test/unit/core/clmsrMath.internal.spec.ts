@@ -18,8 +18,8 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
 
       const cost = await core.calculateOpenCost(
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         MEDIUM_QUANTITY
       );
 
@@ -38,8 +38,8 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
         .openPosition(
           alice.address,
           marketId,
-          45,
-          55,
+          100450,
+          100550,
           MEDIUM_QUANTITY,
           MEDIUM_COST
         );
@@ -62,8 +62,8 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
         .openPosition(
           alice.address,
           marketId,
-          45,
-          55,
+          100450,
+          100550,
           MEDIUM_QUANTITY,
           MEDIUM_COST
         );
@@ -89,8 +89,8 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
         .openPosition(
           alice.address,
           marketId,
-          45,
-          55,
+          100450,
+          100550,
           MEDIUM_QUANTITY,
           MEDIUM_COST
         );
@@ -109,9 +109,9 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
 
       // Test various tick ranges
       const ranges = [
-        { lower: 10, upper: 20 },
-        { lower: 40, upper: 60 },
-        { lower: 80, upper: 90 },
+        { lower: 100100, upper: 100200 },
+        { lower: 100400, upper: 100600 },
+        { lower: 100800, upper: 100900 },
       ];
 
       for (const range of ranges) {
@@ -130,8 +130,8 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
 
       const cost = await core.calculateOpenCost(
         marketId,
-        50,
-        50, // Single tick
+        100500,
+        100500, // Single tick
         SMALL_QUANTITY
       );
 
@@ -143,8 +143,8 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
 
       const cost = await core.calculateOpenCost(
         marketId,
-        0,
-        TICK_COUNT - 1, // Full range
+        100000,
+        100990, // Full range
         LARGE_QUANTITY
       );
 
@@ -157,15 +157,15 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
 
       const smallCost = await core.calculateOpenCost(
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         SMALL_QUANTITY
       );
 
       const largeCost = await core.calculateOpenCost(
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         SMALL_QUANTITY * 10n
       );
 
@@ -179,9 +179,10 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
     it("Should handle zero quantity edge case", async function () {
       const { core, marketId } = await loadFixture(createActiveMarketFixture);
 
-      // Zero quantity should return zero cost (not error)
-      const cost = await core.calculateOpenCost(marketId, 45, 55, 0);
-      expect(cost).to.equal(0);
+      // Zero quantity should revert with InvalidQuantity
+      await expect(
+        core.calculateOpenCost(marketId, 100450, 100550, 0)
+      ).to.be.revertedWithCustomError(core, "InvalidQuantity");
     });
 
     it("Should handle invalid tick ranges", async function () {
@@ -206,8 +207,8 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
 
       const cost = await core.calculateOpenCost(
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         1 // 1 wei
       );
 
@@ -222,14 +223,14 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
       // Test narrow range
       const cost1 = await core.calculateOpenCost(
         marketId,
-        49,
-        51,
+        100490,
+        100510,
         SMALL_QUANTITY
       );
       const cost2 = await core.calculateOpenCost(
         marketId,
-        50,
-        50,
+        100500,
+        100500,
         SMALL_QUANTITY
       );
 
@@ -242,14 +243,14 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
       // Test boundary ticks
       const costFirst = await core.calculateOpenCost(
         marketId,
-        0,
-        0,
+        100000,
+        100000,
         SMALL_QUANTITY
       );
       const costLast = await core.calculateOpenCost(
         marketId,
-        TICK_COUNT - 1,
-        TICK_COUNT - 1,
+        100990,
+        100990,
         SMALL_QUANTITY
       );
 
@@ -268,8 +269,8 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
         .openPosition(
           alice.address,
           marketId,
-          45,
-          55,
+          100450,
+          100550,
           MEDIUM_QUANTITY,
           MEDIUM_COST
         );
@@ -302,20 +303,20 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
       // Cost should increase with quantity (convexity)
       const cost1 = await core.calculateOpenCost(
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         baseQuantity
       );
       const cost2 = await core.calculateOpenCost(
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         baseQuantity * 2n
       );
       const cost3 = await core.calculateOpenCost(
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         baseQuantity * 4n
       );
 
@@ -333,22 +334,22 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
       // Compare single large range vs two smaller ranges
       const fullRangeCost = await core.calculateOpenCost(
         marketId,
-        40,
-        60,
+        100400,
+        100600,
         SMALL_QUANTITY
       );
 
       const leftRangeCost = await core.calculateOpenCost(
         marketId,
-        40,
-        50,
+        100400,
+        100500,
         SMALL_QUANTITY
       );
 
       const rightRangeCost = await core.calculateOpenCost(
         marketId,
-        51,
-        60,
+        100510,
+        100600,
         SMALL_QUANTITY
       );
 

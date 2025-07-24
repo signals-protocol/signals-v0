@@ -1,39 +1,15 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { coreFixture } from "../../helpers/fixtures/core";
+import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { createActiveMarketFixture } from "../../helpers/fixtures/core";
 import { INTEGRATION_TAG } from "../../helpers/tags";
 
 describe(`${INTEGRATION_TAG} Position Increase`, function () {
   const SMALL_QUANTITY = ethers.parseUnits("0.01", 6); // 0.01 USDC
   const MEDIUM_QUANTITY = ethers.parseUnits("0.05", 6); // 0.05 USDC
   const MEDIUM_COST = ethers.parseUnits("5", 6); // 5 USDC
-  const TICK_COUNT = 100;
 
-  async function createActiveMarketFixture() {
-    const contracts = await loadFixture(coreFixture);
-    const { core, keeper } = contracts;
-
-    const currentTime = await time.latest();
-    const startTime = currentTime + 100;
-    const endTime = startTime + 7 * 24 * 60 * 60; // 7 days
-    const marketId = 1;
-
-    await core
-      .connect(keeper)
-      .createMarket(
-        marketId,
-        TICK_COUNT,
-        startTime,
-        endTime,
-        ethers.parseEther("1")
-      );
-    await time.increaseTo(startTime + 1);
-
-    return { ...contracts, marketId, startTime, endTime };
-  }
-
-  it("Should increase pos ition quantity", async function () {
+  it("Should increase position quantity successfully", async function () {
     const { core, alice, paymentToken, mockPosition, marketId } =
       await loadFixture(createActiveMarketFixture);
 
@@ -42,8 +18,8 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
       .openPosition(
         alice.address,
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         MEDIUM_QUANTITY,
         MEDIUM_COST
       );
@@ -91,8 +67,8 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
       .openPosition(
         alice.address,
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         MEDIUM_QUANTITY,
         MEDIUM_COST
       );
@@ -116,8 +92,8 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
       .openPosition(
         alice.address,
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         MEDIUM_QUANTITY,
         MEDIUM_COST
       );
@@ -148,8 +124,8 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
       .openPosition(
         alice.address,
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         MEDIUM_QUANTITY,
         MEDIUM_COST
       );
@@ -176,8 +152,8 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
     await core.connect(alice).openPosition(
       alice.address,
       marketId,
-      45,
-      55,
+      100450,
+      100550,
       ethers.parseUnits("0.1", 6), // Large quantity
       ethers.parseUnits("10", 6) // Large cost
     );
@@ -199,8 +175,8 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
     // Create position first
     const tradeParams = {
       marketId: marketId,
-      lowerTick: 45,
-      upperTick: 55,
+      lowerTick: 100450, // 새 틱 시스템 (45번째 → 100450)
+      upperTick: 100550, // 새 틱 시스템 (55번째 → 100550)
       quantity: MEDIUM_QUANTITY,
       maxCost: MEDIUM_COST,
     };

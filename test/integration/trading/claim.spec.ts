@@ -22,8 +22,8 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
       .openPosition(
         alice.address,
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         MEDIUM_QUANTITY,
         MEDIUM_COST
       );
@@ -32,7 +32,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     const positionId = positions[0];
 
     // Settle market with winning tick
-    await core.connect(keeper).settleMarket(marketId, 49, 50);
+    await core.connect(keeper).settleMarket(marketId, 100490, 100500);
 
     // Claim position
     await expect(core.connect(alice).claimPayout(positionId)).to.emit(
@@ -56,8 +56,8 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
       .openPosition(
         alice.address,
         marketId,
-        10,
-        20,
+        100010,
+        100020,
         MEDIUM_QUANTITY,
         MEDIUM_COST
       );
@@ -66,7 +66,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     const positionId = positions[0];
 
     // Settle market with winning tick outside position range
-    await core.connect(keeper).settleMarket(marketId, 49, 50);
+    await core.connect(keeper).settleMarket(marketId, 100490, 100500);
 
     // Claim should emit event with zero payout
     await expect(core.connect(alice).claimPayout(positionId))
@@ -95,8 +95,8 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
       .openPosition(
         alice.address,
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         MEDIUM_QUANTITY,
         MEDIUM_COST
       );
@@ -120,8 +120,8 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
       .openPosition(
         alice.address,
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         MEDIUM_QUANTITY,
         MEDIUM_COST
       );
@@ -130,7 +130,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     const positionId = positions[0];
 
     // Settle market
-    await core.connect(keeper).settleMarket(marketId, 49, 50);
+    await core.connect(keeper).settleMarket(marketId, 100490, 100500);
 
     // First claim should succeed
     await core.connect(alice).claimPayout(positionId);
@@ -151,8 +151,8 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
       .openPosition(
         alice.address,
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         MEDIUM_QUANTITY,
         MEDIUM_COST
       );
@@ -161,7 +161,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     const positionId = positions[0];
 
     // Settle market
-    await core.connect(keeper).settleMarket(marketId, 49, 50);
+    await core.connect(keeper).settleMarket(marketId, 100490, 100500);
 
     const payout = await core.calculateClaimAmount(positionId);
     expect(payout).to.be.gt(0);
@@ -181,8 +181,8 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
       .openPosition(
         alice.address,
         marketId,
-        48,
-        52,
+        100480,
+        100520,
         MEDIUM_QUANTITY,
         MEDIUM_COST
       );
@@ -191,7 +191,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     const positionId = positions[0];
 
     // Settle market
-    await core.connect(keeper).settleMarket(marketId, 49, 50);
+    await core.connect(keeper).settleMarket(marketId, 100490, 100500);
 
     const payout = await core.calculateClaimAmount(positionId);
     expect(payout).to.be.gt(0);
@@ -210,8 +210,8 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
       .openPosition(
         alice.address,
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         MEDIUM_QUANTITY,
         MEDIUM_COST
       );
@@ -222,14 +222,14 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
       .openPosition(
         bob.address,
         marketId,
-        10,
-        20,
+        100010,
+        100020,
         MEDIUM_QUANTITY,
         MEDIUM_COST
       );
 
     // Settle market
-    await core.connect(keeper).settleMarket(marketId, 49, 50);
+    await core.connect(keeper).settleMarket(marketId, 100490, 100500);
 
     const alicePositions = await mockPosition.getPositionsByOwner(
       alice.address
@@ -254,8 +254,8 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
       .openPosition(
         alice.address,
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         MEDIUM_QUANTITY,
         MEDIUM_COST
       );
@@ -264,7 +264,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     const positionId = positions[0];
 
     // Settle market
-    await core.connect(keeper).settleMarket(marketId, 49, 50);
+    await core.connect(keeper).settleMarket(marketId, 100490, 100500);
 
     // Claim should emit PositionClaimed event
     await expect(core.connect(alice).claimPayout(positionId))
@@ -283,8 +283,8 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
       .openPosition(
         alice.address,
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         SMALL_QUANTITY,
         MEDIUM_COST
       );
@@ -293,7 +293,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     const positionId = positions[0];
 
     // Settle market with winning tick
-    await core.connect(keeper).settleMarket(marketId, 49, 50);
+    await core.connect(keeper).settleMarket(marketId, 100490, 100500);
 
     // First claim should succeed
     await expect(core.connect(alice).claimPayout(positionId)).to.not.be
@@ -316,8 +316,8 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
       .openPosition(
         alice.address,
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         SMALL_QUANTITY,
         MEDIUM_COST
       );
@@ -326,7 +326,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     const positionId = positions[0];
 
     // Settle market with losing tick (outside position range)
-    await core.connect(keeper).settleMarket(marketId, 79, 80);
+    await core.connect(keeper).settleMarket(marketId, 100790, 100800);
 
     // Claim should succeed with zero payout
     await expect(core.connect(alice).claimPayout(positionId))

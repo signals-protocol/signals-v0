@@ -16,8 +16,8 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
     // Create initial position
     const tradeParams = {
       marketId: marketId,
-      lowerTick: 45,
-      upperTick: 55,
+      lowerTick: 100450,
+      upperTick: 100550,
       quantity: MEDIUM_QUANTITY,
       maxCost: MEDIUM_COST,
     };
@@ -76,8 +76,8 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
       .openPosition(
         alice.address,
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         MEDIUM_QUANTITY,
         MEDIUM_COST
       );
@@ -101,8 +101,8 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
       .openPosition(
         alice.address,
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         SMALL_QUANTITY,
         MEDIUM_COST
       );
@@ -130,8 +130,8 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
       .openPosition(
         alice.address,
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         MEDIUM_QUANTITY,
         MEDIUM_COST
       );
@@ -165,8 +165,8 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
       .openPosition(
         alice.address,
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         MEDIUM_QUANTITY,
         MEDIUM_COST
       );
@@ -190,8 +190,8 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
     // Create position first
     const tradeParams = {
       marketId: marketId,
-      lowerTick: 45,
-      upperTick: 55,
+      lowerTick: 100450,
+      upperTick: 100550,
       quantity: MEDIUM_QUANTITY,
       maxCost: MEDIUM_COST,
     };
@@ -227,8 +227,8 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
       .openPosition(
         alice.address,
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         ethers.parseUnits("0.1", 6),
         ethers.parseUnits("10", 6)
       );
@@ -252,8 +252,8 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
       .openPosition(
         alice.address,
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         ethers.parseUnits("0.1", 6),
         ethers.parseUnits("10", 6)
       );
@@ -286,8 +286,8 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
       .openPosition(
         alice.address,
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         SMALL_QUANTITY,
         MEDIUM_COST
       );

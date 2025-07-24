@@ -2,8 +2,8 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import {
-  coreFixture,
   createActiveMarketFixture,
+  coreFixture,
 } from "../../helpers/fixtures/core";
 import { INTEGRATION_TAG } from "../../helpers/tags";
 
@@ -11,35 +11,20 @@ describe(`${INTEGRATION_TAG} Market Lifecycle`, function () {
   const ALPHA = ethers.parseEther("1");
   const TICK_COUNT = 100;
   const MARKET_DURATION = 7 * 24 * 60 * 60; // 7 days
+
+  // 표준 틱 시스템 파라미터
+  const MIN_TICK = 100000;
+  const MAX_TICK = 100990;
+  const TICK_SPACING = 10;
+
   const LARGE_QUANTITY = ethers.parseUnits("0.1", 6);
   const MEDIUM_QUANTITY = ethers.parseUnits("0.05", 6);
   const LARGE_COST = ethers.parseUnits("10", 6);
   const MEDIUM_COST = ethers.parseUnits("5", 6);
 
-  async function createMarketFixture() {
-    const contracts = await loadFixture(coreFixture);
-    const { core, keeper } = contracts;
-
-    const currentTime = await time.latest();
-    const startTime = currentTime + 3600; // 1 hour from now
-    const endTime = startTime + MARKET_DURATION;
-    const marketId = 1;
-
-    await core
-      .connect(keeper)
-      .createMarket(marketId, TICK_COUNT, startTime, endTime, ALPHA);
-
-    return {
-      ...contracts,
-      marketId,
-      startTime,
-      endTime,
-    };
-  }
-
   it("Should handle complete market lifecycle", async function () {
     const { core, keeper, marketId, startTime, endTime } = await loadFixture(
-      createMarketFixture
+      createActiveMarketFixture
     );
 
     // 1. Market created (already done in fixture)
@@ -54,17 +39,17 @@ describe(`${INTEGRATION_TAG} Market Lifecycle`, function () {
 
     // 3. Market can be settled after end time
     await time.increaseTo(endTime + 1);
-    const winningTick = 42;
+    const winningTick = 100420;
     await core
       .connect(keeper)
-      .settleMarket(marketId, winningTick, winningTick + 1);
+      .settleMarket(marketId, winningTick, winningTick + 10);
 
     // 4. Market is settled and inactive
     market = await core.getMarket(marketId);
     expect(market.isActive).to.be.false;
     expect(market.settled).to.be.true;
     expect(market.settlementLowerTick).to.equal(winningTick);
-    expect(market.settlementUpperTick).to.equal(winningTick + 1);
+    expect(market.settlementUpperTick).to.equal(winningTick + 10);
   });
 
   it("Should handle multiple markets in different states", async function () {
@@ -84,11 +69,19 @@ describe(`${INTEGRATION_TAG} Market Lifecycle`, function () {
     for (const m of markets) {
       await core
         .connect(keeper)
-        .createMarket(m.id, TICK_COUNT, m.start, m.end, ALPHA);
+        .createMarket(
+          m.id,
+          MIN_TICK,
+          MAX_TICK,
+          TICK_SPACING,
+          m.start,
+          m.end,
+          ALPHA
+        );
     }
 
     // Settle first market
-    await core.connect(keeper).settleMarket(1, 10, 11);
+    await core.connect(keeper).settleMarket(1, 100100, 100110);
 
     // Check states
     let market1 = await core.getMarket(1);
@@ -103,7 +96,7 @@ describe(`${INTEGRATION_TAG} Market Lifecycle`, function () {
     expect(market3.isActive).to.be.true;
 
     // Settle second market
-    await core.connect(keeper).settleMarket(2, 20, 21);
+    await core.connect(keeper).settleMarket(2, 100200, 100210);
 
     market2 = await core.getMarket(2);
     expect(market2.settled).to.be.true;
@@ -126,8 +119,8 @@ describe(`${INTEGRATION_TAG} Market Lifecycle`, function () {
       .openPosition(
         alice.address,
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         LARGE_QUANTITY,
         LARGE_COST
       );
@@ -163,8 +156,8 @@ describe(`${INTEGRATION_TAG} Market Lifecycle`, function () {
       .openPosition(
         alice.address,
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         MEDIUM_QUANTITY,
         MEDIUM_COST
       );
@@ -173,7 +166,7 @@ describe(`${INTEGRATION_TAG} Market Lifecycle`, function () {
     const positionId = positions[0];
 
     // 2. Settle market
-    await core.connect(keeper).settleMarket(marketId, 50, 51);
+    await core.connect(keeper).settleMarket(marketId, 100500, 100510);
 
     // 3. Claim payout
     await expect(core.connect(alice).claimPayout(positionId)).to.emit(

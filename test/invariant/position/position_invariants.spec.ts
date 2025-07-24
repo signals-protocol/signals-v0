@@ -2,14 +2,14 @@ import { expect } from "chai";
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { ethers } from "hardhat";
 
-import { realPositionMarketFixture } from "../../helpers/fixtures/position";
+import { activePositionMarketFixture } from "../../helpers/fixtures/position";
 import { INVARIANT_TAG } from "../../helpers/tags";
 
 describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
   describe("Core Invariants", function () {
     it("should maintain total supply equals sum of all user balances", async function () {
       const { core, position, alice, bob, charlie, marketId } =
-        await loadFixture(realPositionMarketFixture);
+        await loadFixture(activePositionMarketFixture);
 
       // Initial state: total supply should be 0
       expect(await position.totalSupply()).to.equal(0);
@@ -25,10 +25,10 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
         const user = users[i % users.length];
         const params = {
           marketId,
-          lowerTick: 10 + i * 5,
-          upperTick: 20 + i * 5,
-          quantity: ethers.parseUnits((0.001 * (i + 1)).toString(), 6), // Much smaller quantities
-          maxCost: ethers.parseUnits("1", 6), // Reduced max cost
+          lowerTick: 100100 + i * 50,
+          upperTick: 100200 + i * 50,
+          quantity: ethers.parseUnits("0.01", 6), // Much smaller quantities
+          maxCost: ethers.parseUnits("10", 6), // Reduced max cost
         };
 
         const positionId = await core
@@ -108,7 +108,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
 
     it("should maintain position ID uniqueness and sequential assignment", async function () {
       const { core, position, alice, bob, charlie, marketId } =
-        await loadFixture(realPositionMarketFixture);
+        await loadFixture(activePositionMarketFixture);
 
       const positionIds = new Set();
       const users = [alice, bob, charlie];
@@ -118,10 +118,10 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
         const user = users[i % users.length];
         const params = {
           marketId,
-          lowerTick: 10 + i * 3,
-          upperTick: 20 + i * 3,
-          quantity: ethers.parseUnits("0.001", 6), // Much smaller quantity
-          maxCost: ethers.parseUnits("1", 6), // Reduced max cost
+          lowerTick: 100100 + i * 30,
+          upperTick: 100200 + i * 30,
+          quantity: ethers.parseUnits("0.01", 6), // Much smaller quantity
+          maxCost: ethers.parseUnits("10", 6), // Reduced max cost
         };
 
         const expectedId = await position.getNextId();
@@ -170,8 +170,8 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
       // Create new positions - should continue from where we left off
       const params = {
         marketId,
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100100,
+        upperTick: 100200,
         quantity: ethers.parseUnits("0.01", 6), // Much smaller quantity
         maxCost: ethers.parseUnits("10", 6),
       };
@@ -203,7 +203,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
 
     it("should maintain owner tracking consistency", async function () {
       const { core, position, alice, bob, charlie, marketId } =
-        await loadFixture(realPositionMarketFixture);
+        await loadFixture(activePositionMarketFixture);
 
       const users = [alice, bob, charlie];
       const positionIds = [];
@@ -213,8 +213,8 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
         const user = users[i % users.length];
         const params = {
           marketId,
-          lowerTick: 10 + i * 5,
-          upperTick: 20 + i * 5,
+          lowerTick: 100100 + i * 50,
+          upperTick: 100200 + i * 50,
           quantity: ethers.parseUnits("1", 6),
           maxCost: ethers.parseUnits("10", 6),
         };
@@ -333,7 +333,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
 
     it("should maintain market position tracking consistency", async function () {
       const { core, position, alice, bob, charlie, marketId } =
-        await loadFixture(realPositionMarketFixture);
+        await loadFixture(activePositionMarketFixture);
 
       const users = [alice, bob, charlie];
       const createdPositions = [];
@@ -343,10 +343,10 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
         const user = users[i % users.length];
         const params = {
           marketId,
-          lowerTick: 10 + i * 4,
-          upperTick: 25 + i * 4,
-          quantity: ethers.parseUnits("0.001", 6), // Much smaller quantity
-          maxCost: ethers.parseUnits("1", 6), // Reduced max cost
+          lowerTick: 100100 + i * 40,
+          upperTick: 100200 + i * 40,
+          quantity: ethers.parseUnits("0.01", 6), // Much smaller quantity
+          maxCost: ethers.parseUnits("10", 6), // Reduced max cost
         };
 
         const positionId = await core
@@ -372,9 +372,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
         createdPositions.push(positionId);
 
         // Verify market tracking invariant
-        const marketPositions = await position.getAllPositionsInMarket(
-          marketId
-        );
+        const marketPositions = await position.getMarketPositions(marketId);
         expect(marketPositions.length).to.equal(i + 1);
 
         // Verify all created positions are in the market list
@@ -397,7 +395,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
         .connect(charlie)
         .transferFrom(charlie.address, alice.address, createdPositions[2]);
 
-      let marketPositions = await position.getAllPositionsInMarket(marketId);
+      let marketPositions = await position.getMarketPositions(marketId);
       expect(marketPositions.length).to.equal(createdPositions.length);
 
       for (const posId of createdPositions) {
@@ -408,7 +406,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
       for (let i = 0; i < createdPositions.length; i++) {
         await core.connect(alice).closePosition(createdPositions[i], 0);
 
-        marketPositions = await position.getAllPositionsInMarket(marketId);
+        marketPositions = await position.getMarketPositions(marketId);
         expect(marketPositions.length).to.equal(
           createdPositions.length - (i + 1)
         );
@@ -423,9 +421,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
       }
 
       // Final state: market should have no positions
-      const finalMarketPositions = await position.getAllPositionsInMarket(
-        marketId
-      );
+      const finalMarketPositions = await position.getMarketPositions(marketId);
       expect(finalMarketPositions.length).to.equal(0);
     });
   });
@@ -433,16 +429,16 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
   describe("State Transition Invariants", function () {
     it("should maintain position data integrity during operations", async function () {
       const { core, position, alice, bob, marketId } = await loadFixture(
-        realPositionMarketFixture
+        activePositionMarketFixture
       );
 
       // Create position
       const params = {
         marketId,
-        lowerTick: 15,
-        upperTick: 35,
+        lowerTick: 100100,
+        upperTick: 100200,
         quantity: ethers.parseUnits("0.01", 6), // Much smaller to avoid chunking
-        maxCost: ethers.parseUnits("1", 6), // Reduced proportionally
+        maxCost: ethers.parseUnits("10", 6), // Reduced proportionally
       };
 
       const positionId = await core
@@ -469,8 +465,8 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
       // Verify initial state
       let posData = await position.getPosition(positionId);
       expect(posData.marketId).to.equal(marketId);
-      expect(posData.lowerTick).to.equal(15);
-      expect(posData.upperTick).to.equal(35);
+      expect(posData.lowerTick).to.equal(100100);
+      expect(posData.upperTick).to.equal(100200);
       expect(posData.quantity).to.equal(params.quantity);
 
       // Perform operations and verify invariants
@@ -513,8 +509,8 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
         // Verify invariants after each operation
         posData = await position.getPosition(positionId);
         expect(posData.marketId).to.equal(marketId); // Market ID never changes
-        expect(posData.lowerTick).to.equal(15); // Tick range never changes
-        expect(posData.upperTick).to.equal(35); // Tick range never changes
+        expect(posData.lowerTick).to.equal(100100); // Tick range never changes
+        expect(posData.upperTick).to.equal(100200); // Tick range never changes
         expect(posData.quantity).to.equal(expectedQuantity); // Quantity updated correctly
         expect(await position.ownerOf(positionId)).to.equal(expectedOwner); // Owner updated correctly
       }
@@ -534,7 +530,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
 
     it("should maintain approval state consistency", async function () {
       const { position, alice, bob, charlie, marketId } = await loadFixture(
-        realPositionMarketFixture
+        activePositionMarketFixture
       );
 
       const positionId = await createTestPosition(alice, marketId);
@@ -581,15 +577,15 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
 
     it("should maintain quantity conservation during operations", async function () {
       const { core, position, alice, marketId } = await loadFixture(
-        realPositionMarketFixture
+        activePositionMarketFixture
       );
 
       // Create position with known quantity
       const initialQuantity = ethers.parseUnits("0.1", 6); // Reduced from 100 to 0.1 USDC
       const params = {
         marketId,
-        lowerTick: 10,
-        upperTick: 30,
+        lowerTick: 100100,
+        upperTick: 100200,
         quantity: initialQuantity,
         maxCost: ethers.parseUnits("10", 6), // Reduced proportionally
       };
@@ -673,7 +669,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
   describe("Security Invariants", function () {
     it("should maintain access control invariants", async function () {
       const { core, position, alice, bob, marketId } = await loadFixture(
-        realPositionMarketFixture
+        activePositionMarketFixture
       );
 
       const positionId = await createTestPosition(alice, marketId);
@@ -729,7 +725,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
 
     it("should prevent unauthorized state modifications", async function () {
       const { position, alice, bob, charlie, marketId } = await loadFixture(
-        realPositionMarketFixture
+        activePositionMarketFixture
       );
 
       const positionId = await createTestPosition(alice, marketId);
@@ -770,15 +766,15 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
 
     it("should maintain data consistency under concurrent operations", async function () {
       const { core, position, alice, bob, charlie, marketId } =
-        await loadFixture(realPositionMarketFixture);
+        await loadFixture(activePositionMarketFixture);
 
       // Create multiple positions
       const positionIds: bigint[] = [];
       for (let i = 0; i < 5; i++) {
         const params = {
           marketId,
-          lowerTick: 10 + i * 5,
-          upperTick: 25 + i * 5,
+          lowerTick: 100100 + i * 50,
+          upperTick: 100200 + i * 50,
           quantity: ethers.parseUnits("0.1", 6), // Increased to 0.1 to provide more buffer
           maxCost: ethers.parseUnits("10", 6), // Increased proportionally
         };
@@ -894,12 +890,12 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
 
   // Helper function to create a test position
   async function createTestPosition(user: any, marketId: any) {
-    const { core, alice } = await loadFixture(realPositionMarketFixture);
+    const { core, alice } = await loadFixture(activePositionMarketFixture);
 
     const params = {
       marketId,
-      lowerTick: 10,
-      upperTick: 20,
+      lowerTick: 100100,
+      upperTick: 100200,
       quantity: ethers.parseUnits("0.01", 6), // Reduced from 5 to 0.01
       maxCost: ethers.parseUnits("10", 6), // Reduced from 50 to 10
     };

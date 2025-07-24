@@ -18,9 +18,12 @@ type EmergencyUnpaused @entity(immutable: true) {
 type MarketCreated @entity(immutable: true) {
   id: Bytes!
   marketId: BigInt! # uint256
+  minTick: BigInt! # int256
+  maxTick: BigInt! # int256
+  tickSpacing: BigInt! # int256
   startTimestamp: BigInt! # uint64
   endTimestamp: BigInt! # uint64
-  numTicks: BigInt! # uint32
+  numTicks: BigInt! # uint32 (calculated from tick range)
   liquidityParameter: BigInt! # uint256
   blockNumber: BigInt!
   blockTimestamp: BigInt!
@@ -30,8 +33,8 @@ type MarketCreated @entity(immutable: true) {
 type MarketSettled @entity(immutable: true) {
   id: Bytes!
   marketId: BigInt! # uint256
-  settlementLowerTick: BigInt! # uint32
-  settlementUpperTick: BigInt! # uint32
+  settlementLowerTick: BigInt! # int256
+  settlementUpperTick: BigInt! # int256
   blockNumber: BigInt!
   blockTimestamp: BigInt!
   transactionHash: Bytes!
@@ -86,8 +89,8 @@ type PositionOpened @entity(immutable: true) {
   positionId: BigInt! # uint256
   trader: Bytes! # address
   marketId: BigInt! # uint256
-  lowerTick: BigInt! # uint32
-  upperTick: BigInt! # uint32
+  lowerTick: BigInt! # int256
+  upperTick: BigInt! # int256
   quantity: BigInt! # uint128
   cost: BigInt! # uint256
   blockNumber: BigInt!
@@ -98,8 +101,8 @@ type PositionOpened @entity(immutable: true) {
 type RangeFactorApplied @entity(immutable: true) {
   id: Bytes!
   marketId: BigInt! # uint256
-  lo: BigInt! # uint32
-  hi: BigInt! # uint32
+  lo: BigInt! # int256
+  hi: BigInt! # int256
   factor: BigInt! # uint256
   blockNumber: BigInt!
   blockTimestamp: BigInt!
@@ -110,22 +113,26 @@ type RangeFactorApplied @entity(immutable: true) {
 type Market @entity(immutable: false) {
   id: String! # marketId
   marketId: BigInt!
+  minTick: BigInt! # int256 - 최소 틱 값
+  maxTick: BigInt! # int256 - 최대 틱 값
+  tickSpacing: BigInt! # int256 - 틱 간격
   startTimestamp: BigInt!
   endTimestamp: BigInt!
-  numTicks: BigInt!
+  numTicks: BigInt! # uint32 - 계산된 틱 개수
   liquidityParameter: BigInt!
   isSettled: Boolean!
-  settlementLowerTick: BigInt
-  settlementUpperTick: BigInt
+  settlementLowerTick: BigInt # int256
+  settlementUpperTick: BigInt # int256
   lastUpdated: BigInt!
   ticks: [TickState!]! @derivedFrom(field: "market")
 }
 
-# 각 틱의 현재 factor 상태
+# 각 틱의 현재 factor 상태 (실제 틱 값 기준)
 type TickState @entity(immutable: false) {
-  id: String! # marketId-tickNumber
+  id: String! # marketId-tickValue
   market: Market!
-  tickNumber: BigInt!
+  tickValue: BigInt! # int256 - 실제 틱 값 (예: 100500)
+  tickIndex: BigInt! # uint32 - 세그먼트 트리 인덱스 (0-based)
   currentFactor: BigDecimal! # 현재 누적 factor 값
   lastUpdated: BigInt!
   updateCount: BigInt! # 업데이트된 횟수
@@ -135,8 +142,8 @@ type TickState @entity(immutable: false) {
 type TickRange @entity(immutable: false) {
   id: String! # marketId-lowerTick-upperTick
   market: Market!
-  lowerTick: BigInt!
-  upperTick: BigInt!
+  lowerTick: BigInt! # int256 - 실제 틱 값
+  upperTick: BigInt! # int256 - 실제 틱 값
   currentFactor: BigDecimal! # 현재 누적 factor 값
   lastUpdated: BigInt!
   updateCount: BigInt! # 업데이트된 횟수

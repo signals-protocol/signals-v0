@@ -10,7 +10,7 @@ import {
 } from "./core";
 
 /**
- * Position fixture - MockPosition for integration tests
+ * Position fixture - CLMSRPosition contract for complex testing
  */
 export async function positionFixture() {
   const baseFixture = await unitFixture();
@@ -72,9 +72,9 @@ export async function positionFixture() {
 }
 
 /**
- * Real Position fixture - Actual CLMSRPosition contract for unit tests
+ * Active Position fixture - Actual CLMSRPosition contract for unit tests
  */
-export async function realPositionFixture() {
+export async function activePositionFixture() {
   const baseFixture = await unitFixture();
   const { keeper, alice, bob, charlie } = baseFixture;
 
@@ -153,7 +153,7 @@ export async function realPositionFixture() {
 }
 
 /**
- * Position market fixture - Position + active market
+ * Position market fixture - CLMSRPosition + active market
  */
 export async function positionMarketFixture() {
   const contracts = await positionFixture();
@@ -164,9 +164,22 @@ export async function positionMarketFixture() {
   const endTime = startTime + MARKET_DURATION;
   const marketId = 1;
 
+  // 새로운 틱 시스템 사용
+  const minTick = 100000;
+  const maxTick = minTick + (TICK_COUNT - 1) * 10;
+  const tickSpacing = 10;
+
   await core
     .connect(keeper)
-    .createMarket(marketId, TICK_COUNT, startTime, endTime, ALPHA);
+    .createMarket(
+      marketId,
+      minTick,
+      maxTick,
+      tickSpacing,
+      startTime,
+      endTime,
+      ALPHA
+    );
 
   // Move to market start time
   await time.increaseTo(startTime + 1);
@@ -180,10 +193,10 @@ export async function positionMarketFixture() {
 }
 
 /**
- * Real Position market fixture - Real CLMSRPosition + active market
+ * Active Position market fixture - CLMSRPosition + active market
  */
-export async function realPositionMarketFixture() {
-  const contracts = await realPositionFixture();
+export async function activePositionMarketFixture() {
+  const contracts = await activePositionFixture();
   const { core, keeper } = contracts;
 
   const currentTime = await time.latest();
@@ -191,9 +204,24 @@ export async function realPositionMarketFixture() {
   const endTime = startTime + MARKET_DURATION;
   const marketId = 1;
 
+  // 새로운 틱 시스템 사용
+  const minTick = 100000;
+  const maxTick = minTick + (TICK_COUNT - 1) * 10;
+  const tickSpacing = 10;
+
   await core
     .connect(keeper)
-    .createMarket(marketId, TICK_COUNT, startTime, endTime, ALPHA);
+    .createMarket(
+      marketId,
+      minTick,
+      maxTick,
+      tickSpacing,
+      startTime,
+      endTime,
+      ALPHA
+    );
+
+  // LazyMulSegmentTree는 createMarket에서 자동 초기화됨
 
   // Move to market start time
   await time.increaseTo(startTime + 1);
@@ -287,8 +315,8 @@ export async function createTestPosition(
   contracts: Awaited<ReturnType<typeof positionFixture>>,
   user: any,
   marketId: number,
-  lowerTick: number = 10,
-  upperTick: number = 20,
+  lowerTick: number = 100100, // 실제 틱값으로 변경
+  upperTick: number = 100200, // 실제 틱값으로 변경
   quantity: bigint = ethers.parseUnits("0.01", 6)
 ) {
   // Ensure core exists
@@ -332,11 +360,11 @@ export async function createTestPosition(
  * Helper to create position with real CLMSRPosition contract
  */
 export async function createRealTestPosition(
-  contracts: Awaited<ReturnType<typeof realPositionFixture>>,
+  contracts: Awaited<ReturnType<typeof activePositionFixture>>,
   user: any,
   marketId: number,
-  lowerTick: number = 10,
-  upperTick: number = 20,
+  lowerTick: number = 100100,
+  upperTick: number = 100200,
   quantity: bigint = ethers.parseUnits("0.01", 6)
 ) {
   // Ensure core exists

@@ -2,15 +2,15 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import {
-  realPositionFixture,
-  realPositionMarketFixture,
+  activePositionFixture,
+  activePositionMarketFixture,
 } from "../../helpers/fixtures/position";
 import { UNIT_TAG } from "../../helpers/tags";
 
 describe(`${UNIT_TAG} Position Access Control`, function () {
   describe("Core Authorization", function () {
     it("should set core address correctly in constructor", async function () {
-      const { position, core } = await loadFixture(realPositionFixture);
+      const { position, core } = await loadFixture(activePositionFixture);
 
       expect(await position.getCoreContract()).to.equal(
         await core.getAddress()
@@ -29,25 +29,29 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
     });
 
     it("should identify authorized caller correctly", async function () {
-      const { position, core, alice } = await loadFixture(realPositionFixture);
+      const contracts = await loadFixture(activePositionFixture);
 
-      expect(await position.isAuthorizedCaller(await core.getAddress())).to.be
-        .true;
-      expect(await position.isAuthorizedCaller(alice.address)).to.be.false;
+      expect(
+        await contracts.position.isAuthorizedCaller(
+          await contracts.core.getAddress()
+        )
+      ).to.be.true;
+      expect(
+        await contracts.position.isAuthorizedCaller(contracts.alice.address)
+      ).to.be.false;
     });
   });
 
   describe("onlyCore Modifier", function () {
     it("should allow core to mint position", async function () {
-      const { position, core, alice, marketId } = await loadFixture(
-        realPositionMarketFixture
-      );
+      const contracts = await loadFixture(activePositionMarketFixture);
+      const { position, core, alice, marketId } = contracts;
 
       // This should work when called through router (authorized caller)
       const params = {
         marketId,
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100100, // 실제 틱값 사용
+        upperTick: 100200, // 실제 틱값 사용
         quantity: ethers.parseUnits("0.01", 6),
         maxCost: ethers.parseUnits("1", 6),
       };
@@ -67,19 +71,25 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
     });
 
     it("should revert mintPosition from non-core", async function () {
-      const { position, alice } = await loadFixture(realPositionFixture);
+      const { position, alice } = await loadFixture(activePositionFixture);
 
       await expect(
         position
           .connect(alice)
-          .mintPosition(alice.address, 1, 10, 20, ethers.parseUnits("0.01", 6))
+          .mintPosition(
+            alice.address,
+            1,
+            100100,
+            100200,
+            ethers.parseUnits("0.01", 6)
+          )
       )
         .to.be.revertedWithCustomError(position, "UnauthorizedCaller")
         .withArgs(alice.address);
     });
 
     it("should revert setPositionQuantity from non-core", async function () {
-      const { position, alice } = await loadFixture(realPositionFixture);
+      const { position, alice } = await loadFixture(activePositionFixture);
 
       await expect(
         position
@@ -91,7 +101,7 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
     });
 
     it("should revert burnPosition from non-core", async function () {
-      const { position, alice } = await loadFixture(realPositionFixture);
+      const { position, alice } = await loadFixture(activePositionFixture);
 
       await expect(position.connect(alice).burnPosition(1))
         .to.be.revertedWithCustomError(position, "UnauthorizedCaller")
@@ -102,14 +112,14 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
   describe("Core Contract Interaction", function () {
     it("should allow core to update position quantity", async function () {
       const { position, core, alice, marketId } = await loadFixture(
-        realPositionMarketFixture
+        activePositionMarketFixture
       );
 
       // Create position through router
       const params = {
         marketId,
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100100,
+        upperTick: 100200,
         quantity: ethers.parseUnits("0.01", 6),
         maxCost: ethers.parseUnits("1", 6),
       };
@@ -153,14 +163,14 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
 
     it("should allow core to burn position", async function () {
       const { position, core, alice, marketId } = await loadFixture(
-        realPositionMarketFixture
+        activePositionMarketFixture
       );
 
       // Create position through router
       const params = {
         marketId,
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100100,
+        upperTick: 100200,
         quantity: ethers.parseUnits("0.01", 6),
         maxCost: ethers.parseUnits("1", 6),
       };
@@ -202,7 +212,7 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
 
   describe("Immutable Core Address", function () {
     it("should not allow changing core address after deployment", async function () {
-      const { position } = await loadFixture(realPositionFixture);
+      const { position } = await loadFixture(activePositionFixture);
 
       // Core address should be immutable - no setter function should exist
       expect((position as any).setCore).to.be.undefined;
@@ -211,7 +221,7 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
     });
 
     it("should maintain core address consistency", async function () {
-      const { position, core } = await loadFixture(realPositionFixture);
+      const { position, core } = await loadFixture(activePositionFixture);
 
       const coreAddress1 = await position.core();
       const coreAddress2 = await position.getCoreContract();
@@ -226,14 +236,14 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
   describe("Security Edge Cases", function () {
     it("should prevent reentrancy attacks on core functions", async function () {
       const { position, core, alice, marketId } = await loadFixture(
-        realPositionMarketFixture
+        activePositionMarketFixture
       );
 
       // Create position
       const params = {
         marketId,
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100100,
+        upperTick: 100200,
         quantity: ethers.parseUnits("0.01", 6),
         maxCost: ethers.parseUnits("1", 6),
       };
@@ -272,22 +282,22 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
     });
 
     it("should handle zero quantity validation", async function () {
-      const { position, alice } = await loadFixture(realPositionFixture);
+      const { position, alice } = await loadFixture(activePositionFixture);
 
       // Direct call should revert due to unauthorized caller first
       await expect(
         position.connect(alice).mintPosition(
           alice.address,
           1,
-          10,
-          20,
+          100100,
+          100200,
           0 // Zero quantity
         )
       ).to.be.revertedWithCustomError(position, "UnauthorizedCaller");
     });
 
     it("should handle zero address validation", async function () {
-      const { position, alice } = await loadFixture(realPositionFixture);
+      const { position, alice } = await loadFixture(activePositionFixture);
 
       // Direct call should revert due to unauthorized caller first
       await expect(
@@ -296,8 +306,8 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
           .mintPosition(
             ethers.ZeroAddress,
             1,
-            10,
-            20,
+            100100,
+            100200,
             ethers.parseUnits("0.01", 6)
           )
       ).to.be.revertedWithCustomError(position, "UnauthorizedCaller");

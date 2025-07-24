@@ -1,21 +1,21 @@
 import { expect } from "chai";
-import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
+import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { ethers } from "hardhat";
 
-import { realPositionMarketFixture } from "../../helpers/fixtures/position";
+import { activePositionMarketFixture } from "../../helpers/fixtures/position";
 import { COMPONENT_TAG } from "../../helpers/tags";
 
 describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
   describe("Position Minting via Core", function () {
     it("should mint position when Core.openPosition is called", async function () {
       const { core, position, alice, marketId } = await loadFixture(
-        realPositionMarketFixture
+        activePositionMarketFixture
       );
 
       const params = {
         marketId,
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100100,
+        upperTick: 100200,
         quantity: ethers.parseUnits("1", 6),
         maxCost: ethers.parseUnits("10", 6),
       };
@@ -49,7 +49,14 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
           )
       )
         .to.emit(position, "PositionMinted")
-        .withArgs(positionId, alice.address, marketId, 10, 20, params.quantity)
+        .withArgs(
+          positionId,
+          alice.address,
+          marketId,
+          100100,
+          100200,
+          params.quantity
+        )
         .and.to.emit(core, "PositionOpened");
 
       // Verify position was minted
@@ -60,14 +67,14 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       // Verify position data
       const positionData = await position.getPosition(positionId);
       expect(positionData.marketId).to.equal(marketId);
-      expect(positionData.lowerTick).to.equal(10);
-      expect(positionData.upperTick).to.equal(20);
+      expect(positionData.lowerTick).to.equal(100100);
+      expect(positionData.upperTick).to.equal(100200);
       expect(positionData.quantity).to.equal(params.quantity);
     });
 
     it("should handle multiple position mints correctly", async function () {
       const { core, position, alice, bob, marketId } = await loadFixture(
-        realPositionMarketFixture
+        activePositionMarketFixture
       );
 
       // Alice opens first position
@@ -76,8 +83,8 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
         .openPosition(
           alice.address,
           marketId,
-          10,
-          20,
+          100100,
+          100200,
           ethers.parseUnits("1", 6),
           ethers.parseUnits("10", 6)
         );
@@ -88,8 +95,8 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
         .openPosition(
           bob.address,
           marketId,
-          30,
-          40,
+          100300,
+          100400,
           ethers.parseUnits("2", 6),
           ethers.parseUnits("20", 6)
         );
@@ -114,7 +121,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
     it("should revert position mint when Core authorization fails", async function () {
       const { position, alice, marketId } = await loadFixture(
-        realPositionMarketFixture
+        activePositionMarketFixture
       );
 
       // Try to mint directly (not through Core)
@@ -124,8 +131,8 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
           .mintPosition(
             alice.address,
             marketId,
-            10,
-            20,
+            100100,
+            100200,
             ethers.parseUnits("1", 6)
           )
       ).to.be.revertedWithCustomError(position, "UnauthorizedCaller");
@@ -133,7 +140,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
     it("should handle position mint with edge case parameters", async function () {
       const { core, position, alice, marketId } = await loadFixture(
-        realPositionMarketFixture
+        activePositionMarketFixture
       );
 
       await expect(
@@ -142,30 +149,30 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
           .openPosition(
             alice.address,
             marketId,
-            50,
-            50,
+            100500,
+            100500,
             ethers.parseUnits("0.001", 6),
             ethers.parseUnits("1", 6)
           )
       ).to.emit(position, "PositionMinted");
 
       const positionData = await position.getPosition(1);
-      expect(positionData.lowerTick).to.equal(50);
-      expect(positionData.upperTick).to.equal(50);
+      expect(positionData.lowerTick).to.equal(100500);
+      expect(positionData.upperTick).to.equal(100500);
     });
   });
 
   describe("Position Updates via Core", function () {
     it("should update position quantity when Core.increasePosition is called", async function () {
       const { core, position, alice, marketId } = await loadFixture(
-        realPositionMarketFixture
+        activePositionMarketFixture
       );
 
       // Open initial position
       const params = {
         marketId,
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100100,
+        upperTick: 100200,
         quantity: ethers.parseUnits("1", 6),
         maxCost: ethers.parseUnits("10", 6),
       };
@@ -219,14 +226,14 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
     it("should update position quantity when Core.decreasePosition is called", async function () {
       const { core, position, alice, marketId } = await loadFixture(
-        realPositionMarketFixture
+        activePositionMarketFixture
       );
 
       // Open initial position
       const params = {
         marketId,
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100100,
+        upperTick: 100200,
         quantity: ethers.parseUnits("2", 6),
         maxCost: ethers.parseUnits("20", 6),
       };
@@ -274,7 +281,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
     it("should revert position update when called directly", async function () {
       const { position, alice, marketId } = await loadFixture(
-        realPositionMarketFixture
+        activePositionMarketFixture
       );
 
       await expect(
@@ -286,14 +293,14 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
     it("should handle multiple sequential updates", async function () {
       const { core, position, alice, marketId } = await loadFixture(
-        realPositionMarketFixture
+        activePositionMarketFixture
       );
 
       // Open initial position
       const params = {
         marketId,
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100100,
+        upperTick: 100200,
         quantity: ethers.parseUnits("5", 6),
         maxCost: ethers.parseUnits("50", 6),
       };
@@ -357,14 +364,14 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
   describe("Position Burning via Core", function () {
     it("should burn position when Core.closePosition is called", async function () {
       const { core, position, alice, marketId } = await loadFixture(
-        realPositionMarketFixture
+        activePositionMarketFixture
       );
 
       // Open position
       const params = {
         marketId,
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100100,
+        upperTick: 100200,
         quantity: ethers.parseUnits("1", 6),
         maxCost: ethers.parseUnits("10", 6),
       };
@@ -413,14 +420,14 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
     it("should burn position when decreased to zero", async function () {
       const { core, position, alice, marketId } = await loadFixture(
-        realPositionMarketFixture
+        activePositionMarketFixture
       );
 
       // Open position
       const params = {
         marketId,
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100100,
+        upperTick: 100200,
         quantity: ethers.parseUnits("1", 6),
         maxCost: ethers.parseUnits("10", 6),
       };
@@ -465,7 +472,9 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
     });
 
     it("should revert position burn when called directly", async function () {
-      const { position, alice } = await loadFixture(realPositionMarketFixture);
+      const { position, alice } = await loadFixture(
+        activePositionMarketFixture
+      );
 
       await expect(
         position.connect(alice).burnPosition(1)
@@ -474,7 +483,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
     it("should handle burning multiple positions", async function () {
       const { core, position, alice, marketId } = await loadFixture(
-        realPositionMarketFixture
+        activePositionMarketFixture
       );
 
       // Open multiple positions
@@ -482,8 +491,8 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       for (let i = 0; i < 3; i++) {
         const params = {
           marketId,
-          lowerTick: 10 + i * 10,
-          upperTick: 20 + i * 10,
+          lowerTick: 100100 + i * 100,
+          upperTick: 100200 + i * 100,
           quantity: ethers.parseUnits("1", 6),
           maxCost: ethers.parseUnits("10", 6),
         };
@@ -532,14 +541,14 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
   describe("Position State Consistency", function () {
     it("should maintain consistent state across Core operations", async function () {
       const { core, position, alice, marketId } = await loadFixture(
-        realPositionMarketFixture
+        activePositionMarketFixture
       );
 
       // Open position
       const params = {
         marketId,
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100100,
+        upperTick: 100200,
         quantity: ethers.parseUnits("3", 6),
         maxCost: ethers.parseUnits("30", 6),
       };
@@ -600,7 +609,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
     it("should handle Core operations with different users", async function () {
       const { core, position, alice, bob, charlie, marketId } =
-        await loadFixture(realPositionMarketFixture);
+        await loadFixture(activePositionMarketFixture);
 
       const users = [alice, bob, charlie];
       const positionIds = [];
@@ -609,8 +618,8 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       for (let i = 0; i < users.length; i++) {
         const params = {
           marketId,
-          lowerTick: 10 + i * 5,
-          upperTick: 20 + i * 5,
+          lowerTick: 100100 + i * 50,
+          upperTick: 100200 + i * 50,
           quantity: ethers.parseUnits((i + 1).toString(), 6),
           maxCost: ethers.parseUnits("50", 6),
         };
@@ -687,7 +696,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
   describe("Error Handling and Edge Cases", function () {
     it("should handle Core operations on non-existent positions", async function () {
-      const { core, alice } = await loadFixture(realPositionMarketFixture);
+      const { core, alice } = await loadFixture(activePositionMarketFixture);
 
       const nonExistentId = 999;
 
@@ -713,14 +722,14 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
     it("should handle position operations during market state changes", async function () {
       const { core, position, keeper, alice, marketId } = await loadFixture(
-        realPositionMarketFixture
+        activePositionMarketFixture
       );
 
       // Open position
       const params = {
         marketId,
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100100,
+        upperTick: 100200,
         quantity: ethers.parseUnits("1", 6),
         maxCost: ethers.parseUnits("10", 6),
       };
@@ -776,14 +785,14 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
     it("should maintain position integrity during sequential operations", async function () {
       const { core, position, alice, marketId } = await loadFixture(
-        realPositionMarketFixture
+        activePositionMarketFixture
       );
 
       // Open position with realistic quantity
       const params = {
         marketId,
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100100,
+        upperTick: 100200,
         quantity: ethers.parseUnits("0.005", 6), // Much smaller quantity
         maxCost: ethers.parseUnits("5", 6), // Reduced max cost
       };

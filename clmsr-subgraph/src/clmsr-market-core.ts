@@ -60,6 +60,9 @@ export function handleMarketCreated(event: MarketCreatedEvent): void {
     event.transaction.hash.concatI32(event.logIndex.toI32())
   );
   entity.marketId = event.params.marketId;
+  entity.minTick = event.params.minTick;
+  entity.maxTick = event.params.maxTick;
+  entity.tickSpacing = event.params.tickSpacing;
   entity.startTimestamp = event.params.startTimestamp;
   entity.endTimestamp = event.params.endTimestamp;
   entity.numTicks = event.params.numTicks;
@@ -74,6 +77,9 @@ export function handleMarketCreated(event: MarketCreatedEvent): void {
   // 마켓 상태 엔티티 생성
   let market = new Market(event.params.marketId.toString());
   market.marketId = event.params.marketId;
+  market.minTick = event.params.minTick;
+  market.maxTick = event.params.maxTick;
+  market.tickSpacing = event.params.tickSpacing;
   market.startTimestamp = event.params.startTimestamp;
   market.endTimestamp = event.params.endTimestamp;
   market.numTicks = event.params.numTicks;
@@ -82,16 +88,24 @@ export function handleMarketCreated(event: MarketCreatedEvent): void {
   market.lastUpdated = event.block.timestamp;
   market.save();
 
-  // 모든 틱의 초기 상태 생성 (factor = 1.0)
-  for (let i = 0; i < event.params.numTicks.toI32(); i++) {
-    let tickId = event.params.marketId.toString() + "-" + i.toString();
+  // 모든 틱의 초기 상태 생성 (실제 틱 값 기준으로 factor = 1.0)
+  let currentTick = event.params.minTick;
+  let tickIndex = BigInt.fromI32(0);
+
+  while (currentTick.le(event.params.maxTick)) {
+    let tickId =
+      event.params.marketId.toString() + "-" + currentTick.toString();
     let tickState = new TickState(tickId);
     tickState.market = market.id;
-    tickState.tickNumber = BigInt.fromI32(i);
+    tickState.tickValue = currentTick;
+    tickState.tickIndex = tickIndex;
     tickState.currentFactor = BigDecimal.fromString("1.0");
     tickState.lastUpdated = event.block.timestamp;
     tickState.updateCount = BigInt.fromI32(0);
     tickState.save();
+
+    currentTick = currentTick.plus(event.params.tickSpacing);
+    tickIndex = tickIndex.plus(BigInt.fromI32(1));
   }
 }
 
@@ -243,54 +257,54 @@ export function handleRangeFactorApplied(event: RangeFactorAppliedEvent): void {
   if (market != null) {
     market.lastUpdated = event.block.timestamp;
     market.save();
-  }
 
-  // Factor를 BigDecimal로 변환 (Wei에서 Ether로)
-  let factorDecimal = event.params.factor
-    .toBigDecimal()
-    .div(BigDecimal.fromString("1000000000000000000"));
+    // Factor를 BigDecimal로 변환 (Wei에서 Ether로)
+    let factorDecimal = event.params.factor
+      .toBigDecimal()
+      .div(BigDecimal.fromString("1000000000000000000"));
 
-  // 1. 개별 틱 상태 업데이트 (세밀한 분석용)
-  for (
-    let tick = event.params.lo.toI32();
-    tick <= event.params.hi.toI32();
-    tick++
-  ) {
-    let tickId = event.params.marketId.toString() + "-" + tick.toString();
-    let tickState = TickState.load(tickId);
+    // 1. 개별 틱 상태 업데이트 (실제 틱 값 기준으로)
+    let currentTick = event.params.lo;
+    while (currentTick.le(event.params.hi)) {
+      let tickId =
+        event.params.marketId.toString() + "-" + currentTick.toString();
+      let tickState = TickState.load(tickId);
 
-    if (tickState != null) {
-      // 기존 factor에 새 factor를 곱셈 (누적)
-      tickState.currentFactor = tickState.currentFactor.times(factorDecimal);
-      tickState.lastUpdated = event.block.timestamp;
-      tickState.updateCount = tickState.updateCount.plus(BigInt.fromI32(1));
-      tickState.save();
+      if (tickState != null) {
+        // 기존 factor에 새 factor를 곱셈 (누적)
+        tickState.currentFactor = tickState.currentFactor.times(factorDecimal);
+        tickState.lastUpdated = event.block.timestamp;
+        tickState.updateCount = tickState.updateCount.plus(BigInt.fromI32(1));
+        tickState.save();
+      }
+
+      currentTick = currentTick.plus(market.tickSpacing);
     }
+
+    // 2. 틱 범위(구간) 상태 업데이트 (실제 거래 단위)
+    let rangeId =
+      event.params.marketId.toString() +
+      "-" +
+      event.params.lo.toString() +
+      "-" +
+      event.params.hi.toString();
+    let tickRange = TickRange.load(rangeId);
+
+    if (tickRange == null) {
+      // 새로운 틱 범위 생성
+      tickRange = new TickRange(rangeId);
+      tickRange.market = event.params.marketId.toString();
+      tickRange.lowerTick = event.params.lo;
+      tickRange.upperTick = event.params.hi;
+      tickRange.currentFactor = BigDecimal.fromString("1.0");
+      tickRange.updateCount = BigInt.fromI32(0);
+      tickRange.totalVolume = BigDecimal.fromString("0");
+    }
+
+    // 기존 factor에 새 factor를 곱셈 (누적)
+    tickRange.currentFactor = tickRange.currentFactor.times(factorDecimal);
+    tickRange.lastUpdated = event.block.timestamp;
+    tickRange.updateCount = tickRange.updateCount.plus(BigInt.fromI32(1));
+    tickRange.save();
   }
-
-  // 2. 틱 범위(구간) 상태 업데이트 (실제 거래 단위)
-  let rangeId =
-    event.params.marketId.toString() +
-    "-" +
-    event.params.lo.toString() +
-    "-" +
-    event.params.hi.toString();
-  let tickRange = TickRange.load(rangeId);
-
-  if (tickRange == null) {
-    // 새로운 틱 범위 생성
-    tickRange = new TickRange(rangeId);
-    tickRange.market = event.params.marketId.toString();
-    tickRange.lowerTick = event.params.lo;
-    tickRange.upperTick = event.params.hi;
-    tickRange.currentFactor = BigDecimal.fromString("1.0");
-    tickRange.updateCount = BigInt.fromI32(0);
-    tickRange.totalVolume = BigDecimal.fromString("0");
-  }
-
-  // 기존 factor에 새 factor를 곱셈 (누적)
-  tickRange.currentFactor = tickRange.currentFactor.times(factorDecimal);
-  tickRange.lastUpdated = event.block.timestamp;
-  tickRange.updateCount = tickRange.updateCount.plus(BigInt.fromI32(1));
-  tickRange.save();
 }

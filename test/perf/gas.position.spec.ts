@@ -1,42 +1,20 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { coreFixture } from "../helpers/fixtures/core";
+import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { createActiveMarketFixture } from "../helpers/fixtures/core";
 import { PERF_TAG } from "../helpers/tags";
 
-describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
-  const SMALL_QUANTITY = ethers.parseUnits("0.01", 6); // 0.01 USDC
-  const MEDIUM_QUANTITY = ethers.parseUnits("0.05", 6); // 0.05 USDC
-  const LARGE_QUANTITY = ethers.parseUnits("1", 6); // 1 USDC
-  const MEDIUM_COST = ethers.parseUnits("50", 6); // 50 USDC
-  const LARGE_COST = ethers.parseUnits("500", 6); // 500 USDC
+describe(`${PERF_TAG} Gas Optimization - Position Operations`, function () {
+  const USDC_DECIMALS = 6;
+  const LARGE_QUANTITY = ethers.parseUnits("0.1", USDC_DECIMALS);
+  const MEDIUM_QUANTITY = ethers.parseUnits("0.05", USDC_DECIMALS);
+  const SMALL_QUANTITY = ethers.parseUnits("0.01", USDC_DECIMALS);
+  const MEDIUM_COST = ethers.parseUnits("50", USDC_DECIMALS); // 50 USDC
+  const LARGE_COST = ethers.parseUnits("500", USDC_DECIMALS); // 500 USDC
   const TICK_COUNT = 100;
 
-  async function createActiveMarketFixture() {
-    const contracts = await loadFixture(coreFixture);
-    const { core, keeper } = contracts;
-
-    const currentTime = await time.latest();
-    const startTime = currentTime + 1100; // Large buffer for position gas tests
-    const endTime = startTime + 7 * 24 * 60 * 60; // 7 days
-    const marketId = 1;
-
-    await core
-      .connect(keeper)
-      .createMarket(
-        marketId,
-        TICK_COUNT,
-        startTime,
-        endTime,
-        ethers.parseEther("1")
-      );
-    await time.increaseTo(startTime + 1);
-
-    return { ...contracts, marketId, startTime, endTime };
-  }
-
-  describe("Position Creation Gas Benchmarks", function () {
-    it("Should use reasonable gas for position creation", async function () {
+  describe("Basic Position Operations", function () {
+    it("Should create position efficiently", async function () {
       const { core, alice, marketId } = await loadFixture(
         createActiveMarketFixture
       );
@@ -46,8 +24,8 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
         .openPosition(
           alice.address,
           marketId,
-          45,
-          55,
+          100450,
+          100550,
           MEDIUM_QUANTITY,
           MEDIUM_COST
         );
@@ -65,9 +43,9 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
       );
 
       const ranges = [
-        { lower: 45, upper: 45 }, // 1 tick
-        { lower: 40, upper: 60 }, // 21 ticks
-        { lower: 20, upper: 80 }, // 61 ticks
+        { lower: 100450, upper: 100450 }, // 1 tick
+        { lower: 100400, upper: 100600 }, // 21 ticks
+        { lower: 100200, upper: 100800 }, // 61 ticks
       ];
 
       const gasUsages = [];
@@ -108,8 +86,8 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
         .openPosition(
           alice.address,
           marketId,
-          45,
-          55,
+          100450,
+          100550,
           MEDIUM_QUANTITY,
           MEDIUM_COST
         );
@@ -139,8 +117,8 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
         .openPosition(
           alice.address,
           marketId,
-          45,
-          55,
+          100450,
+          100550,
           LARGE_QUANTITY,
           LARGE_COST
         );
@@ -172,8 +150,8 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
         .openPosition(
           alice.address,
           marketId,
-          45,
-          55,
+          100450,
+          100550,
           MEDIUM_QUANTITY,
           MEDIUM_COST
         );
@@ -202,7 +180,14 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
         // Create position
         await core
           .connect(alice)
-          .openPosition(alice.address, marketId, 45, 55, quantity, LARGE_COST);
+          .openPosition(
+            alice.address,
+            marketId,
+            100450,
+            100550,
+            quantity,
+            LARGE_COST
+          );
 
         const positions = await mockPosition.getPositionsByOwner(alice.address);
         const positionId = positions[positions.length - 1];
@@ -239,8 +224,8 @@ describe(`${PERF_TAG} Gas Optimization - Position Management`, function () {
           .openPosition(
             alice.address,
             marketId,
-            40 + i * 5,
-            60 + i * 5,
+            100400 + i * 50,
+            100600 + i * 50,
             SMALL_QUANTITY,
             MEDIUM_COST
           );

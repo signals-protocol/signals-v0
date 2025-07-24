@@ -1,22 +1,23 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
+import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import {
-  realPositionFixture,
-  realPositionMarketFixture,
+  activePositionFixture,
+  activePositionMarketFixture,
   createRealTestPosition,
 } from "../../helpers/fixtures/position";
+import { setupMultipleMarkets } from "../../helpers/fixtures/core";
 import { UNIT_TAG } from "../../helpers/tags";
 
 describe(`${UNIT_TAG} Position Storage Management`, function () {
   describe("Position Data Storage", function () {
     it("should store position data correctly", async function () {
-      const contracts = await loadFixture(realPositionMarketFixture);
+      const contracts = await loadFixture(activePositionMarketFixture);
       const { position, alice, marketId } = contracts;
 
       const params = {
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100100,
+        upperTick: 100200,
         quantity: ethers.parseUnits("0.01", 6),
       };
 
@@ -38,13 +39,13 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
     });
 
     it("should handle multiple positions with different data", async function () {
-      const contracts = await loadFixture(realPositionMarketFixture);
+      const contracts = await loadFixture(activePositionMarketFixture);
       const { position, alice, bob, marketId } = contracts;
 
       // Alice's position
       const aliceParams = {
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100100,
+        upperTick: 100200,
         quantity: ethers.parseUnits("0.01", 6),
       };
 
@@ -59,8 +60,8 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
 
       // Bob's position with different parameters
       const bobParams = {
-        lowerTick: 30,
-        upperTick: 40,
+        lowerTick: 100300,
+        upperTick: 100400,
         quantity: ethers.parseUnits("0.02", 6),
       };
 
@@ -87,7 +88,7 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
     });
 
     it("should revert getPosition for non-existent position", async function () {
-      const { position } = await loadFixture(realPositionFixture);
+      const { position } = await loadFixture(activePositionFixture);
 
       await expect(position.getPosition(999)).to.be.revertedWithCustomError(
         position,
@@ -98,7 +99,7 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
 
   describe("Owner Token Tracking", function () {
     it("should track owner tokens correctly with EnumerableSet", async function () {
-      const contracts = await loadFixture(realPositionMarketFixture);
+      const contracts = await loadFixture(activePositionMarketFixture);
       const { position, alice, marketId } = contracts;
 
       // Initially no tokens
@@ -110,8 +111,8 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
         contracts,
         alice,
         marketId,
-        10,
-        20
+        100100,
+        100200
       );
 
       aliceTokens = await position.getPositionsByOwner(alice.address);
@@ -123,8 +124,8 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
         contracts,
         alice,
         marketId,
-        30,
-        40
+        100300,
+        100400
       );
 
       aliceTokens = await position.getPositionsByOwner(alice.address);
@@ -134,7 +135,7 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
     });
 
     it("should update owner tracking on transfer", async function () {
-      const contracts = await loadFixture(realPositionMarketFixture);
+      const contracts = await loadFixture(activePositionMarketFixture);
       const { position, alice, bob, marketId } = contracts;
 
       const { positionId } = await createRealTestPosition(
@@ -164,7 +165,7 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
     });
 
     it("should handle multiple transfers correctly", async function () {
-      const contracts = await loadFixture(realPositionMarketFixture);
+      const contracts = await loadFixture(activePositionMarketFixture);
       const { position, alice, bob, charlie, marketId } = contracts;
 
       // Create two positions for alice
@@ -172,16 +173,16 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
         contracts,
         alice,
         marketId,
-        10,
-        20
+        100100,
+        100200
       );
 
       const { positionId: pos2 } = await createRealTestPosition(
         contracts,
         alice,
         marketId,
-        30,
-        40
+        100300,
+        100400
       );
 
       // Transfer pos1 to bob, pos2 to charlie
@@ -207,43 +208,35 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
 
   describe("Market-Specific Position Queries", function () {
     it("should filter positions by market correctly", async function () {
-      const contracts = await loadFixture(realPositionFixture);
-      const { position, core, keeper, alice } = contracts;
+      const contracts = await loadFixture(activePositionFixture);
+      const { position, core, alice } = contracts;
 
-      // Create two markets
-      const startTime = Math.floor(Date.now() / 1000);
-      const endTime = startTime + 86400;
-
-      await core
-        .connect(keeper)
-        .createMarket(1, 50, startTime, endTime, ethers.parseEther("1"));
-      await core
-        .connect(keeper)
-        .createMarket(2, 50, startTime, endTime, ethers.parseEther("1"));
+      // Create multiple markets using helper function
+      await setupMultipleMarkets(contracts, 2);
 
       // Create positions in different markets
       const { positionId: pos1 } = await createRealTestPosition(
         contracts,
         alice,
         1,
-        10,
-        20
+        100100,
+        100200
       );
 
       const { positionId: pos2 } = await createRealTestPosition(
         contracts,
         alice,
         2,
-        10,
-        20
+        100100,
+        100200
       );
 
       const { positionId: pos3 } = await createRealTestPosition(
         contracts,
         alice,
         1,
-        30,
-        40
+        100300,
+        100400
       );
 
       // Query positions by market
@@ -265,7 +258,7 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
     });
 
     it("should return empty array for non-existent market", async function () {
-      const { position, alice } = await loadFixture(realPositionFixture);
+      const { position, alice } = await loadFixture(activePositionFixture);
 
       const positions = await position.getUserPositionsInMarket(
         alice.address,
@@ -276,7 +269,7 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
 
     it("should handle empty positions for user", async function () {
       const { position, alice, marketId } = await loadFixture(
-        realPositionMarketFixture
+        activePositionMarketFixture
       );
 
       const positions = await position.getUserPositionsInMarket(
@@ -289,7 +282,7 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
 
   describe("Position ID Management", function () {
     it("should increment position IDs correctly", async function () {
-      const contracts = await loadFixture(realPositionMarketFixture);
+      const contracts = await loadFixture(activePositionMarketFixture);
       const { position, alice, marketId } = contracts;
 
       const { positionId: pos1 } = await createRealTestPosition(
@@ -302,8 +295,8 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
         contracts,
         alice,
         marketId,
-        20,
-        30
+        100200,
+        100300
       );
 
       expect(pos2).to.equal(pos1 + 1n);
@@ -311,7 +304,7 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
     });
 
     it("should maintain ID sequence after burns", async function () {
-      const contracts = await loadFixture(realPositionMarketFixture);
+      const contracts = await loadFixture(activePositionMarketFixture);
       const { position, core, alice, marketId } = contracts;
 
       const { positionId: pos1 } = await createRealTestPosition(
@@ -331,8 +324,8 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
         contracts,
         alice,
         marketId,
-        20,
-        30
+        100200,
+        100300
       );
 
       expect(pos2).to.equal(pos1 + 1n);
@@ -341,7 +334,7 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
 
   describe("Data Cleanup on Burn", function () {
     it("should clean up position data on burn", async function () {
-      const contracts = await loadFixture(realPositionMarketFixture);
+      const contracts = await loadFixture(activePositionMarketFixture);
       const { position, core, alice, marketId } = contracts;
 
       const { positionId } = await createRealTestPosition(
@@ -366,7 +359,7 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
     });
 
     it("should remove from owner tracking on burn", async function () {
-      const contracts = await loadFixture(realPositionMarketFixture);
+      const contracts = await loadFixture(activePositionMarketFixture);
       const { position, core, alice, marketId } = contracts;
 
       const { positionId } = await createRealTestPosition(
@@ -394,7 +387,7 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
 
   describe("Gas Optimization Verification", function () {
     it("should use EnumerableSet for O(1) operations", async function () {
-      const contracts = await loadFixture(realPositionMarketFixture);
+      const contracts = await loadFixture(activePositionMarketFixture);
       const { position, alice, marketId } = contracts;
 
       // Create multiple positions
@@ -404,8 +397,8 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
           contracts,
           alice,
           marketId,
-          10 + i,
-          20 + i
+          100100 + i * 10,
+          100200 + i * 10
         );
         positions.push(positionId);
       }

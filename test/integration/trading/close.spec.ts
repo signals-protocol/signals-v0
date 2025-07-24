@@ -17,8 +17,8 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
     // Create initial position
     const tradeParams = {
       marketId: marketId,
-      lowerTick: 45,
-      upperTick: 55,
+      lowerTick: 100450,
+      upperTick: 100550,
       quantity: MEDIUM_QUANTITY,
       maxCost: MEDIUM_COST,
     };
@@ -69,8 +69,8 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
         .openPosition(
           user.address,
           marketId,
-          40,
-          60,
+          100040,
+          100060,
           SMALL_QUANTITY,
           MEDIUM_COST
         );
@@ -114,8 +114,8 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
       .openPosition(
         alice.address,
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         MEDIUM_QUANTITY,
         MEDIUM_COST
       );
@@ -125,7 +125,7 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
     // Move to market end and settle
     const market = await core.getMarket(marketId);
     await time.increaseTo(Number(market.endTimestamp) + 1);
-    await core.connect(keeper).settleMarket(marketId, 49, 50); // Settle at tick range 49-50
+    await core.connect(keeper).settleMarket(marketId, 100490, 100500); // Settle at tick range 100490-100500
 
     const balanceBefore = await paymentToken.balanceOf(alice.address);
 
@@ -147,8 +147,8 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
     await core.connect(alice).openPosition(
       alice.address,
       marketId,
-      85,
-      95,
+      100850,
+      100950,
       1, // Very small quantity
       ethers.parseUnits("1", 6)
     );
@@ -186,8 +186,8 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
       .openPosition(
         alice.address,
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         MEDIUM_QUANTITY,
         MEDIUM_COST
       );
@@ -212,8 +212,8 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
       .openPosition(
         alice.address,
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         quantity,
         ethers.parseUnits("50", 6)
       );

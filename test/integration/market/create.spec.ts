@@ -9,23 +9,48 @@ describe(`${INTEGRATION_TAG} Market Creation`, function () {
   const TICK_COUNT = 100;
   const MARKET_DURATION = 7 * 24 * 60 * 60; // 7 days
 
+  // 표준 틱 시스템 파라미터
+  const MIN_TICK = 100000;
+  const MAX_TICK = 100990;
+  const TICK_SPACING = 10;
+
   it("Should create market successfully", async function () {
     const { core, keeper } = await loadFixture(coreFixture);
 
     const currentTime = await time.latest();
     const startTime = currentTime + 3600;
     const endTime = startTime + MARKET_DURATION;
-    const marketId = 1;
+    const marketId = Math.floor(Math.random() * 1000000) + 1;
 
     await expect(
       core
         .connect(keeper)
-        .createMarket(marketId, TICK_COUNT, startTime, endTime, ALPHA)
+        .createMarket(
+          marketId,
+          MIN_TICK,
+          MAX_TICK,
+          TICK_SPACING,
+          startTime,
+          endTime,
+          ALPHA
+        )
     )
       .to.emit(core, "MarketCreated")
-      .withArgs(marketId, startTime, endTime, TICK_COUNT, ALPHA);
+      .withArgs(
+        marketId,
+        startTime,
+        endTime,
+        MIN_TICK,
+        MAX_TICK,
+        TICK_SPACING,
+        TICK_COUNT,
+        ALPHA
+      );
 
     const market = await core.getMarket(marketId);
+    expect(market.minTick).to.equal(MIN_TICK);
+    expect(market.maxTick).to.equal(MAX_TICK);
+    expect(market.tickSpacing).to.equal(TICK_SPACING);
     expect(market.numTicks).to.equal(TICK_COUNT);
     expect(market.liquidityParameter).to.equal(ALPHA);
     expect(market.startTimestamp).to.equal(startTime);
@@ -43,16 +68,30 @@ describe(`${INTEGRATION_TAG} Market Creation`, function () {
     const currentTime = await time.latest();
     const startTime = currentTime + 3600;
     const endTime = startTime + MARKET_DURATION;
-    const marketId = 1;
+    const marketId = Math.floor(Math.random() * 1000000) + 1;
+
+    // 새로운 틱 시스템: 1000부터 1099까지, 간격 1
+    const minTick = 1000;
+    const maxTick = 1099;
+    const tickSpacing = 1;
 
     await core
       .connect(keeper)
-      .createMarket(marketId, TICK_COUNT, startTime, endTime, ALPHA);
+      .createMarket(
+        marketId,
+        minTick,
+        maxTick,
+        tickSpacing,
+        startTime,
+        endTime,
+        ALPHA
+      );
 
     // Check that all ticks start with value 1 WAD (e^0 = 1)
     for (let i = 0; i < 10; i++) {
-      // Check first 10 ticks
-      const tickValue = await core.getTickValue(marketId, i);
+      // Check first 10 ticks (actual tick values: 1000, 1001, 1002, ...)
+      const actualTick = minTick + i * tickSpacing;
+      const tickValue = await core.getTickValue(marketId, actualTick);
       expect(tickValue).to.equal(WAD);
     }
   });
@@ -63,18 +102,28 @@ describe(`${INTEGRATION_TAG} Market Creation`, function () {
     const currentTime = await time.latest();
     const startTime = currentTime + 3600;
     const endTime = startTime + MARKET_DURATION;
-    const marketId = 1;
+    const marketId = Math.floor(Math.random() * 1000000) + 1;
 
     // Create first market
     await core
       .connect(keeper)
-      .createMarket(marketId, TICK_COUNT, startTime, endTime, ALPHA);
+      .createMarket(
+        marketId,
+        MIN_TICK,
+        MAX_TICK,
+        TICK_SPACING,
+        startTime,
+        endTime,
+        ALPHA
+      );
 
     // Try to create duplicate market
     await expect(
       core.connect(keeper).createMarket(
         marketId, // same ID
-        TICK_COUNT,
+        MIN_TICK,
+        MAX_TICK,
+        TICK_SPACING,
         startTime + 1000,
         endTime + 1000,
         ALPHA
@@ -96,7 +145,9 @@ describe(`${INTEGRATION_TAG} Market Creation`, function () {
           .connect(keeper)
           .createMarket(
             i,
-            TICK_COUNT,
+            MIN_TICK,
+            MAX_TICK,
+            TICK_SPACING,
             startTime + i * 1000,
             endTime + i * 1000,
             ALPHA
@@ -116,15 +167,29 @@ describe(`${INTEGRATION_TAG} Market Creation`, function () {
     const startTime = currentTime + 3600;
     const endTime = startTime + MARKET_DURATION;
 
-    const testCases = [1, 10, 100, 1000, 10000];
+    const testCases = [
+      { tickCount: 2, minTick: 100000, maxTick: 100010 },
+      { tickCount: 10, minTick: 100000, maxTick: 100090 },
+      { tickCount: 100, minTick: 100000, maxTick: 100990 },
+      { tickCount: 1000, minTick: 100000, maxTick: 109990 },
+      { tickCount: 5000, minTick: 100000, maxTick: 149990 },
+    ];
 
     for (let i = 0; i < testCases.length; i++) {
-      const tickCount = testCases[i];
+      const { tickCount, minTick, maxTick } = testCases[i];
       const marketId = i + 1;
 
       await core
         .connect(keeper)
-        .createMarket(marketId, tickCount, startTime, endTime, ALPHA);
+        .createMarket(
+          marketId,
+          minTick,
+          maxTick,
+          TICK_SPACING,
+          startTime,
+          endTime,
+          ALPHA
+        );
 
       const market = await core.getMarket(marketId);
       expect(market.numTicks).to.equal(tickCount);
@@ -154,7 +219,15 @@ describe(`${INTEGRATION_TAG} Market Creation`, function () {
 
       await core
         .connect(keeper)
-        .createMarket(marketId, TICK_COUNT, startTime, endTime, alpha);
+        .createMarket(
+          marketId,
+          MIN_TICK,
+          MAX_TICK,
+          TICK_SPACING,
+          startTime,
+          endTime,
+          alpha
+        );
 
       const market = await core.getMarket(marketId);
       expect(market.liquidityParameter).to.equal(alpha);
@@ -170,14 +243,30 @@ describe(`${INTEGRATION_TAG} Market Creation`, function () {
     await expect(
       core
         .connect(keeper)
-        .createMarket(1, TICK_COUNT, currentTime, currentTime, ALPHA)
+        .createMarket(
+          1,
+          MIN_TICK,
+          MAX_TICK,
+          TICK_SPACING,
+          currentTime,
+          currentTime,
+          ALPHA
+        )
     ).to.be.revertedWithCustomError(core, "InvalidTimeRange");
 
     // Test start > end (should fail)
     await expect(
       core
         .connect(keeper)
-        .createMarket(1, TICK_COUNT, currentTime + 1000, currentTime, ALPHA)
+        .createMarket(
+          1,
+          MIN_TICK,
+          MAX_TICK,
+          TICK_SPACING,
+          currentTime + 1000,
+          currentTime,
+          ALPHA
+        )
     ).to.be.revertedWithCustomError(core, "InvalidTimeRange");
   });
 
@@ -194,25 +283,57 @@ describe(`${INTEGRATION_TAG} Market Creation`, function () {
     // Test minimum boundary (should succeed)
     await core
       .connect(keeper)
-      .createMarket(1, TICK_COUNT, startTime, endTime, minAlpha);
+      .createMarket(
+        1,
+        MIN_TICK,
+        MAX_TICK,
+        TICK_SPACING,
+        startTime,
+        endTime,
+        minAlpha
+      );
 
     // Test maximum boundary (should succeed)
     await core
       .connect(keeper)
-      .createMarket(2, TICK_COUNT, startTime, endTime, maxAlpha);
+      .createMarket(
+        2,
+        MIN_TICK,
+        MAX_TICK,
+        TICK_SPACING,
+        startTime,
+        endTime,
+        maxAlpha
+      );
 
     // Test below minimum (should fail)
     await expect(
       core
         .connect(keeper)
-        .createMarket(3, TICK_COUNT, startTime, endTime, minAlpha - 1n)
+        .createMarket(
+          3,
+          MIN_TICK,
+          MAX_TICK,
+          TICK_SPACING,
+          startTime,
+          endTime,
+          minAlpha - 1n
+        )
     ).to.be.revertedWithCustomError(core, "InvalidLiquidityParameter");
 
     // Test above maximum (should fail)
     await expect(
       core
         .connect(keeper)
-        .createMarket(4, TICK_COUNT, startTime, endTime, maxAlpha + 1n)
+        .createMarket(
+          4,
+          MIN_TICK,
+          MAX_TICK,
+          TICK_SPACING,
+          startTime,
+          endTime,
+          maxAlpha + 1n
+        )
     ).to.be.revertedWithCustomError(core, "InvalidLiquidityParameter");
   });
 
@@ -224,11 +345,31 @@ describe(`${INTEGRATION_TAG} Market Creation`, function () {
     const endTime = startTime + MARKET_DURATION;
 
     await expect(
-      core.connect(alice).createMarket(1, TICK_COUNT, startTime, endTime, ALPHA)
+      core
+        .connect(alice)
+        .createMarket(
+          1,
+          MIN_TICK,
+          MAX_TICK,
+          TICK_SPACING,
+          startTime,
+          endTime,
+          ALPHA
+        )
     ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
 
     await expect(
-      core.connect(bob).createMarket(1, TICK_COUNT, startTime, endTime, ALPHA)
+      core
+        .connect(bob)
+        .createMarket(
+          1,
+          MIN_TICK,
+          MAX_TICK,
+          TICK_SPACING,
+          startTime,
+          endTime,
+          ALPHA
+        )
     ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
   });
 });

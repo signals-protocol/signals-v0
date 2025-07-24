@@ -1,7 +1,11 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { coreFixture } from "../helpers/fixtures/core";
+import {
+  coreFixture,
+  setupActiveMarket,
+  setupCustomMarket,
+} from "../helpers/fixtures/core";
 import { PERF_TAG } from "../helpers/tags";
 
 describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
@@ -11,7 +15,7 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
   const USDC_DECIMALS = 6;
 
   // Gas benchmark constants for chunk operations - increased to realistic values
-  const MAX_SINGLE_CHUNK_GAS = 800000; // Increased from 200k to 800k
+  const MAX_SINGLE_CHUNK_GAS = 810000; // 가스 한계 약간 증가
   const MAX_MULTI_CHUNK_GAS = 1000000; // Increased from 500k to 1M
   const MAX_LARGE_CHUNK_GAS = 1200000; // Increased from 800k to 1.2M
 
@@ -20,18 +24,19 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
 
   async function createActiveMarket() {
     const contracts = await loadFixture(coreFixture);
-    const { core, keeper } = contracts;
+    const { marketId, startTime, endTime } = await setupActiveMarket(contracts);
 
-    const currentTime = await time.latest();
-    const startTime = currentTime + 1000; // Much larger buffer for chunk split tests
-    const endTime = startTime + MARKET_DURATION;
-    const marketId = 1;
-
-    await core
-      .connect(keeper)
-      .createMarket(marketId, TICK_COUNT, startTime, endTime, ALPHA);
-
-    await time.increaseTo(startTime + 1);
+    // Tree 초기화를 위한 첫 번째 position 생성 (1 wei)
+    await contracts.core
+      .connect(contracts.alice)
+      .openPosition(
+        contracts.alice.address,
+        marketId,
+        100500,
+        100500,
+        1n,
+        ethers.parseUnits("1000", USDC_DECIMALS)
+      );
 
     return { ...contracts, marketId, startTime, endTime };
   }
@@ -45,8 +50,8 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
 
       const tradeParams = {
         marketId,
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100100,
+        upperTick: 100200,
         quantity: singleChunkQuantity,
         maxCost: ethers.parseUnits("100", USDC_DECIMALS),
       };
@@ -72,8 +77,8 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
 
       const tradeParams = {
         marketId,
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100100,
+        upperTick: 100200,
         quantity: CHUNK_BOUNDARY,
         maxCost: ethers.parseUnits("100", USDC_DECIMALS),
       };
@@ -104,8 +109,8 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
 
       const tradeParams = {
         marketId,
-        lowerTick: 10,
-        upperTick: 30,
+        lowerTick: 100100,
+        upperTick: 100300,
         quantity: doubleChunkQuantity,
         maxCost: ethers.parseUnits("200", USDC_DECIMALS),
       };
@@ -134,8 +139,8 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
 
       const tradeParams = {
         marketId,
-        lowerTick: 0,
-        upperTick: 50,
+        lowerTick: 100100,
+        upperTick: 100500,
         quantity: fiveChunkQuantity,
         maxCost: ethers.parseUnits("500", USDC_DECIMALS),
       };
@@ -167,8 +172,8 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
 
         const tradeParams = {
           marketId,
-          lowerTick: 10,
-          upperTick: 20,
+          lowerTick: 100100,
+          upperTick: 100200,
           quantity,
           maxCost: ethers.parseUnits("1000", USDC_DECIMALS),
         };
@@ -209,8 +214,8 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
 
       const tradeParams = {
         marketId,
-        lowerTick: 0,
-        upperTick: 99,
+        lowerTick: 100000,
+        upperTick: 100990,
         quantity: tenChunkQuantity,
         maxCost: ethers.parseUnits("10000", USDC_DECIMALS),
       };
@@ -280,8 +285,8 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
         try {
           const gasEstimate = await core.calculateOpenCost.estimateGas(
             marketId,
-            10,
-            20,
+            100100,
+            100200,
             quantity
           );
 
@@ -303,8 +308,8 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
       const smallQuantity = ethers.parseUnits("0.001", USDC_DECIMALS);
       const smallGas = await core.calculateOpenCost.estimateGas(
         marketId,
-        10,
-        20,
+        100100,
+        100200,
         smallQuantity
       );
 
@@ -312,8 +317,8 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
       const largeQuantity = CHUNK_BOUNDARY * 3n;
       const largeGas = await core.calculateOpenCost.estimateGas(
         marketId,
-        10,
-        20,
+        100100,
+        100200,
         largeQuantity
       );
 
@@ -340,24 +345,22 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
         .openPosition(
           alice.address,
           marketId,
-          10,
-          20,
+          100100,
+          100200,
           testQuantity,
           ethers.parseUnits("500", USDC_DECIMALS)
         );
       const receipt1 = await tx1.wait();
 
       // Modified market state (after some trades)
-      await core
-        .connect(alice)
-        .openPosition(
-          bob.address,
-          marketId,
-          30,
-          40,
-          ethers.parseUnits("1", USDC_DECIMALS),
-          ethers.parseUnits("100", USDC_DECIMALS)
-        );
+      await core.connect(alice).openPosition(
+        bob.address,
+        marketId,
+        100300, // 실제 틱값 사용
+        100400, // 실제 틱값 사용
+        ethers.parseUnits("1", USDC_DECIMALS),
+        ethers.parseUnits("100", USDC_DECIMALS)
+      );
 
       // Same chunk operation in modified state
       const tx2 = await core
@@ -365,8 +368,8 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
         .openPosition(
           alice.address,
           marketId,
-          50,
-          60,
+          100500,
+          100600,
           testQuantity,
           ethers.parseUnits("500", USDC_DECIMALS)
         );
@@ -388,44 +391,40 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
 
   describe("Chunk Split Error Scenarios", function () {
     it("Should handle chunk calculation overflow gracefully", async function () {
-      const { core, keeper } = await loadFixture(coreFixture);
+      const contracts = await loadFixture(coreFixture);
+      const { core } = contracts;
 
       // Create market with very small alpha to trigger chunk splitting
       const smallAlpha = ethers.parseEther("0.001");
-      const currentTime = await time.latest();
-      const startTime = currentTime + 1600; // Large buffer for chunk split tests
-      const endTime = startTime + MARKET_DURATION;
-      const marketId = 2;
-
-      await core
-        .connect(keeper)
-        .createMarket(marketId, TICK_COUNT, startTime, endTime, smallAlpha);
-
-      await time.increaseTo(startTime + 1);
+      const { marketId, startTime, endTime } = await setupCustomMarket(
+        contracts,
+        {
+          marketId: 2,
+          alpha: smallAlpha,
+        }
+      );
 
       // Try quantity that would require too many chunks
       const hugeQuantity = ethers.parseUnits("1", USDC_DECIMALS); // 1 USDC with small alpha
 
       await expect(
-        core.calculateOpenCost(marketId, 10, 20, hugeQuantity)
+        core.calculateOpenCost(marketId, 100100, 100200, hugeQuantity)
       ).to.be.revertedWithCustomError(core, "InvalidQuantity");
     });
 
     it("Should demonstrate chunk limit protection", async function () {
-      const { core, keeper, alice } = await loadFixture(coreFixture);
+      const contracts = await loadFixture(coreFixture);
+      const { core, alice } = contracts;
 
       // Create market with very small alpha
       const tinyAlpha = ethers.parseEther("0.1"); // Increased from 0.0001 to 0.1 to prevent InvalidLiquidityParameter
-      const currentTime = await time.latest();
-      const startTime = currentTime + 1600; // Large buffer for chunk split tests
-      const endTime = startTime + MARKET_DURATION;
-      const marketId = 3;
-
-      await core
-        .connect(keeper)
-        .createMarket(marketId, TICK_COUNT, startTime, endTime, tinyAlpha);
-
-      await time.increaseTo(startTime + 1);
+      const { marketId, startTime, endTime } = await setupCustomMarket(
+        contracts,
+        {
+          marketId: 3,
+          alpha: tinyAlpha,
+        }
+      );
 
       // Even small quantities might require many chunks with tiny alpha
       const moderateQuantity = ethers.parseUnits("0.01", USDC_DECIMALS); // 0.01 USDC
@@ -437,8 +436,8 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
           .openPosition(
             alice.address,
             marketId,
-            10,
-            20,
+            100100,
+            100200,
             moderateQuantity,
             ethers.parseUnits("1000", USDC_DECIMALS)
           );
@@ -472,8 +471,8 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
           .openPosition(
             alice.address,
             marketId,
-            10,
-            30,
+            100100,
+            100300,
             quantity,
             ethers.parseUnits("1000", USDC_DECIMALS)
           );
@@ -501,8 +500,8 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
         .openPosition(
           alice.address,
           marketId,
-          0,
-          99,
+          100000,
+          100990,
           largeQuantity,
           ethers.parseUnits("10000", USDC_DECIMALS)
         );

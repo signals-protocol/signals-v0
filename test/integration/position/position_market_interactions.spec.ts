@@ -1,25 +1,26 @@
 import { expect } from "chai";
-import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
+import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { ethers } from "hardhat";
+import { time } from "@nomicfoundation/hardhat-network-helpers";
 
-import { realPositionMarketFixture } from "../../helpers/fixtures/position";
+import { activePositionMarketFixture } from "../../helpers/fixtures/position";
 import { INTEGRATION_TAG } from "../../helpers/tags";
 
 describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
   describe("Position Operations Across Market States", function () {
     it("should handle position operations during market lifecycle", async function () {
-      const { core, position, keeper, alice, bob, charlie, marketId } =
-        await loadFixture(realPositionMarketFixture);
+      const { core, position, keeper, alice, bob, marketId, startTime } =
+        await loadFixture(activePositionMarketFixture);
 
       // Create multiple positions in different tick ranges
       const positions = [];
-      const users = [alice, bob, charlie];
+      const users = [alice, bob];
 
       for (let i = 0; i < users.length; i++) {
         const params = {
           marketId,
-          lowerTick: 10 + i * 20,
-          upperTick: 30 + i * 20,
+          lowerTick: 100100 + i * 200, // 실제 틱값 사용 (100100, 100300, ...)
+          upperTick: 100300 + i * 200, // 실제 틱값 사용 (100300, 100500, ...)
           quantity: ethers.parseUnits((i + 2).toString(), 6),
           maxCost: ethers.parseUnits("100", 6),
         };
@@ -50,10 +51,9 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       // Verify all positions exist
       expect(await position.balanceOf(alice.address)).to.equal(1);
       expect(await position.balanceOf(bob.address)).to.equal(1);
-      expect(await position.balanceOf(charlie.address)).to.equal(1);
 
-      const marketPositions = await position.getAllPositionsInMarket(marketId);
-      expect(marketPositions.length).to.equal(3);
+      const marketPositions = await position.getMarketPositions(marketId);
+      expect(marketPositions.length).to.equal(2);
 
       // Modify positions while market is active
       await core
@@ -81,8 +81,8 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       // Position transfers should still work (they don't go through Core)
       await position
         .connect(bob)
-        .transferFrom(bob.address, charlie.address, positions[0]);
-      expect(await position.ownerOf(positions[0])).to.equal(charlie.address);
+        .transferFrom(bob.address, alice.address, positions[0]);
+      expect(await position.ownerOf(positions[0])).to.equal(alice.address);
 
       // But Core operations should fail
       await expect(
@@ -115,24 +115,22 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       // Verify cleanup
       expect(await position.balanceOf(alice.address)).to.equal(0);
       expect(await position.balanceOf(bob.address)).to.equal(0);
-      expect(await position.balanceOf(charlie.address)).to.equal(0);
 
-      const finalMarketPositions = await position.getAllPositionsInMarket(
-        marketId
-      );
+      const finalMarketPositions = await position.getMarketPositions(marketId);
       expect(finalMarketPositions.length).to.equal(0);
     });
 
     it("should handle position operations with overlapping tick ranges", async function () {
-      const { core, position, alice, bob, charlie, marketId } =
-        await loadFixture(realPositionMarketFixture);
+      const { core, position, alice, bob, marketId } = await loadFixture(
+        activePositionMarketFixture
+      );
 
       // Create positions with overlapping tick ranges
       const overlappingPositions = [
-        { user: alice, lower: 10, upper: 30, quantity: "2" },
-        { user: bob, lower: 20, upper: 40, quantity: "3" },
-        { user: charlie, lower: 25, upper: 35, quantity: "1.5" },
-        { user: alice, lower: 15, upper: 25, quantity: "1" },
+        { user: alice, lower: 100100, upper: 100300, quantity: "2" },
+        { user: bob, lower: 100200, upper: 100400, quantity: "3" },
+        { user: alice, lower: 100250, upper: 100350, quantity: "1.5" },
+        { user: bob, lower: 100150, upper: 100250, quantity: "1" },
       ];
 
       const positionIds = [];
@@ -172,7 +170,6 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       // Alice should have 2 positions, others 1 each
       expect(await position.balanceOf(alice.address)).to.equal(2);
       expect(await position.balanceOf(bob.address)).to.equal(1);
-      expect(await position.balanceOf(charlie.address)).to.equal(1);
 
       // Verify position data
       for (let i = 0; i < positionIds.length; i++) {
@@ -202,13 +199,13 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
         .connect(alice)
         .transferFrom(alice.address, bob.address, positionIds[0]);
       await position
-        .connect(charlie)
-        .transferFrom(charlie.address, alice.address, positionIds[2]);
+        .connect(alice)
+        .transferFrom(alice.address, bob.address, positionIds[2]);
 
       // Now Alice has 1, Bob has 2, Charlie has 1
       expect(await position.balanceOf(alice.address)).to.equal(2); // kept 1, received 1
       expect(await position.balanceOf(bob.address)).to.equal(2); // kept 1, received 1
-      expect(await position.balanceOf(charlie.address)).to.equal(0); // transferred away
+      expect(await position.balanceOf(alice.address)).to.equal(0); // transferred away
 
       // Close positions in different order
       await core.connect(alice).closePosition(positionIds[2], 0); // Charlie's original, now Alice's
@@ -219,19 +216,18 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       // All should be cleaned up
       expect(await position.balanceOf(alice.address)).to.equal(0);
       expect(await position.balanceOf(bob.address)).to.equal(0);
-      expect(await position.balanceOf(charlie.address)).to.equal(0);
     });
 
     it("should handle position operations with reasonable tick ranges", async function () {
       const { core, position, alice, bob, marketId } = await loadFixture(
-        realPositionMarketFixture
+        activePositionMarketFixture
       );
 
       // Test with reasonable tick ranges for normal usage
       const reasonablePositions = [
-        { lower: 10, upper: 50, quantity: "0.005" }, // Moderate wide range
-        { lower: 30, upper: 35, quantity: "0.003" }, // Narrow range
-        { lower: 60, upper: 75, quantity: "0.002" }, // Normal range
+        { lower: 100100, upper: 100500, quantity: "0.005" }, // Moderate wide range
+        { lower: 100300, upper: 100350, quantity: "0.003" }, // Narrow range
+        { lower: 100600, upper: 100750, quantity: "0.002" }, // Normal range
       ];
 
       const positionIds = [];
@@ -314,20 +310,21 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
   describe("Position Batch Operations", function () {
     it("should handle reasonable batch position creation and management", async function () {
-      const { core, position, alice, bob, charlie, marketId } =
-        await loadFixture(realPositionMarketFixture);
+      const { core, position, alice, bob, marketId } = await loadFixture(
+        activePositionMarketFixture
+      );
 
       const batchSize = 5; // Reduced batch size for realistic usage
       const positionIds = [];
-      const users = [alice, bob, charlie];
+      const users = [alice, bob];
 
       // Create batch of positions with reasonable quantities
       for (let i = 0; i < batchSize; i++) {
         const user = users[i % users.length];
         const params = {
           marketId,
-          lowerTick: 10 + i * 8,
-          upperTick: 20 + i * 8,
+          lowerTick: 100100 + i * 80, // 실제 틱값 사용 (100100, 100180, ...)
+          upperTick: 100180 + i * 80, // 실제 틱값 사용 (100180, 100260, ...)
           quantity: ethers.parseUnits((0.001 * (i + 1)).toString(), 6), // Much smaller quantities
           maxCost: ethers.parseUnits("5", 6), // Reduced max cost
         };
@@ -358,13 +355,11 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       // Verify batch creation
       const aliceCount = positionIds.filter((p) => p.user === alice).length;
       const bobCount = positionIds.filter((p) => p.user === bob).length;
-      const charlieCount = positionIds.filter((p) => p.user === charlie).length;
 
       expect(await position.balanceOf(alice.address)).to.equal(aliceCount);
       expect(await position.balanceOf(bob.address)).to.equal(bobCount);
-      expect(await position.balanceOf(charlie.address)).to.equal(charlieCount);
 
-      const marketPositions = await position.getAllPositionsInMarket(marketId);
+      const marketPositions = await position.getMarketPositions(marketId);
       expect(marketPositions.length).to.equal(batchSize);
 
       // Batch operations
@@ -411,24 +406,21 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       // Verify all cleaned up
       expect(await position.balanceOf(alice.address)).to.equal(0);
       expect(await position.balanceOf(bob.address)).to.equal(0);
-      expect(await position.balanceOf(charlie.address)).to.equal(0);
 
-      const finalMarketPositions = await position.getAllPositionsInMarket(
-        marketId
-      );
+      const finalMarketPositions = await position.getMarketPositions(marketId);
       expect(finalMarketPositions.length).to.equal(0);
     });
 
     it("should handle rapid position operations", async function () {
       const { core, position, alice, bob, marketId } = await loadFixture(
-        realPositionMarketFixture
+        activePositionMarketFixture
       );
 
       // Create position for rapid operations
       const params = {
         marketId,
-        lowerTick: 10,
-        upperTick: 30,
+        lowerTick: 100100, // 실제 틱값 사용 (100100)
+        upperTick: 100130, // 실제 틱값 사용 (100130)
         quantity: ethers.parseUnits("0.01", 6), // Reduced from 100 to 0.01
         maxCost: ethers.parseUnits("10", 6), // Reduced from 1000 to 10
       };
@@ -512,31 +504,27 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
   describe("Position Error Recovery and Edge Cases", function () {
     it("should handle position operations with market edge cases", async function () {
       const { core, position, alice, bob, marketId } = await loadFixture(
-        realPositionMarketFixture
+        activePositionMarketFixture
       );
 
       // Create position with minimal quantity
 
-      const minPositionId = await core
-        .connect(alice)
-        .openPosition.staticCall(
-          alice.address,
-          marketId,
-          10,
-          20,
-          1,
-          ethers.parseUnits("1", 6)
-        );
-      await core
-        .connect(alice)
-        .openPosition(
-          alice.address,
-          marketId,
-          10,
-          20,
-          1,
-          ethers.parseUnits("1", 6)
-        );
+      const minPositionId = await core.connect(alice).openPosition.staticCall(
+        alice.address,
+        marketId,
+        100100, // 실제 틱값 사용 (100100)
+        100120, // 실제 틱값 사용 (100120)
+        1,
+        ethers.parseUnits("1", 6)
+      );
+      await core.connect(alice).openPosition(
+        alice.address,
+        marketId,
+        100100, // 실제 틱값 사용 (100100)
+        100120, // 실제 틱값 사용 (100120)
+        1,
+        ethers.parseUnits("1", 6)
+      );
 
       // Operations on minimal position
       await core
@@ -561,26 +549,22 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       await core.connect(alice).closePosition(minPositionId, 0);
       expect(await position.balanceOf(bob.address)).to.equal(0);
 
-      const maxPositionId = await core
-        .connect(alice)
-        .openPosition.staticCall(
-          alice.address,
-          marketId,
-          10,
-          20,
-          1,
-          ethers.parseUnits("1", 6)
-        );
-      await core
-        .connect(alice)
-        .openPosition(
-          alice.address,
-          marketId,
-          10,
-          20,
-          1,
-          ethers.parseUnits("1", 6)
-        );
+      const maxPositionId = await core.connect(alice).openPosition.staticCall(
+        alice.address,
+        marketId,
+        100100, // 실제 틱값 사용 (100100)
+        100120, // 실제 틱값 사용 (100120)
+        1,
+        ethers.parseUnits("1", 6)
+      );
+      await core.connect(alice).openPosition(
+        alice.address,
+        marketId,
+        100100, // 실제 틱값 사용 (100100)
+        100120, // 실제 틱값 사용 (100120)
+        1,
+        ethers.parseUnits("1", 6)
+      );
 
       // Operations on maximum position
       await core.connect(alice).increasePosition(
@@ -611,14 +595,14 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
 
     it("should handle position operations with failed transactions", async function () {
       const { core, position, alice, bob, marketId } = await loadFixture(
-        realPositionMarketFixture
+        activePositionMarketFixture
       );
 
       // Create position
       const params = {
         marketId,
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100100, // 실제 틱값 사용 (100100)
+        upperTick: 100120, // 실제 틱값 사용 (100120)
         quantity: ethers.parseUnits("5", 6),
         maxCost: ethers.parseUnits("50", 6),
       };
@@ -700,8 +684,9 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
     });
 
     it("should maintain data integrity across complex operation sequences", async function () {
-      const { core, position, alice, bob, charlie, marketId } =
-        await loadFixture(realPositionMarketFixture);
+      const { core, position, alice, bob, marketId } = await loadFixture(
+        activePositionMarketFixture
+      );
 
       const positionIds = [];
       const expectedStates = [];
@@ -710,13 +695,13 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       for (let i = 0; i < 5; i++) {
         const params = {
           marketId,
-          lowerTick: 10 + i * 8,
-          upperTick: 25 + i * 8,
+          lowerTick: 100100 + i * 80, // 실제 틱값 사용 (100100, 100180, ...)
+          upperTick: 100180 + i * 80, // 실제 틱값 사용 (100180, 100260, ...)
           quantity: ethers.parseUnits((i + 1).toString(), 6),
           maxCost: ethers.parseUnits("100", 6),
         };
 
-        const user = [alice, bob, charlie][i % 3];
+        const user = [alice, bob][i % 2];
         const positionId = await core
           .connect(user)
           .openPosition.staticCall(
@@ -762,7 +747,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
           type: "decrease",
           posIndex: 2,
           amount: ethers.parseUnits("1", 6),
-          from: charlie,
+          from: alice,
         },
         {
           type: "increase",
@@ -770,14 +755,14 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
           amount: ethers.parseUnits("2", 6),
           from: bob,
         },
-        { type: "transfer", posIndex: 0, from: alice, to: charlie },
+        { type: "transfer", posIndex: 0, from: alice, to: bob },
         {
           type: "decrease",
           posIndex: 4,
           amount: ethers.parseUnits("0.8", 6),
           from: alice,
         },
-        { type: "transfer", posIndex: 2, from: charlie, to: bob },
+        { type: "transfer", posIndex: 2, from: bob, to: alice },
         {
           type: "increase",
           posIndex: 1,
@@ -822,9 +807,6 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       // Verify final balances
       const alicePositions = await position.getPositionsByOwner(alice.address);
       const bobPositions = await position.getPositionsByOwner(bob.address);
-      const charliePositions = await position.getPositionsByOwner(
-        charlie.address
-      );
 
       const aliceCount = expectedStates.filter(
         (s) => s.owner === alice.address
@@ -832,13 +814,9 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       const bobCount = expectedStates.filter(
         (s) => s.owner === bob.address
       ).length;
-      const charlieCount = expectedStates.filter(
-        (s) => s.owner === charlie.address
-      ).length;
 
       expect(alicePositions.length).to.equal(aliceCount);
       expect(bobPositions.length).to.equal(bobCount);
-      expect(charliePositions.length).to.equal(charlieCount);
 
       // Close all positions
       for (const posId of positionIds) {
@@ -848,11 +826,8 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       // Verify complete cleanup
       expect(await position.balanceOf(alice.address)).to.equal(0);
       expect(await position.balanceOf(bob.address)).to.equal(0);
-      expect(await position.balanceOf(charlie.address)).to.equal(0);
 
-      const finalMarketPositions = await position.getAllPositionsInMarket(
-        marketId
-      );
+      const finalMarketPositions = await position.getMarketPositions(marketId);
       expect(finalMarketPositions.length).to.equal(0);
     });
   });

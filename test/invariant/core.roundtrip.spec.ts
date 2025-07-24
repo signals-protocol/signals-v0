@@ -36,8 +36,8 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
         .openPosition(
           alice.address,
           marketId,
-          45,
-          55,
+          100450,
+          100550,
           MEDIUM_QUANTITY,
           EXTREME_COST
         );
@@ -89,20 +89,20 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
       const cost1 = await core.calculateOpenCost(
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         baseQuantity
       );
       const cost2 = await core.calculateOpenCost(
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         doubleQuantity
       );
       const cost3 = await core.calculateOpenCost(
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         tripleQuantity
       );
 
@@ -121,20 +121,20 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       // Wider ranges should cost more for same quantity
       const narrowCost = await core.calculateOpenCost(
         marketId,
-        48,
-        52,
+        100480,
+        100520,
         MEDIUM_QUANTITY
       );
       const mediumCost = await core.calculateOpenCost(
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         MEDIUM_QUANTITY
       );
       const wideCost = await core.calculateOpenCost(
         marketId,
-        40,
-        60,
+        100400,
+        100600,
         MEDIUM_QUANTITY
       );
 
@@ -155,8 +155,8 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
         .openPosition(
           alice.address,
           marketId,
-          40,
-          60,
+          100400,
+          100600,
           MEDIUM_QUANTITY,
           EXTREME_COST
         );
@@ -190,8 +190,8 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
         .openPosition(
           alice.address,
           marketId,
-          40,
-          60,
+          100450,
+          100550,
           MEDIUM_QUANTITY,
           EXTREME_COST
         );
@@ -235,12 +235,22 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       const quantityY = SMALL_QUANTITY;
       const quantitySum = quantityX + quantityY;
 
-      const costX = await core.calculateOpenCost(marketId, 45, 55, quantityX);
-      const costY = await core.calculateOpenCost(marketId, 45, 55, quantityY);
+      const costX = await core.calculateOpenCost(
+        marketId,
+        100450,
+        100550,
+        quantityX
+      );
+      const costY = await core.calculateOpenCost(
+        marketId,
+        100450,
+        100550,
+        quantityY
+      );
       const costSum = await core.calculateOpenCost(
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         quantitySum
       );
 
@@ -258,7 +268,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       // Get initial tick values for multiple ticks
       const tickValues: bigint[] = [];
       for (let i = 0; i < 10; i++) {
-        const value = await core.getTickValue(marketId, i * 10);
+        const value = await core.getTickValue(marketId, 100000 + i * 100);
         tickValues.push(value);
         expect(value).to.be.gte(WAD); // Should be at least WAD initially
       }
@@ -269,20 +279,20 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
         .openPosition(
           alice.address,
           marketId,
-          10,
-          80,
+          100450,
+          100550,
           MEDIUM_QUANTITY,
           EXTREME_COST
         );
 
       // Check that tick values in the affected range increased
       for (let i = 1; i < 8; i++) {
-        const newValue = await core.getTickValue(marketId, i * 10);
+        const newValue = await core.getTickValue(marketId, 100000 + i * 100);
         expect(newValue).to.be.gte(tickValues[i]); // Should increase or stay same
       }
 
       // Ticks outside the range should be unchanged
-      const valueOutside = await core.getTickValue(marketId, 90);
+      const valueOutside = await core.getTickValue(marketId, 100900);
       expect(valueOutside).to.equal(tickValues[9]);
     });
 
@@ -293,7 +303,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
       // Execute multiple trades of same size and verify price impact
       const tradeSize = SMALL_QUANTITY;
-      const ticks = [45, 55];
+      const ticks = [100450, 100550];
 
       let previousCost = await core.calculateOpenCost(
         marketId,
@@ -344,8 +354,8 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
       const cost = await core.calculateOpenCost(
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         microQuantity
       );
       expect(cost).to.be.gt(0); // Should still have positive cost
@@ -357,8 +367,8 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
           .openPosition(
             alice.address,
             marketId,
-            45,
-            55,
+            100450,
+            100550,
             microQuantity,
             EXTREME_COST
           )
@@ -374,8 +384,8 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       try {
         const cost = await core.calculateOpenCost(
           marketId,
-          0,
-          TICK_COUNT - 1,
+          100000,
+          100990,
           largeQuantity
         );
         expect(cost).to.be.gt(0);
@@ -398,7 +408,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       const { core, marketId } = await loadFixture(createActiveMarketFixture);
 
       // Same parameters should always return same results
-      const params = [marketId, 45, 55, MEDIUM_QUANTITY] as const;
+      const params = [marketId, 100450, 100550, MEDIUM_QUANTITY] as const;
 
       const cost1 = await core.calculateOpenCost(...params);
       const cost2 = await core.calculateOpenCost(...params);
@@ -421,8 +431,8 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
         .openPosition(
           alice.address,
           marketId,
-          30,
-          70,
+          100300,
+          100700,
           MEDIUM_QUANTITY,
           EXTREME_COST
         );
@@ -432,8 +442,8 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
         .openPosition(
           bob.address,
           marketId,
-          40,
-          60,
+          100400,
+          100600,
           MEDIUM_QUANTITY,
           EXTREME_COST
         );
@@ -463,13 +473,15 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       const currentTime = await time.latest();
       const startTime = currentTime + 2000; // Large buffer for invariant tests
       const endTime = startTime + 86400;
-      const marketId = 1;
+      const marketId = Math.floor(Math.random() * 1000000) + 1;
 
       await core
         .connect(keeper)
         .createMarket(
           marketId,
-          100,
+          100000,
+          100990,
+          10,
           startTime,
           endTime,
           ethers.parseEther("1")
@@ -481,7 +493,12 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
       for (const quantity of testQuantities) {
         // Get exact cost calculation (should be rounded up)
-        const cost = await core.calculateOpenCost(marketId, 40, 60, quantity);
+        const cost = await core.calculateOpenCost(
+          marketId,
+          100400,
+          100600,
+          quantity
+        );
 
         // Open position
         await core
@@ -489,8 +506,8 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
           .openPosition(
             alice.address,
             marketId,
-            40,
-            60,
+            100400,
+            100600,
             quantity,
             ethers.parseUnits("1000", 6)
           );
@@ -531,7 +548,9 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
         .connect(keeper)
         .createMarket(
           marketId,
-          100,
+          100000,
+          100990,
+          10,
           startTime,
           endTime,
           ethers.parseEther("1")
@@ -551,8 +570,8 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
           .openPosition(
             alice.address,
             marketId,
-            30,
-            70,
+            100300,
+            100700,
             qty,
             ethers.parseUnits("1000", 6)
           );
@@ -601,7 +620,15 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
       await core
         .connect(keeper)
-        .createMarket(marketId, 100, startTime, endTime, smallAlpha);
+        .createMarket(
+          marketId,
+          100000,
+          100990,
+          10,
+          startTime,
+          endTime,
+          smallAlpha
+        );
       await time.increaseTo(startTime + 1);
 
       // Try minimal quantity that might result in near-zero cost
@@ -609,8 +636,8 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
       const calculatedCost = await core.calculateOpenCost(
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         minimalQuantity
       );
 
@@ -641,7 +668,9 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
         .connect(keeper)
         .createMarket(
           marketId,
-          100,
+          100000,
+          100990,
+          10,
           startTime,
           endTime,
           ethers.parseEther("1")
@@ -653,8 +682,8 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       // Test 1: Fresh market state
       const cost1 = await core.calculateOpenCost(
         marketId,
-        20,
-        30,
+        100200,
+        100300,
         testQuantity
       );
       console.log(`Fresh market cost: ${cost1}`);
@@ -665,8 +694,8 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
         .openPosition(
           alice.address,
           marketId,
-          10,
-          20,
+          100100,
+          100200,
           1000,
           ethers.parseUnits("100", 6)
         );
@@ -674,8 +703,8 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       // Test 2: Modified market state
       const cost2 = await core.calculateOpenCost(
         marketId,
-        20,
-        30,
+        100200,
+        100300,
         testQuantity
       );
       console.log(`Modified market cost: ${cost2}`);

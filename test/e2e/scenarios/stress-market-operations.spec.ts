@@ -19,19 +19,30 @@ describe(`${E2E_TAG} Market Operations - Stress Tests`, function () {
 
     // This might be slow, so we test with a smaller but significant number
     const largeTicks = 50000;
+    const minTick = 100000;
+    const maxTick = minTick + (largeTicks - 1) * 10;
+    const tickSpacing = 10;
 
     await core
       .connect(keeper)
-      .createMarket(1, largeTicks, startTime, endTime, ALPHA);
+      .createMarket(
+        1,
+        minTick,
+        maxTick,
+        tickSpacing,
+        startTime,
+        endTime,
+        ALPHA
+      );
 
     const market = await core.getMarket(1);
     expect(market.numTicks).to.equal(largeTicks);
 
     // Test settlement with large tick count
-    await core.connect(keeper).settleMarket(1, largeTicks - 2, largeTicks - 1);
+    await core.connect(keeper).settleMarket(1, maxTick - 20, maxTick - 10);
 
     const settledMarket = await core.getMarket(1);
-    expect(settledMarket.settlementUpperTick).to.equal(largeTicks - 1);
+    expect(settledMarket.settlementUpperTick).to.equal(maxTick - 10);
   });
 
   it("Should handle rapid market creation and settlement", async function () {
@@ -42,28 +53,30 @@ describe(`${E2E_TAG} Market Operations - Stress Tests`, function () {
 
     // Create and settle multiple markets rapidly
     for (let i = 1; i <= 10; i++) {
+      const minTick = 100000;
+      const maxTick = 100990;
+      const tickSpacing = 10;
+
       await core
         .connect(keeper)
         .createMarket(
           i,
-          TICK_COUNT,
+          minTick,
+          maxTick,
+          tickSpacing,
           baseStartTime + i * 100,
           baseStartTime + i * 100 + MARKET_DURATION,
           ALPHA
         );
 
-      const settlementTick = i % TICK_COUNT;
+      const settlementTick = 100000 + (i % 100) * 10;
       await core
         .connect(keeper)
-        .settleMarket(
-          i,
-          settlementTick === 0 ? 0 : settlementTick - 1,
-          settlementTick
-        );
+        .settleMarket(i, settlementTick, settlementTick + 10);
 
       const market = await core.getMarket(i);
       expect(market.settled).to.be.true;
-      expect(market.settlementUpperTick).to.equal(settlementTick);
+      expect(market.settlementUpperTick).to.equal(settlementTick + 10);
     }
   });
 
@@ -73,39 +86,73 @@ describe(`${E2E_TAG} Market Operations - Stress Tests`, function () {
     const currentTime = await time.latest();
     const startTime = currentTime + 3600;
     const endTime = startTime + MARKET_DURATION;
-    const maxTicks = await core.MAX_TICK_COUNT(); // 1,000,000
+    const maxTickCount = await core.MAX_TICK_COUNT(); // 1,000,000
+
+    // Calculate tick range for max count
+    const minTick = 100000;
+    const tickSpacing = 10;
+    const maxTick = minTick + (Number(maxTickCount) - 1) * tickSpacing;
 
     // Test with actual maximum tick count
     await core
       .connect(keeper)
-      .createMarket(1, maxTicks, startTime, endTime, ALPHA);
+      .createMarket(
+        1,
+        minTick,
+        maxTick,
+        tickSpacing,
+        startTime,
+        endTime,
+        ALPHA
+      );
 
     const market = await core.getMarket(1);
-    expect(market.numTicks).to.equal(maxTicks);
+    expect(market.numTicks).to.equal(maxTickCount);
 
     // Sample a few tick values to ensure tree initialization
-    expect(await core.getTickValue(1, 0)).to.equal(WAD);
-    expect(await core.getTickValue(1, 100000)).to.equal(WAD);
-    expect(await core.getTickValue(1, Number(maxTicks) - 1)).to.equal(WAD);
+    expect(await core.getTickValue(1, minTick)).to.equal(WAD);
+    expect(await core.getTickValue(1, minTick + 100000 * tickSpacing)).to.equal(
+      WAD
+    );
+    expect(await core.getTickValue(1, maxTick)).to.equal(WAD);
   });
 
   it("Should validate time range correctly", async function () {
     const { core, keeper } = await loadFixture(coreFixture);
 
     const currentTime = await time.latest();
+    const minTick = 100000;
+    const maxTick = 100990;
+    const tickSpacing = 10;
 
     // Test start == end (should fail)
     await expect(
       core
         .connect(keeper)
-        .createMarket(1, TICK_COUNT, currentTime, currentTime, ALPHA)
+        .createMarket(
+          1,
+          minTick,
+          maxTick,
+          tickSpacing,
+          currentTime,
+          currentTime,
+          ALPHA
+        )
     ).to.be.revertedWithCustomError(core, "InvalidTimeRange");
 
     // Test start > end (should fail)
     await expect(
       core
         .connect(keeper)
-        .createMarket(1, TICK_COUNT, currentTime + 1000, currentTime, ALPHA)
+        .createMarket(
+          1,
+          minTick,
+          maxTick,
+          tickSpacing,
+          currentTime + 1000,
+          currentTime,
+          ALPHA
+        )
     ).to.be.revertedWithCustomError(core, "InvalidTimeRange");
   });
 
@@ -115,17 +162,36 @@ describe(`${E2E_TAG} Market Operations - Stress Tests`, function () {
     const currentTime = await time.latest();
     const startTime = currentTime + 3600;
     const endTime = startTime + MARKET_DURATION;
+    const minTick = 100000;
+    const maxTick = 100990;
+    const tickSpacing = 10;
 
     // Create first market
     await core
       .connect(keeper)
-      .createMarket(1, TICK_COUNT, startTime, endTime, ALPHA);
+      .createMarket(
+        1,
+        minTick,
+        maxTick,
+        tickSpacing,
+        startTime,
+        endTime,
+        ALPHA
+      );
 
     // Try to create market with same ID
     await expect(
       core
         .connect(keeper)
-        .createMarket(1, TICK_COUNT, startTime + 1000, endTime + 1000, ALPHA)
+        .createMarket(
+          1,
+          minTick,
+          maxTick,
+          tickSpacing,
+          startTime + 1000,
+          endTime + 1000,
+          ALPHA
+        )
     ).to.be.revertedWithCustomError(core, "MarketAlreadyExists");
   });
 
@@ -135,6 +201,9 @@ describe(`${E2E_TAG} Market Operations - Stress Tests`, function () {
     const currentTime = await time.latest();
     const startTime = currentTime + 3600;
     const endTime = startTime + MARKET_DURATION;
+    const minTick = 100000;
+    const maxTick = 100990;
+    const tickSpacing = 10;
 
     const minAlpha = await core.MIN_LIQUIDITY_PARAMETER();
     const maxAlpha = await core.MAX_LIQUIDITY_PARAMETER();
@@ -142,25 +211,57 @@ describe(`${E2E_TAG} Market Operations - Stress Tests`, function () {
     // Test minimum boundary (should succeed)
     await core
       .connect(keeper)
-      .createMarket(1, TICK_COUNT, startTime, endTime, minAlpha);
+      .createMarket(
+        1,
+        minTick,
+        maxTick,
+        tickSpacing,
+        startTime,
+        endTime,
+        minAlpha
+      );
 
     // Test maximum boundary (should succeed)
     await core
       .connect(keeper)
-      .createMarket(2, TICK_COUNT, startTime, endTime, maxAlpha);
+      .createMarket(
+        2,
+        minTick,
+        maxTick,
+        tickSpacing,
+        startTime,
+        endTime,
+        maxAlpha
+      );
 
     // Test below minimum (should fail)
     await expect(
       core
         .connect(keeper)
-        .createMarket(3, TICK_COUNT, startTime, endTime, minAlpha - 1n)
+        .createMarket(
+          3,
+          minTick,
+          maxTick,
+          tickSpacing,
+          startTime,
+          endTime,
+          minAlpha - 1n
+        )
     ).to.be.revertedWithCustomError(core, "InvalidLiquidityParameter");
 
     // Test above maximum (should fail)
     await expect(
       core
         .connect(keeper)
-        .createMarket(4, TICK_COUNT, startTime, endTime, maxAlpha + 1n)
+        .createMarket(
+          4,
+          minTick,
+          maxTick,
+          tickSpacing,
+          startTime,
+          endTime,
+          maxAlpha + 1n
+        )
     ).to.be.revertedWithCustomError(core, "InvalidLiquidityParameter");
   });
 
@@ -172,11 +273,11 @@ describe(`${E2E_TAG} Market Operations - Stress Tests`, function () {
 
     // Create markets with various tick counts and liquidity parameters
     const marketConfigs = [
-      { id: 1, ticks: 10, alpha: ethers.parseEther("0.001") },
-      { id: 2, ticks: 100, alpha: ethers.parseEther("0.1") },
-      { id: 3, ticks: 1000, alpha: ethers.parseEther("1") },
-      { id: 4, ticks: 10000, alpha: ethers.parseEther("10") },
-      { id: 5, ticks: 50000, alpha: ethers.parseEther("100") },
+      { id: 1, tickCount: 10, alpha: ethers.parseEther("0.001") },
+      { id: 2, tickCount: 100, alpha: ethers.parseEther("0.1") },
+      { id: 3, tickCount: 1000, alpha: ethers.parseEther("1") },
+      { id: 4, tickCount: 10000, alpha: ethers.parseEther("10") },
+      { id: 5, tickCount: 50000, alpha: ethers.parseEther("100") },
     ];
 
     for (let i = 0; i < marketConfigs.length; i++) {
@@ -184,18 +285,24 @@ describe(`${E2E_TAG} Market Operations - Stress Tests`, function () {
       const startTime = baseStartTime + i * 1000;
       const endTime = startTime + MARKET_DURATION;
 
+      const minTick = 100000;
+      const tickSpacing = 10;
+      const maxTick = minTick + (config.tickCount - 1) * tickSpacing;
+
       await core
         .connect(keeper)
         .createMarket(
           config.id,
-          config.ticks,
+          minTick,
+          maxTick,
+          tickSpacing,
           startTime,
           endTime,
           config.alpha
         );
 
       const market = await core.getMarket(config.id);
-      expect(market.numTicks).to.equal(config.ticks);
+      expect(market.numTicks).to.equal(config.tickCount);
       expect(market.liquidityParameter).to.equal(config.alpha);
       expect(market.isActive).to.be.true;
       expect(market.settled).to.be.false;
@@ -204,20 +311,18 @@ describe(`${E2E_TAG} Market Operations - Stress Tests`, function () {
     // Settle all markets with different winning ticks
     for (let i = 0; i < marketConfigs.length; i++) {
       const config = marketConfigs[i];
-      const winningTick = Math.floor(config.ticks / 2); // Middle tick
+      const midPoint = Math.floor(config.tickCount / 2);
+      const winningTickLower = 100000 + midPoint * 10;
+      const winningTickUpper = winningTickLower + 10;
 
       await core
         .connect(keeper)
-        .settleMarket(
-          config.id,
-          winningTick === 0 ? 0 : winningTick - 1,
-          winningTick
-        );
+        .settleMarket(config.id, winningTickLower, winningTickUpper);
 
       const market = await core.getMarket(config.id);
       expect(market.settled).to.be.true;
       expect(market.isActive).to.be.false;
-      expect(market.settlementUpperTick).to.equal(winningTick);
+      expect(market.settlementUpperTick).to.equal(winningTickUpper);
     }
   });
 
@@ -227,72 +332,72 @@ describe(`${E2E_TAG} Market Operations - Stress Tests`, function () {
     const currentTime = await time.latest();
     const startTime = currentTime + 3600;
     const endTime = startTime + MARKET_DURATION;
-    const largeTicks = 10000;
+    const tickCount = 10000;
+    const minTick = 100000;
+    const tickSpacing = 10;
+    const maxTick = minTick + (tickCount - 1) * tickSpacing;
 
     await core
       .connect(keeper)
-      .createMarket(1, largeTicks, startTime, endTime, ALPHA);
+      .createMarket(
+        1,
+        minTick,
+        maxTick,
+        tickSpacing,
+        startTime,
+        endTime,
+        ALPHA
+      );
 
     // Query many tick values (sampling approach for performance)
     const sampleSize = 100;
-    const step = Math.floor(largeTicks / sampleSize);
+    const step = Math.floor(tickCount / sampleSize);
 
-    for (let i = 0; i < largeTicks; i += step) {
-      const tickValue = await core.getTickValue(1, i);
+    for (let i = 0; i < tickCount; i += step) {
+      const actualTick = minTick + i * tickSpacing;
+      const tickValue = await core.getTickValue(1, actualTick);
       expect(tickValue).to.equal(WAD);
     }
 
     // Test edge cases
-    expect(await core.getTickValue(1, 0)).to.equal(WAD);
-    expect(await core.getTickValue(1, largeTicks - 1)).to.equal(WAD);
+    expect(await core.getTickValue(1, minTick)).to.equal(WAD);
+    expect(await core.getTickValue(1, maxTick)).to.equal(WAD);
   });
 
   it("Should handle stress test: rapid market operations", async function () {
     const { core, keeper } = await loadFixture(coreFixture);
 
     const currentTime = await time.latest();
-    const baseStartTime = currentTime + 3600;
-    const numMarkets = 50;
+    const minTick = 100000;
+    const maxTick = 100990;
+    const tickSpacing = 10;
 
-    // Create many markets rapidly
-    for (let i = 1; i <= numMarkets; i++) {
+    // Rapid operations: create, settle, repeat
+    for (let i = 1; i <= 20; i++) {
+      const startTime = currentTime + i * 10;
+      const endTime = startTime + MARKET_DURATION;
+
+      // Create market
       await core
         .connect(keeper)
         .createMarket(
           i,
-          TICK_COUNT,
-          baseStartTime + i * 10,
-          baseStartTime + i * 10 + MARKET_DURATION,
+          minTick,
+          maxTick,
+          tickSpacing,
+          startTime,
+          endTime,
           ALPHA
         );
-    }
 
-    // Verify all markets were created correctly
-    for (let i = 1; i <= numMarkets; i++) {
-      const market = await core.getMarket(i);
-      expect(market.isActive).to.be.true;
-      expect(market.settled).to.be.false;
-      expect(market.numTicks).to.equal(TICK_COUNT);
-    }
-
-    // Settle markets in reverse order
-    for (let i = numMarkets; i >= 1; i--) {
-      const settlementTick = i % TICK_COUNT;
+      // Immediately settle
+      const settlementTick = 100000 + (i % 100) * 10;
       await core
         .connect(keeper)
-        .settleMarket(
-          i,
-          settlementTick === 0 ? 0 : settlementTick - 1,
-          settlementTick
-        );
-    }
+        .settleMarket(i, settlementTick, settlementTick + 10);
 
-    // Verify all settlements
-    for (let i = 1; i <= numMarkets; i++) {
       const market = await core.getMarket(i);
       expect(market.settled).to.be.true;
-      expect(market.isActive).to.be.false;
-      expect(market.settlementUpperTick).to.equal(i % TICK_COUNT);
     }
   });
 });

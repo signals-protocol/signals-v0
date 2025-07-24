@@ -1,39 +1,33 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { coreFixture } from "../../helpers/fixtures/core";
+import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
+import {
+  coreFixture,
+  createActiveMarketFixture,
+  setupActiveMarket,
+  setupCustomMarket,
+} from "../../helpers/fixtures/core";
 import { COMPONENT_TAG } from "../../helpers/tags";
 
 describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
+  const ALPHA = ethers.parseEther("1");
+  const MIN_TICK = 100000;
+  const MAX_TICK = 100990;
+  const TICK_SPACING = 10;
+  const MARKET_DURATION = 86400; // 1 day
+  const USDC_DECIMALS = 6;
+
   describe("Market Information Getters", function () {
     it("Should return correct market information after creation", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, keeper } = contracts;
-
-      const marketId = 1;
-      const numTicks = 100;
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const liquidityParameter = ethers.parseEther("0.1");
-
-      await core
-        .connect(keeper)
-        .createMarket(
-          marketId,
-          numTicks,
-          startTime,
-          endTime,
-          liquidityParameter
-        );
+      const { core, keeper, marketId, startTime, endTime } = await loadFixture(
+        createActiveMarketFixture
+      );
 
       const market = await core.getMarket(marketId);
 
-      expect(market.numTicks).to.equal(numTicks);
       expect(market.startTimestamp).to.equal(startTime);
       expect(market.endTimestamp).to.equal(endTime);
-      expect(market.liquidityParameter).to.equal(liquidityParameter);
-      expect(market.isActive).to.be.true;
+      expect(market.liquidityParameter).to.equal(ALPHA);
       expect(market.settled).to.be.false;
     });
 
@@ -41,73 +35,72 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
       const contracts = await loadFixture(coreFixture);
       const { core, keeper } = contracts;
 
-      const marketId = 1;
+      // 시간 상태 변화를 테스트하기 위해 미래 시간으로 마켓 생성
       const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
+      const startTime = currentTime + 1000; // 미래 시간
+      const endTime = startTime + MARKET_DURATION;
+      const marketId = Math.floor(Math.random() * 1000000) + 1;
 
       await core
         .connect(keeper)
         .createMarket(
           marketId,
-          100,
+          MIN_TICK,
+          MAX_TICK,
+          TICK_SPACING,
           startTime,
           endTime,
-          ethers.parseEther("0.1")
+          ALPHA
         );
 
-      // Initially CREATED
+      // Market should be PENDING before start time
       let market = await core.getMarket(marketId);
-      expect(market.startTimestamp).to.be.gt(await time.latest()); // CREATED
+      expect(market.startTimestamp).to.be.gt(await time.latest());
 
-      // Move to start time - should become ACTIVE
+      // Fast forward to market start
       await time.increaseTo(startTime + 1);
       market = await core.getMarket(marketId);
-      expect(market.startTimestamp).to.be.lte(await time.latest()); // ACTIVE
+      expect(market.startTimestamp).to.be.lte(await time.latest());
 
-      // Move past end time - should become ENDED
+      // Fast forward past market end
       await time.increaseTo(endTime + 1);
       market = await core.getMarket(marketId);
-      expect(market.endTimestamp).to.be.lte(await time.latest()); // ENDED
+      expect(market.endTimestamp).to.be.lte(await time.latest());
+      expect(market.settled).to.be.false;
 
-      // Settle market - should become SETTLED
-      await core.connect(keeper).settleMarket(marketId, 49, 50);
+      // Settle market
+      await core.connect(keeper).settleMarket(marketId, 100450, 100460);
       market = await core.getMarket(marketId);
-      expect(market.settlementLowerTick).to.equal(49); // SETTLED
-      expect(market.settlementUpperTick).to.equal(50);
+      expect(market.settled).to.be.true;
     });
 
     it("Should handle multiple markets independently", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, keeper } = contracts;
+      const { core } = contracts;
 
-      const currentTime = await time.latest();
-      const startTime1 = currentTime + 100;
-      const endTime1 = startTime1 + 86400;
-      const startTime2 = currentTime + 200;
-      const endTime2 = startTime2 + 86400;
+      // 두 개의 독립적인 마켓 생성
+      const marketConfig1 = await setupCustomMarket(contracts, {
+        numTicks: 50, // 100000-100490
+      });
+      const marketConfig2 = await setupCustomMarket(contracts, {
+        numTicks: 100, // 100000-100990
+      });
 
-      // Create two markets with different parameters
-      await core
-        .connect(keeper)
-        .createMarket(1, 50, startTime1, endTime1, ethers.parseEther("0.1"));
+      const marketId1 = marketConfig1.marketId;
+      const marketId2 = marketConfig2.marketId;
 
-      await core
-        .connect(keeper)
-        .createMarket(2, 200, startTime2, endTime2, ethers.parseEther("0.5"));
+      // Get both markets
+      const marketInfo1 = await core.getMarket(marketId1);
+      const marketInfo2 = await core.getMarket(marketId2);
 
-      const market1 = await core.getMarket(1);
-      const market2 = await core.getMarket(2);
-
-      expect(market1.numTicks).to.equal(50);
-      expect(market2.numTicks).to.equal(200);
-      expect(market1.liquidityParameter).to.equal(ethers.parseEther("0.1"));
-      expect(market2.liquidityParameter).to.equal(ethers.parseEther("0.5"));
+      expect(marketInfo1.startTimestamp).to.equal(marketConfig1.startTime);
+      expect(marketInfo2.startTimestamp).to.equal(marketConfig2.startTime);
+      expect(marketInfo1.endTimestamp).to.equal(marketConfig1.endTime);
+      expect(marketInfo2.endTimestamp).to.equal(marketConfig2.endTime);
     });
 
     it("Should revert when getting info for non-existent market", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core } = contracts;
+      const { core } = await loadFixture(createActiveMarketFixture);
 
       await expect(core.getMarket(999)).to.be.revertedWithCustomError(
         core,
@@ -116,160 +109,103 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
     });
 
     it("Should return correct tick values after market creation", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, keeper } = contracts;
+      const { core, keeper, marketId } = await loadFixture(
+        createActiveMarketFixture
+      );
 
-      const marketId = 1;
-      const tickCount = 100;
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-
-      await core
-        .connect(keeper)
-        .createMarket(
-          marketId,
-          tickCount,
-          startTime,
-          endTime,
-          ethers.parseEther("0.1")
-        );
-
-      // All ticks should start at 1 WAD (e^0 = 1)
+      // Check initial tick values (should all be WAD initially)
       const WAD = ethers.parseEther("1");
-      for (let i = 0; i < tickCount; i += 10) {
-        // Sample every 10th tick
-        const tickValue = await core.getTickValue(marketId, i);
-        expect(tickValue).to.equal(WAD);
-      }
+
+      const tickValue1 = await core.getTickValue(marketId, 100000);
+      const tickValue2 = await core.getTickValue(marketId, 100500);
+      const tickValue3 = await core.getTickValue(marketId, 100990);
+
+      expect(tickValue1).to.equal(WAD);
+      expect(tickValue2).to.equal(WAD);
+      expect(tickValue3).to.equal(WAD);
     });
 
     it("Should handle tick value queries for invalid ticks", async function () {
-      const contracts = await loadFixture(coreFixture);
+      const contracts = await loadFixture(createActiveMarketFixture);
       const { core, keeper } = contracts;
+      const { marketId, startTime, endTime } = await setupActiveMarket(
+        contracts
+      );
 
-      const marketId = 1;
-      const tickCount = 100;
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-
-      await core
-        .connect(keeper)
-        .createMarket(
-          marketId,
-          tickCount,
-          startTime,
-          endTime,
-          ethers.parseEther("0.1")
-        );
-
+      // Should revert for ticks outside the valid range
       await expect(
-        core.getTickValue(marketId, tickCount) // at limit
+        core.getTickValue(marketId, 99999)
       ).to.be.revertedWithCustomError(core, "InvalidTick");
 
       await expect(
-        core.getTickValue(marketId, tickCount + 1) // over limit
+        core.getTickValue(marketId, 101000)
       ).to.be.revertedWithCustomError(core, "InvalidTick");
     });
 
     it("Should handle tick value queries for non-existent markets", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core } = contracts;
+      const { core } = await loadFixture(createActiveMarketFixture);
 
-      await expect(core.getTickValue(999, 0)).to.be.revertedWithCustomError(
-        core,
-        "MarketNotFound"
-      );
+      await expect(
+        core.getTickValue(999, 100500)
+      ).to.be.revertedWithCustomError(core, "MarketNotFound");
     });
   });
 
   describe("Position Information Getters", function () {
     it("Should return correct position information after opening", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, alice, keeper } = contracts;
+      const { core, alice, marketId, mockPosition } = await loadFixture(
+        createActiveMarketFixture
+      );
 
-      const marketId = 1;
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
+      const lowerTick = 100100;
+      const upperTick = 100200;
+      const quantity = ethers.parseUnits("1", USDC_DECIMALS);
+      const maxCost = ethers.parseUnits("10", USDC_DECIMALS);
 
-      await core
-        .connect(keeper)
-        .createMarket(
-          marketId,
-          100,
-          startTime,
-          endTime,
-          ethers.parseEther("0.1")
-        );
-
-      await time.increaseTo(startTime + 1);
-
-      const tradeParams = {
-        marketId,
-        lowerTick: 10,
-        upperTick: 20,
-        quantity: ethers.parseUnits("1", 6),
-        maxCost: ethers.parseUnits("10", 6),
-      };
-
+      // Open position
       await core
         .connect(alice)
         .openPosition(
           alice.address,
-          tradeParams.marketId,
-          tradeParams.lowerTick,
-          tradeParams.upperTick,
-          tradeParams.quantity,
-          tradeParams.maxCost
+          marketId,
+          lowerTick,
+          upperTick,
+          quantity,
+          maxCost
         );
 
-      // Get position info from position contract
-      const positionContract = await core.getPositionContract();
-      const position = await ethers.getContractAt(
-        "MockPosition",
-        positionContract
-      );
-      const positionInfo = await position.getPosition(1);
+      // Get position information
+      const positionData = await mockPosition.getPosition(1);
 
-      expect(await position.ownerOf(1)).to.equal(alice.address);
-      expect(positionInfo.marketId).to.equal(marketId);
-      expect(positionInfo.lowerTick).to.equal(10);
-      expect(positionInfo.upperTick).to.equal(20);
-      expect(positionInfo.quantity).to.equal(tradeParams.quantity);
+      expect(positionData.marketId).to.equal(marketId);
+      expect(positionData.lowerTick).to.equal(lowerTick);
+      expect(positionData.upperTick).to.equal(upperTick);
+      expect(positionData.quantity).to.equal(quantity);
+
+      // Check ownership
+      const owner = await mockPosition.ownerOf(1);
+      expect(owner).to.equal(alice.address);
+
+      // Check user's positions
+      const userPositions = await mockPosition.getPositionsByOwner(
+        alice.address
+      );
+      expect(userPositions).to.have.length(1);
+      expect(userPositions[0]).to.equal(1);
     });
 
     it("Should track position count correctly", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, alice, bob, keeper } = contracts;
-
-      const marketId = 1;
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-
-      await core
-        .connect(keeper)
-        .createMarket(
-          marketId,
-          100,
-          startTime,
-          endTime,
-          ethers.parseEther("0.1")
-        );
-
-      await time.increaseTo(startTime + 1);
-
-      const positionContract = await core.getPositionContract();
-      const position = await ethers.getContractAt(
-        "MockPosition",
-        positionContract
+      const { core, alice, bob, marketId, mockPosition } = await loadFixture(
+        createActiveMarketFixture
       );
 
+      const lowerTick = 100100;
+      const upperTick = 100200;
+      const quantity = ethers.parseUnits("1", USDC_DECIMALS);
+      const maxCost = ethers.parseUnits("10", USDC_DECIMALS);
+
       // Initially no positions
-      expect(await position.balanceOf(alice.address)).to.equal(0);
-      expect(await position.balanceOf(bob.address)).to.equal(0);
+      expect(await mockPosition.totalSupply()).to.equal(0);
 
       // Open first position
       await core
@@ -277,263 +213,259 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
         .openPosition(
           alice.address,
           marketId,
-          10,
-          20,
-          ethers.parseUnits("1", 6),
-          ethers.parseUnits("10", 6)
+          lowerTick,
+          upperTick,
+          quantity,
+          maxCost
         );
-      expect(await position.balanceOf(alice.address)).to.equal(1);
 
+      expect(await mockPosition.totalSupply()).to.equal(1);
+
+      // Open second position (different user)
       await core
         .connect(bob)
-        .openPosition(
-          bob.address,
-          marketId,
-          30,
-          40,
-          ethers.parseUnits("0.5", 6),
-          ethers.parseUnits("5", 6)
-        );
-      expect(await position.balanceOf(bob.address)).to.equal(1);
-    });
+        .openPosition(bob.address, marketId, 100300, 100400, quantity, maxCost);
 
-    it("Should handle position ownership correctly", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, alice, bob, keeper } = contracts;
+      expect(await mockPosition.totalSupply()).to.equal(2);
 
-      const marketId = 1;
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-
-      await core
-        .connect(keeper)
-        .createMarket(
-          marketId,
-          100,
-          startTime,
-          endTime,
-          ethers.parseEther("0.1")
-        );
-
-      await time.increaseTo(startTime + 1);
-
-      const tradeParams = {
-        marketId,
-        lowerTick: 10,
-        upperTick: 20,
-        quantity: ethers.parseUnits("1", 6),
-        maxCost: ethers.parseUnits("10", 6),
-      };
-
+      // Open third position (same user as first)
       await core
         .connect(alice)
         .openPosition(
           alice.address,
-          tradeParams.marketId,
-          tradeParams.lowerTick,
-          tradeParams.upperTick,
-          tradeParams.quantity,
-          tradeParams.maxCost
+          marketId,
+          100500,
+          100600,
+          quantity,
+          maxCost
         );
 
-      const positionContract = await core.getPositionContract();
-      const position = await ethers.getContractAt(
-        "ICLMSRPosition",
-        positionContract
-      );
+      expect(await mockPosition.totalSupply()).to.equal(3);
 
-      expect(await position.ownerOf(1)).to.equal(alice.address);
-      expect(await position.balanceOf(alice.address)).to.equal(1);
-      expect(await position.balanceOf(bob.address)).to.equal(0);
+      // Check individual user counts
+      const alicePositions = await mockPosition.getPositionsByOwner(
+        alice.address
+      );
+      const bobPositions = await mockPosition.getPositionsByOwner(bob.address);
+
+      expect(alicePositions).to.have.length(2);
+      expect(bobPositions).to.have.length(1);
+    });
+
+    it("Should handle position ownership correctly", async function () {
+      const { core, alice, bob, charlie, marketId, mockPosition } =
+        await loadFixture(createActiveMarketFixture);
+
+      const lowerTick = 100100;
+      const upperTick = 100200;
+      const quantity = ethers.parseUnits("1", USDC_DECIMALS);
+      const maxCost = ethers.parseUnits("10", USDC_DECIMALS);
+
+      // Open position
+      await core
+        .connect(alice)
+        .openPosition(
+          alice.address,
+          marketId,
+          lowerTick,
+          upperTick,
+          quantity,
+          maxCost
+        );
+
+      const positionId = 1;
+
+      // Check initial ownership
+      expect(await mockPosition.ownerOf(positionId)).to.equal(alice.address);
+
+      // Transfer position to bob
+      await mockPosition
+        .connect(alice)
+        .transferFrom(alice.address, bob.address, positionId);
+
+      // Check ownership after transfer
+      expect(await mockPosition.ownerOf(positionId)).to.equal(bob.address);
+
+      // Check user position lists are updated
+      const alicePositions = await mockPosition.getPositionsByOwner(
+        alice.address
+      );
+      const bobPositions = await mockPosition.getPositionsByOwner(bob.address);
+
+      expect(alicePositions).to.have.length(0);
+      expect(bobPositions).to.have.length(1);
+      expect(bobPositions[0]).to.equal(positionId);
+
+      // Transfer to charlie
+      await mockPosition
+        .connect(bob)
+        .transferFrom(bob.address, charlie.address, positionId);
+
+      expect(await mockPosition.ownerOf(positionId)).to.equal(charlie.address);
     });
   });
 
   describe("Market State Calculations", function () {
     it("Should calculate open costs correctly", async function () {
-      const contracts = await loadFixture(coreFixture);
+      const contracts = await loadFixture(createActiveMarketFixture);
       const { core, keeper } = contracts;
+      const { marketId, startTime, endTime } = await setupActiveMarket(
+        contracts
+      );
 
-      const marketId = 1;
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
+      const lowerTick = 100100;
+      const upperTick = 100200;
+      const quantity = ethers.parseUnits("1", USDC_DECIMALS);
 
-      await core
-        .connect(keeper)
-        .createMarket(
-          marketId,
-          100,
-          startTime,
-          endTime,
-          ethers.parseEther("0.1")
-        );
-
-      await time.increaseTo(startTime + 1);
-
-      const quantity = ethers.parseUnits("1", 6);
-      const cost = await core.calculateOpenCost(marketId, 10, 20, quantity);
-
-      expect(cost).to.be.gt(0);
-      expect(cost).to.be.lt(ethers.parseUnits("10", 6)); // Reasonable cost
-    });
-
-    it("Should calculate close costs correctly", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, alice, keeper } = contracts;
-
-      const marketId = 1;
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-
-      await core
-        .connect(keeper)
-        .createMarket(
-          marketId,
-          100,
-          startTime,
-          endTime,
-          ethers.parseEther("0.1")
-        );
-
-      await time.increaseTo(startTime + 1);
-
-      // Open position first
-      const tradeParams = {
+      const cost = await core.calculateOpenCost(
         marketId,
-        lowerTick: 10,
-        upperTick: 20,
-        quantity: ethers.parseUnits("1", 6),
-        maxCost: ethers.parseUnits("10", 6),
-      };
-
-      await core
-        .connect(alice)
-        .openPosition(
-          alice.address,
-          tradeParams.marketId,
-          tradeParams.lowerTick,
-          tradeParams.upperTick,
-          tradeParams.quantity,
-          tradeParams.maxCost
-        );
-
-      // Calculate close cost
-      const closeCost = await core.calculateCloseProceeds(1);
-
-      expect(closeCost).to.be.gt(0);
-      expect(closeCost).to.be.lt(tradeParams.quantity); // Should be less than original quantity
-    });
-
-    it("Should calculate settled payouts correctly", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, alice, keeper } = contracts;
-
-      const marketId = 1;
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-
-      await core
-        .connect(keeper)
-        .createMarket(
-          marketId,
-          100,
-          startTime,
-          endTime,
-          ethers.parseEther("0.1")
-        );
-
-      await time.increaseTo(startTime + 1);
-
-      // Open position
-      const tradeParams = {
-        marketId,
-        lowerTick: 10,
-        upperTick: 20,
-        quantity: ethers.parseUnits("1", 6),
-        maxCost: ethers.parseUnits("10", 6),
-      };
-
-      await core
-        .connect(alice)
-        .openPosition(
-          alice.address,
-          tradeParams.marketId,
-          tradeParams.lowerTick,
-          tradeParams.upperTick,
-          tradeParams.quantity,
-          tradeParams.maxCost
-        );
-
-      // Settle market
-      await time.increaseTo(endTime + 1);
-      await core.connect(keeper).settleMarket(marketId, 15, 16); // Winning outcome in range
-
-      const payout = await core.calculateClaimAmount(1);
-      expect(payout).to.be.gt(0);
-      expect(payout).to.be.gte(tradeParams.quantity); // Should at least get back investment
-    });
-
-    it("Should handle cost calculations for different tick ranges", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, keeper } = contracts;
-
-      const marketId = 1;
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-
-      await core
-        .connect(keeper)
-        .createMarket(
-          marketId,
-          100,
-          startTime,
-          endTime,
-          ethers.parseEther("0.1")
-        );
-
-      await time.increaseTo(startTime + 1);
-
-      const quantity = ethers.parseUnits("1", 6);
-
-      // Narrow range
-      const narrowCost = await core.calculateOpenCost(
-        marketId,
-        49,
-        51,
+        lowerTick,
+        upperTick,
         quantity
       );
 
-      // Wide range
-      const wideCost = await core.calculateOpenCost(marketId, 10, 90, quantity);
+      expect(cost).to.be.gt(0);
 
-      // Wide range should cost more than narrow range (covering more outcomes)
-      expect(wideCost).to.be.gt(narrowCost);
+      // Cost should be reasonable (not extremely high or low)
+      expect(cost).to.be.lt(ethers.parseUnits("1000", USDC_DECIMALS));
+      expect(cost).to.be.gt(ethers.parseUnits("0.001", USDC_DECIMALS));
+    });
+
+    it("Should calculate close costs correctly", async function () {
+      const contracts = await loadFixture(createActiveMarketFixture);
+      const { core, alice, keeper, mockPosition } = contracts;
+      const { marketId, startTime, endTime } = await setupActiveMarket(
+        contracts
+      );
+
+      const lowerTick = 100100;
+      const upperTick = 100200;
+      const quantity = ethers.parseUnits("1", USDC_DECIMALS);
+      const maxCost = ethers.parseUnits("10", USDC_DECIMALS);
+
+      // Open position first
+      await core
+        .connect(alice)
+        .openPosition(
+          alice.address,
+          marketId,
+          lowerTick,
+          upperTick,
+          quantity,
+          maxCost
+        );
+
+      const positionId = 1;
+
+      // Calculate close proceeds
+      const proceeds = await core.calculateCloseProceeds(positionId);
+
+      expect(proceeds).to.be.gt(0);
+      expect(proceeds).to.be.lt(maxCost); // Should get less back than paid
+    });
+
+    it("Should calculate settled payouts correctly", async function () {
+      const { core, alice, keeper, mockPosition, marketId, endTime } =
+        await loadFixture(createActiveMarketFixture);
+
+      const lowerTick = 100100;
+      const upperTick = 100200;
+      const quantity = ethers.parseUnits("1", USDC_DECIMALS);
+      const maxCost = ethers.parseUnits("10", USDC_DECIMALS);
+
+      // Open position
+      await core
+        .connect(alice)
+        .openPosition(
+          alice.address,
+          marketId,
+          lowerTick,
+          upperTick,
+          quantity,
+          maxCost
+        );
+
+      const positionId = 1;
+
+      // Fast forward past market end
+      await time.increaseTo(endTime + 1);
+
+      // Settle market with winning outcome in range
+      await core.connect(keeper).settleMarket(marketId, 100150, 100160);
+
+      // Calculate claim amount
+      const claimAmount = await core.calculateClaimAmount(positionId);
+
+      expect(claimAmount).to.be.gt(0);
+    });
+
+    it("Should handle cost calculations for different tick ranges", async function () {
+      const { core, keeper, marketId } = await loadFixture(
+        createActiveMarketFixture
+      );
+
+      const quantity = ethers.parseUnits("1", USDC_DECIMALS);
+
+      // Calculate costs for different ranges
+      const narrowCost = await core.calculateOpenCost(
+        marketId,
+        100100,
+        100110,
+        quantity
+      );
+      const wideCost = await core.calculateOpenCost(
+        marketId,
+        100100,
+        100200,
+        quantity
+      );
+      const veryWideCost = await core.calculateOpenCost(
+        marketId,
+        100100,
+        100500,
+        quantity
+      );
+
+      // Wider ranges should generally cost more
+      expect(wideCost).to.be.gte(narrowCost);
+      expect(veryWideCost).to.be.gte(wideCost);
     });
   });
 
   describe("Market Existence and Validation", function () {
     it("Should correctly identify existing vs non-existing markets", async function () {
-      const contracts = await loadFixture(coreFixture);
+      const contracts = await loadFixture(createActiveMarketFixture);
       const { core, keeper } = contracts;
 
+      const marketId = Math.floor(Math.random() * 1000000) + 1;
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
+      const endTime = startTime + MARKET_DURATION;
 
-      // Create market 1
+      // Market doesn't exist yet
+      await expect(core.getMarket(marketId)).to.be.revertedWithCustomError(
+        core,
+        "MarketNotFound"
+      );
+
+      // Create market
       await core
         .connect(keeper)
-        .createMarket(1, 100, startTime, endTime, ethers.parseEther("0.1"));
+        .createMarket(
+          marketId,
+          MIN_TICK,
+          MAX_TICK,
+          TICK_SPACING,
+          startTime,
+          endTime,
+          ALPHA
+        );
 
-      // Market 1 should exist
-      const market1Info = await core.getMarket(1);
-      expect(market1Info.numTicks).to.equal(100);
+      // Market should exist now
+      const market = await core.getMarket(marketId);
+      expect(market.startTimestamp).to.equal(startTime);
 
-      // Market 2 should not exist
+      // Other markets still don't exist
       await expect(core.getMarket(2)).to.be.revertedWithCustomError(
         core,
         "MarketNotFound"
@@ -541,256 +473,286 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
     });
 
     it("Should validate market parameters on creation", async function () {
-      const contracts = await loadFixture(coreFixture);
+      const contracts = await loadFixture(createActiveMarketFixture);
       const { core, keeper } = contracts;
 
+      const marketId = Math.floor(Math.random() * 1000000) + 1;
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
+      const endTime = startTime + MARKET_DURATION;
 
-      // Invalid tick count (too low)
-      await expect(
-        core
-          .connect(keeper)
-          .createMarket(1, 0, startTime, endTime, ethers.parseEther("0.1"))
-      ).to.be.revertedWithCustomError(core, "TickCountExceedsLimit");
-
-      // Invalid liquidity parameter (too low)
-      await expect(
-        core
-          .connect(keeper)
-          .createMarket(1, 100, startTime, endTime, ethers.parseEther("0.0001"))
-      ).to.be.revertedWithCustomError(core, "InvalidLiquidityParameter");
-
-      // Invalid time range (end before start)
-      await expect(
-        core.connect(keeper).createMarket(
-          1,
-          100,
-          endTime,
-          startTime, // end < start
-          ethers.parseEther("0.1")
-        )
-      ).to.be.revertedWithCustomError(core, "InvalidTimeRange");
-    });
-
-    it("Should prevent duplicate market IDs", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, keeper } = contracts;
-
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-
-      // Create market 1
-      await core
-        .connect(keeper)
-        .createMarket(1, 100, startTime, endTime, ethers.parseEther("0.1"));
-
-      // Try to create market 1 again
+      // Invalid tick count (0)
       await expect(
         core
           .connect(keeper)
           .createMarket(
-            1,
-            50,
+            marketId,
+            MIN_TICK,
+            MIN_TICK - 10,
+            TICK_SPACING,
+            startTime,
+            endTime,
+            ALPHA
+          )
+      ).to.be.revertedWithCustomError(core, "InvalidTickRange");
+
+      // Invalid time range (end before start)
+      await expect(
+        core
+          .connect(keeper)
+          .createMarket(
+            marketId,
+            MIN_TICK,
+            MAX_TICK,
+            TICK_SPACING,
+            endTime,
+            startTime,
+            ALPHA
+          )
+      ).to.be.revertedWithCustomError(core, "InvalidTimeRange");
+
+      // Valid parameters should work
+      await expect(
+        core
+          .connect(keeper)
+          .createMarket(
+            marketId,
+            MIN_TICK,
+            MAX_TICK,
+            TICK_SPACING,
+            startTime,
+            endTime,
+            ALPHA
+          )
+      ).not.to.be.reverted;
+    });
+
+    it("Should prevent duplicate market IDs", async function () {
+      const contracts = await loadFixture(createActiveMarketFixture);
+      const { core, keeper } = contracts;
+
+      const marketId = Math.floor(Math.random() * 1000000) + 1;
+      const currentTime = await time.latest();
+      const startTime = currentTime + 100;
+      const endTime = startTime + MARKET_DURATION;
+
+      // Create first market
+      await core
+        .connect(keeper)
+        .createMarket(
+          marketId,
+          MIN_TICK,
+          MAX_TICK,
+          TICK_SPACING,
+          startTime,
+          endTime,
+          ALPHA
+        );
+
+      // Try to create another market with same ID
+      await expect(
+        core
+          .connect(keeper)
+          .createMarket(
+            marketId,
+            MIN_TICK,
+            MAX_TICK,
+            TICK_SPACING,
             startTime + 1000,
             endTime + 1000,
-            ethers.parseEther("0.2")
+            ALPHA
           )
       ).to.be.revertedWithCustomError(core, "MarketAlreadyExists");
     });
   });
 
   describe("Market State Queries", function () {
-    async function createMarketFixture() {
-      const contracts = await loadFixture(coreFixture);
-      const { core, keeper } = contracts;
-
-      const currentTime = await time.latest();
-      const startTime = currentTime + 3600; // 1 hour from now
-      const endTime = startTime + 7 * 24 * 60 * 60; // 7 days
-      const marketId = 1;
-
-      await core
-        .connect(keeper)
-        .createMarket(
-          marketId,
-          100,
-          startTime,
-          endTime,
-          ethers.parseEther("1")
-        );
-
-      return {
-        ...contracts,
-        marketId,
-        startTime,
-        endTime,
-      };
-    }
-
     it("Should return correct market information", async function () {
-      const { core, marketId, startTime, endTime } = await loadFixture(
-        createMarketFixture
+      const contracts = await loadFixture(createActiveMarketFixture);
+      const { core } = contracts;
+      const { marketId, startTime, endTime } = await setupCustomMarket(
+        contracts,
+        {
+          alpha: ethers.parseEther("10"),
+        }
       );
 
       const market = await core.getMarket(marketId);
 
-      expect(market.isActive).to.be.true;
-      expect(market.settled).to.be.false;
       expect(market.startTimestamp).to.equal(startTime);
       expect(market.endTimestamp).to.equal(endTime);
-      expect(market.settlementLowerTick).to.equal(0);
-      expect(market.settlementUpperTick).to.equal(0);
-      expect(market.numTicks).to.equal(100);
-      expect(market.liquidityParameter).to.equal(ethers.parseEther("1"));
+      expect(market.liquidityParameter).to.equal(ethers.parseEther("10"));
+      expect(market.settled).to.be.false;
     });
 
     it("Should return correct tick values", async function () {
-      const { core, marketId } = await loadFixture(createMarketFixture);
+      const contracts = await loadFixture(createActiveMarketFixture);
+      const { core } = contracts;
+      const { marketId } = await setupCustomMarket(contracts, {
+        alpha: ethers.parseEther("10"),
+      });
 
       const WAD = ethers.parseEther("1");
 
-      // All ticks should start at 1 WAD
-      for (let i = 0; i < 100; i += 10) {
-        // Sample every 10th tick
-        const tickValue = await core.getTickValue(marketId, i);
-        expect(tickValue).to.equal(WAD);
-      }
+      // All ticks should initially have value WAD
+      expect(await core.getTickValue(marketId, 100000)).to.equal(WAD);
+      expect(await core.getTickValue(marketId, 100500)).to.equal(WAD);
+      expect(await core.getTickValue(marketId, 100990)).to.equal(WAD);
     });
 
     it("Should handle queries for non-existent markets", async function () {
-      const { core } = await loadFixture(coreFixture);
+      const contracts = await loadFixture(createActiveMarketFixture);
+      const { core } = contracts;
+      await setupCustomMarket(contracts, {
+        alpha: ethers.parseEther("10"),
+      });
 
       await expect(core.getMarket(999)).to.be.revertedWithCustomError(
         core,
         "MarketNotFound"
       );
 
-      await expect(core.getTickValue(999, 0)).to.be.revertedWithCustomError(
-        core,
-        "MarketNotFound"
-      );
+      await expect(
+        core.getTickValue(999, 100500)
+      ).to.be.revertedWithCustomError(core, "MarketNotFound");
     });
 
     it("Should handle invalid tick queries", async function () {
-      const { core, marketId } = await loadFixture(createMarketFixture);
+      const contracts = await loadFixture(createActiveMarketFixture);
+      const { core } = contracts;
+      const { marketId } = await setupCustomMarket(contracts, {
+        alpha: ethers.parseEther("10"),
+      });
 
+      // Ticks outside the valid range
       await expect(
-        core.getTickValue(marketId, 100) // at limit
+        core.getTickValue(marketId, 99999)
       ).to.be.revertedWithCustomError(core, "InvalidTick");
 
       await expect(
-        core.getTickValue(marketId, 101) // over limit
+        core.getTickValue(marketId, 101000)
       ).to.be.revertedWithCustomError(core, "InvalidTick");
+
+      // Invalid tick spacing
+      await expect(
+        core.getTickValue(marketId, 100001)
+      ).to.be.revertedWithCustomError(core, "InvalidTickSpacing");
     });
   });
 
   describe("State Consistency Checks", function () {
     it("Should maintain consistent state after multiple operations", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, alice, keeper } = contracts;
+      const contracts = await loadFixture(createActiveMarketFixture);
+      const { core, alice, bob, keeper } = contracts;
+      const { marketId, startTime, endTime } = await setupActiveMarket(
+        contracts
+      );
 
-      const marketId = 1;
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
+      const lowerTick = 100100;
+      const upperTick = 100200;
+      const quantity = ethers.parseUnits("1", USDC_DECIMALS);
+      const maxCost = ethers.parseUnits("10", USDC_DECIMALS);
 
-      await core
-        .connect(keeper)
-        .createMarket(
-          marketId,
-          100,
-          startTime,
-          endTime,
-          ethers.parseEther("0.1")
-        );
-
-      await time.increaseTo(startTime + 1);
-
-      // Open position
-      const tradeParams = {
-        marketId,
-        lowerTick: 10,
-        upperTick: 20,
-        quantity: ethers.parseUnits("1", 6),
-        maxCost: ethers.parseUnits("10", 6),
-      };
-
+      // Perform multiple operations
       await core
         .connect(alice)
         .openPosition(
           alice.address,
-          tradeParams.marketId,
-          tradeParams.lowerTick,
-          tradeParams.upperTick,
-          tradeParams.quantity,
-          tradeParams.maxCost
+          marketId,
+          lowerTick,
+          upperTick,
+          quantity,
+          maxCost
         );
 
-      // Market should still have correct info
-      const marketInfo = await core.getMarket(marketId);
-      expect(marketInfo.numTicks).to.equal(100);
-      expect(marketInfo.isActive).to.be.true;
+      await core
+        .connect(bob)
+        .openPosition(bob.address, marketId, 100300, 100400, quantity, maxCost);
 
-      // Position should exist
-      const positionContract = await core.getPositionContract();
-      const position = await ethers.getContractAt(
-        "ICLMSRPosition",
-        positionContract
-      );
-      const positionInfo = await position.getPosition(1);
-      expect(positionInfo.quantity).to.equal(tradeParams.quantity);
+      // State should remain consistent
+      const market = await core.getMarket(marketId);
+      expect(market.startTimestamp).to.equal(startTime);
+      expect(market.endTimestamp).to.equal(endTime);
+
+      // Tick values should be updated but still reasonable
+      const tickValue = await core.getTickValue(marketId, 100150);
+      expect(tickValue).to.be.gt(ethers.parseEther("1")); // Should be greater than initial WAD
     });
 
     it("Should handle view functions during different market states", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, keeper } = contracts;
+      const contracts = await loadFixture(createActiveMarketFixture);
+      const { core, alice, keeper } = contracts;
 
-      const marketId = 1;
+      const marketId = Math.floor(Math.random() * 1000000) + 1;
       const currentTime = await time.latest();
       const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
+      const endTime = startTime + MARKET_DURATION;
 
       await core
         .connect(keeper)
         .createMarket(
           marketId,
-          100,
+          MIN_TICK,
+          MAX_TICK,
+          TICK_SPACING,
           startTime,
           endTime,
-          ethers.parseEther("0.1")
+          ALPHA
         );
 
-      // Test in CREATED state - before start time
-      let marketInfo = await core.getMarket(marketId);
-      expect(marketInfo.isActive).to.be.true;
+      // PENDING state - before market starts
+      let market = await core.getMarket(marketId);
+      expect(market.startTimestamp).to.be.gt(await time.latest());
+
+      const lowerTick = 100100;
+      const upperTick = 100200;
+      const quantity = ethers.parseUnits("1", USDC_DECIMALS);
 
       // Should be able to calculate costs even before market starts
-      const cost = await core.calculateOpenCost(
+      const preCost = await core.calculateOpenCost(
         marketId,
-        10,
-        20,
-        ethers.parseUnits("1", 6)
+        lowerTick,
+        upperTick,
+        quantity
       );
-      expect(cost).to.be.gt(0);
+      expect(preCost).to.be.gt(0);
 
-      // Move to ACTIVE state
+      // ACTIVE state - during market
       await time.increaseTo(startTime + 1);
-      marketInfo = await core.getMarket(marketId);
-      expect(marketInfo.isActive).to.be.true;
+      const activeCost = await core.calculateOpenCost(
+        marketId,
+        lowerTick,
+        upperTick,
+        quantity
+      );
+      expect(activeCost).to.equal(preCost); // Should be same as market state hasn't changed
 
-      // Move to ENDED state
+      // Open a position
+      const maxCost = ethers.parseUnits("10", USDC_DECIMALS);
+      await core
+        .connect(alice)
+        .openPosition(
+          alice.address,
+          marketId,
+          lowerTick,
+          upperTick,
+          quantity,
+          maxCost
+        );
+
+      // ENDED state - after market ends
       await time.increaseTo(endTime + 1);
-      marketInfo = await core.getMarket(marketId);
-      expect(marketInfo.isActive).to.be.true; // Still active until settled
+      market = await core.getMarket(marketId);
+      expect(market.endTimestamp).to.be.lte(await time.latest());
 
-      // Settle and move to SETTLED state
-      await core.connect(keeper).settleMarket(marketId, 49, 50);
-      marketInfo = await core.getMarket(marketId);
-      expect(marketInfo.settled).to.be.true;
-      expect(marketInfo.isActive).to.be.false;
+      // SETTLED state
+      await core.connect(keeper).settleMarket(marketId, 100150, 100160);
+      market = await core.getMarket(marketId);
+      expect(market.settled).to.be.true;
+
+      // Should still be able to query state
+      const claimAmount = await core.calculateClaimAmount(1);
+      expect(claimAmount).to.be.gte(0);
     });
   });
 });

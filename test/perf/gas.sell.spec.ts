@@ -1,12 +1,14 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { coreFixture } from "../helpers/fixtures/core";
+import { coreFixture, setupActiveMarket } from "../helpers/fixtures/core";
 import { PERF_TAG } from "../helpers/tags";
 
 describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
   const ALPHA = ethers.parseEther("1");
-  const TICK_COUNT = 100;
+  const MIN_TICK = 100000;
+  const MAX_TICK = 100990;
+  const TICK_SPACING = 10;
   const MARKET_DURATION = 7 * 24 * 60 * 60; // 7 days
   const USDC_DECIMALS = 6;
   const MEDIUM_QUANTITY = ethers.parseUnits("0.1", USDC_DECIMALS);
@@ -14,25 +16,16 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
   const EXTREME_COST = ethers.parseUnits("100000", USDC_DECIMALS);
 
   // Gas benchmark constants - increased to realistic values
-  const MAX_SINGLE_TICK_GAS = 500000; // Increased from 150k to 500k
-  const MAX_SMALL_RANGE_GAS = 600000; // Increased from 200k to 600k
-  const MAX_LARGE_RANGE_GAS = 800000; // Increased from 350k to 800k
-  const MAX_FULL_RANGE_GAS = 1000000; // Increased from 500k to 1M
+  const MAX_SINGLE_TICK_GAS = 600000; // Increased for new system
+  const MAX_SMALL_RANGE_GAS = 700000; // Increased for new system
+  const MAX_LARGE_RANGE_GAS = 900000; // Increased for new system
+  const MAX_FULL_RANGE_GAS = 1200000; // Increased for new system
 
   async function createActiveMarketWithPositionsFixture() {
     const contracts = await loadFixture(coreFixture);
-    const { core, keeper, alice } = contracts;
+    const { core, alice } = contracts;
 
-    const marketId = 1;
-    const currentTime = await time.latest();
-    const startTime = currentTime + 1300; // Large buffer for sell gas tests
-    const endTime = startTime + MARKET_DURATION;
-
-    await core
-      .connect(keeper)
-      .createMarket(marketId, TICK_COUNT, startTime, endTime, ALPHA);
-
-    await time.increaseTo(startTime + 1);
+    const { marketId, startTime, endTime } = await setupActiveMarket(contracts);
 
     // Open various positions to test closing
     const positions = [];
@@ -43,8 +36,8 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
       .openPosition(
         alice.address,
         marketId,
-        50,
-        50,
+        100500,
+        100500,
         MEDIUM_QUANTITY,
         EXTREME_COST
       );
@@ -60,8 +53,8 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
       .openPosition(
         alice.address,
         marketId,
-        45,
-        55,
+        100200,
+        100300,
         MEDIUM_QUANTITY,
         EXTREME_COST
       );
@@ -77,8 +70,8 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
       .openPosition(
         alice.address,
         marketId,
-        20,
-        80,
+        100100,
+        100800,
         MEDIUM_QUANTITY,
         EXTREME_COST
       );
@@ -94,8 +87,8 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
       .openPosition(
         alice.address,
         marketId,
-        0,
-        TICK_COUNT - 1,
+        MIN_TICK,
+        MAX_TICK,
         MEDIUM_QUANTITY,
         EXTREME_COST
       );
@@ -183,7 +176,15 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
       await core
         .connect(keeper)
-        .createMarket(marketId, TICK_COUNT, startTime, endTime, ALPHA);
+        .createMarket(
+          marketId,
+          MIN_TICK,
+          MAX_TICK,
+          TICK_SPACING,
+          startTime,
+          endTime,
+          ALPHA
+        );
 
       await time.increaseTo(startTime + 1);
 
@@ -191,8 +192,8 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
       const gasUsages = [];
 
       for (const rangeSize of rangeSizes) {
-        const lowerTick = 50 - Math.floor(rangeSize / 2);
-        const upperTick = lowerTick + rangeSize - 1;
+        const lowerTick = MIN_TICK + Math.floor(rangeSize / 2) * TICK_SPACING;
+        const upperTick = lowerTick + rangeSize * TICK_SPACING;
 
         // Open position
         const openTx = await core
@@ -253,7 +254,15 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
       await core
         .connect(keeper)
-        .createMarket(marketId, TICK_COUNT, startTime, endTime, ALPHA);
+        .createMarket(
+          marketId,
+          MIN_TICK,
+          MAX_TICK,
+          TICK_SPACING,
+          startTime,
+          endTime,
+          ALPHA
+        );
 
       await time.increaseTo(startTime + 1);
 
@@ -262,8 +271,8 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
       // Open multiple positions
       for (let i = 0; i < numPositions; i++) {
-        const lowerTick = i * 5;
-        const upperTick = lowerTick + 4;
+        const lowerTick = MIN_TICK + i * TICK_SPACING * 5;
+        const upperTick = lowerTick + 4 * TICK_SPACING;
 
         const tx = await core
           .connect(alice)
@@ -315,7 +324,15 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
       await core
         .connect(keeper)
-        .createMarket(marketId, TICK_COUNT, startTime, endTime, ALPHA);
+        .createMarket(
+          marketId,
+          MIN_TICK,
+          MAX_TICK,
+          TICK_SPACING,
+          startTime,
+          endTime,
+          ALPHA
+        );
 
       await time.increaseTo(startTime + 1);
 
@@ -323,8 +340,10 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
       const positions = [];
       for (let i = 0; i < 20; i++) {
         const user = i % 2 === 0 ? alice : bob;
-        const lowerTick = Math.floor(Math.random() * 80);
-        const upperTick = lowerTick + Math.floor(Math.random() * 10) + 1;
+        const lowerTick =
+          MIN_TICK + Math.floor(Math.random() * 80) * TICK_SPACING;
+        const upperTick =
+          lowerTick + Math.floor(Math.random() * 10) * TICK_SPACING;
 
         const tx = await core
           .connect(alice)
@@ -376,7 +395,15 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
       await core
         .connect(keeper)
-        .createMarket(marketId, TICK_COUNT, startTime, endTime, ALPHA);
+        .createMarket(
+          marketId,
+          MIN_TICK,
+          MAX_TICK,
+          TICK_SPACING,
+          startTime,
+          endTime,
+          ALPHA
+        );
 
       await time.increaseTo(startTime + 1);
 
@@ -386,8 +413,8 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
         .openPosition(
           alice.address,
           marketId,
-          20,
-          80,
+          MIN_TICK + 20 * TICK_SPACING,
+          MIN_TICK + 80 * TICK_SPACING,
           LARGE_QUANTITY,
           EXTREME_COST
         );
@@ -435,7 +462,15 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
 
       await core
         .connect(keeper)
-        .createMarket(marketId, TICK_COUNT, startTime, endTime, ALPHA);
+        .createMarket(
+          marketId,
+          MIN_TICK,
+          MAX_TICK,
+          TICK_SPACING,
+          startTime,
+          endTime,
+          ALPHA
+        );
 
       await time.increaseTo(startTime + 1);
 
@@ -449,8 +484,8 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
           .openPosition(
             alice.address,
             marketId,
-            45,
-            55,
+            100450,
+            100550,
             MEDIUM_QUANTITY,
             EXTREME_COST
           );

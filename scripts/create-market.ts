@@ -51,13 +51,22 @@ async function main() {
 
   // 마켓 설정
   const marketId = 0;
-  const numTicks = 10000; // 틱 개수 10,000개
+
+  // 새로운 틱 시스템 설정
+  const minTick = 100000; // 100,000 (10만)
+  const maxTick = 199999; // 199,999 (19만 9천)
+  const tickSpacing = 10; // 10 단위 간격
+  const numTicks = (maxTick - minTick) / tickSpacing + 1; // 계산된 틱 개수 = 10,000개
+
   const startTimestamp = Math.floor(Date.now() / 1000);
   const endTimestamp = startTimestamp + 7 * 24 * 60 * 60; // 7일 후
-  const liquidityParameter = parseEther("200"); // 알파값 100
+  const liquidityParameter = parseEther("200"); // 알파값 200
 
   console.log("\n📊 마켓 설정:");
   console.log("  - 마켓 ID:", marketId);
+  console.log("  - 최소 틱:", minTick.toLocaleString());
+  console.log("  - 최대 틱:", maxTick.toLocaleString());
+  console.log("  - 틱 간격:", tickSpacing);
   console.log("  - 틱 개수:", numTicks.toLocaleString());
   console.log(
     "  - 시작 시간:",
@@ -67,10 +76,12 @@ async function main() {
   console.log("  - 알파값:", ethers.formatEther(liquidityParameter));
 
   try {
-    // 마켓 생성
+    // 마켓 생성 (새로운 파라미터 구조)
     const createMarketTx = await core.createMarket(
       marketId,
-      numTicks,
+      minTick,
+      maxTick,
+      tickSpacing,
       startTimestamp,
       endTimestamp,
       liquidityParameter

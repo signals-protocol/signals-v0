@@ -1,8 +1,8 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { coreFixture } from "../../helpers/fixtures/core";
 import { E2E_TAG } from "../../helpers/tags";
+import { createActiveMarketFixture } from "../../helpers/fixtures/core";
 
 describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
   const SMALL_QUANTITY = ethers.parseUnits("0.01", 6); // 0.01 USDC
@@ -13,25 +13,15 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
   const TICK_COUNT = 100;
 
   async function createMarketLifecycleFixture() {
-    const contracts = await loadFixture(coreFixture);
-    const { core, keeper, mockPosition } = contracts;
-
-    const currentTime = await time.latest();
-    const startTime = currentTime + 3600; // 1 hour from now
-    const endTime = startTime + 7 * 24 * 60 * 60; // 7 days duration
-    const marketId = 1;
-
-    await core
-      .connect(keeper)
-      .createMarket(
-        marketId,
-        TICK_COUNT,
-        startTime,
-        endTime,
-        ethers.parseEther("1")
-      );
-
-    return { ...contracts, marketId, startTime, endTime, mockPosition };
+    const contracts = await loadFixture(createActiveMarketFixture);
+    const { marketId, startTime, endTime } = contracts;
+    return {
+      ...contracts,
+      marketId,
+      startTime,
+      endTime,
+      mockPosition: contracts.mockPosition,
+    };
   }
 
   describe("Complete Market Lifecycle", function () {
@@ -49,26 +39,20 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
         endTime,
       } = await loadFixture(createMarketLifecycleFixture);
 
-      // Phase 1: Pre-market (CREATED state)
+      // Phase 1: Market is already active since we use setupActiveMarket
       let market = await core.getMarket(marketId);
-      // Note: Market might be active immediately after creation depending on implementation
-      // expect(market.isActive).to.be.false; // Market should not be active before startTime
+      expect(market.isActive).to.be.true;
 
-      // Can calculate costs even before market starts
+      // Can calculate costs
       const premarketCost = await core.calculateOpenCost(
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         MEDIUM_QUANTITY
       );
       expect(premarketCost).to.be.gt(0);
 
-      // Phase 2: Market becomes active
-      await time.increaseTo(startTime + 1);
-      market = await core.getMarket(marketId);
-      expect(market.isActive).to.be.true;
-
-      // Phase 3: Early trading phase - Alice opens positions
+      // Phase 2: Early trading phase - Alice opens positions
       const alicePositions = [];
 
       // Alice creates multiple positions
@@ -78,8 +62,8 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
           .openPosition(
             alice.address,
             marketId,
-            20 + i * 20,
-            30 + i * 20,
+            100200 + i * 100,
+            100250 + i * 100,
             MEDIUM_QUANTITY,
             MEDIUM_COST
           );
@@ -90,7 +74,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       );
       expect(alicePositionList.length).to.equal(3);
 
-      // Phase 4: Mid-market activity - Bob and Charlie join
+      // Phase 3: Mid-market activity - Bob and Charlie join
       await time.increaseTo(startTime + 2 * 24 * 60 * 60); // 2 days later
 
       // Bob creates overlapping positions
@@ -99,8 +83,8 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
         .openPosition(
           bob.address,
           marketId,
-          25,
-          75,
+          100250,
+          100750,
           LARGE_QUANTITY,
           LARGE_COST
         );
@@ -111,13 +95,13 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
         .openPosition(
           charlie.address,
           marketId,
-          48,
-          52,
+          100480,
+          100520,
           MEDIUM_QUANTITY,
           MEDIUM_COST
         );
 
-      // Phase 5: Position adjustments
+      // Phase 4: Position adjustments
       const bobPositions = await mockPosition.getPositionsByOwner(bob.address);
       const bobPositionId = bobPositions[0];
 
@@ -148,20 +132,20 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       const charlieFinalBalance = await paymentToken.balanceOf(charlie.address);
       expect(charlieFinalBalance).to.be.gt(charlieInitialBalance);
 
-      // Phase 7: Market ends
+      // Phase 6: Market ends
       await time.increaseTo(endTime + 1);
       market = await core.getMarket(marketId);
       expect(market.isActive).to.be.true; // Market remains active until settlement
 
-      // Phase 8: Settlement
-      const winningLowerTick = 49; // Range around Charlie's position!
-      const winningUpperTick = 50;
+      // Phase 7: Settlement
+      const winningLowerTick = 100490; // Range around Charlie's position!
+      const winningUpperTick = 100500;
       await core
         .connect(keeper)
         .settleMarket(marketId, winningLowerTick, winningUpperTick);
 
-      // Phase 9: Claims phase
-      // Bob should win since his range included tick 50
+      // Phase 8: Claims phase
+      // Bob should win since his range included tick 100500
       const bobFinalPositions = await mockPosition.getPositionsByOwner(
         bob.address
       );
@@ -202,11 +186,11 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       );
 
       // Go through entire lifecycle without trading
-      await time.increaseTo(startTime + 1);
-      await time.increaseTo(endTime + 1);
+      await time.increaseTo(startTime + 10);
+      await time.increaseTo(endTime + 10);
 
       // Should still be able to settle
-      await core.connect(keeper).settleMarket(marketId, 49, 50);
+      await core.connect(keeper).settleMarket(marketId, 100490, 100500);
 
       const market = await core.getMarket(marketId);
       expect(market.isActive).to.be.false;
@@ -224,7 +208,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
         endTime,
       } = await loadFixture(createMarketLifecycleFixture);
 
-      await time.increaseTo(startTime + 1);
+      await time.increaseTo(startTime + 10);
 
       // Alice is the only participant
       await core
@@ -232,14 +216,14 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
         .openPosition(
           alice.address,
           marketId,
-          40,
-          60,
+          100400,
+          100600,
           MEDIUM_QUANTITY,
           MEDIUM_COST
         );
 
       await time.increaseTo(endTime + 1);
-      await core.connect(keeper).settleMarket(marketId, 49, 50);
+      await core.connect(keeper).settleMarket(marketId, 100490, 100500);
 
       // Alice should be able to claim her winnings
       const positions = await mockPosition.getPositionsByOwner(alice.address);
@@ -257,7 +241,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       const { core, alice, bob, charlie, marketId, startTime, endTime } =
         await loadFixture(createMarketLifecycleFixture);
 
-      await time.increaseTo(startTime + 1);
+      await time.increaseTo(startTime + 10);
 
       // Wait until near market end
       await time.increaseTo(endTime - 3600); // 1 hour before end
@@ -265,16 +249,14 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       // Sudden burst of activity
       const participants = [alice, bob, charlie];
       const promises = participants.map((participant, i) =>
-        core
-          .connect(alice)
-          .openPosition(
-            participant.address,
-            marketId,
-            40 + i * 5,
-            60 - i * 5,
-            MEDIUM_QUANTITY,
-            MEDIUM_COST
-          )
+        core.connect(alice).openPosition(
+          participant.address,
+          marketId,
+          100400 + i * 50, // 실제 틱값 사용
+          100600 - i * 50, // 실제 틱값 사용
+          MEDIUM_QUANTITY,
+          MEDIUM_COST
+        )
       );
 
       // All should succeed
@@ -285,22 +267,20 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       const { core, alice, bob, charlie, marketId, startTime } =
         await loadFixture(createMarketLifecycleFixture);
 
-      await time.increaseTo(startTime + 1);
+      await time.increaseTo(startTime + 10);
 
       // Everyone bets on the same narrow range
       const participants = [alice, bob, charlie];
 
       for (const participant of participants) {
-        await core
-          .connect(alice)
-          .openPosition(
-            participant.address,
-            marketId,
-            49,
-            51,
-            MEDIUM_QUANTITY,
-            LARGE_COST
-          ); // Higher cost due to concentration
+        await core.connect(alice).openPosition(
+          participant.address,
+          marketId,
+          100490, // 실제 틱값 사용
+          100510, // 실제 틱값 사용
+          MEDIUM_QUANTITY,
+          LARGE_COST
+        ); // Higher cost due to concentration
       }
 
       // Market should still function normally
@@ -312,7 +292,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       const { core, alice, bob, charlie, marketId, startTime, mockPosition } =
         await loadFixture(createMarketLifecycleFixture);
 
-      await time.increaseTo(startTime + 1);
+      await time.increaseTo(startTime + 10);
 
       // Alice: Wide range strategy
       await core
@@ -320,8 +300,8 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
         .openPosition(
           alice.address,
           marketId,
-          10,
-          90,
+          100100,
+          100900,
           SMALL_QUANTITY,
           MEDIUM_COST
         );
@@ -332,8 +312,8 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
         .openPosition(
           bob.address,
           marketId,
-          48,
-          52,
+          100480,
+          100520,
           LARGE_QUANTITY,
           LARGE_COST
         );
@@ -344,8 +324,8 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
         .openPosition(
           charlie.address,
           marketId,
-          0,
-          5,
+          100000,
+          100050,
           MEDIUM_QUANTITY,
           MEDIUM_COST
         );
@@ -370,7 +350,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       const { core, alice, mockPosition, marketId, startTime } =
         await loadFixture(createMarketLifecycleFixture);
 
-      await time.increaseTo(startTime + 1);
+      await time.increaseTo(startTime + 10);
 
       // Create initial position
       await core
@@ -378,8 +358,8 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
         .openPosition(
           alice.address,
           marketId,
-          40,
-          60,
+          100400,
+          100600,
           LARGE_QUANTITY,
           LARGE_COST
         );
@@ -406,7 +386,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       const { core, alice, bob, charlie, marketId, startTime } =
         await loadFixture(createMarketLifecycleFixture);
 
-      await time.increaseTo(startTime + 1);
+      await time.increaseTo(startTime + 10);
 
       // Create maximum reasonable number of positions
       const participants = [alice, bob, charlie];
@@ -418,8 +398,8 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
           .openPosition(
             participant.address,
             marketId,
-            i * 5,
-            i * 5 + 10,
+            100000 + i * 50,
+            100000 + i * 50 + 100,
             SMALL_QUANTITY,
             MEDIUM_COST
           );
@@ -432,8 +412,8 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       // Should still be able to calculate costs
       const cost = await core.calculateOpenCost(
         marketId,
-        45,
-        55,
+        100450,
+        100550,
         SMALL_QUANTITY
       );
       expect(cost).to.be.gt(0);

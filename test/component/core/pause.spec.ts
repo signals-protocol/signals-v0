@@ -1,20 +1,20 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { coreFixture } from "../../helpers/fixtures/core";
 import { COMPONENT_TAG } from "../../helpers/tags";
+import { createActiveMarketFixture } from "../../helpers/fixtures/core";
 
 describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
   describe("Pause State Management", function () {
     it("Should not be paused initially", async function () {
-      const contracts = await loadFixture(coreFixture);
+      const contracts = await loadFixture(createActiveMarketFixture);
       const { core } = contracts;
 
       expect(await core.isPaused()).to.be.false;
     });
 
     it("Should allow keeper to pause", async function () {
-      const contracts = await loadFixture(coreFixture);
+      const contracts = await loadFixture(createActiveMarketFixture);
       const { core, keeper } = contracts;
 
       await expect(core.connect(keeper).pause("Emergency pause test"))
@@ -25,7 +25,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
     });
 
     it("Should allow keeper to unpause", async function () {
-      const contracts = await loadFixture(coreFixture);
+      const contracts = await loadFixture(createActiveMarketFixture);
       const { core, keeper } = contracts;
 
       // Pause first
@@ -41,7 +41,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
     });
 
     it("Should prevent non-keeper from pausing", async function () {
-      const contracts = await loadFixture(coreFixture);
+      const contracts = await loadFixture(createActiveMarketFixture);
       const { core, alice } = contracts;
 
       await expect(
@@ -50,7 +50,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
     });
 
     it("Should prevent non-keeper from unpausing", async function () {
-      const contracts = await loadFixture(coreFixture);
+      const contracts = await loadFixture(createActiveMarketFixture);
       const { core, keeper, alice } = contracts;
 
       // Keeper pauses first
@@ -64,7 +64,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
     });
 
     it("Should revert when trying to pause already paused contract", async function () {
-      const contracts = await loadFixture(coreFixture);
+      const contracts = await loadFixture(createActiveMarketFixture);
       const { core, keeper } = contracts;
 
       // Pause first
@@ -76,7 +76,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
     });
 
     it("Should revert when trying to unpause non-paused contract", async function () {
-      const contracts = await loadFixture(coreFixture);
+      const contracts = await loadFixture(createActiveMarketFixture);
       const { core, keeper } = contracts;
 
       // Contract is not paused initially - should work (no specific error in implementation)
@@ -86,7 +86,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
 
   describe("Paused State Restrictions", function () {
     it("Should prevent market creation when paused", async function () {
-      const contracts = await loadFixture(coreFixture);
+      const contracts = await loadFixture(createActiveMarketFixture);
       const { core, keeper } = contracts;
 
       // Pause the contract
@@ -99,12 +99,20 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
       await expect(
         core
           .connect(keeper)
-          .createMarket(1, 100, startTime, endTime, ethers.parseEther("0.1"))
+          .createMarket(
+            1,
+            100000,
+            100990,
+            10,
+            startTime,
+            endTime,
+            ethers.parseEther("0.1")
+          )
       ).to.be.revertedWithCustomError(core, "ContractPaused");
     });
 
     it("Should prevent market settlement when paused", async function () {
-      const contracts = await loadFixture(coreFixture);
+      const contracts = await loadFixture(createActiveMarketFixture);
       const { core, keeper } = contracts;
 
       const currentTime = await time.latest();
@@ -114,7 +122,15 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
       // Create market first (before pausing)
       await core
         .connect(keeper)
-        .createMarket(1, 100, startTime, endTime, ethers.parseEther("0.1"));
+        .createMarket(
+          1,
+          100000,
+          100990,
+          10,
+          startTime,
+          endTime,
+          ethers.parseEther("0.1")
+        );
 
       // Fast forward to end time
       await time.increaseTo(endTime + 1);
@@ -123,12 +139,12 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
       await core.connect(keeper).pause("Emergency");
 
       // Settlement should work even when paused (emergency functionality)
-      await expect(core.connect(keeper).settleMarket(1, 49, 50)).to.not.be
-        .reverted;
+      await expect(core.connect(keeper).settleMarket(1, 100490, 100500)).to.not
+        .be.reverted;
     });
 
     it("Should prevent position opening when paused", async function () {
-      const contracts = await loadFixture(coreFixture);
+      const contracts = await loadFixture(createActiveMarketFixture);
       const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
@@ -138,7 +154,15 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
       // Create market first (before pausing)
       await core
         .connect(keeper)
-        .createMarket(1, 100, startTime, endTime, ethers.parseEther("0.1"));
+        .createMarket(
+          1,
+          100000,
+          100990,
+          10,
+          startTime,
+          endTime,
+          ethers.parseEther("0.1")
+        );
 
       await time.increaseTo(startTime + 1);
 
@@ -147,8 +171,8 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
 
       const tradeParams = {
         marketId: 1,
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100100,
+        upperTick: 100200,
         quantity: ethers.parseUnits("1", 6),
         maxCost: ethers.parseUnits("10", 6),
       };
@@ -168,7 +192,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
     });
 
     it("Should prevent position modification when paused", async function () {
-      const contracts = await loadFixture(coreFixture);
+      const contracts = await loadFixture(createActiveMarketFixture);
       const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
@@ -178,15 +202,23 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
       // Create market
       await core
         .connect(keeper)
-        .createMarket(1, 100, startTime, endTime, ethers.parseEther("0.1"));
+        .createMarket(
+          1,
+          100000,
+          100990,
+          10,
+          startTime,
+          endTime,
+          ethers.parseEther("0.1")
+        );
 
       await time.increaseTo(startTime + 1);
 
       // Open position first (before pausing)
       const tradeParams = {
         marketId: 1,
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100100,
+        upperTick: 100200,
         quantity: ethers.parseUnits("0.05", 6),
         maxCost: ethers.parseUnits("1", 6),
       };
@@ -228,7 +260,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
     });
 
     it("Should prevent position claiming when paused", async function () {
-      const contracts = await loadFixture(coreFixture);
+      const contracts = await loadFixture(createActiveMarketFixture);
       const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
@@ -238,14 +270,22 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
       // Create market and position
       await core
         .connect(keeper)
-        .createMarket(1, 100, startTime, endTime, ethers.parseEther("0.1"));
+        .createMarket(
+          1,
+          100000,
+          100990,
+          10,
+          startTime,
+          endTime,
+          ethers.parseEther("0.1")
+        );
 
       await time.increaseTo(startTime + 1);
 
       const tradeParams = {
         marketId: 1,
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100100,
+        upperTick: 100200,
         quantity: ethers.parseUnits("1", 6),
         maxCost: ethers.parseUnits("10", 6),
       };
@@ -263,7 +303,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
 
       // Settle market
       await time.increaseTo(endTime + 1);
-      await core.connect(keeper).settleMarket(1, 15, 16); // Winning outcome
+      await core.connect(keeper).settleMarket(1, 100150, 100160); // Winning outcome
 
       // Pause the contract
       await core.connect(keeper).pause("Emergency");
@@ -277,7 +317,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
 
   describe("View Functions During Pause", function () {
     it("Should allow view functions when paused", async function () {
-      const contracts = await loadFixture(coreFixture);
+      const contracts = await loadFixture(createActiveMarketFixture);
       const { core, keeper } = contracts;
 
       const currentTime = await time.latest();
@@ -287,7 +327,15 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
       // Create market first
       await core
         .connect(keeper)
-        .createMarket(1, 100, startTime, endTime, ethers.parseEther("0.1"));
+        .createMarket(
+          1,
+          100000,
+          100990,
+          10,
+          startTime,
+          endTime,
+          ethers.parseEther("0.1")
+        );
 
       // Pause the contract
       await core.connect(keeper).pause("Emergency");
@@ -298,8 +346,8 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
 
       const cost = await core.calculateOpenCost(
         1,
-        10,
-        20,
+        100100,
+        100200,
         ethers.parseUnits("1", 6)
       );
       expect(cost).to.be.gt(0);
@@ -309,7 +357,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
     });
 
     it("Should allow cost calculations when paused", async function () {
-      const contracts = await loadFixture(coreFixture);
+      const contracts = await loadFixture(createActiveMarketFixture);
       const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
@@ -319,14 +367,22 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
       // Create market and open position
       await core
         .connect(keeper)
-        .createMarket(1, 100, startTime, endTime, ethers.parseEther("0.1"));
+        .createMarket(
+          1,
+          100000,
+          100990,
+          10,
+          startTime,
+          endTime,
+          ethers.parseEther("0.1")
+        );
 
       await time.increaseTo(startTime + 1);
 
       const tradeParams = {
         marketId: 1,
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100100,
+        upperTick: 100200,
         quantity: ethers.parseUnits("1", 6),
         maxCost: ethers.parseUnits("10", 6),
       };
@@ -348,8 +404,8 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
       // Cost calculations should still work
       const openCost = await core.calculateOpenCost(
         1,
-        30,
-        40,
+        100300,
+        100400,
         ethers.parseUnits("0.5", 6)
       );
       expect(openCost).to.be.gt(0);
@@ -361,7 +417,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
 
   describe("Resume Operations After Unpause", function () {
     it("Should allow all operations after unpause", async function () {
-      const contracts = await loadFixture(coreFixture);
+      const contracts = await loadFixture(createActiveMarketFixture);
       const { core, alice, keeper } = contracts;
 
       // Pause and then unpause
@@ -376,7 +432,15 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
       await expect(
         core
           .connect(keeper)
-          .createMarket(1, 100, startTime, endTime, ethers.parseEther("0.1"))
+          .createMarket(
+            1,
+            100000,
+            100990,
+            10,
+            startTime,
+            endTime,
+            ethers.parseEther("0.1")
+          )
       ).to.not.be.reverted;
 
       await time.increaseTo(startTime + 1);
@@ -384,8 +448,8 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
       // Should allow trading after unpause
       const tradeParams = {
         marketId: 1,
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100100,
+        upperTick: 100200,
         quantity: ethers.parseUnits("1", 6),
         maxCost: ethers.parseUnits("10", 6),
       };
@@ -416,7 +480,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
     });
 
     it("Should maintain state consistency across pause/unpause cycles", async function () {
-      const contracts = await loadFixture(coreFixture);
+      const contracts = await loadFixture(createActiveMarketFixture);
       const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
@@ -426,14 +490,22 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
       // Create market and position
       await core
         .connect(keeper)
-        .createMarket(1, 100, startTime, endTime, ethers.parseEther("0.1"));
+        .createMarket(
+          1,
+          100000,
+          100990,
+          10,
+          startTime,
+          endTime,
+          ethers.parseEther("0.1")
+        );
 
       await time.increaseTo(startTime + 1);
 
       const tradeParams = {
         marketId: 1,
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100100,
+        upperTick: 100200,
         quantity: ethers.parseUnits("1", 6),
         maxCost: ethers.parseUnits("10", 6),
       };
@@ -475,7 +547,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
     });
 
     it("Should handle multiple pause/unpause cycles", async function () {
-      const contracts = await loadFixture(coreFixture);
+      const contracts = await loadFixture(createActiveMarketFixture);
       const { core, keeper } = contracts;
 
       for (let i = 0; i < 3; i++) {
@@ -502,14 +574,22 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
       await expect(
         core
           .connect(keeper)
-          .createMarket(1, 100, startTime, endTime, ethers.parseEther("0.1"))
+          .createMarket(
+            1,
+            100000,
+            100990,
+            10,
+            startTime,
+            endTime,
+            ethers.parseEther("0.1")
+          )
       ).to.not.be.reverted;
     });
   });
 
   describe("Emergency Scenarios", function () {
     it("Should handle pause during active trading", async function () {
-      const contracts = await loadFixture(coreFixture);
+      const contracts = await loadFixture(createActiveMarketFixture);
       const { core, alice, keeper } = contracts;
 
       const currentTime = await time.latest();
@@ -519,14 +599,22 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
       // Create market and start trading
       await core
         .connect(keeper)
-        .createMarket(1, 100, startTime, endTime, ethers.parseEther("0.1"));
+        .createMarket(
+          1,
+          100000,
+          100990,
+          10,
+          startTime,
+          endTime,
+          ethers.parseEther("0.1")
+        );
 
       await time.increaseTo(startTime + 1);
 
       const tradeParams = {
         marketId: 1,
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100100,
+        upperTick: 100200,
         quantity: ethers.parseUnits("1", 6),
         maxCost: ethers.parseUnits("10", 6),
       };
@@ -565,7 +653,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
     });
 
     it("Should handle pause during market settlement period", async function () {
-      const contracts = await loadFixture(coreFixture);
+      const contracts = await loadFixture(createActiveMarketFixture);
       const { core, keeper } = contracts;
 
       const currentTime = await time.latest();
@@ -575,7 +663,15 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
       // Create market
       await core
         .connect(keeper)
-        .createMarket(1, 100, startTime, endTime, ethers.parseEther("0.1"));
+        .createMarket(
+          1,
+          100000,
+          100990,
+          10,
+          startTime,
+          endTime,
+          ethers.parseEther("0.1")
+        );
 
       // Move to settlement period
       await time.increaseTo(endTime + 1);
@@ -584,8 +680,8 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
       await core.connect(keeper).pause("Emergency during settlement");
 
       // Settlement should work even when paused (emergency functionality)
-      await expect(core.connect(keeper).settleMarket(1, 49, 50)).to.not.be
-        .reverted;
+      await expect(core.connect(keeper).settleMarket(1, 100490, 100500)).to.not
+        .be.reverted;
 
       // Market should show as ended
       const market = await core.getMarket(1);

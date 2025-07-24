@@ -1,37 +1,33 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { coreFixture } from "../../../helpers/fixtures/core";
+import {
+  createActiveMarketFixture,
+  setupCustomMarket,
+} from "../../../helpers/fixtures/core";
 import { COMPONENT_TAG } from "../../../helpers/tags";
 
 describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, function () {
   describe("Factor Limits", function () {
     it("Should handle trades that approach MIN_FACTOR boundary", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, alice, keeper } = contracts;
+      const contracts = await loadFixture(createActiveMarketFixture);
+      const { core, mockPosition, alice, keeper } = contracts;
 
-      // Create market with extreme parameters
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const marketId = 1;
       const extremeAlpha = ethers.parseEther("1000"); // High alpha for extreme testing
-
-      await core
-        .connect(keeper)
-        .createMarket(marketId, 100, startTime, endTime, extremeAlpha);
-
-      await time.increaseTo(startTime + 1);
+      const { marketId } = await setupCustomMarket(contracts, {
+        marketId: 1,
+        alpha: extremeAlpha,
+      });
 
       // Use very small quantity to approach MIN_FACTOR
       const verySmallQuantity = ethers.parseUnits("0.000001", 6);
 
       const tradeParams = {
         marketId,
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100450,
+        upperTick: 100550,
         quantity: verySmallQuantity,
-        maxCost: ethers.parseUnits("1000", 6),
+        maxCost: ethers.parseUnits("1", 6),
       };
 
       await expect(
@@ -49,29 +45,22 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
     });
 
     it("Should handle trades that approach MAX_FACTOR boundary", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, alice, keeper } = contracts;
+      const contracts = await loadFixture(createActiveMarketFixture);
+      const { core, mockPosition, alice, keeper } = contracts;
 
-      // Create market with extreme parameters
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const marketId = 1;
       const extremeAlpha = ethers.parseEther("1000"); // High alpha for extreme testing
-
-      await core
-        .connect(keeper)
-        .createMarket(marketId, 100, startTime, endTime, extremeAlpha);
-
-      await time.increaseTo(startTime + 1);
+      const { marketId } = await setupCustomMarket(contracts, {
+        marketId: 1,
+        alpha: extremeAlpha,
+      });
 
       // Use large quantity to approach MAX_FACTOR
       const largeQuantity = ethers.parseUnits("1000", 6);
 
       const tradeParams = {
         marketId,
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100450,
+        upperTick: 100550,
         quantity: largeQuantity,
         maxCost: ethers.parseUnits("1000000", 6),
       };
@@ -91,31 +80,24 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
     });
 
     it("Should revert when factor exceeds MAX_FACTOR", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, alice, keeper } = contracts;
+      const contracts = await loadFixture(createActiveMarketFixture);
+      const { core, mockPosition, alice, keeper } = contracts;
 
-      // Create market with extreme parameters
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const marketId = 1;
       const extremeAlpha = ethers.parseEther("1000"); // High alpha for extreme testing
-
-      await core
-        .connect(keeper)
-        .createMarket(marketId, 100, startTime, endTime, extremeAlpha);
-
-      await time.increaseTo(startTime + 1);
+      const { marketId } = await setupCustomMarket(contracts, {
+        marketId: 1,
+        alpha: extremeAlpha,
+      });
 
       // Use extremely large quantity to exceed MAX_FACTOR
       const extremeQuantity = ethers.parseUnits("100000", 6);
 
       const tradeParams = {
         marketId,
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100450,
+        upperTick: 100550,
         quantity: extremeQuantity,
-        maxCost: ethers.parseUnits("1000000", 6),
+        maxCost: ethers.parseUnits("10000000", 6),
       };
 
       await expect(
@@ -135,26 +117,19 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
 
   describe("Liquidity Parameter Boundaries", function () {
     it("Should handle minimum liquidity parameter", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, keeper, alice } = contracts;
+      const contracts = await loadFixture(createActiveMarketFixture);
+      const { core, mockPosition, keeper, alice } = contracts;
 
       const minAlpha = ethers.parseEther("0.001"); // MIN_LIQUIDITY_PARAMETER
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const marketId = 3;
-
-      await core
-        .connect(keeper)
-        .createMarket(marketId, 100, startTime, endTime, minAlpha);
-
-      // Move time to after market start
-      await time.increaseTo(startTime + 1);
+      const { marketId } = await setupCustomMarket(contracts, {
+        marketId: 3,
+        alpha: minAlpha,
+      });
 
       const tradeParams = {
         marketId,
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100450,
+        upperTick: 100550,
         quantity: ethers.parseUnits("0.001", 6), // Use very small quantity for extreme alpha
         maxCost: ethers.parseUnits("1000000", 6), // Use very large maxCost
       };
@@ -174,26 +149,19 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
     });
 
     it("Should handle maximum liquidity parameter", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, keeper, alice } = contracts;
+      const contracts = await loadFixture(createActiveMarketFixture);
+      const { core, mockPosition, keeper, alice } = contracts;
 
       const maxAlpha = ethers.parseEther("1000"); // MAX_LIQUIDITY_PARAMETER
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const marketId = 4;
-
-      await core
-        .connect(keeper)
-        .createMarket(marketId, 100, startTime, endTime, maxAlpha);
-
-      // Move time to after market start
-      await time.increaseTo(startTime + 1);
+      const { marketId } = await setupCustomMarket(contracts, {
+        marketId: 4,
+        alpha: maxAlpha,
+      });
 
       const tradeParams = {
         marketId,
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100450,
+        upperTick: 100550,
         quantity: ethers.parseUnits("0.001", 6), // Use very small quantity for extreme alpha
         maxCost: ethers.parseUnits("1000000", 6), // Use very large maxCost
       };
@@ -215,58 +183,50 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
 
   describe("Extreme Alpha Values with Large Trades", function () {
     it("Should handle low alpha values with moderate trades", async function () {
-      const contracts = await loadFixture(coreFixture);
+      const contracts = await loadFixture(createActiveMarketFixture);
       const { core, keeper, alice } = contracts;
 
-      // Test with relatively low alpha (but not minimum to avoid overflow)
-      const lowAlphaMarketId = 10;
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-
-      await core.connect(keeper).createMarket(
-        lowAlphaMarketId,
-        100,
-        startTime,
-        endTime,
-        ethers.parseEther("0.1") // 0.1 ETH (higher than minimum to avoid overflow)
+      // Test with relatively low alpha using setupCustomMarket
+      const { marketId: lowAlphaMarketId } = await setupCustomMarket(
+        contracts,
+        {
+          marketId: 10,
+          alpha: ethers.parseEther("0.1"), // 0.1 ETH (higher than minimum to avoid overflow)
+        }
       );
-
-      await time.increaseTo(startTime + 1);
 
       // Use reasonable trade size
       const tradeParams = {
         marketId: lowAlphaMarketId,
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100100,
+        upperTick: 100200,
         quantity: ethers.parseUnits("1", 6), // 1 USDC
         maxCost: ethers.parseUnits("10", 6), // Allow up to 10 USDC cost
       };
 
       const lowAlphaCost = await core.calculateOpenCost(
         lowAlphaMarketId,
-        10,
-        20,
+        100100,
+        100200,
         tradeParams.quantity
       );
 
       expect(lowAlphaCost).to.be.gt(0);
 
       // Test with high alpha
-      const highAlphaMarketId = 11;
-      await core.connect(keeper).createMarket(
-        highAlphaMarketId,
-        100,
-        startTime,
-        endTime,
-        ethers.parseEther("100") // 100 ETH (high liquidity)
+      const { marketId: highAlphaMarketId } = await setupCustomMarket(
+        contracts,
+        {
+          marketId: 11,
+          alpha: ethers.parseEther("100"), // 100 ETH (high liquidity)
+        }
       );
 
       // Same trade with high alpha should have lower price impact
       const highAlphaCost = await core.calculateOpenCost(
         highAlphaMarketId,
-        10,
-        20,
+        100100,
+        100200,
         tradeParams.quantity
       );
 
@@ -276,33 +236,26 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
     });
 
     it("Should handle extreme minimum alpha with tiny trades", async function () {
-      const contracts = await loadFixture(coreFixture);
+      const contracts = await loadFixture(createActiveMarketFixture);
       const { core, keeper } = contracts;
 
       // Test that extreme minimum alpha with tiny trades can cause overflow
       // This is expected behavior for unrealistic parameter combinations
-      const extremeMinAlphaMarketId = 12;
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-
-      await core.connect(keeper).createMarket(
-        extremeMinAlphaMarketId,
-        100,
-        startTime,
-        endTime,
-        ethers.parseEther("0.001") // MIN_LIQUIDITY_PARAMETER
+      const { marketId: extremeMinAlphaMarketId } = await setupCustomMarket(
+        contracts,
+        {
+          marketId: 12,
+          alpha: ethers.parseEther("0.001"), // MIN_LIQUIDITY_PARAMETER
+        }
       );
-
-      await time.increaseTo(startTime + 1);
 
       // Even with extreme min alpha, small trades might still work due to chunk-split protection
       // Test that it either works (with very high cost) or reverts due to overflow
       try {
         const extremeCost = await core.calculateOpenCost(
           extremeMinAlphaMarketId,
-          10,
-          20,
+          100100,
+          100200,
           ethers.parseUnits("0.1", 6) // 0.1 USDC
         );
         // If it doesn't revert, the cost should be extremely high
@@ -314,48 +267,40 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
     });
 
     it("Should demonstrate cost difference between extreme alpha values", async function () {
-      const contracts = await loadFixture(coreFixture);
+      const contracts = await loadFixture(createActiveMarketFixture);
       const { core, keeper } = contracts;
 
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-
       // Low alpha market
-      const lowAlphaMarketId = 20;
-      await core.connect(keeper).createMarket(
-        lowAlphaMarketId,
-        100,
-        startTime,
-        endTime,
-        ethers.parseEther("0.01") // Low liquidity
+      const { marketId: lowAlphaMarketId } = await setupCustomMarket(
+        contracts,
+        {
+          marketId: 20,
+          alpha: ethers.parseEther("0.01"), // Low liquidity
+        }
       );
 
       // High alpha market
-      const highAlphaMarketId = 21;
-      await core.connect(keeper).createMarket(
-        highAlphaMarketId,
-        100,
-        startTime,
-        endTime,
-        ethers.parseEther("100") // High liquidity
+      const { marketId: highAlphaMarketId } = await setupCustomMarket(
+        contracts,
+        {
+          marketId: 21,
+          alpha: ethers.parseEther("100"), // High liquidity
+        }
       );
-
-      await time.increaseTo(startTime + 1);
 
       const testQuantity = ethers.parseUnits("0.01", 6); // 0.01 USDC
 
       const lowAlphaCost = await core.calculateOpenCost(
         lowAlphaMarketId,
-        45,
-        55,
+        100450,
+        100550,
         testQuantity
       );
 
       const highAlphaCost = await core.calculateOpenCost(
         highAlphaMarketId,
-        45,
-        55,
+        100450,
+        100550,
         testQuantity
       );
 
@@ -374,7 +319,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
 
   describe("Liquidity Parameter Validation", function () {
     it("Should validate tick count limits", async function () {
-      const contracts = await loadFixture(coreFixture);
+      const contracts = await loadFixture(createActiveMarketFixture);
       const { core, keeper } = contracts;
 
       const currentTime = await time.latest();
@@ -382,31 +327,35 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
       const endTime = startTime + 86400;
       const alpha = ethers.parseEther("0.1");
 
-      // Test zero tick count
+      // Test zero tick count - create market with minTick >= maxTick
       await expect(
         core.connect(keeper).createMarket(
           1,
-          0, // zero ticks
+          100000, // minTick
+          100000, // maxTick (same as minTick = 0 ticks)
+          10, // tickSpacing
           startTime,
           endTime,
           alpha
         )
-      ).to.be.revertedWithCustomError(core, "TickCountExceedsLimit");
+      ).to.be.revertedWithCustomError(core, "InvalidMarketParameters");
 
-      // Test excessive tick count
+      // Test excessive tick count - create market with huge range
       await expect(
         core.connect(keeper).createMarket(
           1,
-          1_000_001, // exceeds MAX_TICK_COUNT
+          100000, // minTick
+          10100990, // maxTick (10M+ ticks)
+          10, // tickSpacing
           startTime,
           endTime,
           alpha
         )
-      ).to.be.revertedWithCustomError(core, "TickCountExceedsLimit");
+      ).to.be.revertedWith("Invalid tick count");
     });
 
     it("Should validate liquidity parameter limits", async function () {
-      const contracts = await loadFixture(coreFixture);
+      const contracts = await loadFixture(createActiveMarketFixture);
       const { core, keeper } = contracts;
 
       const currentTime = await time.latest();
@@ -417,7 +366,9 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
       await expect(
         core.connect(keeper).createMarket(
           1,
-          100,
+          100000, // minTick
+          100990, // maxTick
+          10, // tickSpacing
           startTime,
           endTime,
           ethers.parseEther("0.0001") // below MIN_LIQUIDITY_PARAMETER
@@ -428,7 +379,9 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
       await expect(
         core.connect(keeper).createMarket(
           1,
-          100,
+          100000, // minTick
+          100990, // maxTick
+          10, // tickSpacing
           startTime,
           endTime,
           ethers.parseEther("2000") // above MAX_LIQUIDITY_PARAMETER
@@ -437,7 +390,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
     });
 
     it("Should check constants are correct", async function () {
-      const contracts = await loadFixture(coreFixture);
+      const contracts = await loadFixture(createActiveMarketFixture);
       const { core } = contracts;
 
       expect(await core.MAX_TICK_COUNT()).to.equal(1_000_000);
@@ -452,23 +405,19 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
 
   describe("Liquidity Parameter Boundaries", function () {
     it("Should handle minimum liquidity parameter", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, keeper, alice } = contracts;
+      const contracts = await loadFixture(createActiveMarketFixture);
+      const { core, mockPosition, keeper, alice } = contracts;
 
       const minAlpha = ethers.parseEther("0.001"); // MIN_LIQUIDITY_PARAMETER
-      const currentTime = await time.latest();
-
-      await core
-        .connect(keeper)
-        .createMarket(3, 100, currentTime + 100, currentTime + 86400, minAlpha);
-
-      // Move time to after market start
-      await time.increaseTo(currentTime + 200);
+      const { marketId } = await setupCustomMarket(contracts, {
+        marketId: 3,
+        alpha: minAlpha,
+      });
 
       const tradeParams = {
-        marketId: 3,
-        lowerTick: 10,
-        upperTick: 20,
+        marketId,
+        lowerTick: 100450,
+        upperTick: 100550,
         quantity: ethers.parseUnits("0.001", 6), // Use very small quantity for extreme alpha
         maxCost: ethers.parseUnits("1000000", 6), // Use very large maxCost
       };
@@ -488,23 +437,19 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
     });
 
     it("Should handle maximum liquidity parameter", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, keeper, alice } = contracts;
+      const contracts = await loadFixture(createActiveMarketFixture);
+      const { core, mockPosition, keeper, alice } = contracts;
 
       const maxAlpha = ethers.parseEther("1000"); // MAX_LIQUIDITY_PARAMETER
-      const currentTime = await time.latest();
-
-      await core
-        .connect(keeper)
-        .createMarket(4, 100, currentTime + 100, currentTime + 86400, maxAlpha);
-
-      // Move time to after market start
-      await time.increaseTo(currentTime + 200);
+      const { marketId } = await setupCustomMarket(contracts, {
+        marketId: 4,
+        alpha: maxAlpha,
+      });
 
       const tradeParams = {
-        marketId: 4,
-        lowerTick: 10,
-        upperTick: 20,
+        marketId,
+        lowerTick: 100450,
+        upperTick: 100550,
         quantity: ethers.parseUnits("0.001", 6), // Use very small quantity for extreme alpha
         maxCost: ethers.parseUnits("1000000", 6), // Use very large maxCost
       };

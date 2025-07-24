@@ -1,9 +1,9 @@
 import { expect } from "chai";
-import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
+import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { ethers } from "hardhat";
 
 import {
-  realPositionMarketFixture,
+  activePositionMarketFixture,
   createRealTestPosition,
 } from "../../helpers/fixtures/position";
 import { COMPONENT_TAG } from "../../helpers/tags";
@@ -11,7 +11,7 @@ import { COMPONENT_TAG } from "../../helpers/tags";
 describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
   describe("Position Transfer Mechanics", function () {
     it("should transfer position NFT between users", async function () {
-      const contracts = await loadFixture(realPositionMarketFixture);
+      const contracts = await loadFixture(activePositionMarketFixture);
       const { position, alice, bob, marketId } = contracts;
 
       const { positionId } = await createRealTestPosition(
@@ -49,7 +49,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
     });
 
     it("should handle safeTransferFrom correctly", async function () {
-      const contracts = await loadFixture(realPositionMarketFixture);
+      const contracts = await loadFixture(activePositionMarketFixture);
       const { position, alice, bob, marketId } = contracts;
 
       const { positionId } = await createRealTestPosition(
@@ -75,7 +75,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
     });
 
     it("should handle safeTransferFrom with data", async function () {
-      const contracts = await loadFixture(realPositionMarketFixture);
+      const contracts = await loadFixture(activePositionMarketFixture);
       const { position, alice, bob, marketId } = contracts;
 
       const { positionId } = await createRealTestPosition(
@@ -103,7 +103,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
     });
 
     it("should update position tracking correctly on multiple transfers", async function () {
-      const contracts = await loadFixture(realPositionMarketFixture);
+      const contracts = await loadFixture(activePositionMarketFixture);
       const { position, alice, bob, charlie, marketId } = contracts;
 
       const { positionId } = await createRealTestPosition(
@@ -158,7 +158,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
 
     it("should handle transfers of multiple positions", async function () {
       const { core, position, alice, bob, marketId } = await loadFixture(
-        realPositionMarketFixture
+        activePositionMarketFixture
       );
 
       // Create multiple positions for Alice
@@ -166,8 +166,8 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
       for (let i = 0; i < 3; i++) {
         const params = {
           marketId,
-          lowerTick: 10 + i * 5,
-          upperTick: 20 + i * 5,
+          lowerTick: 100100 + i * 50,
+          upperTick: 100200 + i * 50,
           quantity: ethers.parseUnits("1", 6),
           maxCost: ethers.parseUnits("10", 6),
         };
@@ -225,7 +225,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
 
   describe("Transfer Authorization", function () {
     it("should allow approved address to transfer position", async function () {
-      const contracts = await loadFixture(realPositionMarketFixture);
+      const contracts = await loadFixture(activePositionMarketFixture);
       const { position, alice, bob, charlie, marketId } = contracts;
 
       const { positionId } = await createRealTestPosition(
@@ -257,7 +257,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
     });
 
     it("should allow operator to transfer all positions", async function () {
-      const contracts = await loadFixture(realPositionMarketFixture);
+      const contracts = await loadFixture(activePositionMarketFixture);
       const { position, alice, bob, charlie, marketId } = contracts;
 
       const { positionId: positionId1 } = await createRealTestPosition(
@@ -294,7 +294,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
     });
 
     it("should revoke approval after transfer", async function () {
-      const contracts = await loadFixture(realPositionMarketFixture);
+      const contracts = await loadFixture(activePositionMarketFixture);
       const { position, alice, bob, charlie, marketId } = contracts;
 
       const { positionId } = await createRealTestPosition(
@@ -316,7 +316,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
     });
 
     it("should prevent unauthorized transfers", async function () {
-      const contracts = await loadFixture(realPositionMarketFixture);
+      const contracts = await loadFixture(activePositionMarketFixture);
       const { position, alice, bob, charlie, marketId } = contracts;
 
       const { positionId } = await createRealTestPosition(
@@ -341,7 +341,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
     });
 
     it("should handle approval revocation", async function () {
-      const contracts = await loadFixture(realPositionMarketFixture);
+      const contracts = await loadFixture(activePositionMarketFixture);
       const { position, alice, bob, charlie, marketId } = contracts;
 
       const { positionId } = await createRealTestPosition(
@@ -369,7 +369,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
     });
 
     it("should handle operator revocation", async function () {
-      const contracts = await loadFixture(realPositionMarketFixture);
+      const contracts = await loadFixture(activePositionMarketFixture);
       const { position, alice, bob, charlie, marketId } = contracts;
 
       const { positionId } = await createRealTestPosition(
@@ -399,7 +399,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
 
   describe("Transfer Edge Cases", function () {
     it("should prevent transfer to zero address", async function () {
-      const contracts = await loadFixture(realPositionMarketFixture);
+      const contracts = await loadFixture(activePositionMarketFixture);
       const { position, alice, marketId } = contracts;
 
       const { positionId } = await createRealTestPosition(
@@ -416,7 +416,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
     });
 
     it("should prevent transfer of non-existent token", async function () {
-      const contracts = await loadFixture(realPositionMarketFixture);
+      const contracts = await loadFixture(activePositionMarketFixture);
       const { position, alice, bob, marketId } = contracts;
 
       const nonExistentId = 999;
@@ -429,7 +429,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
     });
 
     it("should prevent transfer from wrong owner", async function () {
-      const contracts = await loadFixture(realPositionMarketFixture);
+      const contracts = await loadFixture(activePositionMarketFixture);
       const { position, alice, bob, charlie, marketId } = contracts;
 
       const { positionId } = await createRealTestPosition(
@@ -448,7 +448,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
     });
 
     it("should handle self-transfer", async function () {
-      const contracts = await loadFixture(realPositionMarketFixture);
+      const contracts = await loadFixture(activePositionMarketFixture);
       const { position, alice, marketId } = contracts;
 
       const { positionId } = await createRealTestPosition(
@@ -471,7 +471,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
     });
 
     it("should handle rapid transfers", async function () {
-      const contracts = await loadFixture(realPositionMarketFixture);
+      const contracts = await loadFixture(activePositionMarketFixture);
       const { position, alice, bob, charlie, marketId } = contracts;
 
       const { positionId } = await createRealTestPosition(
@@ -509,14 +509,14 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
   describe("Transfer Impact on Position Operations", function () {
     it("should allow new owner to manage transferred position", async function () {
       const { core, position, alice, bob, marketId } = await loadFixture(
-        realPositionMarketFixture
+        activePositionMarketFixture
       );
 
       // Alice opens position
       const params = {
         marketId,
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100100,
+        upperTick: 100200,
         quantity: ethers.parseUnits("2", 6),
         maxCost: ethers.parseUnits("20", 6),
       };
@@ -575,14 +575,14 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
 
     it("should prevent original owner from managing transferred position", async function () {
       const { core, position, alice, bob, marketId } = await loadFixture(
-        realPositionMarketFixture
+        activePositionMarketFixture
       );
 
       // Alice opens position
       const params = {
         marketId,
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100100,
+        upperTick: 100200,
         quantity: ethers.parseUnits("2", 6),
         maxCost: ethers.parseUnits("20", 6),
       };
@@ -628,14 +628,14 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
 
     it("should handle position transfer during active operations", async function () {
       const { core, position, alice, bob, marketId } = await loadFixture(
-        realPositionMarketFixture
+        activePositionMarketFixture
       );
 
       // Alice opens position
       const params = {
         marketId,
-        lowerTick: 10,
-        upperTick: 20,
+        lowerTick: 100100,
+        upperTick: 100200,
         quantity: ethers.parseUnits("5", 6),
         maxCost: ethers.parseUnits("50", 6),
       };
@@ -682,8 +682,8 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
       positionData = await position.getPosition(positionId);
       expect(positionData.quantity).to.equal(ethers.parseUnits("7", 6));
       expect(positionData.marketId).to.equal(marketId);
-      expect(positionData.lowerTick).to.equal(10);
-      expect(positionData.upperTick).to.equal(20);
+      expect(positionData.lowerTick).to.equal(100100);
+      expect(positionData.upperTick).to.equal(100200);
 
       // Bob can continue operations
       await core
