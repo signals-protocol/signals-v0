@@ -47,7 +47,10 @@ export function createMarketCreatedEvent(
   marketId: BigInt,
   startTimestamp: BigInt,
   endTimestamp: BigInt,
-  numTicks: BigInt,
+  minTick: BigInt,
+  maxTick: BigInt,
+  tickSpacing: BigInt,
+  numBins: BigInt,
   liquidityParameter: BigInt
 ): MarketCreated {
   let marketCreatedEvent = changetype<MarketCreated>(newMockEvent())
@@ -74,8 +77,26 @@ export function createMarketCreatedEvent(
   )
   marketCreatedEvent.parameters.push(
     new ethereum.EventParam(
-      "numTicks",
-      ethereum.Value.fromUnsignedBigInt(numTicks)
+      "minTick",
+      ethereum.Value.fromSignedBigInt(minTick)
+    )
+  )
+  marketCreatedEvent.parameters.push(
+    new ethereum.EventParam(
+      "maxTick",
+      ethereum.Value.fromSignedBigInt(maxTick)
+    )
+  )
+  marketCreatedEvent.parameters.push(
+    new ethereum.EventParam(
+      "tickSpacing",
+      ethereum.Value.fromSignedBigInt(tickSpacing)
+    )
+  )
+  marketCreatedEvent.parameters.push(
+    new ethereum.EventParam(
+      "numBins",
+      ethereum.Value.fromUnsignedBigInt(numBins)
     )
   )
   marketCreatedEvent.parameters.push(

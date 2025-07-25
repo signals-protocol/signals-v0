@@ -272,8 +272,26 @@
       },
       {
         "indexed": false,
+        "internalType": "int256",
+        "name": "minTick",
+        "type": "int256"
+      },
+      {
+        "indexed": false,
+        "internalType": "int256",
+        "name": "maxTick",
+        "type": "int256"
+      },
+      {
+        "indexed": false,
+        "internalType": "int256",
+        "name": "tickSpacing",
+        "type": "int256"
+      },
+      {
+        "indexed": false,
         "internalType": "uint32",
-        "name": "numTicks",
+        "name": "numBins",
         "type": "uint32"
       },
       {
@@ -297,15 +315,15 @@
       },
       {
         "indexed": false,
-        "internalType": "uint32",
+        "internalType": "int256",
         "name": "settlementLowerTick",
-        "type": "uint32"
+        "type": "int256"
       },
       {
         "indexed": false,
-        "internalType": "uint32",
+        "internalType": "int256",
         "name": "settlementUpperTick",
-        "type": "uint32"
+        "type": "int256"
       }
     ],
     "name": "MarketSettled",
@@ -458,15 +476,15 @@
       },
       {
         "indexed": false,
-        "internalType": "uint32",
+        "internalType": "int256",
         "name": "lowerTick",
-        "type": "uint32"
+        "type": "int256"
       },
       {
         "indexed": false,
-        "internalType": "uint32",
+        "internalType": "int256",
         "name": "upperTick",
-        "type": "uint32"
+        "type": "int256"
       },
       {
         "indexed": false,
@@ -495,15 +513,15 @@
       },
       {
         "indexed": true,
-        "internalType": "uint32",
+        "internalType": "int256",
         "name": "lo",
-        "type": "uint32"
+        "type": "int256"
       },
       {
         "indexed": true,
-        "internalType": "uint32",
+        "internalType": "int256",
         "name": "hi",
-        "type": "uint32"
+        "type": "int256"
       },
       {
         "indexed": false,

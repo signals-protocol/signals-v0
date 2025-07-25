@@ -23,7 +23,7 @@ type MarketCreated @entity(immutable: true) {
   tickSpacing: BigInt! # int256
   startTimestamp: BigInt! # uint64
   endTimestamp: BigInt! # uint64
-  numTicks: BigInt! # uint32 (calculated from tick range)
+  numBins: BigInt! # uint32 (calculated bin count from tick range)
   liquidityParameter: BigInt! # uint256
   blockNumber: BigInt!
   blockTimestamp: BigInt!
@@ -118,34 +118,148 @@ type Market @entity(immutable: false) {
   tickSpacing: BigInt! # int256 - 틱 간격
   startTimestamp: BigInt!
   endTimestamp: BigInt!
-  numTicks: BigInt! # uint32 - 계산된 틱 개수
+  numBins: BigInt! # uint32 - 계산된 빈 개수
   liquidityParameter: BigInt!
   isSettled: Boolean!
   settlementLowerTick: BigInt # int256
   settlementUpperTick: BigInt # int256
   lastUpdated: BigInt!
-  ticks: [TickState!]! @derivedFrom(field: "market")
+  # 관계 필드들
+  bins: [BinState!]! @derivedFrom(field: "market")
+  distribution: MarketDistribution @derivedFrom(field: "market")
 }
 
-# 각 틱의 현재 factor 상태 (실제 틱 값 기준)
-type TickState @entity(immutable: false) {
-  id: String! # marketId-tickValue
+# Segment Tree의 각 bin별 현재 상태
+type BinState @entity(immutable: false) {
+  id: String! # marketId-binIndex
   market: Market!
-  tickValue: BigInt! # int256 - 실제 틱 값 (예: 100500)
-  tickIndex: BigInt! # uint32 - 세그먼트 트리 인덱스 (0-based)
-  currentFactor: BigDecimal! # 현재 누적 factor 값
+  binIndex: BigInt! # uint32 - segment tree에서의 0-based 인덱스
+  lowerTick: BigInt! # int256 - 이 bin이 커버하는 실제 틱 범위 시작
+  upperTick: BigInt! # int256 - 이 bin이 커버하는 실제 틱 범위 끝 (exclusive)
+  currentFactor: BigDecimal! # 현재 누적 factor 값 (WAD 형식에서 변환)
   lastUpdated: BigInt!
   updateCount: BigInt! # 업데이트된 횟수
+  totalVolume: BigDecimal! # 이 bin에서 발생한 총 거래량
 }
 
-# 틱 범위(구간)별 현재 상태 - 실제 거래 단위
-type TickRange @entity(immutable: false) {
-  id: String! # marketId-lowerTick-upperTick
+# 마켓별 전체 분포 데이터
+type MarketDistribution @entity(immutable: false) {
+  id: String! # marketId
   market: Market!
-  lowerTick: BigInt! # int256 - 실제 틱 값
-  upperTick: BigInt! # int256 - 실제 틱 값
-  currentFactor: BigDecimal! # 현재 누적 factor 값
+  totalBins: BigInt! # 총 빈 개수
+  # LMSR 계산용 데이터
+  totalSum: BigDecimal! # 전체 segment tree의 sum (Σ exp(q_i/α))
+  totalSumWad: BigInt! # WAD 형식의 전체 sum (컨트랙트와 일치)
+  # 분포 통계
+  minFactor: BigDecimal! # 최소 factor 값
+  maxFactor: BigDecimal! # 최대 factor 값
+  avgFactor: BigDecimal! # 평균 factor 값
+  totalVolume: BigDecimal! # 전체 거래량
+  # 배열 형태 데이터 (FE 효율성용) - String으로 변경
+  binFactors: [String!]! # 모든 bin의 factor 배열 ["1.0", "2.0", "1.5", ...]
+  binVolumes: [String!]! # 모든 bin의 volume 배열 ["100", "200", "150", ...]
+  tickRanges: [String!]! # 틱 범위 문자열 배열 ["100500-100600", "100600-100700", ...]
+  # 메타데이터
+  lastSnapshotAt: BigInt! # 마지막 스냅샷 시점
+  distributionHash: String! # 분포 데이터의 해시 (변화 감지용)
+  version: BigInt! # 버전 번호 (업데이트 추적용)
+}
+
+# 사용자별 포지션 현황 (실시간 업데이트)
+type UserPosition @entity(immutable: false) {
+  id: String! # positionId
+  positionId: BigInt!
+  user: Bytes! # address
+  stats: UserStats! # reference to UserStats (리네이밍)
+  market: Market!
+  lowerTick: BigInt! # int256
+  upperTick: BigInt! # int256
+  currentQuantity: BigDecimal! # 현재 보유량
+  totalCostBasis: BigDecimal! # 총 매수 비용 (accumulated cost)
+  averageEntryPrice: BigDecimal! # 평균 진입가 (totalCostBasis / totalQuantityBought)
+  totalQuantityBought: BigDecimal! # 총 매수량 (누적)
+  totalQuantitySold: BigDecimal! # 총 매도량 (누적)
+  totalProceeds: BigDecimal! # 총 매도 수익
+  realizedPnL: BigDecimal! # 실현 손익 (totalProceeds - sold portion cost)
+  isActive: Boolean! # 포지션이 활성 상태인지
+  createdAt: BigInt!
   lastUpdated: BigInt!
-  updateCount: BigInt! # 업데이트된 횟수
+}
+
+# 개별 거래 기록 (매수/매도)
+type Trade @entity(immutable: true) {
+  id: Bytes! # transactionHash-logIndex
+  userPosition: String! # UserPosition ID
+  user: Bytes! # address
+  market: Market!
+  positionId: BigInt!
+  type: TradeType! # OPEN, INCREASE, DECREASE, CLOSE, CLAIM
+  lowerTick: BigInt! # int256
+  upperTick: BigInt! # int256
+  quantity: BigDecimal! # 거래량 (DECREASE/CLOSE는 음수)
+  costOrProceeds: BigDecimal! # 비용 또는 수익
+  price: BigDecimal! # 단위당 가격 (costOrProceeds / abs(quantity))
+  gasUsed: BigInt! # 가스 사용량
+  gasPrice: BigInt! # 가스 가격
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  transactionHash: Bytes!
+}
+
+enum TradeType {
+  OPEN
+  INCREASE
+  DECREASE
+  CLOSE
+  CLAIM
+}
+
+# 사용자별 전체 통계 및 PnL
+type UserStats @entity(immutable: false) {
+  id: Bytes! # user address
+  user: Bytes! # address
+  totalTrades: BigInt! # 총 거래 횟수
   totalVolume: BigDecimal! # 총 거래량
+  totalCosts: BigDecimal! # 총 매수 비용
+  totalProceeds: BigDecimal! # 총 매도 수익
+  totalRealizedPnL: BigDecimal! # 총 실현 손익
+  totalGasFees: BigDecimal! # 총 가스 비용
+  netPnL: BigDecimal! # 순 손익 (realizedPnL - gasFees)
+  activePositionsCount: BigInt! # 활성 포지션 수
+  winningTrades: BigInt! # 수익 거래 수
+  losingTrades: BigInt! # 손실 거래 수
+  winRate: BigDecimal! # 승률
+  avgTradeSize: BigDecimal! # 평균 거래 크기
+  firstTradeAt: BigInt! # 첫 거래 시점
+  lastTradeAt: BigInt! # 마지막 거래 시점
+  positions: [UserPosition!]! @derivedFrom(field: "stats")
+}
+
+# 시점별 시장 가격 스냅샷 (틱 범위별)
+type PriceSnapshot @entity(immutable: true) {
+  id: String! # marketId-lowerTick-upperTick-blockNumber
+  market: Market!
+  lowerTick: BigInt! # int256
+  upperTick: BigInt! # int256
+  price: BigDecimal! # 해당 범위의 단위당 가격
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  totalSupply: BigDecimal! # 해당 시점의 총 공급량
+  marketCap: BigDecimal! # price * totalSupply
+}
+
+# 시장별 전체 통계
+type MarketStats @entity(immutable: false) {
+  id: String! # marketId
+  market: Market!
+  totalVolume: BigDecimal! # 총 거래량
+  totalTrades: BigInt! # 총 거래 수
+  totalUsers: BigInt! # 총 사용자 수
+  totalFees: BigDecimal! # 총 수수료 (향후 구현)
+  highestPrice: BigDecimal! # 최고가
+  lowestPrice: BigDecimal! # 최저가
+  currentPrice: BigDecimal! # 현재가 (마지막 거래 가격)
+  priceChange24h: BigDecimal! # 24시간 가격 변화
+  volume24h: BigDecimal! # 24시간 거래량
+  lastUpdated: BigInt!
 }
