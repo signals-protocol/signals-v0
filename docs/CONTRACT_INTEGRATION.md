@@ -8,16 +8,16 @@
 
 ```typescript
 const CONTRACTS = {
-  // 메인 컨트랙트
-  CLMSRMarketCore: "0x73908E35F9b5747f6183111cA417462E8e39c09B",
-  CLMSRPosition: "0x35c3C4FA2F14544dA688e41118edAc953cc48cDa",
+  // 메인 컨트랙트 (최신 배포)
+  CLMSRMarketCore: "0x03664F2e5eB92Ac39Ec712E9CE90d945d5C061e5",
+  CLMSRPosition: "0xf4eFFF5D5DF0E74b947b2e4E05D8b1CEBC7a9652",
 
-  // 테스트용 토큰
-  USDC: "0x78070bF4525A5A5600Ff97220139a6F77F840A96",
+  // 테스트용 토큰 (최신 배포)
+  USDC: "0x60b8E0C9AD5E8A894b044B89D2998Df71e6805BD",
 
-  // 라이브러리들
-  FixedPointMathU: "0xD84379CEae14AA33C123Af12424A37803F885889",
-  LazyMulSegmentTree: "0x2B0d36FACD61B71CC05ab8F3D2355ec3631C0dd5",
+  // 라이브러리들 (최신 배포)
+  FixedPointMathU: "0x34F40835F2C9Cc19a07Fd9c53e7F4DfCCa8990F2",
+  LazyMulSegmentTree: "0x528E99AF255B6E43f04f0e6080a711F2A27585E0",
 };
 
 const NETWORK = {
@@ -32,9 +32,9 @@ const NETWORK = {
 
 ✅ 모든 컨트랙트가 Arbiscan에서 검증됨
 
-- [CLMSRMarketCore](https://sepolia.arbiscan.io/address/0x73908E35F9b5747f6183111cA417462E8e39c09B#code)
-- [USDC](https://sepolia.arbiscan.io/address/0x78070bF4525A5A5600Ff97220139a6F77F840A96#code)
-- [CLMSRPosition](https://sepolia.arbiscan.io/address/0x35c3C4FA2F14544dA688e41118edAc953cc48cDa#code)
+- [CLMSRMarketCore](https://sepolia.arbiscan.io/address/0x03664F2e5eB92Ac39Ec712E9CE90d945d5C061e5#code)
+- [USDC](https://sepolia.arbiscan.io/address/0x60b8E0C9AD5E8A894b044B89D2998Df71e6805BD#code)
+- [CLMSRPosition](https://sepolia.arbiscan.io/address/0xf4eFFF5D5DF0E74b947b2e4E05D8b1CEBC7a9652#code)
 
 ---
 
@@ -122,6 +122,38 @@ const initializeContracts = async () => {
 
 ---
 
+## 🎯 틱 시스템 이해
+
+### 틱과 Bin의 관계
+
+CLMSR 시스템에서는 두 가지 좌표 체계를 사용합니다:
+
+- **틱(Tick)**: 실제 확률값을 나타내는 정수 (예: 100, 200, 300)
+- **Bin**: 세그먼트 트리에서 사용하는 0-based 인덱스 (내부 구현)
+
+### 마켓 파라미터
+
+```typescript
+interface MarketParams {
+  minTick: number; // 최소 틱값 (예: 0)
+  maxTick: number; // 최대 틱값 (예: 10000)
+  tickSpacing: number; // 틱 간격 (예: 100)
+}
+
+// 예시: minTick=0, maxTick=10000, tickSpacing=100
+// 유효한 틱: 0, 100, 200, 300, ..., 10000
+// 유효한 구간: [0,100), [100,200), [200,300), ..., [9900,10000)
+```
+
+### 포지션 범위 규칙
+
+1. **lowerTick < upperTick**: 반드시 하한이 상한보다 작아야 함
+2. **tickSpacing 정렬**: `(upperTick - lowerTick) % tickSpacing === 0`
+3. **동일 틱 금지**: `lowerTick !== upperTick`
+4. **다중 구간 허용**: 여러 개의 연속된 구간도 가능
+
+---
+
 ## 📖 읽기 함수들 (View Functions)
 
 ### 1. 마켓 정보 조회
@@ -129,76 +161,93 @@ const initializeContracts = async () => {
 #### 기본 마켓 정보
 
 ```typescript
-// 마켓 전체 정보 조회 (구조체)
+// 방법 1: public markets 매핑 직접 접근 (간단)
+const market = await coreContract.markets(marketId);
+
+// 방법 2: getMarket 함수 호출 (더 안전 - 존재하지 않는 마켓에 대해 에러 발생)
+const market = await coreContract.getMarket(marketId);
+
+// 두 방법 모두 동일한 Market 구조체를 반환합니다
 interface MarketInfo {
   isActive: boolean;
   settled: boolean;
   startTimestamp: bigint;
   endTimestamp: bigint;
-  settlementLowerTick: number;
-  settlementUpperTick: number;
-  numTicks: number;
+  settlementLowerTick: bigint; // int256 in contract
+  settlementUpperTick: bigint; // int256 in contract
+  minTick: bigint; // int256 in contract
+  maxTick: bigint; // int256 in contract
+  tickSpacing: bigint; // int256 in contract
+  numBins: number; // uint32 in contract, converted to number
   liquidityParameter: bigint;
 }
 
 const getMarketInfo = async (marketId: number): Promise<MarketInfo> => {
-  const marketData = await coreContract.getMarket(marketId);
+  // getMarket 함수 사용 (권장 - 마켓 존재 여부 자동 검증)
+  const market = await coreContract.getMarket(marketId);
+
   return {
-    isActive: marketData.isActive,
-    settled: marketData.settled,
-    startTimestamp: marketData.startTimestamp,
-    endTimestamp: marketData.endTimestamp,
-    settlementLowerTick: Number(marketData.settlementLowerTick),
-    settlementUpperTick: Number(marketData.settlementUpperTick),
-    numTicks: Number(marketData.numTicks),
-    liquidityParameter: marketData.liquidityParameter,
+    isActive: market.isActive,
+    settled: market.settled,
+    startTimestamp: market.startTimestamp,
+    endTimestamp: market.endTimestamp,
+    settlementLowerTick: market.settlementLowerTick,
+    settlementUpperTick: market.settlementUpperTick,
+    minTick: market.minTick,
+    maxTick: market.maxTick,
+    tickSpacing: market.tickSpacing,
+    numBins: Number(market.numBins),
+    liquidityParameter: market.liquidityParameter,
   };
 };
 
 // 마켓 상태 확인
 const getMarketStatus = async (marketId: number) => {
-  const [isActive, isSettled] = await Promise.all([
-    coreContract.isMarketActive(marketId),
-    coreContract.isMarketSettled(marketId),
-  ]);
+  // markets 매핑 직접 접근도 가능 (더 빠름)
+  const market = await coreContract.markets(marketId);
 
-  return { isActive, isSettled };
+  return {
+    isActive: market.isActive,
+    isSettled: market.settled,
+  };
 };
 ```
 
-#### 마켓 카운터 조회
+#### 마켓 조회 (배포 파일 기반)
 
 ```typescript
-// 전체 마켓 개수
-const getTotalMarkets = async (): Promise<number> => {
-  const counter = await coreContract.marketCounter();
-  return Number(counter);
-};
+// 전체 마켓 조회 - 서브그래프나 이벤트 로그 사용 권장
+const getAllMarkets = async (): Promise<MarketInfo[]> => {
+  // 실제로는 서브그래프에서 조회하는 것이 효율적
+  // 또는 MarketCreated 이벤트 로그를 파싱
+  const filter = coreContract.filters.MarketCreated();
+  const events = await coreContract.queryFilter(filter);
 
-// 모든 마켓 ID 나열
-const getAllMarketIds = async (): Promise<number[]> => {
-  const total = await getTotalMarkets();
-  return Array.from({ length: total }, (_, i) => i);
+  const marketIds = events.map((event) => Number(event.args.marketId));
+
+  const markets = await Promise.all(marketIds.map((id) => getMarketInfo(id)));
+
+  return markets;
 };
 ```
 
 ## 2. 가격 조회
 
-### 단일 포지션 가격 조회
+### 포지션 비용 계산
 
 ```typescript
-interface PriceInfo {
+interface CostInfo {
   cost: bigint; // 6-decimal USDC
-  effectivePrice: string; // ETH 기준 가격
+  effectivePrice: string; // 단위당 가격
 }
 
-const getPositionPrice = async (
+const calculatePositionCost = async (
   marketId: number,
   lowerTick: number,
   upperTick: number,
   quantity: bigint
-): Promise<PriceInfo> => {
-  // calculateOpenCost 함수 사용 (6-decimal 결과)
+): Promise<CostInfo> => {
+  // calculateOpenCost 함수 사용 (실제 존재하는 함수)
   const cost = await coreContract.calculateOpenCost(
     marketId,
     lowerTick,
@@ -265,18 +314,18 @@ interface UserPosition {
 const getUserPositions = async (
   userAddress: string
 ): Promise<UserPosition[]> => {
-  const positionIds = await coreContract.getPositionIds(userAddress);
+  const positionIds = await positionContract.getPositionsByOwner(userAddress);
 
   const positions = await Promise.all(
     positionIds.map(async (id: bigint) => {
-      const positionData = await coreContract.positions(id);
+      const positionData = await positionContract.getPosition(id);
       return {
         positionId: id,
-        marketId: Number(positionData[0]),
-        trader: positionData[1],
-        lowerTick: Number(positionData[2]),
-        upperTick: Number(positionData[3]),
-        quantity: positionData[4],
+        marketId: Number(positionData.marketId),
+        trader: positionData.trader,
+        lowerTick: Number(positionData.lowerTick),
+        upperTick: Number(positionData.upperTick),
+        quantity: positionData.quantity,
       };
     })
   );
@@ -289,11 +338,8 @@ const getUserPositions = async (
 
 ```typescript
 const getPositionValue = async (positionId: bigint): Promise<bigint> => {
-  const positionData = await coreContract.positions(positionId);
-  const [marketId, , lowerTick, upperTick, quantity] = positionData;
-
   // 현재 판매 시 받을 수 있는 금액 계산
-  return await coreContract.getPrice(marketId, lowerTick, upperTick, -quantity);
+  return await coreContract.calculateCloseProceeds(positionId);
 };
 ```
 
@@ -368,13 +414,24 @@ const openPosition = async (params: OpenPositionParams): Promise<bigint> => {
     deadlineMinutes = 10,
   } = params;
 
+  // 마켓 정보 조회
+  const market = await coreContract.markets(marketId);
+
   // 입력값 검증
-  if (upperTick !== lowerTick + 1) {
-    throw new Error("CLMSR에서는 연속된 틱만 지원됩니다");
+  if ((upperTick - lowerTick) % Number(market.tickSpacing) !== 0) {
+    throw new Error("틱 범위가 tickSpacing에 맞지 않습니다");
+  }
+
+  if (lowerTick >= upperTick) {
+    throw new Error("올바르지 않은 틱 범위입니다 (lowerTick >= upperTick)");
+  }
+
+  if (lowerTick === upperTick) {
+    throw new Error("같은 틱으로는 포지션을 열 수 없습니다");
   }
 
   // 예상 가격 확인
-  const estimatedCost = await coreContract.getPrice(
+  const estimatedCost = await coreContract.calculateOpenCost(
     marketId,
     lowerTick,
     upperTick,
@@ -387,15 +444,14 @@ const openPosition = async (params: OpenPositionParams): Promise<bigint> => {
   }
 
   // USDC 승인 확인
-  const allowance = await getUSDCAllowance(
-    await coreContract.runner.getAddress()
-  );
+  const userAddress = await coreContract.runner.getAddress();
+  const allowance = await getUSDCAllowance(userAddress);
   if (allowance < maxCost) {
     console.log("USDC 승인이 필요합니다...");
     await approveUSDC();
   }
 
-  // 포지션 열기 실행
+  // 포지션 열기 실행 (trader 주소 필수)
   const tx = await coreContract.openPosition(
     userAddress, // trader 주소 (첫 번째 파라미터)
     marketId,
@@ -498,17 +554,17 @@ const closePosition = async (
 #### 포지션 클레임 (정산 후)
 
 ```typescript
-const claimPosition = async (positionId: bigint): Promise<void> => {
+const claimPayout = async (positionId: bigint): Promise<void> => {
   // 마켓이 정산되었는지 확인
-  const positionData = await coreContract.positions(positionId);
-  const marketId = positionData[0];
-  const isSettled = await coreContract.isMarketSettled(marketId);
+  const positionData = await positionContract.getPosition(positionId);
+  const marketId = positionData.marketId;
+  const market = await coreContract.markets(marketId);
 
-  if (!isSettled) {
+  if (!market.settled) {
     throw new Error("마켓이 아직 정산되지 않았습니다");
   }
 
-  const tx = await coreContract.claimPosition(positionId);
+  const tx = await coreContract.claimPayout(positionId);
   const receipt = await tx.wait();
 
   const claimEvent = receipt.logs.find(
@@ -632,29 +688,59 @@ const getHistoricalPositions = async (marketId: number, fromBlock?: number) => {
 
 ## 🔧 유틸리티 함수들
 
-### 1. 가격 계산 도우미
+### 1. 틱 시스템 도우미
 
 ```typescript
-// 틱을 확률로 변환
-const tickToProbability = (tick: number, numTicks: number): number => {
-  return (tick / numTicks) * 100;
+// 틱을 bin 인덱스로 변환
+const tickToBinIndex = (
+  tick: bigint,
+  minTick: bigint,
+  tickSpacing: bigint
+): number => {
+  return Number((tick - minTick) / tickSpacing);
 };
 
-// 확률을 틱으로 변환
-const probabilityToTick = (probability: number, numTicks: number): number => {
-  return Math.floor((probability / 100) * numTicks);
+// bin 인덱스를 틱으로 변환
+const binIndexToTick = (
+  binIndex: number,
+  minTick: bigint,
+  tickSpacing: bigint
+): bigint => {
+  return minTick + BigInt(binIndex) * tickSpacing;
 };
 
-// 포지션의 확률 범위 계산
-const getPositionProbabilityRange = (
-  lowerTick: number,
-  upperTick: number,
-  numTicks: number
+// 틱 범위를 확률 범위로 해석 (단순 근사)
+const tickRangeToProbabilityRange = (
+  lowerTick: bigint,
+  upperTick: bigint,
+  minTick: bigint,
+  maxTick: bigint
 ) => {
+  const totalTicks = Number(maxTick - minTick);
+  const lowerOffset = Number(lowerTick - minTick);
+  const upperOffset = Number(upperTick - minTick);
+
   return {
-    lower: tickToProbability(lowerTick, numTicks),
-    upper: tickToProbability(upperTick, numTicks),
+    lower: (lowerOffset / totalTicks) * 100,
+    upper: (upperOffset / totalTicks) * 100,
   };
+};
+
+// 유효한 틱 범위인지 확인
+const isValidTickRange = (
+  lowerTick: bigint,
+  upperTick: bigint,
+  minTick: bigint,
+  maxTick: bigint,
+  tickSpacing: bigint
+): boolean => {
+  return (
+    lowerTick >= minTick &&
+    upperTick <= maxTick &&
+    lowerTick < upperTick &&
+    (lowerTick - minTick) % tickSpacing === 0n &&
+    (upperTick - minTick) % tickSpacing === 0n
+  );
 };
 ```
 
@@ -715,20 +801,22 @@ const handleContractError = (error: any): string => {
   // Revert 메시지 파싱
   if (error.reason) {
     switch (error.reason) {
-      case "Market not active":
+      case "MarketNotFound":
+        return "마켓을 찾을 수 없습니다.";
+      case "MarketNotActive":
         return "마켓이 비활성화되었습니다.";
-      case "Market already settled":
-        return "마켓이 이미 정산되었습니다.";
-      case "Insufficient quantity":
-        return "수량이 부족합니다.";
-      case "Cost exceeds max cost":
-        return "비용이 최대 한도를 초과했습니다.";
-      case "Proceeds below min proceeds":
-        return "수익이 최소 한도를 밑돕니다.";
-      case "Position not found":
-        return "포지션을 찾을 수 없습니다.";
-      case "Not position owner":
-        return "포지션 소유자가 아닙니다.";
+      case "InvalidQuantity":
+        return "수량이 잘못되었습니다.";
+      case "InvalidTickRange":
+        return "올바르지 않은 틱 범위입니다.";
+      case "BinCountExceedsLimit":
+        return "bin 개수가 제한을 초과했습니다.";
+      case "ZeroAddress":
+        return "주소가 올바르지 않습니다.";
+      case "ContractPaused":
+        return "컨트랙트가 일시 중지되었습니다.";
+      case "UnauthorizedCaller":
+        return "권한이 없는 호출자입니다.";
       default:
         return `컨트랙트 오류: ${error.reason}`;
     }
@@ -788,24 +876,23 @@ const executeWithRetry = async <T>(
 ```typescript
 // 여러 마켓 정보를 한번에 조회
 const getBatchMarketInfo = async (marketIds: number[]) => {
-  const promises = marketIds.map((id) =>
-    Promise.all([
-      coreContract.markets(id),
-      coreContract.isMarketActive(id),
-      coreContract.isMarketSettled(id),
-    ])
-  );
+  const promises = marketIds.map((id) => coreContract.markets(id));
 
   const results = await Promise.all(promises);
 
-  return results.map(([marketData, isActive, isSettled], index) => ({
+  return results.map((market, index) => ({
     marketId: marketIds[index],
-    startTimestamp: marketData[0],
-    endTimestamp: marketData[1],
-    numTicks: Number(marketData[2]),
-    liquidityParameter: marketData[3],
-    isActive,
-    isSettled,
+    startTimestamp: market.startTimestamp,
+    endTimestamp: market.endTimestamp,
+    settlementLowerTick: market.settlementLowerTick,
+    settlementUpperTick: market.settlementUpperTick,
+    minTick: market.minTick,
+    maxTick: market.maxTick,
+    tickSpacing: market.tickSpacing,
+    numBins: Number(market.numBins),
+    liquidityParameter: market.liquidityParameter,
+    isActive: market.isActive,
+    settled: market.settled,
   }));
 };
 ```
@@ -832,7 +919,7 @@ class ContractCache {
     return info;
   }
 
-  async getPrice(
+  async calculateCost(
     marketId: number,
     lowerTick: number,
     upperTick: number,
@@ -845,15 +932,15 @@ class ContractCache {
       return cached.price;
     }
 
-    const price = await coreContract.getPrice(
+    const cost = await coreContract.calculateOpenCost(
       marketId,
       lowerTick,
       upperTick,
       quantity
     );
-    this.priceCache.set(key, { price, timestamp: Date.now() });
+    this.priceCache.set(key, { price: cost, timestamp: Date.now() });
 
-    return price;
+    return cost;
   }
 }
 ```

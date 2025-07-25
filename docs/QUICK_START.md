@@ -16,16 +16,16 @@ export const CONFIG = {
     name: "Arbitrum Sepolia",
   },
 
-  // 컨트랙트 주소들
+  // 컨트랙트 주소들 (최신 배포)
   CONTRACTS: {
-    CLMSRMarketCore: "0x73908E35F9b5747f6183111cA417462E8e39c09B",
-    USDC: "0x78070bF4525A5A5600Ff97220139a6F77F840A96",
-    CLMSRPosition: "0x35c3C4FA2F14544dA688e41118edAc953cc48cDa",
+    CLMSRMarketCore: "0x03664F2e5eB92Ac39Ec712E9CE90d945d5C061e5",
+    USDC: "0x60b8E0C9AD5E8A894b044B89D2998Df71e6805BD",
+    CLMSRPosition: "0xf4eFFF5D5DF0E74b947b2e4E05D8b1CEBC7a9652",
   },
 
   // 서브그래프 엔드포인트
   SUBGRAPH_URL:
-    "https://api.studio.thegraph.com/query/116469/signals-v-0/version/latest",
+    "https://api.studio.thegraph.com/query/116469/signals-v-0/1.1.9",
 };
 ```
 
@@ -47,26 +47,38 @@ const client = new ApolloClient({
   cache: new InMemoryCache(),
 });
 
-// GraphQL 쿼리
-const GET_MARKET_TICKS = gql`
-  query GetMarketTicks($marketId: String!) {
+// GraphQL 쿼리 - 새로운 bin 시스템
+const GET_MARKET_DISTRIBUTION = gql`
+  query GetMarketDistribution($marketId: String!) {
+    marketDistribution(id: $marketId) {
+      totalBins
+      totalSum
+      minFactor
+      maxFactor
+      avgFactor
+      binFactors
+      binVolumes
+      tickRanges
+      lastSnapshotAt
+      version
+    }
     market(id: $marketId) {
       id
-      numTicks
+      numBins
+      minTick
+      maxTick
+      tickSpacing
+      isActive
       isSettled
-      ticks(orderBy: tickNumber) {
-        tickNumber
-        currentFactor
-        lastUpdated
-      }
     }
   }
 `;
 
-interface TickData {
-  tickNumber: number;
-  currentFactor: number;
-  lastUpdated: number;
+interface BinData {
+  binIndex: number;
+  tickRange: string;
+  factor: number;
+  volume: number;
 }
 
 interface PriceChartProps {
@@ -74,7 +86,7 @@ interface PriceChartProps {
 }
 
 const PriceChart: React.FC<PriceChartProps> = ({ marketId }) => {
-  const { data, loading, error } = useQuery(GET_MARKET_TICKS, {
+  const { data, loading, error } = useQuery(GET_MARKET_DISTRIBUTION, {
     variables: { marketId },
     pollInterval: 5000, // 5초마다 업데이트
     client,
@@ -82,27 +94,44 @@ const PriceChart: React.FC<PriceChartProps> = ({ marketId }) => {
 
   if (loading) return <div>차트 로딩 중...</div>;
   if (error) return <div>오류 발생: {error.message}</div>;
-  if (!data?.market) return <div>마켓을 찾을 수 없습니다.</div>;
+  if (!data?.marketDistribution || !data?.market)
+    return <div>마켓을 찾을 수 없습니다.</div>;
 
-  const ticks: TickData[] = data.market.ticks.map((tick: any) => ({
-    tickNumber: parseInt(tick.tickNumber),
-    currentFactor: parseFloat(tick.currentFactor),
-    lastUpdated: parseInt(tick.lastUpdated),
-  }));
+  const bins: BinData[] = data.marketDistribution.binFactors.map(
+    (factor: string, index: number) => ({
+      binIndex: index,
+      tickRange: data.marketDistribution.tickRanges[index],
+      factor: parseFloat(factor),
+      volume: parseFloat(data.marketDistribution.binVolumes[index]),
+    })
+  );
 
   return (
     <div className="price-chart">
-      <h3>마켓 {marketId} 가격 분포</h3>
+      <h3>마켓 {marketId} 분포 시각화</h3>
+      <div className="distribution-stats">
+        <p>총 bins: {data.marketDistribution.totalBins}</p>
+        <p>
+          전체 합: {parseFloat(data.marketDistribution.totalSum).toFixed(4)}
+        </p>
+        <p>
+          최소/최대 factor: {data.marketDistribution.minFactor} /{" "}
+          {data.marketDistribution.maxFactor}
+        </p>
+      </div>
       <div className="chart-container">
-        {ticks.map((tick) => (
+        {bins.map((bin) => (
           <div
-            key={tick.tickNumber}
-            className="tick-bar"
+            key={bin.binIndex}
+            className="bin-bar"
             style={{
-              height: `${Math.min(tick.currentFactor * 100, 200)}px`,
-              backgroundColor: tick.currentFactor > 1 ? "#4CAF50" : "#f44336",
+              height: `${Math.min(bin.factor * 50, 200)}px`,
+              backgroundColor: bin.factor > 1 ? "#4CAF50" : "#f44336",
+              width: `${100 / bins.length}%`,
             }}
-            title={`틱 ${tick.tickNumber}: ${tick.currentFactor.toFixed(4)}`}
+            title={`Bin ${bin.binIndex} (${
+              bin.tickRange
+            }): Factor ${bin.factor.toFixed(4)}, Volume ${bin.volume}`}
           />
         ))}
       </div>
@@ -121,10 +150,10 @@ import React, { useState } from "react";
 import { ethers } from "ethers";
 import { CONFIG } from "./config";
 
-// 컨트랙트 ABI (필수 함수들만)
+// 컨트랙트 ABI (필수 함수들만) - 실제 컨트랙트와 일치하는 타입 사용
 const CORE_ABI = [
-  "function calculateOpenCost(uint256 marketId, uint32 lowerTick, uint32 upperTick, uint128 quantity) view returns (uint256)",
-  "function openPosition(address trader, uint256 marketId, uint32 lowerTick, uint32 upperTick, uint128 quantity, uint256 maxCost) returns (uint256)",
+  "function calculateOpenCost(uint256 marketId, int256 lowerTick, int256 upperTick, uint128 quantity) view returns (uint256)",
+  "function openPosition(address trader, uint256 marketId, int256 lowerTick, int256 upperTick, uint128 quantity, uint256 maxCost) returns (uint256)",
 ];
 
 const USDC_ABI = [
@@ -314,8 +343,11 @@ const GET_MARKETS = gql`
     markets(first: 10, orderBy: lastUpdated, orderDirection: desc) {
       id
       marketId
-      numTicks
-      isSettled
+      numBins
+      minTick
+      maxTick
+      tickSpacing
+      settled
       lastUpdated
     }
   }
@@ -333,8 +365,12 @@ export const MarketList = () => {
       {data?.markets?.map((market: any) => (
         <div key={market.id} className="market-card">
           <h3>마켓 #{market.marketId}</h3>
-          <p>틱 개수: {market.numTicks}</p>
-          <p>상태: {market.isSettled ? "정산완료" : "활성"}</p>
+          <p>Bin 개수: {market.numBins}</p>
+          <p>
+            틱 범위: {market.minTick} ~ {market.maxTick}
+          </p>
+          <p>틱 간격: {market.tickSpacing}</p>
+          <p>상태: {market.settled ? "정산완료" : "활성"}</p>
         </div>
       ))}
     </div>
@@ -342,24 +378,23 @@ export const MarketList = () => {
 };
 ```
 
-### 3. 실시간 가격 분포 조회
+### 3. 실시간 분포 시각화
 
 ```typescript
 // components/PriceDistribution.tsx
 import { useQuery, gql } from "@apollo/client";
 import { Line } from "react-chartjs-2";
 
-const GET_TICK_STATES = gql`
-  query GetTickStates($marketId: String!) {
-    tickStates(
-      where: { market: $marketId }
-      orderBy: tickNumber
-      orderDirection: asc
-      first: 1000
-    ) {
-      tickNumber
-      currentFactor
-      lastUpdated
+const GET_MARKET_DISTRIBUTION = gql`
+  query GetMarketDistribution($marketId: String!) {
+    marketDistribution(id: $marketId) {
+      totalBins
+      totalSum
+      binFactors
+      binVolumes
+      tickRanges
+      lastSnapshotAt
+      version
     }
   }
 `;
@@ -369,41 +404,53 @@ interface PriceDistributionProps {
 }
 
 export const PriceDistribution = ({ marketId }: PriceDistributionProps) => {
-  const { data, loading } = useQuery(GET_TICK_STATES, {
+  const { data, loading } = useQuery(GET_MARKET_DISTRIBUTION, {
     variables: { marketId },
     pollInterval: 3000, // 3초마다 업데이트 (서브그래프 인덱서에서 데이터 조회)
   });
 
-  if (loading) return <div>가격 데이터 로딩 중...</div>;
+  if (loading) return <div>분포 데이터 로딩 중...</div>;
 
   // 서브그래프에서 받은 데이터를 차트용으로 변환
   const chartData = {
     labels:
-      data?.tickStates?.map(
-        (tick: any) =>
-          `틱 ${tick.tickNumber} (${(
-            (tick.tickNumber / (data.market?.numTicks || 100)) *
-            100
-          ).toFixed(1)}%)`
+      data?.marketDistribution?.binFactors?.map(
+        (_: any, index: number) =>
+          `Bin ${index} (${data.marketDistribution.tickRanges[index]})`
       ) || [],
     datasets: [
       {
-        label: "현재 팩터",
+        label: "Bin Factor",
         data:
-          data?.tickStates?.map((tick: any) =>
-            parseFloat(tick.currentFactor)
+          data?.marketDistribution?.binFactors?.map((factor: string) =>
+            parseFloat(factor)
           ) || [],
         borderColor: "rgb(75, 192, 192)",
         backgroundColor: "rgba(75, 192, 192, 0.2)",
         tension: 0.1,
+      },
+      {
+        label: "거래량",
+        data:
+          data?.marketDistribution?.binVolumes?.map((volume: string) =>
+            parseFloat(volume)
+          ) || [],
+        borderColor: "rgb(255, 99, 132)",
+        backgroundColor: "rgba(255, 99, 132, 0.2)",
+        tension: 0.1,
+        yAxisID: "y1",
       },
     ],
   };
 
   return (
     <div>
-      <h3>마켓 #{marketId} 실시간 가격 분포</h3>
-      <p>📊 서브그래프(인덱서)에서 실시간 데이터 조회</p>
+      <h3>마켓 #{marketId} 실시간 분포 시각화</h3>
+      <p>📊 서브그래프에서 Bin별 Factor와 거래량 데이터 조회</p>
+      <p>
+        총 합: {data?.marketDistribution?.totalSum} | 업데이트: v
+        {data?.marketDistribution?.version}
+      </p>
       <Line data={chartData} />
     </div>
   );
@@ -492,11 +539,19 @@ import { useContracts } from "../hooks/useContracts";
 
 interface BuyPositionProps {
   marketId: number;
-  numTicks: number;
+  minTick: bigint;
+  maxTick: bigint;
+  tickSpacing: bigint;
 }
 
-export const BuyPosition = ({ marketId, numTicks }: BuyPositionProps) => {
-  const [lowerTick, setLowerTick] = useState(0);
+export const BuyPosition = ({
+  marketId,
+  minTick,
+  maxTick,
+  tickSpacing,
+}: BuyPositionProps) => {
+  const [lowerTick, setLowerTick] = useState(Number(minTick));
+  const [upperTick, setUpperTick] = useState(Number(minTick + tickSpacing));
   const [quantity, setQuantity] = useState("1");
   const [loading, setLoading] = useState(false);
   const [estimatedCost, setEstimatedCost] = useState<string>("");
@@ -508,10 +563,10 @@ export const BuyPosition = ({ marketId, numTicks }: BuyPositionProps) => {
     if (!contracts) return;
 
     try {
-      const cost = await contracts.core.getPrice(
+      const cost = await contracts.core.calculateOpenCost(
         marketId,
         lowerTick,
-        lowerTick + 1, // CLMSR은 항상 연속된 틱
+        upperTick,
         ethers.parseEther(quantity)
       );
       setEstimatedCost(ethers.formatUnits(cost, 6));
@@ -554,7 +609,7 @@ export const BuyPosition = ({ marketId, numTicks }: BuyPositionProps) => {
         userAddress, // trader 주소 (첫 번째 파라미터)
         marketId,
         lowerTick,
-        lowerTick + 1, // CLMSR은 항상 연속된 2개 틱
+        upperTick, // 사용자가 선택한 범위
         ethers.parseEther(quantity),
         maxCost
       );
@@ -577,13 +632,33 @@ export const BuyPosition = ({ marketId, numTicks }: BuyPositionProps) => {
 
       <div>
         <label>
-          틱 번호 (0-{numTicks - 2}):
+          하한 틱 ({Number(minTick)}-{Number(maxTick - tickSpacing)}):
           <input
             type="number"
-            min="0"
-            max={numTicks - 2}
+            min={Number(minTick)}
+            max={Number(maxTick - tickSpacing)}
+            step={Number(tickSpacing)}
             value={lowerTick}
-            onChange={(e) => setLowerTick(parseInt(e.target.value))}
+            onChange={(e) => {
+              const value = parseInt(e.target.value);
+              setLowerTick(value);
+              setUpperTick(value + Number(tickSpacing));
+            }}
+            onBlur={updatePrice}
+          />
+        </label>
+      </div>
+
+      <div>
+        <label>
+          상한 틱:
+          <input
+            type="number"
+            min={lowerTick + Number(tickSpacing)}
+            max={Number(maxTick)}
+            step={Number(tickSpacing)}
+            value={upperTick}
+            onChange={(e) => setUpperTick(parseInt(e.target.value))}
             onBlur={updatePrice}
           />
         </label>
@@ -605,11 +680,20 @@ export const BuyPosition = ({ marketId, numTicks }: BuyPositionProps) => {
 
       <div>
         <p>
-          예상 범위: {lowerTick}-{lowerTick + 1}
+          선택된 틱 범위: {lowerTick} ~ {upperTick}
         </p>
         <p>
-          확률 범위: {((lowerTick / numTicks) * 100).toFixed(1)}% -{" "}
-          {(((lowerTick + 1) / numTicks) * 100).toFixed(1)}%
+          확률 해석:{" "}
+          {(
+            ((lowerTick - Number(minTick)) /
+              (Number(maxTick) - Number(minTick))) *
+            100
+          ).toFixed(1)}
+          % ~ {(
+            ((upperTick - Number(minTick)) /
+              (Number(maxTick) - Number(minTick))) *
+            100
+          ).toFixed(1)}%
         </p>
         <p>예상 비용: ${estimatedCost} USDC</p>
       </div>
@@ -663,17 +747,8 @@ export const MyPositions = ({ userAddress }: MyPositionsProps) => {
     if (!contracts) return;
 
     try {
-      // 현재 포지션 정보 조회
-      const positionData = await contracts.core.positions(positionId);
-      const [marketId, , lowerTick, upperTick, quantity] = positionData;
-
-      // 현재 판매 가격 계산
-      const proceeds = await contracts.core.getPrice(
-        marketId,
-        lowerTick,
-        upperTick,
-        -quantity // 음수로 판매 가격 계산
-      );
+      // 현재 포지션 정보 조회 및 판매 가격 계산
+      const proceeds = await contracts.core.calculateCloseProceeds(positionId);
 
       const minProceeds = (proceeds * BigInt(95)) / BigInt(100); // 5% 슬리피지
 
@@ -746,7 +821,7 @@ function App() {
           </div>
 
           <div className="right-panel">
-            <BuyPosition marketId={parseInt(selectedMarket)} numTicks={100} />
+            {selectedMarket && <MarketTradingPanel marketId={selectedMarket} />}
             {userAddress && <MyPositions userAddress={userAddress} />}
           </div>
         </main>
@@ -754,6 +829,38 @@ function App() {
     </ApolloProvider>
   );
 }
+
+// 마켓 정보를 가져와서 BuyPosition에 전달하는 래퍼 컴포넌트
+const MarketTradingPanel = ({ marketId }: { marketId: string }) => {
+  const { data, loading } = useQuery(
+    gql`
+      query GetMarketInfo($marketId: String!) {
+        market(id: $marketId) {
+          minTick
+          maxTick
+          tickSpacing
+          settled
+        }
+      }
+    `,
+    {
+      variables: { marketId },
+    }
+  );
+
+  if (loading) return <div>마켓 정보 로딩 중...</div>;
+  if (!data?.market) return <div>마켓을 찾을 수 없습니다.</div>;
+  if (data.market.isSettled) return <div>정산 완료된 마켓입니다.</div>;
+
+  return (
+    <BuyPosition
+      marketId={parseInt(marketId)}
+      minTick={BigInt(data.market.minTick)}
+      maxTick={BigInt(data.market.maxTick)}
+      tickSpacing={BigInt(data.market.tickSpacing)}
+    />
+  );
+};
 ```
 
 ---

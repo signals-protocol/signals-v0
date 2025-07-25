@@ -52,28 +52,39 @@ async function main() {
   // 마켓 설정
   const marketId = 0;
 
-  // 새로운 틱 시스템 설정
-  const minTick = 100000; // 100,000 (10만)
-  const maxTick = 199999; // 199,999 (19만 9천)
-  const tickSpacing = 10; // 10 단위 간격
-  const numTicks = (maxTick - minTick) / tickSpacing + 1; // 계산된 틱 개수 = 10,000개
+  // 새로운 틱 시스템 설정 - 100k~140k 범위, 간격 100
+  const minTick = 100000; // 최소 틱: 100,000
+  const maxTick = 140000; // 최대 틱: 140,000 (maxTick는 포함되지 않음)
+  const tickSpacing = 100; // 틱 간격: 100
+
+  // Bin 개수 계산: (maxTick - minTick) / tickSpacing
+  // 각 bin은 연속된 틱 간격을 나타냄 [tick, tick+spacing)
+  const numBins = (maxTick - minTick) / tickSpacing; // 400개의 bin (range)
+  const numValidTicks = numBins + 1; // 401개의 유효한 틱 포인트 (100,000부터 140,000까지)
 
   const startTimestamp = Math.floor(Date.now() / 1000);
   const endTimestamp = startTimestamp + 7 * 24 * 60 * 60; // 7일 후
   const liquidityParameter = parseEther("200"); // 알파값 200
 
-  console.log("\n📊 마켓 설정:");
+  console.log("\n📊 새로운 틱 시스템 마켓 설정:");
   console.log("  - 마켓 ID:", marketId);
   console.log("  - 최소 틱:", minTick.toLocaleString());
-  console.log("  - 최대 틱:", maxTick.toLocaleString());
+  console.log("  - 최대 틱:", maxTick.toLocaleString(), "(상한 불포함)");
   console.log("  - 틱 간격:", tickSpacing);
-  console.log("  - 틱 개수:", numTicks.toLocaleString());
+  console.log("  - 유효한 틱 포인트:", numValidTicks.toLocaleString(), "개");
+  console.log("  - Bin 개수 (Range):", numBins.toLocaleString(), "개");
+  console.log(
+    "  - 틱 범위 예시: [100000, 100100), [100100, 100200), [100200, 100300)..."
+  );
   console.log(
     "  - 시작 시간:",
     new Date(startTimestamp * 1000).toLocaleString()
   );
   console.log("  - 종료 시간:", new Date(endTimestamp * 1000).toLocaleString());
-  console.log("  - 알파값:", ethers.formatEther(liquidityParameter));
+  console.log(
+    "  - 유동성 파라미터 (α):",
+    ethers.formatEther(liquidityParameter)
+  );
 
   try {
     // 마켓 생성 (새로운 파라미터 구조)

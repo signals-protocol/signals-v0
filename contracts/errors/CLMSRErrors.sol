@@ -26,7 +26,7 @@ interface CLMSRErrors {
 
     /* ───────────────────── Misc / config ────────────────────── */
     error ZeroAddress();
-    error TickCountExceedsLimit(uint32 requested, uint32 maxAllowed);
+    error BinCountExceedsLimit(uint32 requested, uint32 maxAllowed);
     error ContractPaused();
     error InvalidLiquidityParameter();
     

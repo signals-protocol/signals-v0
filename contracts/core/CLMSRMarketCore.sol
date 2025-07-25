@@ -162,11 +162,11 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             revert CE.InvalidLiquidityParameter();
         }
         
-        // Calculate number of ticks
-        uint32 numTicks = _calculateNumTicks(minTick, maxTick, tickSpacing);
+        // Calculate number of bins
+        uint32 numBins = _calculateNumBins(minTick, maxTick, tickSpacing);
         
-        if (numTicks == 0 || numTicks > MAX_TICK_COUNT) {
-            revert CE.TickCountExceedsLimit(numTicks, MAX_TICK_COUNT);
+        if (numBins == 0 || numBins > MAX_TICK_COUNT) {
+            revert CE.BinCountExceedsLimit(numBins, MAX_TICK_COUNT);
         }
         
         // Create market
@@ -180,14 +180,14 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             minTick: minTick,
             maxTick: maxTick,
             tickSpacing: tickSpacing,
-            numTicks: numTicks,
+            numBins: numBins,
             liquidityParameter: liquidityParameter
         });
         
         // Initialize segment tree
-        LazyMulSegmentTree.init(marketTrees[marketId], numTicks);
+        LazyMulSegmentTree.init(marketTrees[marketId], numBins);
         
-        emit MarketCreated(marketId, startTimestamp, endTimestamp, minTick, maxTick, tickSpacing, numTicks, liquidityParameter);
+        emit MarketCreated(marketId, startTimestamp, endTimestamp, minTick, maxTick, tickSpacing, numBins, liquidityParameter);
     }
     
     /// @inheritdoc ICLMSRMarketCore
@@ -208,7 +208,12 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             revert CE.InvalidWinningRange(lowerTick, upperTick);
         }
         
-        // CLMSR requires consecutive ticks (exactly 1 tick spacing apart)
+        // 🚨 NO POINT SETTLEMENT: Reject same tick settlement
+        if (lowerTick == upperTick) {
+            revert CE.InvalidWinningRange(lowerTick, upperTick);
+        }
+        
+        // ✅ RANGE SETTLEMENT ONLY: Must be exactly one tick spacing apart
         if (upperTick != lowerTick + market.tickSpacing) {
             revert CE.InvalidWinningRange(lowerTick, upperTick);
         }
@@ -245,16 +250,16 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         }
     }
     
-    /// @notice Calculate number of ticks for a market
+    /// @notice Calculate number of tick ranges for a market
     /// @param minTick Minimum tick value
     /// @param maxTick Maximum tick value
     /// @param tickSpacing Tick spacing
-    /// @return numTicks Number of ticks
-    function _calculateNumTicks(int256 minTick, int256 maxTick, int256 tickSpacing) internal pure returns (uint32) {
+    /// @return numBins Number of bins (tick ranges, not tick points)
+    function _calculateNumBins(int256 minTick, int256 maxTick, int256 tickSpacing) internal pure returns (uint32) {
         int256 range = maxTick - minTick;
-        int256 ticks = range / tickSpacing + 1;
-        require(ticks > 0 && ticks <= int256(uint256(MAX_TICK_COUNT)), "Invalid tick count");
-        return uint32(uint256(ticks));
+        int256 ranges = range / tickSpacing; // No +1 for ranges
+        require(ranges > 0 && ranges <= int256(uint256(MAX_TICK_COUNT)), "Invalid range count");
+        return uint32(uint256(ranges));
     }
     
     /// @notice Validate that a tick is within market bounds and follows spacing
@@ -270,31 +275,75 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         }
     }
     
-    /// @notice Convert actual tick value to segment tree index
-    /// @param tick Actual tick value  
+    /// @notice Convert tick range to segment tree bin
+    /// @param lowerTick Lower bound of range (inclusive)
+    /// @param upperTick Upper bound of range (exclusive)  
     /// @param market Market data
-    /// @return index Segment tree index (0-based)
-    function _tickToIndex(int256 tick, Market memory market) internal pure returns (uint32) {
-        int256 indexInt = (tick - market.minTick) / market.tickSpacing;
-        require(indexInt >= 0 && indexInt <= int256(uint256(type(uint32).max)), "Index out of bounds");
-        return uint32(uint256(indexInt));
+    /// @return bin Segment tree bin (0-based)
+    function _rangeToBin(int256 lowerTick, int256 upperTick, Market memory market) internal pure returns (uint32) {
+        // Validate range format
+        if (upperTick != lowerTick + market.tickSpacing) {
+            revert CE.InvalidTickRange(lowerTick, upperTick);
+        }
+        
+        int256 binInt = (lowerTick - market.minTick) / market.tickSpacing;
+        require(binInt >= 0 && binInt < int256(uint256(market.numBins)), "Range bin out of bounds");
+        return uint32(uint256(binInt));
     }
     
-    /// @notice Convert segment tree index to actual tick value
-    /// @param index Segment tree index (0-based)
+    /// @notice Convert segment tree bin to tick range
+    /// @param bin Segment tree bin (0-based)
     /// @param market Market data
-    /// @return tick Actual tick value
-    function _indexToTick(uint32 index, Market memory market) internal pure returns (int256) {
-        return market.minTick + int256(uint256(index)) * market.tickSpacing;
+    /// @return lowerTick Lower bound of range (inclusive)
+    /// @return upperTick Upper bound of range (exclusive)
+    function _binToRange(uint32 bin, Market memory market) internal pure returns (int256 lowerTick, int256 upperTick) {
+        require(bin < market.numBins, "Bin out of bounds");
+        lowerTick = market.minTick + int256(uint256(bin)) * market.tickSpacing;
+        upperTick = lowerTick + market.tickSpacing;
     }
+    
+    /// @notice Validate that a range is properly formatted
+    /// @param lowerTick Lower bound (inclusive)
+    /// @param upperTick Upper bound (exclusive)
+    /// @param market Market data
+    function _validateRange(int256 lowerTick, int256 upperTick, Market memory market) internal pure {
+        // Range must be exactly one tick spacing
+        if (upperTick != lowerTick + market.tickSpacing) {
+            revert CE.InvalidTickRange(lowerTick, upperTick);
+        }
+        
+        // Lower tick must be valid and aligned
+        _validateTick(lowerTick, market);
+        
+        // Upper tick must be within bounds (but can equal maxTick for last range)
+        if (upperTick > market.maxTick) {
+            revert CE.InvalidTick(upperTick, market.minTick, market.maxTick);
+                 }
+     }
+     
+       /// @notice Convert betting range to segment tree bins
+       /// @param lowerTick Range lower boundary (inclusive)
+       /// @param upperTick Range upper boundary (exclusive) 
+       /// @param market Market data
+       /// @return lowerBin Starting bin
+       /// @return upperBin Ending bin (inclusive in segment tree range)
+       function _rangeToBins(int256 lowerTick, int256 upperTick, Market memory market) 
+           internal pure returns (uint32 lowerBin, uint32 upperBin) {
+           lowerBin = uint32(uint256((lowerTick - market.minTick) / market.tickSpacing));
+           upperBin = uint32(uint256((upperTick - market.minTick) / market.tickSpacing - 1));
+           
+           require(lowerBin < market.numBins && upperBin < market.numBins, "Range bins out of bounds");
+           require(lowerBin <= upperBin, "Invalid range bins");
+       }
+       
 
-    // ========================================
-    // INTERNAL HELPER FUNCTIONS
-    // ========================================
+     // ========================================
+     // INTERNAL HELPER FUNCTIONS
+     // ========================================
     
     /// @notice Check if market exists
     function _marketExists(uint256 marketId) internal view returns (bool) {
-        return markets[marketId].numTicks > 0;
+        return markets[marketId].numBins > 0;
     }
     
 
@@ -349,8 +398,9 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         Market memory market = markets[marketId];
         _validateTick(tick, market);
         
-        uint32 index = _tickToIndex(tick, market);
-        return LazyMulSegmentTree.getRangeSum(marketTrees[marketId], index, index);
+        // Convert single tick to range [tick, tick+spacing)
+        (uint32 lowerBin, uint32 upperBin) = _rangeToBins(tick, tick + market.tickSpacing, market);
+        return LazyMulSegmentTree.getRangeSum(marketTrees[marketId], lowerBin, upperBin);
     }
     
     /// @notice Get range sum for market ticks (public view function)
@@ -373,10 +423,9 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             revert CE.InvalidTickRange(lo, hi);
         }
         
-        uint32 loIndex = _tickToIndex(lo, market);
-        uint32 hiIndex = _tickToIndex(hi, market);
+        (uint32 loBin, uint32 hiBin) = _rangeToBins(lo, hi, market);
         
-        return LazyMulSegmentTree.getRangeSum(marketTrees[marketId], loIndex, hiIndex);
+        return LazyMulSegmentTree.getRangeSum(marketTrees[marketId], loBin, hiBin);
     }
 
     /// @notice Propagate lazy values for market ticks (Keeper only)
@@ -399,10 +448,9 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             revert CE.InvalidTickRange(lo, hi);
         }
         
-        uint32 loIndex = _tickToIndex(lo, market);
-        uint32 hiIndex = _tickToIndex(hi, market);
+        (uint32 loBin, uint32 hiBin) = _rangeToBins(lo, hi, market);
         
-        return LazyMulSegmentTree.propagateLazy(marketTrees[marketId], loIndex, hiIndex);
+        return LazyMulSegmentTree.propagateLazy(marketTrees[marketId], loBin, hiBin);
     }
 
     /// @notice Apply range factor to market ticks (Keeper only)
@@ -424,10 +472,9 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             revert CE.InvalidTickRange(lo, hi);
         }
         
-        uint32 loIndex = _tickToIndex(lo, market);
-        uint32 hiIndex = _tickToIndex(hi, market);
+        (uint32 loBin, uint32 hiBin) = _rangeToBins(lo, hi, market);
         
-        LazyMulSegmentTree.applyRangeFactor(marketTrees[marketId], loIndex, hiIndex, factor);
+        LazyMulSegmentTree.applyRangeFactor(marketTrees[marketId], loBin, hiBin, factor);
         emit RangeFactorApplied(marketId, lo, hi, factor);
     }
     
@@ -529,6 +576,17 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             revert CE.InvalidTickRange(lowerTick, upperTick);
         }
         
+        // 🚨 NO POINT BETTING: Reject same tick betting
+        if (lowerTick == upperTick) {
+            revert CE.InvalidTickRange(lowerTick, upperTick);
+        }
+        
+        // ✅ RANGE BETTING: Allow any valid range (single or multiple intervals)
+        // Must be aligned to tick spacing
+        if ((upperTick - lowerTick) % market.tickSpacing != 0) {
+            revert CE.InvalidTickRange(lowerTick, upperTick);
+        }
+        
         // Calculate trade cost and convert to 6-decimal with round-up to prevent zero-cost attacks
         uint256 costWad = _calcCostInWad(marketId, lowerTick, upperTick, quantity);
         uint256 cost6 = costWad.fromWadRoundUp();
@@ -542,7 +600,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         
         // Update market state using WAD quantity
         uint256 qtyWad = uint256(quantity).toWad();
-        _applyBuyFactorToRange(marketId, lowerTick, upperTick, qtyWad);
+        _applyFactorChunked(marketId, lowerTick, upperTick, qtyWad, markets[marketId].liquidityParameter, true);
         
         // Mint position NFT with original 6-decimal quantity (storage unchanged)
         positionId = positionContract.mintPosition(
@@ -597,7 +655,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         
         // Update market state
         uint256 deltaWad = uint256(additionalQuantity).toWad();
-        _applyBuyFactorToRange(position.marketId, position.lowerTick, position.upperTick, deltaWad);
+        _applyFactorChunked(position.marketId, position.lowerTick, position.upperTick, deltaWad, markets[position.marketId].liquidityParameter, true);
         
         // Update position quantity
         newQuantity = position.quantity + additionalQuantity;
@@ -640,7 +698,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         
         // Update market state
         uint256 sellDeltaWad = uint256(sellQuantity).toWad();
-        _applySellFactorToRange(position.marketId, position.lowerTick, position.upperTick, sellDeltaWad);
+        _applyFactorChunked(position.marketId, position.lowerTick, position.upperTick, sellDeltaWad, markets[position.marketId].liquidityParameter, false);
         
         // Transfer proceeds to trader
         _pushUSDC(trader, proceeds);
@@ -704,6 +762,17 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         _validateTick(upperTick, market);
         
         if (lowerTick > upperTick) {
+            revert CE.InvalidTickRange(lowerTick, upperTick);
+        }
+        
+        // 🚨 NO POINT BETTING: Reject same tick betting
+        if (lowerTick == upperTick) {
+            revert CE.InvalidTickRange(lowerTick, upperTick);
+        }
+        
+        // ✅ RANGE BETTING: Allow any valid range (single or multiple intervals)
+        // Must be aligned to tick spacing
+        if ((upperTick - lowerTick) % market.tickSpacing != 0) {
             revert CE.InvalidTickRange(lowerTick, upperTick);
         }
         
@@ -798,23 +867,20 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     ) internal view returns (uint256 cost) {
         Market memory market = markets[marketId];
         
-        // Convert actual tick values to indices
-        uint32 lowerIndex = _tickToIndex(lowerTick, market);
-        uint32 upperIndex = _tickToIndex(upperTick, market);
+        // Convert range to bins
+        (uint32 lowerBin, uint32 upperBin) = _rangeToBins(lowerTick, upperTick, market);
         
         uint256 totalQuantity = quantity;
         uint256 alpha = market.liquidityParameter;
         uint256 maxSafeQuantityPerChunk = alpha.wMul(MAX_EXP_INPUT_WAD) - 1; // -1 wei to prevent rounding errors
         
         if (totalQuantity <= maxSafeQuantityPerChunk) {
-            // Safe to calculate in single operation - convert indices back to tick values
-            int256 lowerTickValue = _indexToTick(lowerIndex, market);
-            int256 upperTickValue = _indexToTick(upperIndex, market);
-            return _calculateSingleTradeCost(marketId, lowerTickValue, upperTickValue, totalQuantity, alpha);
+            // Safe to calculate in single operation
+            return _calculateSingleTradeCost(marketId, lowerTick, upperTick, totalQuantity, alpha);
         } else {
             // Split into chunks with proper cumulative calculation
             uint256 sumBefore = LazyMulSegmentTree.getTotalSum(marketTrees[marketId]);
-            uint256 affectedSum = LazyMulSegmentTree.getRangeSum(marketTrees[marketId], lowerIndex, upperIndex);
+            uint256 affectedSum = LazyMulSegmentTree.getRangeSum(marketTrees[marketId], lowerBin, upperBin);
             
             // Ensure tree is properly initialized
             if (sumBefore == 0) revert CE.TreeNotInitialized();
@@ -913,11 +979,10 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         uint256 quantityScaled = quantity.wDiv(alpha);
         uint256 factor = quantityScaled.wExp();
         
-        // Calculate sum after trade - convert ticks to indices
+        // Calculate sum after trade - convert range to bins
         Market memory market = markets[marketId];
-        uint32 lowerIndex = _tickToIndex(lowerTick, market);
-        uint32 upperIndex = _tickToIndex(upperTick, market);
-        uint256 affectedSum = LazyMulSegmentTree.getRangeSum(marketTrees[marketId], lowerIndex, upperIndex);
+        (uint32 lowerBin, uint32 upperBin) = _rangeToBins(lowerTick, upperTick, market);
+        uint256 affectedSum = LazyMulSegmentTree.getRangeSum(marketTrees[marketId], lowerBin, upperBin);
         
         // Ensure tree is properly initialized
         if (sumBefore == 0) revert CE.TreeNotInitialized();
@@ -950,23 +1015,20 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     ) internal view returns (uint256 proceeds) {
         Market memory market = markets[marketId];
         
-        // Convert actual tick values to indices
-        uint32 lowerIndex = _tickToIndex(lowerTick, market);
-        uint32 upperIndex = _tickToIndex(upperTick, market);
+        // Convert range to bins
+        (uint32 lowerBin, uint32 upperBin) = _rangeToBins(lowerTick, upperTick, market);
         
         uint256 totalQuantity = quantity;
         uint256 alpha = market.liquidityParameter;
         uint256 maxSafeQuantityPerChunk = alpha.wMul(MAX_EXP_INPUT_WAD) - 1; // -1 wei to prevent rounding errors
         
         if (totalQuantity <= maxSafeQuantityPerChunk) {
-            // Safe to calculate in single operation - convert indices back to tick values
-            int256 lowerTickValue = _indexToTick(lowerIndex, market);
-            int256 upperTickValue = _indexToTick(upperIndex, market);
-            return _calculateSingleSellProceeds(marketId, lowerTickValue, upperTickValue, totalQuantity, alpha);
+            // Safe to calculate in single operation
+            return _calculateSingleSellProceeds(marketId, lowerTick, upperTick, totalQuantity, alpha);
         } else {
             // Split into chunks with proper cumulative calculation
             uint256 sumBefore = LazyMulSegmentTree.getTotalSum(marketTrees[marketId]);
-            uint256 affectedSum = LazyMulSegmentTree.getRangeSum(marketTrees[marketId], lowerIndex, upperIndex);
+            uint256 affectedSum = LazyMulSegmentTree.getRangeSum(marketTrees[marketId], lowerBin, upperBin);
             
             // Ensure tree is properly initialized
             if (sumBefore == 0) revert CE.TreeNotInitialized();
@@ -1072,11 +1134,10 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         uint256 factor = quantityScaled.wExp();
         uint256 inverseFactor = FixedPointMathU.WAD.wDiv(factor);
         
-        // Calculate sum after sell - convert ticks to indices
+        // Calculate sum after sell - convert range to indices
         Market memory market = markets[marketId];
-        uint32 lowerIndex = _tickToIndex(lowerTick, market);
-        uint32 upperIndex = _tickToIndex(upperTick, market);
-        uint256 affectedSum = LazyMulSegmentTree.getRangeSum(marketTrees[marketId], lowerIndex, upperIndex);
+        (uint32 lowerBin, uint32 upperBin) = _rangeToBins(lowerTick, upperTick, market);
+        uint256 affectedSum = LazyMulSegmentTree.getRangeSum(marketTrees[marketId], lowerBin, upperBin);
         
         // ✨ Check for overflow before multiplication - fallback to chunked mode if needed
         if (affectedSum > type(uint256).max / inverseFactor) {
@@ -1162,39 +1223,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     
     /// @notice Update market state for a trade (buy)
     /// @dev Use mulRange to apply exp(quantity/α) factor, with chunk-split for large factors
-    function _applyBuyFactorToRange(
-        uint256 marketId,
-        int256 lowerTick,
-        int256 upperTick,
-        uint256 quantity
-    ) internal {
-        Market memory market = markets[marketId];
-        
-        // Convert actual tick values to indices
-        uint32 lowerIndex = _tickToIndex(lowerTick, market);
-        uint32 upperIndex = _tickToIndex(upperTick, market);
-        
-        // Apply trade using chunk-split to handle large factors
-        _applyFactorChunked(marketId, lowerIndex, upperIndex, quantity, market.liquidityParameter, true);
-    }
-    
-    /// @notice Update market state for a sell
-    /// @dev Use mulRange to apply exp(-quantity/α) factor, with chunk-split for large factors
-    function _applySellFactorToRange(
-        uint256 marketId,
-        int256 lowerTick,
-        int256 upperTick,
-        uint256 quantity
-    ) internal {
-        Market memory market = markets[marketId];
-        
-        // Convert actual tick values to indices
-        uint32 lowerIndex = _tickToIndex(lowerTick, market);
-        uint32 upperIndex = _tickToIndex(upperTick, market);
-        
-        // Apply sell using chunk-split to handle large factors (inverse)
-        _applyFactorChunked(marketId, lowerIndex, upperIndex, quantity, market.liquidityParameter, false);
-    }
+
     
     /// @notice Apply factor with chunk-split to handle large exponential values
     /// @dev Splits large quantity into safe chunks to avoid factor limits and gas DoS
@@ -1206,14 +1235,15 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     /// @param isBuy True for buy (positive exp), false for sell (negative exp)
     function _applyFactorChunked(
         uint256 marketId,
-        uint32 lowerTick,
-        uint32 upperTick,
+        int256 lowerTick,
+        int256 upperTick,
         uint256 quantity,
         uint256 alpha,
         bool isBuy
     ) internal {
-        // Get market data for tick conversion
+        // Get market data and convert range to bins
         Market memory market = markets[marketId];
+        (uint32 lowerBin, uint32 upperBin) = _rangeToBins(lowerTick, upperTick, market);
         
         // Use fixed safe chunk size to avoid overflow in chunk calculations
         // This ensures that quantity/alpha ratios stay within safe bounds
@@ -1233,11 +1263,9 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             // Verify factor is within safe bounds
             if (factor < LazyMulSegmentTree.MIN_FACTOR || factor > LazyMulSegmentTree.MAX_FACTOR) revert CE.FactorOutOfBounds();
             
-            LazyMulSegmentTree.applyRangeFactor(marketTrees[marketId], lowerTick, upperTick, factor);
-            // Convert indices back to actual tick values for event
-            int256 lowerTickValue = _indexToTick(lowerTick, market);
-            int256 upperTickValue = _indexToTick(upperTick, market);
-            emit RangeFactorApplied(marketId, lowerTickValue, upperTickValue, factor);
+            LazyMulSegmentTree.applyRangeFactor(marketTrees[marketId], lowerBin, upperBin, factor);
+            // Use original tick values for event
+            emit RangeFactorApplied(marketId, lowerTick, upperTick, factor);
         } else {
             // Calculate required number of chunks and prevent gas DoS
             uint256 requiredChunks = (quantity + maxSafeQuantityPerChunk - 1) / maxSafeQuantityPerChunk;
@@ -1266,11 +1294,9 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
                 // Verify factor is within safe bounds for each chunk
                 if (factor < LazyMulSegmentTree.MIN_FACTOR || factor > LazyMulSegmentTree.MAX_FACTOR) revert CE.FactorOutOfBounds();
                 
-                LazyMulSegmentTree.applyRangeFactor(marketTrees[marketId], lowerTick, upperTick, factor);
-                // Convert indices back to actual tick values for event
-                int256 lowerTickValue = _indexToTick(lowerTick, market);
-                int256 upperTickValue = _indexToTick(upperTick, market);
-                emit RangeFactorApplied(marketId, lowerTickValue, upperTickValue, factor);
+                LazyMulSegmentTree.applyRangeFactor(marketTrees[marketId], lowerBin, upperBin, factor);
+                // Use original tick values for event
+                emit RangeFactorApplied(marketId, lowerTick, upperTick, factor);
                 
                 remainingQuantity -= chunkQuantity;
                 chunkCount++;
@@ -1325,7 +1351,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         }
         
         // Update market state (selling entire position)
-        _applySellFactorToRange(position.marketId, position.lowerTick, position.upperTick, positionQuantityWad);
+        _applyFactorChunked(position.marketId, position.lowerTick, position.upperTick, positionQuantityWad, markets[position.marketId].liquidityParameter, false);
         
         // Transfer proceeds to trader
         _pushUSDC(trader, proceeds);

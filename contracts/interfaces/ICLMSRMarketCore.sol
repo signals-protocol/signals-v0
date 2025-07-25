@@ -20,7 +20,7 @@ interface ICLMSRMarketCore {
         int256 minTick;                 // Minimum allowed tick value
         int256 maxTick;                 // Maximum allowed tick value
         int256 tickSpacing;             // Spacing between valid ticks
-        uint32 numTicks;                // Number of ticks in market (calculated)
+        uint32 numBins;                 // Number of bins in market (calculated)
         uint256 liquidityParameter;    // Alpha parameter (1e18 scale)
     }
     
@@ -37,7 +37,7 @@ interface ICLMSRMarketCore {
         int256 minTick,
         int256 maxTick,
         int256 tickSpacing,
-        uint32 numTicks,
+        uint32 numBins,
         uint256 liquidityParameter
     );
 
@@ -105,27 +105,6 @@ interface ICLMSRMarketCore {
         int256 indexed hi,
         uint256 factor
     );
-
-    // ========================================
-    // ERRORS
-    // ========================================
-    
-    error MarketNotFound(uint256 marketId);
-    error MarketAlreadyExists(uint256 marketId);
-    error MarketNotSettled(uint256 marketId);
-    error MarketAlreadySettled(uint256 marketId);
-    error InvalidTickRange(int256 lowerTick, int256 upperTick);
-    error InvalidTick(int256 tick, int256 minTick, int256 maxTick);
-    error InvalidTickSpacing(int256 tick, int256 tickSpacing);
-    error InvalidQuantity(uint128 quantity);
-    error PositionNotFound(uint256 positionId);
-    error UnauthorizedCaller(address caller);
-    error CostExceedsMaximum(uint256 actualCost, uint256 maxCost);
-    error InsufficientBalance(address account, uint256 required, uint256 available);
-    error TransferFailed(address token, address from, address to, uint256 amount);
-    error ContractPaused();
-    error TickCountExceedsLimit(uint32 numTicks, uint32 maxAllowed); // Max ~1M for segment-tree safety
-    error InvalidMarketParameters(int256 minTick, int256 maxTick, int256 tickSpacing);
 
     // ========================================
     // MARKET MANAGEMENT FUNCTIONS
@@ -275,7 +254,7 @@ interface ICLMSRMarketCore {
     /// @return market Market data
     function getMarket(uint256 marketId) external view returns (Market memory market);
     
-    /// @notice Get tick value by actual tick value (not index)
+    /// @notice Get tick value by actual tick value
     /// @param marketId Market identifier
     /// @param tick Actual tick value
     /// @return value Tick value

@@ -142,7 +142,7 @@ async function main() {
   try {
     // 마켓 상태 확인
     const marketData = await core.markets(marketId);
-    await logTestResult("마켓 존재 확인", marketData.numTicks > 0, 0n, results);
+    await logTestResult("마켓 존재 확인", marketData.numBins > 0, 0n, results);
     await logTestResult(
       "마켓 활성 상태 확인",
       marketData.isActive,
@@ -157,9 +157,12 @@ async function main() {
     );
 
     console.log("마켓 정보:");
-    console.log("  - 틱 개수:", marketData.numTicks.toString());
+    console.log("  - Bin 개수 (Range):", marketData.numBins.toString());
+    console.log("  - 최소 틱:", marketData.minTick.toString());
+    console.log("  - 최대 틱:", marketData.maxTick.toString());
+    console.log("  - 틱 간격:", marketData.tickSpacing.toString());
     console.log(
-      "  - 유동성 파라미터:",
+      "  - 유동성 파라미터 (α):",
       ethers.formatEther(marketData.liquidityParameter)
     );
     console.log(
@@ -222,53 +225,53 @@ async function main() {
   console.log("===========================================");
 
   const testPositions = [
-    // 소량 거래
+    // 소량 거래 - 단일 bin 범위 (100 간격)
     {
       user: user1,
-      lowerTick: 100100, // 실제 틱 값
-      upperTick: 100990, // 실제 틱 값
+      lowerTick: 100100,
+      upperTick: 100200, // tickSpacing만큼 차이
       quantity: parseUnits("50", 6),
-      description: "소량 거래 (틱 100100-100990)",
+      description: "소량 거래 (틱 100100-100200, 단일 bin)",
     },
-    // 중간 거래
+    // 중간 거래 - 5개 bin 범위
     {
       user: user2,
-      lowerTick: 150000, // 실제 틱 값
-      upperTick: 150590, // 실제 틱 값
+      lowerTick: 101000,
+      upperTick: 101500, // 5 * tickSpacing
       quantity: parseUnits("500", 6),
-      description: "중간 거래 (틱 150000-150590)",
+      description: "중간 거래 (틱 101000-101500, 5개 bin)",
     },
-    // 대량 거래
+    // 대량 거래 - 10개 bin 범위
     {
       user: user3,
-      lowerTick: 180000, // 실제 틱 값
-      upperTick: 180990, // 실제 틱 값
+      lowerTick: 130000,
+      upperTick: 131000, // 10 * tickSpacing
       quantity: parseUnits("2000", 6),
-      description: "대량 거래 (틱 180000-180990)",
+      description: "대량 거래 (틱 130000-131000, 10개 bin)",
     },
-    // 겹치는 범위
+    // 겹치는 범위 - 3개 bin
     {
       user: user1,
-      lowerTick: 100150, // 실제 틱 값
-      upperTick: 100490, // 실제 틱 값
+      lowerTick: 100000,
+      upperTick: 100300, // 3 * tickSpacing
       quantity: parseUnits("300", 6),
-      description: "겹치는 범위 (틱 100150-100490)",
+      description: "겹치는 범위 (틱 100000-100300, 3개 bin)",
     },
-    // 인접한 범위
+    // 인접한 범위 - 2개 bin
     {
       user: user2,
-      lowerTick: 100500, // 실제 틱 값
-      upperTick: 100990, // 실제 틱 값
+      lowerTick: 100300,
+      upperTick: 100500, // 2 * tickSpacing
       quantity: parseUnits("400", 6),
-      description: "인접한 범위 (틱 100500-100990)",
+      description: "인접한 범위 (틱 100300-100500, 2개 bin)",
     },
-    // 넓은 범위
+    // 경계 범위 - 마지막 bin들
     {
       user: user3,
-      lowerTick: 120000, // 실제 틱 값
-      upperTick: 124990, // 실제 틱 값
+      lowerTick: 139000,
+      upperTick: 139900, // 9개 bin (마지막 구간)
       quantity: parseUnits("1000", 6),
-      description: "넓은 범위 (틱 120000-124990)",
+      description: "경계 범위 (틱 139000-139900, 9개 bin)",
     },
   ];
 
@@ -433,14 +436,14 @@ async function main() {
   console.log("===========================================");
 
   try {
-    // 다양한 틱 범위의 값 확인 (실제 틱 값 기준)
+    // 다양한 틱 범위의 값 확인 (100k-140k 범위, 간격 100)
     const tickRanges = [
-      { start: 100000, end: 100090, name: "범위 100000-100090 (미거래)" },
-      { start: 100100, end: 100990, name: "범위 100100-100990 (거래됨)" },
-      { start: 150000, end: 150590, name: "범위 150000-150590 (거래됨)" },
-      { start: 180000, end: 180990, name: "범위 180000-180990 (거래됨)" },
-      { start: 120000, end: 124990, name: "범위 120000-124990 (거래됨)" },
-      { start: 190000, end: 190990, name: "범위 190000-190990 (미거래)" },
+      { start: 100000, end: 100100, name: "범위 100000-100100 (미거래)" },
+      { start: 100100, end: 100200, name: "범위 100100-100200 (거래됨)" },
+      { start: 101000, end: 101500, name: "범위 101000-101500 (거래됨)" },
+      { start: 130000, end: 131000, name: "범위 130000-131000 (거래됨)" },
+      { start: 139000, end: 139900, name: "범위 139000-139900 (거래됨)" },
+      { start: 110000, end: 110500, name: "범위 110000-110500 (미거래)" },
     ];
 
     console.log("틱 범위별 합계:");
@@ -454,8 +457,8 @@ async function main() {
       }
     }
 
-    // 개별 틱 값 확인 (실제 틱 값 기준)
-    const individualTicks = [100050, 100150, 150050, 180050, 122250, 190050];
+    // 개별 틱 값 확인 (100k-140k 범위, tickSpacing=100에 맞춤)
+    const individualTicks = [100000, 100100, 101000, 130000, 135000, 139900];
     console.log("\n개별 틱 값:");
     for (const tick of individualTicks) {
       try {
@@ -467,8 +470,8 @@ async function main() {
       }
     }
 
-    // 전체 마켓 합계 (실제 틱 범위: 100000~199999)
-    const totalSum = await core.getRangeSum(marketId, 100000, 199999);
+    // 전체 마켓 합계 (실제 틱 범위: 100000~139900)
+    const totalSum = await core.getRangeSum(marketId, 100000, 139900);
     console.log(`\n전체 마켓 합계: ${ethers.formatEther(totalSum)}`);
     await logTestResult("전체 마켓 합계 조회", true, 0n, results);
   } catch (error) {
@@ -480,29 +483,41 @@ async function main() {
   console.log("🚫 6단계: 에러 케이스 및 엣지 케이스 테스트");
   console.log("===========================================");
 
-  // 잘못된 파라미터 테스트 (실제 틱 값 기준)
+  // 잘못된 파라미터 테스트 (100k-140k 범위, 간격 100)
   const errorTests = [
     {
       name: "잘못된 틱 범위 (하한 > 상한)",
       test: () =>
-        core.calculateOpenCost(marketId, 150000, 100000, parseUnits("100", 6)),
+        core.calculateOpenCost(marketId, 110000, 105000, parseUnits("100", 6)),
       expectedError: "InvalidTickRange",
     },
     {
-      name: "범위를 벗어난 틱",
+      name: "범위를 벗어난 틱 (상한 초과)",
       test: () =>
-        core.calculateOpenCost(marketId, 50000, 250000, parseUnits("100", 6)),
+        core.calculateOpenCost(marketId, 100000, 150000, parseUnits("100", 6)),
       expectedError: "InvalidTick",
     },
     {
+      name: "범위를 벗어난 틱 (하한 미만)",
+      test: () =>
+        core.calculateOpenCost(marketId, 90000, 100000, parseUnits("100", 6)),
+      expectedError: "InvalidTick",
+    },
+    {
+      name: "틱 간격이 맞지 않는 틱 (105 단위)",
+      test: () =>
+        core.calculateOpenCost(marketId, 100005, 100105, parseUnits("100", 6)),
+      expectedError: "InvalidTickSpacing",
+    },
+    {
       name: "수량 0",
-      test: () => core.calculateOpenCost(marketId, 100000, 101000, 0),
+      test: () => core.calculateOpenCost(marketId, 100000, 100100, 0),
       expectedError: "InvalidQuantity",
     },
     {
       name: "존재하지 않는 마켓",
       test: () =>
-        core.calculateOpenCost(999, 100000, 101000, parseUnits("100", 6)),
+        core.calculateOpenCost(999, 100000, 100100, parseUnits("100", 6)),
       expectedError: "MarketNotFound",
     },
   ];
@@ -545,10 +560,10 @@ async function main() {
 
     for (const benchmark of gasBenchmarks) {
       try {
-        const baseTickValue = 130000; // 13만대 틱 값
+        const baseTickValue = 120000; // 12만대 틱 값 (범위 내)
         const lowerTick =
-          baseTickValue + gasBenchmarks.indexOf(benchmark) * 1000;
-        const upperTick = lowerTick + 990;
+          baseTickValue + gasBenchmarks.indexOf(benchmark) * 1000; // 1000 간격으로 분리
+        const upperTick = lowerTick + 100; // tickSpacing만큼 차이
 
         const cost = await core.calculateOpenCost(
           marketId,
