@@ -719,4 +719,66 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
       expect(cost1.cost.gt(cost2.cost)).toBe(true);
     });
   });
+
+  describe("🎯 대용량 거래 테스트 (α=200 환경)", () => {
+    test("α=200에서 큰 수량 처리 테스트", () => {
+      // α = 200으로 시장 설정
+      const highLiquidityMarket: Market = {
+        liquidityParameter: toWAD("200"), // α = 200
+        minTick: 100000, // $1000.00
+        maxTick: 140000, // $1400.00
+        tickSpacing: 100, // $1.00 increments
+      };
+
+      const range = { lower: 115000, upper: 125000 }; // $1150-$1250 범위
+
+      // 26 USDC (임계값)는 성공해야 함
+      const quantity26 = toUSDC("26"); // 26 USDC = 0.13 * α
+      const result26 = sdk.calculateOpenCost(
+        range.lower,
+        range.upper,
+        quantity26,
+        distribution,
+        highLiquidityMarket
+      );
+      expect(result26.cost.gt(0)).toBe(true);
+
+      // 26.3 USDC (임계값 초과)도 chunk-split으로 처리되어야 함
+      const quantity263 = toUSDC("26.2987691303341730"); // 임계값 초과
+      const result263 = sdk.calculateOpenCost(
+        range.lower,
+        range.upper,
+        quantity263,
+        distribution,
+        highLiquidityMarket
+      );
+      expect(result263.cost.gt(0)).toBe(true);
+
+      // 더 큰 수량도 처리되어야 함 (1000 USDC)
+      const quantity1000 = toUSDC("1000");
+      const result1000 = sdk.calculateOpenCost(
+        range.lower,
+        range.upper,
+        quantity1000,
+        distribution,
+        highLiquidityMarket
+      );
+      expect(result1000.cost.gt(0)).toBe(true);
+
+      // 매도 수익 계산도 정상 작동해야 함
+      const position = {
+        lowerTick: range.lower,
+        upperTick: range.upper,
+        quantity: quantity1000,
+      };
+      const sellQuantity = toUSDC("500");
+      const sellResult = sdk.calculateSellProceeds(
+        position,
+        sellQuantity,
+        distribution,
+        highLiquidityMarket
+      );
+      expect(sellResult.proceeds.gt(0)).toBe(true);
+    });
+  });
 });

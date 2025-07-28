@@ -22,14 +22,15 @@ export type Tick = number;
 
 /** Raw market distribution data from GraphQL (문자열 형태) */
 export interface MarketDistributionRaw {
-  totalSum: string; // WAD 형식 문자열 (BigInt from GraphQL)
-  minFactor: string; // WAD 형식 문자열 (BigInt from GraphQL)
-  maxFactor: string; // WAD 형식 문자열 (BigInt from GraphQL)
-  avgFactor: string; // WAD 형식 문자열 (BigInt from GraphQL)
-  totalVolume: string; // 6 decimals raw USDC (BigInt from GraphQL)
-  binFactors: string[]; // WAD 형식 문자열 배열 ["1000000000000000000", ...]
-  binVolumes: string[]; // 6 decimals raw USDC 문자열 배열 ["1000000", ...]
-  tickRanges: string[]; // 틱 범위 문자열 배열 ["100500-100600", ...]
+  totalSum: string; // WAD 형식 문자열 (BigInt from GraphQL) - 필수
+  binFactors: string[]; // WAD 형식 문자열 배열 ["1000000000000000000", ...] - 필수
+  // 선택적 필드들 (정보성, 계산에 사용되지 않음)
+  minFactor?: string; // WAD 형식 문자열 (BigInt from GraphQL)
+  maxFactor?: string; // WAD 형식 문자열 (BigInt from GraphQL)
+  avgFactor?: string; // WAD 형식 문자열 (BigInt from GraphQL)
+  totalVolume?: string; // 6 decimals raw USDC (BigInt from GraphQL)
+  binVolumes?: string[]; // 6 decimals raw USDC 문자열 배열 ["1000000", ...]
+  tickRanges?: string[]; // 틱 범위 문자열 배열 ["100500-100600", ...]
 }
 
 /** Raw market data from GraphQL */
@@ -54,14 +55,15 @@ export interface Market {
 
 /** Market distribution data for SDK calculations (WAD 기반) */
 export interface MarketDistribution {
-  totalSum: WADAmount; // WAD 계산용 값 (18 decimals) - 컨트랙트와 일치
-  minFactor: WADAmount; // 최소 factor 값 (WAD, 18 decimals)
-  maxFactor: WADAmount; // 최대 factor 값 (WAD, 18 decimals)
-  avgFactor: WADAmount; // 평균 factor 값 (WAD, 18 decimals)
-  totalVolume: USDCAmount; // 전체 거래량 (raw 6 decimals) - 정보성, 계산에 미사용
-  binFactors: WADAmount[]; // WAD 형식의 bin factor 배열 (18 decimals) - 핵심 계산용
-  binVolumes: USDCAmount[]; // bin volume 배열 (raw 6 decimals) - 정보성, 계산에 미사용
-  tickRanges: string[]; // 틱 범위 문자열 배열
+  totalSum: WADAmount; // WAD 계산용 값 (18 decimals) - 컨트랙트와 일치 - 필수
+  binFactors: WADAmount[]; // WAD 형식의 bin factor 배열 (18 decimals) - 핵심 계산용 - 필수
+  // 선택적 필드들 (정보성, 계산에 사용되지 않음)
+  minFactor?: WADAmount; // 최소 factor 값 (WAD, 18 decimals)
+  maxFactor?: WADAmount; // 최대 factor 값 (WAD, 18 decimals)
+  avgFactor?: WADAmount; // 평균 factor 값 (WAD, 18 decimals)
+  totalVolume?: USDCAmount; // 전체 거래량 (raw 6 decimals) - 정보성, 계산에 미사용
+  binVolumes?: USDCAmount[]; // bin volume 배열 (raw 6 decimals) - 정보성, 계산에 미사용
+  tickRanges?: string[]; // 틱 범위 문자열 배열
 }
 
 /** Position data */
@@ -99,14 +101,20 @@ export function mapDistribution(
   raw: MarketDistributionRaw
 ): MarketDistribution {
   return {
+    // 필수 필드들
     totalSum: new Big(raw.totalSum),
-    minFactor: new Big(raw.minFactor),
-    maxFactor: new Big(raw.maxFactor),
-    avgFactor: new Big(raw.avgFactor),
-    totalVolume: new Big(raw.totalVolume), // raw 6 decimals
     binFactors: raw.binFactors.map((s) => new Big(s)),
-    binVolumes: raw.binVolumes.map((s) => new Big(s)), // raw 6 decimals
-    tickRanges: raw.tickRanges,
+    // 선택적 필드들 (정보성, 계산에 사용되지 않음)
+    ...(raw.minFactor !== undefined && { minFactor: new Big(raw.minFactor) }),
+    ...(raw.maxFactor !== undefined && { maxFactor: new Big(raw.maxFactor) }),
+    ...(raw.avgFactor !== undefined && { avgFactor: new Big(raw.avgFactor) }),
+    ...(raw.totalVolume !== undefined && {
+      totalVolume: new Big(raw.totalVolume),
+    }),
+    ...(raw.binVolumes !== undefined && {
+      binVolumes: raw.binVolumes.map((s) => new Big(s)),
+    }),
+    ...(raw.tickRanges !== undefined && { tickRanges: raw.tickRanges }),
   };
 }
 

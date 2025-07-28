@@ -43,6 +43,24 @@ export declare class CLMSRSDK {
      * @returns 구매 가능한 수량
      */
     calculateQuantityFromCost(lowerTick: Tick, upperTick: Tick, targetCostWad: WADAmount, distribution: MarketDistribution, market: Market): QuantityFromCostResult;
+    /**
+     * 시장별 최대 수량 한계 검증 (컨트랙트와 동일한 제한)
+     * @param quantity 검증할 수량 (6 decimals)
+     * @param alpha 유동성 파라미터 α (18 decimals WAD)
+     * @throws Error if quantity exceeds market limit
+     */
+    private _assertQuantityWithinLimit;
+    /**
+     * 내부 헬퍼: 매도 수익 계산 (코드 중복 제거)
+     * @param lowerTick Lower tick bound
+     * @param upperTick Upper tick bound
+     * @param sellQuantity 매도할 수량
+     * @param positionQuantity 현재 포지션 수량 (검증용)
+     * @param distribution Current market distribution
+     * @param market Market parameters
+     * @returns 매도 수익
+     */
+    private _calcSellProceeds;
     private validateTickRange;
     private getAffectedSum;
 }

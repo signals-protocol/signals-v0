@@ -10,13 +10,13 @@ export type Tick = number;
 /** Raw market distribution data from GraphQL (문자열 형태) */
 export interface MarketDistributionRaw {
     totalSum: string;
-    minFactor: string;
-    maxFactor: string;
-    avgFactor: string;
-    totalVolume: string;
     binFactors: string[];
-    binVolumes: string[];
-    tickRanges: string[];
+    minFactor?: string;
+    maxFactor?: string;
+    avgFactor?: string;
+    totalVolume?: string;
+    binVolumes?: string[];
+    tickRanges?: string[];
 }
 /** Raw market data from GraphQL */
 export interface MarketRaw {
@@ -35,13 +35,13 @@ export interface Market {
 /** Market distribution data for SDK calculations (WAD 기반) */
 export interface MarketDistribution {
     totalSum: WADAmount;
-    minFactor: WADAmount;
-    maxFactor: WADAmount;
-    avgFactor: WADAmount;
-    totalVolume: USDCAmount;
     binFactors: WADAmount[];
-    binVolumes: USDCAmount[];
-    tickRanges: string[];
+    minFactor?: WADAmount;
+    maxFactor?: WADAmount;
+    avgFactor?: WADAmount;
+    totalVolume?: USDCAmount;
+    binVolumes?: USDCAmount[];
+    tickRanges?: string[];
 }
 /** Position data */
 export interface Position {

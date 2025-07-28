@@ -6,19 +6,20 @@
 
 TypeScript SDK for CLMSR (Constant Logarithmic Market Scoring Rule) prediction market calculations.
 
-**v1.5.0** provides unified scaling architecture, raw value processing, and streamlined data flow.
+**v1.6.0** provides unified scaling architecture, dynamic quantity limits, and enhanced large-scale trading support.
 
 ## 🚀 Key Features
 
 - **Pure functional calculations**: TypeScript implementation of contract view functions
-- **Large trade support**: Handles large quantities safely with safeExp chunking
+- **Dynamic quantity limits**: Market-specific limits (α × 0.13 × 1000) for optimal UX
+- **Large trade support**: Handles large quantities safely with safeExp chunking up to 26,000 USDC (α=200)
+- **Enhanced error handling**: Proactive validation with clear error messages
 - **Unified scaling**: WAD(18 decimal) for factors, 6-decimal raw for USDC amounts
-- **Raw value processing**: Direct use of contract-scale values without normalization
-- **Layer separation**: SDK for pure calculations, data parsing in adapters
+- **Optimized type system**: Minimal required fields for better performance
 - **Inverse function calculation**: Mathematical inverse function to calculate quantity from target cost
 - **High-precision arithmetic**: Accurate fixed-point operations based on Big.js
 - **LMSR compliant**: Implements all LMSR mathematical properties
-- **Comprehensive testing**: 21 test cases validating all functionality
+- **Comprehensive testing**: 25+ test cases including large-scale trading scenarios
 
 ## 📦 Installation
 
@@ -77,17 +78,29 @@ console.log(`Cost: ${result.cost.toString()} USDC`);
 console.log(`Average price: ${result.averagePrice.toString()}`);
 ```
 
-### 2. Large Trade Support (Chunking)
+### 2. Large Trade Support with Dynamic Limits
 
 ```typescript
-// Large quantities are handled safely (internal safeExp chunking)
+// Market-specific maximum quantity (α × 0.13 × 1000)
+// For α = 200: max = 26,000 USDC
+// For α = 1000: max = 130,000 USDC
+
+// Large quantities within limits are handled safely
 const largeResult = sdk.calculateOpenCost(
   115000,
   125000,
-  toUSDC("1000"), // 1000 USDC (large quantity)
+  toUSDC("25000"), // 25,000 USDC (within α=200 limit)
   distribution,
   market
-); // ✅ No ValidationError, processes normally
+); // ✅ Processes normally with automatic chunking
+
+// Exceeding market limits throws clear error
+try {
+  sdk.calculateOpenCost(115000, 125000, toUSDC("30000"), distribution, market);
+} catch (error) {
+  console.log(error.message);
+  // "Quantity too large. Max per trade = 26000 USDC (market limit: α × 0.13 × 1000)"
+}
 ```
 
 ### 3. Inverse Function Calculation
@@ -115,14 +128,17 @@ console.log(`Actual cost: ${inverse.actualCost.toString()}`);
 
 ```typescript
 interface MarketDistributionRaw {
+  // Required fields for calculations
   totalSum: string; // WAD format (18 decimals) - "400000000000000000000"
-  minFactor: string; // WAD format (18 decimals) - "1000000000000000000"
-  maxFactor: string; // WAD format (18 decimals) - "2000000000000000000"
-  avgFactor: string; // WAD format (18 decimals) - "1500000000000000000"
-  totalVolume: string; // raw USDC (6 decimals) - "50000000"
   binFactors: string[]; // WAD format array - ["1000000000000000000", ...]
-  binVolumes: string[]; // raw USDC array - ["1000000", "2000000", ...]
-  tickRanges: string[]; // tick range array - ["100000-100100", ...]
+
+  // Optional fields (informational only)
+  minFactor?: string; // WAD format (18 decimals) - "1000000000000000000"
+  maxFactor?: string; // WAD format (18 decimals) - "2000000000000000000"
+  avgFactor?: string; // WAD format (18 decimals) - "1500000000000000000"
+  totalVolume?: string; // raw USDC (6 decimals) - "50000000"
+  binVolumes?: string[]; // raw USDC array - ["1000000", "2000000", ...]
+  tickRanges?: string[]; // tick range array - ["100000-100100", ...]
 }
 
 interface MarketRaw {
@@ -137,14 +153,17 @@ interface MarketRaw {
 
 ```typescript
 interface MarketDistribution {
+  // Required fields for calculations
   totalSum: WADAmount; // WAD calculation value (18 decimals) - core calculation
-  minFactor: WADAmount; // Minimum factor value (WAD, 18 decimals)
-  maxFactor: WADAmount; // Maximum factor value (WAD, 18 decimals)
-  avgFactor: WADAmount; // Average factor value (WAD, 18 decimals)
-  totalVolume: USDCAmount; // Total volume (raw 6 decimals) - informational
   binFactors: WADAmount[]; // WAD format bin factor array (18 decimals) - core calculation
-  binVolumes: USDCAmount[]; // Bin volume array (raw 6 decimals) - informational
-  tickRanges: string[]; // Tick range string array
+
+  // Optional fields (informational only)
+  minFactor?: WADAmount; // Minimum factor value (WAD, 18 decimals)
+  maxFactor?: WADAmount; // Maximum factor value (WAD, 18 decimals)
+  avgFactor?: WADAmount; // Average factor value (WAD, 18 decimals)
+  totalVolume?: USDCAmount; // Total volume (raw 6 decimals) - informational
+  binVolumes?: USDCAmount[]; // Bin volume array (raw 6 decimals) - informational
+  tickRanges?: string[]; // Tick range string array
 }
 
 interface Market {
@@ -191,12 +210,19 @@ calculateOpenCost(
 ): OpenCostResult
 ```
 
-#### calculateDecreaseProceeds()
+#### calculateDecreaseProceeds() / calculateSellProceeds()
 
-Calculate proceeds when decreasing position
+Calculate proceeds when decreasing position (both functions use unified internal logic)
 
 ```typescript
 calculateDecreaseProceeds(
+  position: Position,
+  sellQuantity: USDCAmount,
+  distribution: MarketDistribution,
+  market: Market
+): DecreaseProceedsResult
+
+calculateSellProceeds(
   position: Position,
   sellQuantity: USDCAmount,
   distribution: MarketDistribution,
@@ -281,7 +307,7 @@ const result = sdk.calculateOpenCost(
 npm test
 ```
 
-21 test cases:
+25+ test cases including:
 
 - ✅ Price impact (non-linearity)
 - ✅ Range effects
@@ -289,6 +315,8 @@ npm test
 - ✅ Inverse function accuracy
 - ✅ Claim logic
 - ✅ Error handling
+- ✅ Large-scale trading (α=200 environment)
+- ✅ Dynamic quantity limits
 - ✅ Scaling & Chunking
 
 ## 📋 Type Definitions

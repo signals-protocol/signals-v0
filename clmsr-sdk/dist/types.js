@@ -30,14 +30,20 @@ function mapMarket(raw) {
  */
 function mapDistribution(raw) {
     return {
+        // 필수 필드들
         totalSum: new big_js_1.default(raw.totalSum),
-        minFactor: new big_js_1.default(raw.minFactor),
-        maxFactor: new big_js_1.default(raw.maxFactor),
-        avgFactor: new big_js_1.default(raw.avgFactor),
-        totalVolume: new big_js_1.default(raw.totalVolume), // raw 6 decimals
         binFactors: raw.binFactors.map((s) => new big_js_1.default(s)),
-        binVolumes: raw.binVolumes.map((s) => new big_js_1.default(s)), // raw 6 decimals
-        tickRanges: raw.tickRanges,
+        // 선택적 필드들 (정보성, 계산에 사용되지 않음)
+        ...(raw.minFactor !== undefined && { minFactor: new big_js_1.default(raw.minFactor) }),
+        ...(raw.maxFactor !== undefined && { maxFactor: new big_js_1.default(raw.maxFactor) }),
+        ...(raw.avgFactor !== undefined && { avgFactor: new big_js_1.default(raw.avgFactor) }),
+        ...(raw.totalVolume !== undefined && {
+            totalVolume: new big_js_1.default(raw.totalVolume),
+        }),
+        ...(raw.binVolumes !== undefined && {
+            binVolumes: raw.binVolumes.map((s) => new big_js_1.default(s)),
+        }),
+        ...(raw.tickRanges !== undefined && { tickRanges: raw.tickRanges }),
     };
 }
 // ============================================================================
