@@ -6,15 +6,15 @@
 
 TypeScript SDK for CLMSR (Constant Logarithmic Market Scoring Rule) prediction market calculations.
 
-**v1.6.0** provides unified scaling architecture, dynamic quantity limits, and enhanced large-scale trading support.
+**v1.6.1** provides fixed decimal scaling, enhanced quantity limits, and improved MathUtils integration.
 
 ## 🚀 Key Features
 
 - **Pure functional calculations**: TypeScript implementation of contract view functions
-- **Dynamic quantity limits**: Market-specific limits (α × 0.13 × 1000) for optimal UX
-- **Large trade support**: Handles large quantities safely with safeExp chunking up to 26,000 USDC (α=200)
-- **Enhanced error handling**: Proactive validation with clear error messages
-- **Unified scaling**: WAD(18 decimal) for factors, 6-decimal raw for USDC amounts
+- **Fixed quantity limits**: Corrected scaling for market-specific limits (α × 0.13 × 1000) 
+- **Large trade support**: Proper handling of quantities up to 26,000 USDC (α=200) with accurate calculations
+- **Enhanced error handling**: Clear validation messages with correct limit display
+- **Improved scaling**: Consistent MathUtils-based decimal handling for all conversions
 - **Optimized type system**: Minimal required fields for better performance
 - **Inverse function calculation**: Mathematical inverse function to calculate quantity from target cost
 - **High-precision arithmetic**: Accurate fixed-point operations based on Big.js

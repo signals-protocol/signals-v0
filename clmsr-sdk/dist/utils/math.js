@@ -7,6 +7,7 @@ exports.MAX_FACTOR = exports.MIN_FACTOR = exports.MAX_CHUNKS_PER_TX = exports.MA
 exports.toWad = toWad;
 exports.fromWad = fromWad;
 exports.fromWadRoundUp = fromWadRoundUp;
+exports.wadToNumber = wadToNumber;
 exports.wMul = wMul;
 exports.wDiv = wDiv;
 exports.wExp = wExp;
@@ -69,6 +70,14 @@ function fromWad(amtWad) {
 function fromWadRoundUp(amtWad) {
     const result = amtWad.plus(exports.SCALE_DIFF.minus(1)).div(exports.SCALE_DIFF);
     return new big_js_1.default(result.toFixed(6, big_js_1.default.roundUp));
+}
+/**
+ * Convert WAD format to regular number (divide by 1e18)
+ * @param amtWad Amount in WAD format
+ * @returns Regular number
+ */
+function wadToNumber(amtWad) {
+    return amtWad.div(exports.WAD);
 }
 // ============================================================================
 // BASIC MATH OPERATIONS

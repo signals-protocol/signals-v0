@@ -48,7 +48,7 @@ export class CLMSRSDK {
 
     // Convert to WAD for calculations
     const alpha = market.liquidityParameter;
-    const quantityWad = new Big(quantity).mul(MathUtils.WAD);
+    const quantityWad = MathUtils.toWad(quantity);
 
     // Get current state
     const sumBefore = distribution.totalSum;
@@ -290,17 +290,15 @@ export class CLMSRSDK {
   ): void {
     // maxQty = α × MAX_EXP_INPUT_WAD × MAX_CHUNKS_PER_TX
     //        = α × 0.13 × 1000
+    // alpha는 WAD 형식, 직접 계산
     const maxQtyWad = MathUtils.wMul(
-      alpha,
-      MathUtils.wMul(
-        MathUtils.MAX_EXP_INPUT_WAD,
-        MathUtils.toWAD(MathUtils.MAX_CHUNKS_PER_TX)
-      )
+      MathUtils.wMul(alpha, MathUtils.MAX_EXP_INPUT_WAD),
+      new Big(MathUtils.MAX_CHUNKS_PER_TX.toString()).mul(MathUtils.WAD)
     );
-    const qtyWad = new Big(quantity).mul(MathUtils.WAD);
+    const qtyWad = MathUtils.toWad(quantity);
 
     if (qtyWad.gt(maxQtyWad)) {
-      const maxQtyFormatted = MathUtils.fromWad(maxQtyWad);
+      const maxQtyFormatted = MathUtils.wadToNumber(maxQtyWad);
       throw new Error(
         `Quantity too large. Max per trade = ${maxQtyFormatted.toString()} USDC (market limit: α × 0.13 × 1000)`
       );
@@ -341,7 +339,7 @@ export class CLMSRSDK {
 
     // Convert to WAD for calculations
     const alpha = market.liquidityParameter;
-    const quantityWad = new Big(sellQuantity).mul(MathUtils.WAD);
+    const quantityWad = MathUtils.toWad(sellQuantity);
 
     // Get current state
     const sumBefore = distribution.totalSum;

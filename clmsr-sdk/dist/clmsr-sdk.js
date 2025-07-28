@@ -66,7 +66,7 @@ class CLMSRSDK {
         this._assertQuantityWithinLimit(quantity, market.liquidityParameter);
         // Convert to WAD for calculations
         const alpha = market.liquidityParameter;
-        const quantityWad = new big_js_1.default(quantity).mul(MathUtils.WAD);
+        const quantityWad = MathUtils.toWad(quantity);
         // Get current state
         const sumBefore = distribution.totalSum;
         const affectedSum = this.getAffectedSum(lowerTick, upperTick, distribution, market);
@@ -203,10 +203,11 @@ class CLMSRSDK {
     _assertQuantityWithinLimit(quantity, alpha) {
         // maxQty = α × MAX_EXP_INPUT_WAD × MAX_CHUNKS_PER_TX
         //        = α × 0.13 × 1000
-        const maxQtyWad = MathUtils.wMul(alpha, MathUtils.wMul(MathUtils.MAX_EXP_INPUT_WAD, MathUtils.toWAD(MathUtils.MAX_CHUNKS_PER_TX)));
-        const qtyWad = new big_js_1.default(quantity).mul(MathUtils.WAD);
+        // alpha는 WAD 형식, 직접 계산
+        const maxQtyWad = MathUtils.wMul(MathUtils.wMul(alpha, MathUtils.MAX_EXP_INPUT_WAD), new big_js_1.default(MathUtils.MAX_CHUNKS_PER_TX.toString()).mul(MathUtils.WAD));
+        const qtyWad = MathUtils.toWad(quantity);
         if (qtyWad.gt(maxQtyWad)) {
-            const maxQtyFormatted = MathUtils.fromWad(maxQtyWad);
+            const maxQtyFormatted = MathUtils.wadToNumber(maxQtyWad);
             throw new Error(`Quantity too large. Max per trade = ${maxQtyFormatted.toString()} USDC (market limit: α × 0.13 × 1000)`);
         }
     }
@@ -233,7 +234,7 @@ class CLMSRSDK {
         this._assertQuantityWithinLimit(sellQuantity, market.liquidityParameter);
         // Convert to WAD for calculations
         const alpha = market.liquidityParameter;
-        const quantityWad = new big_js_1.default(sellQuantity).mul(MathUtils.WAD);
+        const quantityWad = MathUtils.toWad(sellQuantity);
         // Get current state
         const sumBefore = distribution.totalSum;
         const affectedSum = this.getAffectedSum(lowerTick, upperTick, distribution, market);

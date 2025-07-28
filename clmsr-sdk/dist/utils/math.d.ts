@@ -31,6 +31,12 @@ export declare function fromWad(amtWad: WADAmount): USDCAmount;
  */
 export declare function fromWadRoundUp(amtWad: WADAmount): USDCAmount;
 /**
+ * Convert WAD format to regular number (divide by 1e18)
+ * @param amtWad Amount in WAD format
+ * @returns Regular number
+ */
+export declare function wadToNumber(amtWad: WADAmount): Big;
+/**
  * WAD multiplication: (a * b) / WAD
  * @param a First operand
  * @param b Second operand

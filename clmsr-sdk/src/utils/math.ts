@@ -63,6 +63,15 @@ export function fromWadRoundUp(amtWad: WADAmount): USDCAmount {
   return new Big(result.toFixed(6, Big.roundUp));
 }
 
+/**
+ * Convert WAD format to regular number (divide by 1e18)
+ * @param amtWad Amount in WAD format
+ * @returns Regular number
+ */
+export function wadToNumber(amtWad: WADAmount): Big {
+  return amtWad.div(WAD);
+}
+
 // ============================================================================
 // BASIC MATH OPERATIONS
 // ============================================================================
