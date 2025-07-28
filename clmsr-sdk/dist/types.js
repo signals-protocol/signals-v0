@@ -30,8 +30,14 @@ function mapMarket(raw) {
  */
 function mapDistribution(raw) {
     return {
-        totalSumWad: new big_js_1.default(raw.totalSumWad),
-        binFactorsWad: raw.binFactorsWad.map((s) => new big_js_1.default(s)),
+        totalSum: new big_js_1.default(raw.totalSum),
+        minFactor: new big_js_1.default(raw.minFactor),
+        maxFactor: new big_js_1.default(raw.maxFactor),
+        avgFactor: new big_js_1.default(raw.avgFactor),
+        totalVolume: new big_js_1.default(raw.totalVolume), // raw 6 decimals
+        binFactors: raw.binFactors.map((s) => new big_js_1.default(s)),
+        binVolumes: raw.binVolumes.map((s) => new big_js_1.default(s)), // raw 6 decimals
+        tickRanges: raw.tickRanges,
     };
 }
 // ============================================================================

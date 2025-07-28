@@ -1,6 +1,6 @@
 # CLMSR Market System Developer Guide
 
-> **🚀 v1.4.1**: Complete development guide for CLMSR (Conditional Liquidity Market Maker) prediction market system
+> **🚀 v1.5.0**: Complete development guide for CLMSR (Conditional Liquidity Market Maker) prediction market system
 
 ## 📋 Table of Contents
 
@@ -31,22 +31,28 @@
 ```
 ┌─────────────────┐    ┌──────────────┐    ┌─────────────┐
 │   Frontend      │───▶│   Adapter    │───▶│ SDK Calc    │
-│                 │    │ (parse/conv) │    │ (math ops)  │
+│                 │    │ (parse only) │    │ (raw scale) │
 └─────────────────┘    └──────────────┘    └─────────────┘
          │                       │                   │
          ▼                       ▼                   ▼
 ┌─────────────────┐    ┌──────────────┐    ┌─────────────┐
 │   GraphQL       │    │  Subgraph    │    │  Contract   │
-│ (real-time data)│    │ (indexing)   │    │ (on-chain)  │
+│ (BigInt→string) │    │ (raw values) │    │ (on-chain)  │
 └─────────────────┘    └──────────────┘    └─────────────┘
 ```
 
 ### Layer Responsibilities
 
-1. **SDK Layer**: Pure mathematical calculations (Big.js-based high-precision operations)
-2. **Adapter Layer**: String ↔ Big object conversion
-3. **Subgraph Layer**: Real-time data indexing and provision
+1. **SDK Layer**: Pure mathematical calculations (Big.js-based high-precision operations using raw contract scales)
+2. **Adapter Layer**: Simple string → Big object conversion (no scaling)
+3. **Subgraph Layer**: Raw-scale BigInt data indexing and provision
 4. **Contract Layer**: On-chain transaction execution
+
+### Scaling Architecture
+
+- **Factors**: WAD format (18 decimals) - used for LMSR calculations
+- **USDC Amounts**: Raw 6 decimals - quantity, cost, proceeds
+- **No normalization**: All values maintain contract-native scales across all layers
 
 ### Network Information
 
@@ -61,13 +67,13 @@ RPC: https://sepolia-rollup.arbitrum.io/rpc
 **SDK**
 
 ```bash
-npm install @whworjs7946/clmsr-v0@1.4.1
+npm install @whworjs7946/clmsr-v0@1.5.0
 ```
 
 **Subgraph**
 
 ```
-Endpoint: https://api.studio.thegraph.com/query/116469/signals-v-0/1.3.0
+Endpoint: https://api.studio.thegraph.com/query/116469/signals-v-0/1.3.1
 Name: signals-v-0
 ```
 

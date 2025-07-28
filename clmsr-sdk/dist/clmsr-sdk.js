@@ -44,7 +44,6 @@ exports.createCLMSRSDK = createCLMSRSDK;
 exports.toWAD = toWAD;
 exports.toUSDC = toUSDC;
 const big_js_1 = __importDefault(require("big.js"));
-const types_1 = require("./types");
 const MathUtils = __importStar(require("./utils/math"));
 // Re-export types for easy access
 __exportStar(require("./types"), exports);
@@ -59,15 +58,15 @@ class CLMSRSDK {
      * calculateOpenCost - 새 포지션 열기 비용 계산
      */
     calculateOpenCost(lowerTick, upperTick, quantity, distribution, market) {
-        this.validateTickRange(lowerTick, upperTick, market);
-        if (quantity.lte(0)) {
-            throw new types_1.ValidationError("Quantity must be positive");
+        // Input validation
+        if (new big_js_1.default(quantity).lte(0)) {
+            throw new Error("Quantity must be positive");
         }
-        // 🎯 컨트랙트와 정확히 동일한 LMSR 공식 구현
-        const quantityWad = MathUtils.toWad(quantity);
+        // Convert to WAD for calculations
         const alpha = market.liquidityParameter;
+        const quantityWad = new big_js_1.default(quantity).mul(MathUtils.WAD);
         // Get current state
-        const sumBefore = distribution.totalSumWad;
+        const sumBefore = distribution.totalSum;
         const affectedSum = this.getAffectedSum(lowerTick, upperTick, distribution, market);
         // 1. Calculate factor: exp(quantity / α) - 컨트랙트와 동일, safe chunking 사용
         const factor = MathUtils.safeExp(quantityWad, alpha);
@@ -96,20 +95,87 @@ class CLMSRSDK {
         };
     }
     /**
-     * calculateDecreaseProceeds - 포지션 감소시 수익 계산
+     * Decrease position 비용 계산
      */
     calculateDecreaseProceeds(position, sellQuantity, distribution, market) {
         this.validateTickRange(position.lowerTick, position.upperTick, market);
-        if (sellQuantity.lte(0)) {
-            throw new types_1.ValidationError("Sell quantity must be positive");
+        if (new big_js_1.default(sellQuantity).lte(0)) {
+            throw new Error("Sell quantity must be positive");
         }
-        if (sellQuantity.gt(position.quantity)) {
-            throw new types_1.ValidationError("Cannot sell more than position quantity");
+        if (new big_js_1.default(sellQuantity).gt(position.quantity)) {
+            throw new Error("Cannot sell more than position quantity");
         }
-        const quantityWad = MathUtils.toWad(sellQuantity);
+        // Convert to WAD for calculations
         const alpha = market.liquidityParameter;
         // Get current state
-        const sumBefore = distribution.totalSumWad;
+        const beforeSum = distribution.totalSum;
+        const deltaWadAmount = this.getAffectedSum(position.lowerTick, position.upperTick, distribution, market);
+        // 새로운 affected sum 계산: 기존 affected sum에 inverse factor 적용
+        const factor = MathUtils.wExp(new big_js_1.default(sellQuantity).div(market.liquidityParameter).neg());
+        const newAffectedSum = deltaWadAmount.mul(factor);
+        // 전체 sum 업데이트: before - old_affected + new_affected
+        const afterSum = beforeSum.minus(deltaWadAmount).plus(newAffectedSum);
+        // CLMSR 공식: 수익 = 이전 비용 - 이후 비용
+        const beforeCost = market.liquidityParameter.mul(MathUtils.wLn(beforeSum));
+        const afterCost = market.liquidityParameter.mul(MathUtils.wLn(afterSum));
+        const proceedsWad = beforeCost.minus(afterCost);
+        const proceeds = MathUtils.fromWadRoundUp(proceedsWad);
+        // Calculate average price
+        const averagePrice = proceeds.div(sellQuantity);
+        return { proceeds, averagePrice };
+    }
+    /**
+     * Close position 비용 계산
+     */
+    calculateCloseProceeds(position, distribution, market) {
+        const result = this.calculateDecreaseProceeds(position, position.quantity, distribution, market);
+        return {
+            proceeds: result.proceeds,
+            averagePrice: result.averagePrice,
+        };
+    }
+    /**
+     * Claim amount 계산
+     */
+    calculateClaim(position, settlementLowerTick, settlementUpperTick) {
+        // 포지션 범위와 정산 범위가 겹치는지 확인
+        const hasOverlap = position.lowerTick < settlementUpperTick &&
+            position.upperTick > settlementLowerTick;
+        if (!hasOverlap) {
+            // 패배 포지션: 클레임 불가
+            return {
+                payout: new big_js_1.default(0),
+            };
+        }
+        // 승리 포지션: 1 USDC per unit
+        return {
+            payout: position.quantity,
+        };
+    }
+    // ============================================================================
+    // INVERSE FUNCTION (역함수: 돈 → 수량)
+    // ============================================================================
+    /**
+     * Sell position의 예상 수익 계산
+     * @param position 포지션 정보
+     * @param sellQuantity 매도할 수량
+     * @param distribution Current market distribution
+     * @param market Market parameters
+     * @returns 예상 수익
+     */
+    calculateSellProceeds(position, sellQuantity, distribution, market) {
+        // Input validation
+        if (new big_js_1.default(sellQuantity).lte(0)) {
+            throw new Error("Sell quantity must be positive");
+        }
+        if (new big_js_1.default(sellQuantity).gt(position.quantity)) {
+            throw new Error("Cannot sell more than current position");
+        }
+        // Convert to WAD for calculations
+        const alpha = market.liquidityParameter;
+        const quantityWad = new big_js_1.default(sellQuantity).mul(MathUtils.WAD);
+        // Get current state
+        const sumBefore = distribution.totalSum;
         const affectedSum = this.getAffectedSum(position.lowerTick, position.upperTick, distribution, market);
         // 🎯 컨트랙트와 정확히 동일한 LMSR sell 공식 구현
         // 1. Calculate inverse factor: exp(-quantity / α) = 1 / exp(quantity / α) - safe chunking 사용
@@ -129,50 +195,19 @@ class CLMSRSDK {
         return { proceeds, averagePrice };
     }
     /**
-     * calculateCloseProceeds - 전체 포지션 닫기 수익 계산
+     * 주어진 비용으로 살 수 있는 수량 계산 (역산)
+     * @param lowerTick Lower tick bound
+     * @param upperTick Upper tick bound
+     * @param targetCostWad 목표 비용 (WAD 형식)
+     * @param distribution Current market distribution
+     * @param market Market parameters
+     * @returns 구매 가능한 수량
      */
-    calculateCloseProceeds(position, distribution, market) {
-        const result = this.calculateDecreaseProceeds(position, position.quantity, distribution, market);
-        return {
-            proceeds: result.proceeds,
-            averagePrice: result.averagePrice,
-        };
-    }
-    /**
-     * calculateClaimAmount - 정산 후 클레임 금액 계산
-     */
-    calculateClaimAmount(position, settlementLowerTick, settlementUpperTick) {
-        // 포지션 범위와 정산 범위가 겹치는지 확인
-        const hasOverlap = position.lowerTick < settlementUpperTick &&
-            position.upperTick > settlementLowerTick;
-        if (hasOverlap) {
-            // 승리 포지션: 전체 수량을 클레임 가능
-            return {
-                payout: position.quantity,
-            };
-        }
-        else {
-            // 패배 포지션: 클레임 불가
-            return {
-                payout: new big_js_1.default(0),
-            };
-        }
-    }
-    // ============================================================================
-    // INVERSE FUNCTION (역함수: 돈 → 수량)
-    // ============================================================================
-    /**
-     * calculateQuantityFromCost - 목표 비용에서 수량 계산 (역함수)
-     */
-    calculateQuantityFromCost(lowerTick, upperTick, targetCost, distribution, market) {
-        this.validateTickRange(lowerTick, upperTick, market);
-        if (targetCost.lte(0)) {
-            throw new types_1.ValidationError("Target cost must be positive");
-        }
-        const targetCostWad = MathUtils.toWad(targetCost);
+    calculateQuantityFromCost(lowerTick, upperTick, targetCostWad, distribution, market) {
+        // Convert from input
         const alpha = market.liquidityParameter;
         // Get current state
-        const sumBefore = distribution.totalSumWad;
+        const sumBefore = distribution.totalSum;
         const affectedSum = this.getAffectedSum(lowerTick, upperTick, distribution, market);
         // Direct mathematical inverse:
         // From: C = α * ln(sumAfter / sumBefore)
@@ -199,28 +234,38 @@ class CLMSRSDK {
     // ============================================================================
     validateTickRange(lowerTick, upperTick, market) {
         if (lowerTick >= upperTick) {
-            throw new types_1.ValidationError("Lower tick must be less than upper tick");
+            throw new Error("Lower tick must be less than upper tick");
         }
         if (lowerTick < market.minTick || upperTick > market.maxTick) {
-            throw new types_1.ValidationError("Tick range is out of market bounds");
+            throw new Error("Tick range is out of market bounds");
         }
         if ((lowerTick - market.minTick) % market.tickSpacing !== 0) {
-            throw new types_1.ValidationError("Lower tick is not aligned to tick spacing");
+            throw new Error("Lower tick is not aligned to tick spacing");
         }
         if ((upperTick - market.minTick) % market.tickSpacing !== 0) {
-            throw new types_1.ValidationError("Upper tick is not aligned to tick spacing");
+            throw new Error("Upper tick is not aligned to tick spacing");
         }
     }
     getAffectedSum(lowerTick, upperTick, distribution, market) {
+        // 입력 데이터 검증
+        if (!distribution) {
+            throw new Error("Distribution data is required but was undefined");
+        }
+        if (!distribution.binFactors) {
+            throw new Error("binFactors is required but was undefined. Make sure to include 'binFactors' field in your GraphQL query and use mapDistribution() to convert the data.");
+        }
+        if (!Array.isArray(distribution.binFactors)) {
+            throw new Error("binFactors must be an array");
+        }
         // 컨트랙트와 동일한 _rangeToBins 로직 사용
         const lowerBin = Math.floor((lowerTick - market.minTick) / market.tickSpacing);
         const upperBin = Math.floor((upperTick - market.minTick) / market.tickSpacing - 1);
         let affectedSum = new big_js_1.default(0);
         // 컨트랙트와 동일하게 inclusive 범위로 계산 (lowerBin <= binIndex <= upperBin)
         for (let binIndex = lowerBin; binIndex <= upperBin; binIndex++) {
-            if (binIndex >= 0 && binIndex < distribution.binFactorsWad.length) {
+            if (binIndex >= 0 && binIndex < distribution.binFactors.length) {
                 // 이미 WAD 형식의 Big 객체이므로 직접 사용
-                affectedSum = affectedSum.plus(distribution.binFactorsWad[binIndex]);
+                affectedSum = affectedSum.plus(distribution.binFactors[binIndex]);
             }
         }
         return affectedSum;

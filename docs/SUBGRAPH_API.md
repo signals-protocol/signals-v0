@@ -1,39 +1,37 @@
 # CLMSR Subgraph API Documentation
 
-> **🚀 v1.3.0**: Enhanced scaling support, binFactorsWad field added, perfect SDK compatibility
+> **🚀 v1.3.1**: Unified scaling architecture, raw value processing, comprehensive bug fixes
 
 ## 🎯 Overview
 
-The CLMSR subgraph tracks all CLMSR market data in real-time, optimized for **distribution visualization**, **position history**, **PnL tracking**, and **SDK calculations**.
+The CLMSR subgraph tracks all CLMSR market data in real-time, optimized for **distribution visualization**, **position history**, **PnL tracking**, and **SDK calculations** with unified raw-scale architecture.
 
 ## 🔗 Endpoint Information
 
-- **GraphQL Endpoint**: `https://api.studio.thegraph.com/query/116469/signals-v-0/1.3.0`
+- **GraphQL Endpoint**: `https://api.studio.thegraph.com/query/116469/signals-v-0/1.3.1`
 - **Subgraph Name**: `signals-v-0`
 - **Studio Link**: `https://thegraph.com/studio/subgraph/signals-v-0`
 
 ## 📊 Core Entities
 
-### **MarketDistribution** - SDK Calculation + Distribution Visualization Integration
+### **MarketDistribution** - SDK Calculation + Distribution Visualization
 
 ```graphql
 type MarketDistribution {
   id: String! # marketId
   market: Market!
   totalBins: BigInt! # total number of bins
-  # LMSR calculation data (SDK compatible)
-  totalSum: BigDecimal! # decimal value for display
-  totalSumWad: BigInt! # WAD value for SDK calculation (matches contract)
-  # Distribution statistics
-  minFactor: BigDecimal! # minimum factor value
-  maxFactor: BigDecimal! # maximum factor value
-  avgFactor: BigDecimal! # average factor value
-  totalVolume: BigDecimal! # total trading volume
-  # Dual format factor data (SDK + FE compatible)
-  binFactors: [String!]! # decimal array for display ["1.0", "2.0", ...]
-  binFactorsWad: [String!]! # WAD array for SDK calculation ["1000000000000000000", ...]
-  binVolumes: [String!]! # volume array for all bins ["100", "200", ...]
-  tickRanges: [String!]! # tick range array ["100500-100600", ...]
+  # LMSR calculation data (WAD format, 18 decimals)
+  totalSum: BigInt! # total segment tree sum (raw WAD for SDK)
+  # Distribution statistics (WAD format, 18 decimals)
+  minFactor: BigInt! # minimum factor value (raw WAD)
+  maxFactor: BigInt! # maximum factor value (raw WAD)
+  avgFactor: BigInt! # average factor value (raw WAD)
+  totalVolume: BigInt! # total trading volume (raw 6 decimals USDC)
+  # Array data
+  binFactors: [String!]! # WAD format factor array ["1000000000000000000", ...]
+  binVolumes: [String!]! # raw USDC volume array ["1000000", "2000000", ...]
+  tickRanges: [String!]! # tick range array ["100000-100100", "100100-100200", ...]
   # Metadata
   lastSnapshotAt: BigInt! # last snapshot timestamp
   distributionHash: String! # distribution data hash (for change detection)
@@ -50,10 +48,10 @@ type BinState {
   binIndex: BigInt! # 0-based segment tree index
   lowerTick: BigInt! # actual tick range start
   upperTick: BigInt! # actual tick range end (exclusive)
-  currentFactor: BigDecimal! # current accumulated factor value
+  currentFactor: BigInt! # current accumulated factor value (raw WAD)
   lastUpdated: BigInt!
   updateCount: BigInt! # number of updates
-  totalVolume: BigDecimal! # total trading volume in this bin
+  totalVolume: BigInt! # total trading volume in this bin (raw 6 decimals USDC)
 }
 ```
 
@@ -61,21 +59,59 @@ type BinState {
 
 ```graphql
 type UserPosition {
-  id: String! # positionId
+  id: String! # user-marketId-positionId
   user: Bytes! # user address
-  marketId: BigInt! # market ID
+  market: Market!
+  positionId: BigInt! # on-chain position ID
   lowerTick: BigInt! # position lower bound tick
   upperTick: BigInt! # position upper bound tick
-  quantity: BigDecimal! # current holding quantity
-  # PnL tracking
-  totalCost: BigDecimal! # total cost invested (including fees)
-  averageCost: BigDecimal! # average acquisition price
-  realizedPnL: BigDecimal! # realized profit and loss
-  unrealizedPnL: BigDecimal! # unrealized profit and loss (estimated)
+  # Current state (raw 6 decimals USDC)
+  currentQuantity: BigInt! # current holding quantity
+  totalCostBasis: BigInt! # total cost basis
+  totalQuantityBought: BigInt! # total quantity bought
+  totalQuantitySold: BigInt! # total quantity sold
+  totalProceeds: BigInt! # total proceeds from sales
+  averageEntryPrice: BigInt! # average entry price (raw 6 decimals)
+  realizedPnL: BigInt! # realized profit and loss (raw 6 decimals, signed)
   # Status
   isActive: Boolean! # whether position is active
+  isClaimed: Boolean! # whether position is claimed
   openedAt: BigInt! # position opened timestamp
   lastUpdatedAt: BigInt! # last update timestamp
+  # Relations
+  stats: UserStats!
+  trades: [Trade!]! @derivedFrom(field: "userPosition")
+}
+```
+
+### **Trade** - Individual Trade Records
+
+```graphql
+type Trade {
+  id: Bytes! # transactionHash-logIndex
+  userPosition: String! # UserPosition ID
+  user: Bytes! # user address
+  market: Market!
+  positionId: BigInt!
+  type: TradeType! # OPEN, INCREASE, DECREASE, CLOSE, CLAIM
+  lowerTick: BigInt! # int256
+  upperTick: BigInt! # int256
+  quantity: BigInt! # trade quantity (raw 6 decimals USDC, DECREASE/CLOSE are negative)
+  costOrProceeds: BigInt! # cost or proceeds (raw 6 decimals USDC)
+  price: BigInt! # unit price (raw 6 decimals USDC)
+  gasUsed: BigInt! # gas used
+  gasPrice: BigInt! # gas price
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  transactionHash: Bytes!
+}
+
+enum TradeType {
+  OPEN
+  INCREASE
+  DECREASE
+  CLOSE
+  CLAIM
 }
 ```
 
@@ -86,341 +122,223 @@ type UserStats {
   id: Bytes! # user address
   user: Bytes! # user address
   totalTrades: BigInt! # total number of trades
-  totalVolume: BigDecimal! # total trading volume
-  totalCosts: BigDecimal! # total cost invested
-  totalProceeds: BigDecimal! # total proceeds
-  totalRealizedPnL: BigDecimal! # total realized profit and loss
-  totalGasFees: BigDecimal! # total gas fees
-  netPnL: BigDecimal! # net profit and loss (after fees)
+  totalVolume: BigInt! # total trading volume (raw 6 decimals USDC)
+  totalCosts: BigInt! # total cost invested (raw 6 decimals USDC)
+  totalProceeds: BigInt! # total proceeds (raw 6 decimals USDC)
+  totalRealizedPnL: BigInt! # total realized profit and loss (raw 6 decimals, signed)
+  totalGasFees: BigInt! # total gas fees (wei units)
+  netPnL: BigInt! # net profit and loss after fees (raw 6 decimals, signed)
   # Performance metrics
   activePositionsCount: BigInt! # number of active positions
   winningTrades: BigInt! # number of winning trades
   losingTrades: BigInt! # number of losing trades
-  winRate: BigDecimal! # win rate
-  avgTradeSize: BigDecimal! # average trade size
-  # Timing information
+  winRate: BigDecimal! # win rate (0.0 ~ 1.0 percentage)
+  avgTradeSize: BigInt! # average trade size (raw 6 decimals USDC)
+  firstTradeAt: BigInt! # first trade timestamp
+  lastTradeAt: BigInt! # last trade timestamp
+  # Relations
+  positions: [UserPosition!]! @derivedFrom(field: "stats")
+}
+```
+
+### **MarketStats** - Market-level Statistics
+
+```graphql
+type MarketStats {
+  id: String! # marketId
+  market: Market!
+  totalVolume: BigInt! # total volume (raw 6 decimals USDC)
+  totalFees: BigInt! # total fees collected (raw 6 decimals USDC)
+  totalTrades: BigInt! # total number of trades
+  uniqueTraders: BigInt! # number of unique traders
+  # Price metrics (raw 6 decimals USDC)
+  highestPrice: BigInt! # highest price recorded
+  lowestPrice: BigInt! # lowest price recorded
+  currentPrice: BigInt! # current price
+  # Time-based metrics
+  volume24h: BigInt! # 24-hour volume (raw 6 decimals USDC)
+  priceChange24h: BigDecimal! # 24-hour price change percentage
   firstTradeAt: BigInt! # first trade timestamp
   lastTradeAt: BigInt! # last trade timestamp
 }
 ```
 
-## 🔍 Key Query Patterns
+## 🔧 Scaling Architecture
 
-### **1. SDK Compatible Distribution Data Query**
+### **Data Scale Standards**
+
+- **Factor Values**: WAD format (18 decimals, BigInt) - `1000000000000000000` = 1.0
+- **USDC Values**: Raw 6 decimals (BigInt) - `1000000` = 1.0 USDC
+- **Percentages**: BigDecimal format - `0.85` = 85%
+
+### **No Normalization Philosophy**
+
+All values maintain contract-native scales:
+
+- ✅ Factors stored as raw WAD BigInt
+- ✅ USDC amounts stored as raw 6-decimal BigInt
+- ✅ Direct SDK compatibility without conversion
+- ❌ No display normalization in subgraph layer
+
+## 📈 Query Examples
+
+### **1. Market Distribution for SDK**
 
 ```graphql
-query GetDistributionForSDK($marketId: String!) {
+query GetMarketDistribution($marketId: String!) {
   marketDistribution(id: $marketId) {
-    totalSum # for display
-    totalSumWad # for SDK calculation
-    binFactors # for display ["1.0", "2.0", ...]
-    binFactorsWad # for SDK calculation ["1000000000000000000", ...]
-    version
-    lastSnapshotAt
+    totalSum # WAD format for SDK calculation
+    minFactor # WAD format
+    maxFactor # WAD format
+    avgFactor # WAD format
+    totalVolume # raw 6 decimals USDC
+    binFactors # WAD format array for SDK
+    binVolumes # raw USDC array
+    tickRanges # tick range strings
   }
 }
 ```
 
-**TypeScript Usage Example:**
-
-```typescript
-import { mapDistribution } from "@whworjs7946/clmsr-v0";
-
-const response = await fetch(SUBGRAPH_ENDPOINT, {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    query: GET_DISTRIBUTION_QUERY,
-    variables: { marketId: "1" },
-  }),
-});
-
-const { marketDistribution } = await response.json();
-const distribution = mapDistribution(marketDistribution); // Convert to SDK compatible format
-```
-
-### **2. Complete Visualization Data**
+### **2. User Positions with PnL**
 
 ```graphql
-query GetVisualizationData($marketId: String!) {
-  marketDistribution(id: $marketId) {
-    totalBins
-    minFactor
-    maxFactor
-    avgFactor
-    totalVolume
-    binFactors # for chart display
-    binVolumes # for volume overlay
-    tickRanges # for X-axis labels
-    lastSnapshotAt
-  }
-}
-```
-
-### **3. User Position Status**
-
-```graphql
-query GetUserPositions($userAddress: Bytes!, $marketId: BigInt) {
-  userPositions(
-    where: { user: $userAddress, marketId: $marketId, isActive: true }
-    orderBy: openedAt
-    orderDirection: desc
-  ) {
-    id
+query GetUserPositions($user: Bytes!) {
+  userPositions(where: { user: $user, isActive: true }) {
+    positionId
     lowerTick
     upperTick
-    quantity
-    totalCost
-    averageCost
-    realizedPnL
-    unrealizedPnL
+    currentQuantity # raw 6 decimals
+    totalCostBasis # raw 6 decimals
+    averageEntryPrice # raw 6 decimals
+    realizedPnL # raw 6 decimals, signed
     openedAt
-    lastUpdatedAt
+    market {
+      liquidityParameter
+      minTick
+      maxTick
+    }
   }
 }
 ```
 
-### **4. User Comprehensive Statistics**
+### **3. User Statistics**
 
 ```graphql
-query GetUserStats($userAddress: Bytes!) {
-  userStats(id: $userAddress) {
+query GetUserStats($user: Bytes!) {
+  userStats(id: $user) {
     totalTrades
-    totalVolume
-    totalRealizedPnL
-    netPnL
-    winRate
-    avgTradeSize
+    totalVolume # raw 6 decimals USDC
+    totalRealizedPnL # raw 6 decimals, signed
+    netPnL # raw 6 decimals, signed
+    winRate # BigDecimal percentage
+    avgTradeSize # raw 6 decimals USDC
     activePositionsCount
-    firstTradeAt
-    lastTradeAt
   }
 }
 ```
 
-### **5. Trading History**
+### **4. Trade History**
 
 ```graphql
-query GetTradeHistory($userAddress: Bytes, $marketId: BigInt) {
+query GetTradeHistory($user: Bytes!, $marketId: BigInt!) {
   trades(
-    where: { trader: $userAddress, marketId: $marketId }
+    where: { user: $user, market: $marketId }
     orderBy: timestamp
     orderDirection: desc
-    first: 100
   ) {
     id
-    type # OPEN, INCREASE, DECREASE, CLOSE, CLAIM
-    quantity
-    costOrProceeds
-    lowerTick
-    upperTick
+    type
+    quantity # raw 6 decimals (negative for DECREASE/CLOSE)
+    costOrProceeds # raw 6 decimals
+    price # raw 6 decimals
     timestamp
     gasUsed
-    gasPrice
   }
 }
 ```
 
-### **6. Market Activity Monitoring**
+### **5. Market Statistics**
 
 ```graphql
-query GetMarketActivity($marketId: String!) {
-  market(id: $marketId) {
-    numBins
-    liquidityParameter
-    isSettled
-    settlementLowerTick
-    settlementUpperTick
-
-    # Related statistics
-    stats {
-      totalTrades
-      totalVolume
-      uniqueUsers
-      totalGasFees
-      avgTradeSize
-    }
-
-    # Latest distribution
-    distribution {
-      totalSum
-      totalSumWad
-      version
-      lastSnapshotAt
-    }
+query GetMarketStats($marketId: String!) {
+  marketStats(id: $marketId) {
+    totalVolume # raw 6 decimals USDC
+    totalTrades
+    uniqueTraders
+    highestPrice # raw 6 decimals
+    lowestPrice # raw 6 decimals
+    currentPrice # raw 6 decimals
+    volume24h # raw 6 decimals
+    priceChange24h # BigDecimal percentage
   }
 }
 ```
 
-## 📈 Real-time Update Patterns
+## 🎯 SDK Integration
 
-### **Polling vs Subscription**
+### **Perfect Compatibility**
 
-#### 1. Distribution Data Polling (Recommended)
+The subgraph data format perfectly matches SDK expectations:
 
 ```typescript
-// Check for distribution updates every 5 seconds
-const pollDistribution = async () => {
-  const result = await queryDistribution(marketId);
-  if (result.version > currentVersion) {
-    // Distribution updated - refresh chart
-    updateChart(result);
-    currentVersion = result.version;
-  }
+// Raw data from subgraph
+const rawDistribution = {
+  totalSum: "400000000000000000000", // WAD
+  binFactors: ["1000000000000000000", "1500000000000000000"], // WAD
+  totalVolume: "50000000", // raw USDC (6 decimals)
+  // ... other fields
 };
 
-setInterval(pollDistribution, 5000);
+// Direct SDK usage (no conversion needed)
+const distribution = mapDistribution(rawDistribution);
+const result = sdk.calculateOpenCost(
+  lowerTick,
+  upperTick,
+  quantity,
+  distribution,
+  market
+);
 ```
 
-#### 2. Real-time User Position Monitoring
+### **Scale Conversion Helpers**
+
+For frontend display purposes:
 
 ```typescript
-// Monitor position status via WebSocket or polling
-const monitorPositions = async (userAddress: string) => {
-  const positions = await queryUserPositions(userAddress);
-  const activePositions = positions.filter((p) => p.isActive);
+// WAD to decimal
+const displayFactor = wadValue / 1e18;
 
-  // PnL calculation and alerts
-  activePositions.forEach((pos) => {
-    if (pos.unrealizedPnL < -threshold) {
-      notifyStopLoss(pos);
-    }
-  });
-};
+// Raw USDC to decimal
+const displayUSDC = rawUSDC / 1e6;
+
+// Percentage display
+const displayPercentage = bigDecimalValue * 100; // 0.85 → 85%
 ```
 
-## 🎯 Optimization Guide
+## 🔄 Real-time Updates
 
-### **1. Efficient Query Design**
+### **Event-Driven Architecture**
 
-```graphql
-# ✅ Good example: Request only needed fields
-query OptimizedDistribution($marketId: String!) {
-  marketDistribution(id: $marketId) {
-    binFactorsWad # only when needed for SDK calculation
-    totalSumWad
-  }
-}
+All entities update in real-time based on contract events:
 
-# ❌ Bad example: Request all fields
-query UnoptimizedDistribution($marketId: String!) {
-  marketDistribution(id: $marketId) {
-    # ... all fields (unnecessary data transfer)
-  }
-}
-```
+- **PositionOpened** → UserPosition, UserStats, Trade creation
+- **PositionIncreased** → UserPosition, UserStats, Trade updates
+- **PositionDecreased** → UserPosition, UserStats, Trade updates
+- **PositionClosed** → UserPosition, UserStats, Trade updates
+- **PositionClaimed** → UserPosition, UserStats, Trade updates
+- **RangeFactorApplied** → MarketDistribution, BinState updates
 
-### **2. Large Data Processing**
+### **Data Consistency**
 
-```typescript
-// Process large market binFactors in chunks
-const processLargeDistribution = (binFactorsWad: string[]) => {
-  const CHUNK_SIZE = 100;
-  const chunks = [];
+- ✅ All new entities immediately saved (B-1 fix)
+- ✅ Correct price calculations for CLOSE/CLAIM trades (B-2 fix)
+- ✅ Proper gas usage tracking with null checks (B-3 fix)
+- ✅ Safe PnL calculations with division-by-zero protection (B-4 fix)
+- ✅ Accurate winRate and avgTradeSize calculations (B-5 fix)
+- ✅ Overflow protection for bin index calculations (B-6 fix)
 
-  for (let i = 0; i < binFactorsWad.length; i += CHUNK_SIZE) {
-    chunks.push(binFactorsWad.slice(i, i + CHUNK_SIZE));
-  }
+## 🚀 Version History
 
-  return chunks.map((chunk) => processChunk(chunk));
-};
-```
-
-### **3. Caching Strategy**
-
-```typescript
-// Cache distribution data based on version
-const distributionCache = new Map();
-
-const getCachedDistribution = async (marketId: string) => {
-  const cached = distributionCache.get(marketId);
-  const latest = await queryDistributionVersion(marketId);
-
-  if (cached && cached.version === latest.version) {
-    return cached.data;
-  }
-
-  // Update cache
-  const fresh = await queryFullDistribution(marketId);
-  distributionCache.set(marketId, { data: fresh, version: fresh.version });
-  return fresh;
-};
-```
-
-## 🔄 SDK Integration Workflow
-
-### **Complete Integration Example**
-
-```typescript
-import {
-  CLMSRSDK,
-  mapDistribution,
-  mapMarket,
-  toUSDC,
-} from "@whworjs7946/clmsr-v0";
-
-class CLMSRIntegration {
-  private sdk = new CLMSRSDK();
-  private subgraphUrl =
-    "https://api.studio.thegraph.com/query/116469/signals-v-0/1.3.0";
-
-  async calculateCost(
-    marketId: string,
-    lowerTick: number,
-    upperTick: number,
-    quantity: string
-  ) {
-    // 1. Query latest data from subgraph
-    const [rawMarket, rawDistribution] = await Promise.all([
-      this.queryMarket(marketId),
-      this.queryDistribution(marketId),
-    ]);
-
-    // 2. Convert to SDK compatible format
-    const market = mapMarket(rawMarket);
-    const distribution = mapDistribution(rawDistribution);
-
-    // 3. Calculate with SDK
-    const result = this.sdk.calculateOpenCost(
-      lowerTick,
-      upperTick,
-      toUSDC(quantity),
-      distribution,
-      market
-    );
-
-    return {
-      cost: result.cost.toString(),
-      averagePrice: result.averagePrice.toString(),
-    };
-  }
-
-  private async queryDistribution(marketId: string) {
-    const query = `
-      query GetDistribution($marketId: String!) {
-        marketDistribution(id: $marketId) {
-          totalSum
-          totalSumWad
-          binFactors
-          binFactorsWad
-        }
-      }
-    `;
-
-    const response = await fetch(this.subgraphUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query, variables: { marketId } }),
-    });
-
-    const data = await response.json();
-    return data.data.marketDistribution;
-  }
-}
-```
-
-## 🔗 Related Links
-
-- **SDK Documentation**: [CLMSR SDK](https://github.com/whworjs/signals-v0/blob/main/clmsr-sdk/README.md)
-- **Contract Integration**: [Contract Integration](https://github.com/whworjs/signals-v0/blob/main/docs/CONTRACT_INTEGRATION.md)
-- **Quick Start**: [Quick Start Guide](https://github.com/whworjs/signals-v0/blob/main/docs/QUICK_START.md)
+- **v1.3.1**: Unified scaling, comprehensive bug fixes, accuracy improvements
+- **v1.3.0**: Enhanced scaling support, binFactorsWad field
+- **v1.2.x**: Basic functionality implementation

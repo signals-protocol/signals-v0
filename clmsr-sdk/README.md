@@ -6,13 +6,14 @@
 
 TypeScript SDK for CLMSR (Constant Logarithmic Market Scoring Rule) prediction market calculations.
 
-**v1.4.1** provides significantly improved scaling handling, chunking support, and layered separation architecture.
+**v1.5.0** provides unified scaling architecture, raw value processing, and streamlined data flow.
 
 ## 🚀 Key Features
 
 - **Pure functional calculations**: TypeScript implementation of contract view functions
 - **Large trade support**: Handles large quantities safely with safeExp chunking
-- **Precise scaling**: Perfect WAD(18 decimal) ↔ USDC(6 decimal) support
+- **Unified scaling**: WAD(18 decimal) for factors, 6-decimal raw for USDC amounts
+- **Raw value processing**: Direct use of contract-scale values without normalization
 - **Layer separation**: SDK for pure calculations, data parsing in adapters
 - **Inverse function calculation**: Mathematical inverse function to calculate quantity from target cost
 - **High-precision arithmetic**: Accurate fixed-point operations based on Big.js
@@ -50,12 +51,16 @@ const rawMarket = {
 };
 const market = mapMarket(rawMarket);
 
-// Distribution data (raw data from GraphQL)
+// Distribution data (raw data from GraphQL - unified scaling)
 const rawDistribution = {
-  totalSum: "400", // decimal for display
-  totalSumWad: "400000000000000000000", // WAD for calculation
-  binFactors: ["1.0", "1.0" /* ... 400 items */], // for display
-  binFactorsWad: ["1000000000000000000", "1000000000000000000" /* ... */], // WAD for calculation
+  totalSum: "400000000000000000000", // WAD format (18 decimals)
+  minFactor: "1000000000000000000", // WAD format (18 decimals)
+  maxFactor: "2000000000000000000", // WAD format (18 decimals)
+  avgFactor: "1500000000000000000", // WAD format (18 decimals)
+  totalVolume: "50000000", // raw USDC (6 decimals) - 50 USDC
+  binFactors: ["1000000000000000000", "1500000000000000000" /* ... */], // WAD
+  binVolumes: ["1000000", "2000000" /* ... */], // raw USDC (6 decimals)
+  tickRanges: ["100000-100100", "100100-100200" /* ... */],
 };
 const distribution = mapDistribution(rawDistribution);
 
@@ -106,18 +111,22 @@ console.log(`Actual cost: ${inverse.actualCost.toString()}`);
 
 ### Data Types
 
-#### Raw Types (Received from GraphQL/Indexer)
+#### Raw Types (Received from GraphQL/Subgraph)
 
 ```typescript
 interface MarketDistributionRaw {
-  totalSum: string; // "400"
-  totalSumWad: string; // "400000000000000000000"
-  binFactors: string[]; // ["1.0", "2.0", ...]
-  binFactorsWad: string[]; // ["1000000000000000000", ...]
+  totalSum: string; // WAD format (18 decimals) - "400000000000000000000"
+  minFactor: string; // WAD format (18 decimals) - "1000000000000000000"
+  maxFactor: string; // WAD format (18 decimals) - "2000000000000000000"
+  avgFactor: string; // WAD format (18 decimals) - "1500000000000000000"
+  totalVolume: string; // raw USDC (6 decimals) - "50000000"
+  binFactors: string[]; // WAD format array - ["1000000000000000000", ...]
+  binVolumes: string[]; // raw USDC array - ["1000000", "2000000", ...]
+  tickRanges: string[]; // tick range array - ["100000-100100", ...]
 }
 
 interface MarketRaw {
-  liquidityParameter: string; // "1000000000000000000000"
+  liquidityParameter: string; // WAD format - "1000000000000000000000"
   minTick: number;
   maxTick: number;
   tickSpacing: number;
@@ -128,12 +137,18 @@ interface MarketRaw {
 
 ```typescript
 interface MarketDistribution {
-  totalSumWad: WADAmount; // Big object
-  binFactorsWad: WADAmount[]; // Big[] array
+  totalSum: WADAmount; // WAD calculation value (18 decimals) - core calculation
+  minFactor: WADAmount; // Minimum factor value (WAD, 18 decimals)
+  maxFactor: WADAmount; // Maximum factor value (WAD, 18 decimals)
+  avgFactor: WADAmount; // Average factor value (WAD, 18 decimals)
+  totalVolume: USDCAmount; // Total volume (raw 6 decimals) - informational
+  binFactors: WADAmount[]; // WAD format bin factor array (18 decimals) - core calculation
+  binVolumes: USDCAmount[]; // Bin volume array (raw 6 decimals) - informational
+  tickRanges: string[]; // Tick range string array
 }
 
 interface Market {
-  liquidityParameter: WADAmount; // Big object
+  liquidityParameter: WADAmount; // Big object (WAD)
   minTick: number;
   maxTick: number;
   tickSpacing: number;
@@ -220,31 +235,31 @@ calculateClaimAmount(
 #### Scale Conversion
 
 ```typescript
-toWAD(amount: string | number): WADAmount    // 6 decimal → 18 decimal
-toUSDC(amount: string | number): USDCAmount  // general number → 6 decimal
+toWAD(amount: string | number): WADAmount    // Convert to 18 decimal WAD
+toUSDC(amount: string | number): USDCAmount  // Convert to 6 decimal USDC
 ```
 
 ## 🏗️ Architecture
 
-### Layer Separation Design
+### Unified Scaling Design
 
 ```
 ┌─────────────────┐    ┌──────────────┐    ┌─────────────┐
-│   GraphQL/API   │───▶│   Adapter    │───▶│ SDK Calc    │
-│ (string data)   │    │ (parse/conv) │    │ (Big ops)   │
+│  Subgraph API   │───▶│   Adapter    │───▶│ SDK Calc    │
+│ (BigInt→string) │    │ (parse only) │    │ (Big ops)   │
 └─────────────────┘    └──────────────┘    └─────────────┘
-     string[]              mapXXX()           pure funcs
+   Raw WAD/USDC          mapXXX()           raw scale
 ```
 
-- **GraphQL Layer**: Provides raw string-format data
-- **Adapter Layer**: Handles string → Big object conversion
-- **SDK Layer**: Performs pure mathematical calculations only
+- **Subgraph Layer**: Provides raw-scale BigInt values converted to strings
+- **Adapter Layer**: Simple string → Big object conversion (no scaling)
+- **SDK Layer**: Performs calculations using raw contract scales
 
-### Scaling Handling
+### Scaling Standards
 
-- **USDC**: 6 decimal (micro-USDC units)
-- **WAD**: 18 decimal (contract standard)
-- **Auto conversion**: Adapters handle scale differences automatically
+- **Factors**: WAD format (18 decimals) - used for LMSR calculations
+- **USDC Amounts**: Raw 6 decimals - quantity, cost, proceeds
+- **No normalization**: All values maintain contract-native scales
 
 ### Chunking Support
 
@@ -279,8 +294,8 @@ npm test
 ## 📋 Type Definitions
 
 ```typescript
-type WADAmount = Big; // 18 decimal
-type USDCAmount = Big; // 6 decimal
+type WADAmount = Big; // 18 decimal (factor values)
+type USDCAmount = Big; // 6 decimal (quantity/cost values)
 type Quantity = Big; // 6 decimal
 type Tick = number; // tick value
 

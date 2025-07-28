@@ -22,10 +22,14 @@ export type Tick = number;
 
 /** Raw market distribution data from GraphQL (문자열 형태) */
 export interface MarketDistributionRaw {
-  totalSum: string; // 표시용 decimal 문자열
-  totalSumWad: string; // WAD 형식 문자열
-  binFactors: string[]; // 표시용 decimal 문자열 배열 ["1.0", "2.0", ...]
-  binFactorsWad: string[]; // WAD 형식 문자열 배열 ["1000000000000000000", ...]
+  totalSum: string; // WAD 형식 문자열 (BigInt from GraphQL)
+  minFactor: string; // WAD 형식 문자열 (BigInt from GraphQL)
+  maxFactor: string; // WAD 형식 문자열 (BigInt from GraphQL)
+  avgFactor: string; // WAD 형식 문자열 (BigInt from GraphQL)
+  totalVolume: string; // 6 decimals raw USDC (BigInt from GraphQL)
+  binFactors: string[]; // WAD 형식 문자열 배열 ["1000000000000000000", ...]
+  binVolumes: string[]; // 6 decimals raw USDC 문자열 배열 ["1000000", ...]
+  tickRanges: string[]; // 틱 범위 문자열 배열 ["100500-100600", ...]
 }
 
 /** Raw market data from GraphQL */
@@ -48,10 +52,16 @@ export interface Market {
   tickSpacing: Tick;
 }
 
-/** Market distribution data for SDK calculations (숫자 객체만) */
+/** Market distribution data for SDK calculations (WAD 기반) */
 export interface MarketDistribution {
-  totalSumWad: WADAmount; // 계산용 WAD 값 (컨트랙트와 일치)
-  binFactorsWad: WADAmount[]; // WAD 형식의 bin factor 배열 (계산용)
+  totalSum: WADAmount; // WAD 계산용 값 (18 decimals) - 컨트랙트와 일치
+  minFactor: WADAmount; // 최소 factor 값 (WAD, 18 decimals)
+  maxFactor: WADAmount; // 최대 factor 값 (WAD, 18 decimals)
+  avgFactor: WADAmount; // 평균 factor 값 (WAD, 18 decimals)
+  totalVolume: USDCAmount; // 전체 거래량 (raw 6 decimals) - 정보성, 계산에 미사용
+  binFactors: WADAmount[]; // WAD 형식의 bin factor 배열 (18 decimals) - 핵심 계산용
+  binVolumes: USDCAmount[]; // bin volume 배열 (raw 6 decimals) - 정보성, 계산에 미사용
+  tickRanges: string[]; // 틱 범위 문자열 배열
 }
 
 /** Position data */
@@ -84,12 +94,19 @@ export function mapMarket(raw: MarketRaw): Market {
  * @param raw Raw distribution data from GraphQL
  * @returns Distribution data for SDK calculations
  */
+
 export function mapDistribution(
   raw: MarketDistributionRaw
 ): MarketDistribution {
   return {
-    totalSumWad: new Big(raw.totalSumWad),
-    binFactorsWad: raw.binFactorsWad.map((s) => new Big(s)),
+    totalSum: new Big(raw.totalSum),
+    minFactor: new Big(raw.minFactor),
+    maxFactor: new Big(raw.maxFactor),
+    avgFactor: new Big(raw.avgFactor),
+    totalVolume: new Big(raw.totalVolume), // raw 6 decimals
+    binFactors: raw.binFactors.map((s) => new Big(s)),
+    binVolumes: raw.binVolumes.map((s) => new Big(s)), // raw 6 decimals
+    tickRanges: raw.tickRanges,
   };
 }
 

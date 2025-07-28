@@ -308,7 +308,7 @@ interface UserPosition {
   lowerTick: number;
   upperTick: number;
   quantity: bigint;
-  trader: string;
+  owner: string; // msg.sender가 owner가 됨
 }
 
 const getUserPositions = async (
@@ -322,7 +322,7 @@ const getUserPositions = async (
       return {
         positionId: id,
         marketId: Number(positionData.marketId),
-        trader: positionData.trader,
+        owner: userAddress, // 조회한 사용자가 owner
         lowerTick: Number(positionData.lowerTick),
         upperTick: Number(positionData.upperTick),
         quantity: positionData.quantity,
@@ -574,10 +574,9 @@ const claimPayout = async (positionId: bigint): Promise<void> => {
 // 새 포지션 생성 감지
 coreContract.on(
   "PositionOpened",
-  (positionId, trader, marketId, lowerTick, upperTick, quantity, cost) => {
+  (positionId, marketId, lowerTick, upperTick, quantity, cost) => {
     console.log("🆕 새 포지션 생성:", {
       positionId: positionId.toString(),
-      trader,
       marketId: marketId.toString(),
       range: `${lowerTick}-${upperTick}`,
       quantity: quantity.toString(),
@@ -612,14 +611,13 @@ coreContract.on(
 ```typescript
 // 특정 마켓만 감지
 const listenToMarket = (marketId: number) => {
-  const filter = coreContract.filters.PositionOpened(null, null, marketId);
+  const filter = coreContract.filters.PositionOpened(null, marketId);
 
   coreContract.on(
     filter,
-    (positionId, trader, marketId, lowerTick, upperTick, quantity, cost) => {
+    (positionId, marketId, lowerTick, upperTick, quantity, cost) => {
       console.log(`마켓 ${marketId}에 새 포지션:`, {
         positionId: positionId.toString(),
-        trader,
         range: `${lowerTick}-${upperTick}`,
         cost: ethers.formatUnits(cost, 6),
       });
@@ -627,18 +625,21 @@ const listenToMarket = (marketId: number) => {
   );
 };
 
-// 특정 사용자의 활동만 감지
+// 특정 사용자의 활동만 감지 (트랜잭션 발신자 기준)
 const listenToUser = (userAddress: string) => {
-  const filter = coreContract.filters.PositionOpened(null, userAddress);
-
+  // 모든 포지션 이벤트를 받아서 트랜잭션 발신자로 필터링
   coreContract.on(
-    filter,
-    (positionId, trader, marketId, lowerTick, upperTick, quantity, cost) => {
-      console.log(`사용자 ${userAddress}의 새 포지션:`, {
-        positionId: positionId.toString(),
-        marketId: marketId.toString(),
-        range: `${lowerTick}-${upperTick}`,
-      });
+    "PositionOpened",
+    async (positionId, marketId, lowerTick, upperTick, quantity, cost, event) => {
+      // 트랜잭션 발신자 확인
+      const tx = await event.getTransaction();
+      if (tx.from.toLowerCase() === userAddress.toLowerCase()) {
+        console.log(`사용자 ${userAddress}의 새 포지션:`, {
+          positionId: positionId.toString(),
+          marketId: marketId.toString(),
+          range: `${lowerTick}-${upperTick}`,
+        });
+      }
     }
   );
 };
@@ -649,18 +650,22 @@ const listenToUser = (userAddress: string) => {
 ```typescript
 // 과거 포지션 생성 이벤트 조회
 const getHistoricalPositions = async (marketId: number, fromBlock?: number) => {
-  const filter = coreContract.filters.PositionOpened(null, null, marketId);
+  const filter = coreContract.filters.PositionOpened(null, marketId);
   const events = await coreContract.queryFilter(filter, fromBlock || -10000);
 
-  return events.map((event) => ({
-    positionId: event.args.positionId.toString(),
-    trader: event.args.trader,
-    lowerTick: Number(event.args.lowerTick),
-    upperTick: Number(event.args.upperTick),
-    quantity: event.args.quantity.toString(),
-    cost: ethers.formatUnits(event.args.cost, 6),
-    blockNumber: event.blockNumber,
-    transactionHash: event.transactionHash,
+  return await Promise.all(events.map(async (event) => {
+    // 트랜잭션 정보에서 발신자 주소 가져오기
+    const tx = await event.getTransaction();
+    return {
+      positionId: event.args.positionId.toString(),
+      trader: tx.from, // 트랜잭션 발신자가 실제 trader
+      lowerTick: Number(event.args.lowerTick),
+      upperTick: Number(event.args.upperTick),
+      quantity: event.args.quantity.toString(),
+      cost: ethers.formatUnits(event.args.cost, 6),
+      blockNumber: event.blockNumber,
+      transactionHash: event.transactionHash,
+    };
   }));
 };
 ```
