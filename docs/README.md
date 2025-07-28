@@ -73,7 +73,7 @@ npm install @whworjs7946/clmsr-v0@1.5.0
 **Subgraph**
 
 ```
-Endpoint: https://api.studio.thegraph.com/query/116469/signals-v-0/1.3.1
+Endpoint: https://api.studio.thegraph.com/query/116469/signals-v-0/1.3.2
 Name: signals-v-0
 ```
 

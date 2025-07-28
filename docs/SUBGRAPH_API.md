@@ -8,7 +8,7 @@ The CLMSR subgraph tracks all CLMSR market data in real-time, optimized for **di
 
 ## 🔗 Endpoint Information
 
-- **GraphQL Endpoint**: `https://api.studio.thegraph.com/query/116469/signals-v-0/1.3.1`
+- **GraphQL Endpoint**: `https://api.studio.thegraph.com/query/116469/signals-v-0/1.3.2`
 - **Subgraph Name**: `signals-v-0`
 - **Studio Link**: `https://thegraph.com/studio/subgraph/signals-v-0`
 
