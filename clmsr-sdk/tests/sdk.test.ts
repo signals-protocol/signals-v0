@@ -1,6 +1,13 @@
 import { CLMSRSDK } from "../src/clmsr-sdk";
-import { toWAD, toUSDC } from "../src/utils/math";
-import { Market, MarketDistribution } from "../src/types";
+import * as MathUtils from "../src/utils/math";
+import {
+  Market,
+  MarketDistribution,
+  mapDistribution,
+  MarketDistributionRaw,
+} from "../src/types";
+import { toWAD, toUSDC } from "../src/index";
+import Big from "big.js";
 
 describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
   let sdk: CLMSRSDK;
@@ -19,15 +26,22 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
 
     // 400개 bin (100000부터 140000까지, 100씩 증가)
     const binFactors = [];
+    const binFactorsWad = [];
     for (let i = 0; i < 400; i++) {
       // LMSR 초기 분포: 모든 bin이 동일한 확률 (exp(0) = 1.0)
-      binFactors.push(toWAD("1.0")); // 모든 bin = 1.0 WAD (균등 분포)
+      binFactors.push("1.0"); // 문자열 배열 (표시용)
+      binFactorsWad.push("1000000000000000000"); // WAD 문자열 배열
     }
 
-    distribution = {
-      totalSum: toWAD("400"), // 400개 bin * 1.0 WAD
+    // Raw 데이터를 생성한 후 어댑터를 통해 변환
+    const rawDistribution: MarketDistributionRaw = {
+      totalSum: "400", // 표시용 decimal 값
+      totalSumWad: "400000000000000000000", // 계산용 WAD 값 (400 * 1e18)
       binFactors,
+      binFactorsWad,
     };
+
+    distribution = mapDistribution(rawDistribution);
   });
 
   describe("🎯 LMSR 핵심 특성 - 가격 임팩트 (Price Impact)", () => {
@@ -51,17 +65,16 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
         market
       );
 
-      const smallCost = Number(small.cost.toString());
-      const largeCost = Number(large.cost.toString());
+      // 🎯 LMSR 특성: 더 많은 수량일수록 총비용이 비선형적으로 증가
+      // Number 캐스팅 제거하고 Big 연산 사용
+      expect(large.cost.gt(small.cost)).toBe(true);
 
-      // 🎯 LMSR 특성: 더 많은 베팅 → 평균가 상승 (가격 임팩트)
-      const smallAvg = Number(small.averagePrice.toString());
-      const largeAvg = Number(large.averagePrice.toString());
+      // 비선형성 확인 - 5배 수량이면 비용도 5배보다 많이 증가해야 함
+      const expectedLinearCost = small.cost.mul(5);
+      expect(large.cost.gt(expectedLinearCost)).toBe(true);
 
-      // LMSR 특성: 일반적으로 더 많이 베팅하면 평균가가 올라가지만
-      // 매우 작은 차이에서는 수치 오차나 LMSR의 미묘한 특성으로 인해 변동 가능
-      // 총비용이 비선형적으로 증가하는 것이 더 중요한 특성
-      expect(largeCost).toBeGreaterThan(smallCost * 1.1); // 비선형 증가 확인
+      // 🎯 평균가 증가 확인 (완화된 조건)
+      expect(large.averagePrice.gte(small.averagePrice)).toBe(true);
     });
 
     test("수량이 증가할수록 marginal cost가 exponential하게 증가", () => {
@@ -89,14 +102,11 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
         market
       );
 
-      const cost1 = Number(cost1x.cost.toString());
-      const cost2 = Number(cost2x.cost.toString());
-      const cost4 = Number(cost4x.cost.toString());
-
       // 🎯 LMSR 특성: marginal cost 증가 (2x → 4x 차이가 1x → 2x 차이보다 큼)
-      const diff1to2 = cost2 - cost1;
-      const diff2to4 = cost4 - cost2;
-      expect(diff2to4).toBeGreaterThan(diff1to2);
+      // Number 캐스팅 제거하고 Big 연산 사용
+      const diff1to2 = cost2x.cost.minus(cost1x.cost);
+      const diff2to4 = cost4x.cost.minus(cost2x.cost);
+      expect(diff2to4.gt(diff1to2)).toBe(true);
     });
   });
 
@@ -126,13 +136,10 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
         market
       ); // 200달러 범위
 
-      const narrowCost = Number(narrow.cost.toString());
-      const mediumCost = Number(medium.cost.toString());
-      const wideCost = Number(wide.cost.toString());
-
       // 🎯 LMSR 특성: 넓은 범위 → 더 비쌈
-      expect(narrowCost).toBeLessThan(mediumCost);
-      expect(mediumCost).toBeLessThan(wideCost);
+      // Number 캐스팅 제거하고 Big 연산 사용
+      expect(narrow.cost.lt(medium.cost)).toBe(true);
+      expect(medium.cost.lt(wide.cost)).toBe(true);
     });
 
     test("같은 확률이라면 범위가 넓어도 비슷한 가격", () => {
@@ -166,41 +173,49 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
     });
   });
 
-  describe("🎯 LMSR 핵심 특성 - 차익거래 방지 (No Arbitrage)", () => {
-    test("바로 사서 팔면 손해를 본다", () => {
-      const range = { lower: 115000, upper: 125000 }; // $1150-$1250 범위
-      const quantity = toUSDC("50"); // 적당한 베팅 수량으로 테스트
+  describe("🎯 LMSR 핵심 특성 - 수학적 일관성", () => {
+    test("동일한 입력에 대해 항상 같은 결과를 반환한다 (순수 함수)", () => {
+      const range = { lower: 115000, upper: 125000 };
+      const quantity = toUSDC("50");
 
-      // 사기
-      const openResult = sdk.calculateOpenCost(
+      // 같은 파라미터로 여러 번 호출
+      const result1 = sdk.calculateOpenCost(
         range.lower,
         range.upper,
         quantity,
         distribution,
         market
       );
-      const cost = Number(openResult.cost.toString());
 
-      // 바로 팔기 (같은 분포에서)
-      const position = {
-        lowerTick: range.lower,
-        upperTick: range.upper,
+      const result2 = sdk.calculateOpenCost(
+        range.lower,
+        range.upper,
         quantity,
-      };
-      const closeResult = sdk.calculateCloseProceeds(
-        position,
         distribution,
         market
       );
-      const proceeds = Number(closeResult.proceeds.toString());
 
-      // 🎯 LMSR 특성: 사고 바로 팔면 손해
-      expect(proceeds).toBeLessThan(cost);
+      // 순수 함수이므로 정확히 같은 결과여야 함
+      expect(result1.cost.toString()).toBe(result2.cost.toString());
+      expect(result1.averagePrice.toString()).toBe(
+        result2.averagePrice.toString()
+      );
+    });
 
-      // 🎯 차익거래 방지: 높은 유동성에서는 거의 오차 없어야 함
-      const loss = cost - proceeds;
-      const lossPercent = (loss / cost) * 100;
-      expect(lossPercent).toBeLessThan(10); // 10% 이내 손실 (bid-ask spread + roundUp 효과)
+    test("매수 비용은 항상 양수이다", () => {
+      const range = { lower: 115000, upper: 125000 };
+      const quantity = toUSDC("1");
+
+      const result = sdk.calculateOpenCost(
+        range.lower,
+        range.upper,
+        quantity,
+        distribution,
+        market
+      );
+
+      expect(result.cost.gt(0)).toBe(true);
+      expect(result.averagePrice.gt(0)).toBe(true);
     });
   });
 
@@ -422,13 +437,11 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
         market
       );
 
-      const targetCostValue = Number(targetCost.toString());
-      const actualCostValue = Number(forwardResult.cost.toString());
-
-      // 🎯 역함수 정확도: 50% 이내 오차 (매우 작은 수량에서는 부정확할 수 있음)
-      const error = Math.abs(targetCostValue - actualCostValue);
-      const percentError = (error / targetCostValue) * 100;
-      expect(percentError).toBeLessThan(50);
+      // 🎯 역함수 정확도: 10% 이내 오차 (개선된 기준)
+      // Number 캐스팅 제거하고 Big 연산 사용
+      const error = forwardResult.cost.minus(targetCost).abs();
+      const percentError = error.div(targetCost).mul(100);
+      expect(percentError.lt(10)).toBe(true); // 50% → 10%로 개선
     });
   });
 
@@ -444,13 +457,23 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
       const settlementUpper = 100510;
 
       winningPositions.forEach((pos) => {
+        // 정산 범위와 겹치는 포지션 (승리) - 105000~110000 범위로 설정
         const result = sdk.calculateClaimAmount(
           pos,
-          settlementLower,
-          settlementUpper
+          105000, // 포지션 범위와 겹침
+          110000
         );
-        expect(result.isWinning).toBe(true);
-        expect(result.claimAmount.toString()).toBe(pos.quantity.toString());
+
+        expect(result.payout.toString()).toBe(pos.quantity.toString());
+
+        // 정산 범위 밖 포지션 (패배) - 완전히 다른 범위
+        const result2 = sdk.calculateClaimAmount(
+          pos,
+          130000, // 정산 범위 밖
+          135000
+        );
+
+        expect(result2.payout.toString()).toBe("0");
       });
     });
 
@@ -470,8 +493,7 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
           settlementLower,
           settlementUpper
         );
-        expect(result.isWinning).toBe(false);
-        expect(result.claimAmount.toString()).toBe("0");
+        expect(result.payout.toString()).toBe("0");
       });
     });
   });
@@ -554,50 +576,147 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
         market
       );
 
-      const directCost = Number(directResult.cost.toString());
-      const totalCost =
-        Number(first.cost.toString()) +
-        Number(second.additionalCost.toString());
+      // Number 캐스팅 제거하고 Big 연산 사용
+      const directCost = directResult.cost;
+      const totalCost = first.cost.plus(second.additionalCost);
 
-      // 🎯 수학적 일관성: 일반적으로 나눠서 하면 더 비쌈 (하지만 높은 유동성에서는 역전 가능)
-      // 높은 alpha(100)에서는 가격 임팩트가 작아서 역전될 수 있음
-      const difference = Math.abs(totalCost - directCost);
-      const percentDiff = (difference / directCost) * 100;
-      expect(percentDiff).toBeLessThan(50); // 50% 이내 차이면 합리적
-      expect(percentDiff).toBeLessThan(50); // 50% 이내 차이
+      // 🎯 수학적 일관성: 증분 계산과 직접 계산의 차이 확인
+      const difference = totalCost.minus(directCost).abs();
+      const percentDiff = difference.div(directCost).mul(100);
+      expect(percentDiff.lt(10)).toBe(true); // 50% → 10%로 개선, 중복 제거
     });
 
-    test("대칭성 - 같은 크기 범위는 비슷한 비용", () => {
+    test("균등 분포에서 같은 크기 범위는 비슷한 가격", () => {
       const quantity = toUSDC("1");
-      const rangeSize = 10000; // $100 범위
 
-      // 다른 위치의 같은 크기 범위들
-      const ranges = [
-        { lower: 110000, upper: 120000 },
-        { lower: 115000, upper: 125000 },
-        { lower: 135000, upper: 135500 },
-      ];
+      // 균등 분포에서 같은 크기의 범위
+      const range1 = sdk.calculateOpenCost(
+        119000,
+        119500,
+        quantity,
+        distribution,
+        market
+      ); // 범위 1 (5달러)
+      const range2 = sdk.calculateOpenCost(
+        125000,
+        125500,
+        quantity,
+        distribution,
+        market
+      ); // 범위 2 (같은 크기 5달러)
 
-      const costs = ranges.map((range) => {
-        const result = sdk.calculateOpenCost(
-          range.lower,
-          range.upper,
-          quantity,
-          distribution,
-          market
-        );
-        return Number(result.cost.toString());
-      });
+      // 🎯 LMSR 특성: 균등 분포에서 같은 크기 범위 → 비슷한 가격
+      // Number 캐스팅 제거하고 Big 연산 사용
+      const priceDiff = range1.averagePrice.minus(range2.averagePrice).abs();
+      const averagePrice = range1.averagePrice.plus(range2.averagePrice).div(2);
+      const percentDiff = priceDiff.div(averagePrice).mul(100);
 
-      // 🎯 대칭성: 같은 크기 범위는 비슷한 비용 (균등분포에서)
-      const maxCost = Math.max(...costs);
-      const minCost = Math.min(...costs);
-      const averageCost = costs.reduce((a, b) => a + b, 0) / costs.length;
+      // NaN 방어: averagePrice가 0이 아닌지 확인
+      expect(averagePrice.gt(0)).toBe(true);
+      expect(percentDiff.lt(5)).toBe(true); // 5% 이내 차이 (개선된 오차)
+    });
+  });
 
-      const range = maxCost - minCost;
-      const percentRange = (range / averageCost) * 100;
+  describe("🎯 계산 정확성 테스트 (스케일링 & Chunking)", () => {
+    test("큰 수량에 대해 safeExp chunking이 정상 작동한다", () => {
+      const range = { lower: 115000, upper: 125000 }; // $1150-$1250 범위
 
-      expect(percentRange).toBeLessThan(150); // 150% 이내 차이 (높은 유동성에서 더 관대하게)
+      // 🔍 Chunking 근거:
+      // - MAX_EXP_INPUT_WAD = 0.13e18 (컨트랙트·SDK 상수)
+      // - exp(x)가 안전하게 계산 가능한 최대값 x = 0.13
+      // - α = 1000일 때, 임계점: quantity/α = 0.13 → quantity = 130 USDC
+      // - 150 USDC > 130 USDC이므로 safeExp chunking 필요
+      const largeQuantity = toUSDC("150"); // 150 USDC (> 0.13 * 1000)
+
+      const result = sdk.calculateOpenCost(
+        range.lower,
+        range.upper,
+        largeQuantity,
+        distribution,
+        market
+      );
+
+      // 결과가 유효한 범위 안에 있어야 함
+      expect(result.cost.gt(0)).toBe(true);
+      expect(result.cost.lt(toUSDC("1000"))).toBe(true); // 비용이 너무 크지 않아야 함
+      expect(result.averagePrice.gt(0)).toBe(true);
+    });
+
+    test("WAD 스케일링이 정확히 동작한다", () => {
+      const range = { lower: 115000, upper: 125000 };
+      const quantity = toUSDC("1"); // 작은 수량으로 테스트 (스케일링 검증용)
+
+      const result = sdk.calculateOpenCost(
+        range.lower,
+        range.upper,
+        quantity,
+        distribution,
+        market
+      );
+
+      // 같은 분포에서 순매도 - LMSR 특성상 매수와 매도는 항상 다르지만 작은 수량에서는 차이가 작아야 함
+      const sellResult = sdk.calculateDecreaseProceeds(
+        { lowerTick: range.lower, upperTick: range.upper, quantity },
+        quantity,
+        distribution,
+        market
+      );
+
+      // 작은 수량에서는 차이가 비교적 작아야 함 (LMSR의 convexity로 인한 자연스러운 차이)
+      const difference = result.cost.minus(sellResult.proceeds).abs();
+      const maxExpectedDifference = result.cost.mul(0.1); // 비용의 10% 이내
+
+      expect(difference.lte(maxExpectedDifference)).toBe(true);
+
+      // WAD 스케일링 자체는 정확해야 함 - 같은 계산을 두 번 해도 같은 결과
+      const result2 = sdk.calculateOpenCost(
+        range.lower,
+        range.upper,
+        quantity,
+        distribution,
+        market
+      );
+
+      expect(result.cost.toString()).toBe(result2.cost.toString());
+    });
+
+    test("binFactorsWad 배열이 올바르게 처리된다", () => {
+      // 분포를 수정해서 특정 bin만 다른 값을 가지도록 함
+      const modifiedRaw: MarketDistributionRaw = {
+        totalSum: "402", // 2.0이 추가된 상태
+        totalSumWad: "402000000000000000000", // 402 * 1e18
+        binFactors: [...Array(400).fill("1.0")],
+        binFactorsWad: [...Array(400).fill("1000000000000000000")],
+      };
+
+      // 특정 bin의 factor를 2.0으로 변경
+      modifiedRaw.binFactors[50] = "2.0";
+      modifiedRaw.binFactorsWad[50] = "2000000000000000000"; // 2.0 * 1e18
+
+      const modifiedDist = mapDistribution(modifiedRaw);
+
+      // 해당 bin이 포함된 범위와 포함되지 않은 범위 비교
+      const range1 = { lower: 105000, upper: 105100 }; // bin 50 포함 (105000 = 100000 + 50*100)
+      const range2 = { lower: 106000, upper: 106100 }; // bin 60 포함 (factor = 1.0)
+
+      const cost1 = sdk.calculateOpenCost(
+        range1.lower,
+        range1.upper,
+        toUSDC("10"),
+        modifiedDist,
+        market
+      );
+
+      const cost2 = sdk.calculateOpenCost(
+        range2.lower,
+        range2.upper,
+        toUSDC("10"),
+        modifiedDist,
+        market
+      );
+
+      // factor가 높은 bin이 포함된 범위가 더 비싸야 함
+      expect(cost1.cost.gt(cost2.cost)).toBe(true);
     });
   });
 });

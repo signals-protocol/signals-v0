@@ -1,442 +1,299 @@
 # CLMSR TypeScript SDK
 
-> 📈 **CLMSR (Conditional Liquidity Market Maker)** 예측 마켓 시스템용 TypeScript SDK
+> 📈 **CLMSR (Conditional Liquidity Market Maker)** TypeScript SDK for prediction market systems
 
-## 📌 Latest Updates
-
-### v1.3.0 - Settlement API 수정
-
-- **Breaking Change**: `calculateClaimAmount` 함수가 이제 settlement 범위(`settlementLowerTick`, `settlementUpperTick`)를 받습니다
-- 이전: `calculateClaimAmount(position, settlementTick)`
-- 현재: `calculateClaimAmount(position, settlementLowerTick, settlementUpperTick)`
-- 컨트랙트와 완전히 동일한 overlap 로직으로 수정
-
-## 🎯 개요
+## 🎯 Overview
 
 TypeScript SDK for CLMSR (Constant Logarithmic Market Scoring Rule) prediction market calculations.
 
-## 🚀 Features
+**v1.4.1** provides significantly improved scaling handling, chunking support, and layered separation architecture.
 
-- **Fast off-chain calculations**: All smart contract view functions implemented in TypeScript
-- **Inverse function**: Calculate quantity from target cost using direct mathematical formula
-- **High precision**: Uses Big.js for accurate fixed-point arithmetic (WAD/USDC format)
-- **Stateless design**: Pure calculation functions - no market state management
-- **LMSR compliance**: Implements proper LMSR mathematical properties
-- **Comprehensive testing**: 17 test cases covering all LMSR characteristics
+## 🚀 Key Features
+
+- **Pure functional calculations**: TypeScript implementation of contract view functions
+- **Large trade support**: Handles large quantities safely with safeExp chunking
+- **Precise scaling**: Perfect WAD(18 decimal) ↔ USDC(6 decimal) support
+- **Layer separation**: SDK for pure calculations, data parsing in adapters
+- **Inverse function calculation**: Mathematical inverse function to calculate quantity from target cost
+- **High-precision arithmetic**: Accurate fixed-point operations based on Big.js
+- **LMSR compliant**: Implements all LMSR mathematical properties
+- **Comprehensive testing**: 21 test cases validating all functionality
 
 ## 📦 Installation
 
-This is a local SDK. Import from the source:
-
-```typescript
-import { CLMSRSDK, createCLMSRSDK, toWAD, toUSDC } from "./src";
+```bash
+npm install @whworjs7946/clmsr-v0
 ```
 
 ## 🏁 Quick Start
 
+### 1. Basic Usage
+
 ```typescript
-import { CLMSRSDK, createCLMSRSDK, toWAD, toUSDC } from "./src";
+import {
+  CLMSRSDK,
+  toWAD,
+  toUSDC,
+  mapMarket,
+  mapDistribution,
+} from "@whworjs7946/clmsr-v0";
 
-// Create SDK instance (two ways)
+// SDK instance creation
 const sdk = new CLMSRSDK();
-// or
-const sdk = createCLMSRSDK();
 
-// Market configuration
-const market = {
-  liquidityParameter: toWAD("1000"), // α = 1000 (liquidity parameter)
+// Market configuration (converted from raw data)
+const rawMarket = {
+  liquidityParameter: "1000000000000000000000", // 1000 * 1e18 (WAD)
   minTick: 100000, // $1000.00
   maxTick: 140000, // $1400.00
   tickSpacing: 100, // $1.00 increments
 };
+const market = mapMarket(rawMarket);
 
-// Market distribution (from subgraph/indexer)
-const distribution = {
-  totalSum: toWAD("400"), // Total sum of all bin factors
-  binFactors: [
-    toWAD("1.0"), // bin 0: [100000, 100100) = [$1000.00, $1001.00)
-    toWAD("1.0"), // bin 1: [100100, 100200) = [$1001.00, $1002.00)
-    // ... all 400 bins
-    toWAD("1.0"), // bin 399: [139900, 140000) = [$1399.00, $1400.00)
-  ],
+// Distribution data (raw data from GraphQL)
+const rawDistribution = {
+  totalSum: "400", // decimal for display
+  totalSumWad: "400000000000000000000", // WAD for calculation
+  binFactors: ["1.0", "1.0" /* ... 400 items */], // for display
+  binFactorsWad: ["1000000000000000000", "1000000000000000000" /* ... */], // WAD for calculation
 };
+const distribution = mapDistribution(rawDistribution);
 
-// Calculate cost for betting 50 USDC on [$1150, $1250] range
+// Calculate cost for betting 50 USDC on [$1150-$1250] range
 const result = sdk.calculateOpenCost(
   115000, // lowerTick ($1150.00)
   125000, // upperTick ($1250.00)
-  toUSDC("50"), // 50 USDC bet
+  toUSDC("50"), // 50 USDC
   distribution,
   market
 );
 
-console.log(`Cost: ${result.cost} USDC`);
-console.log(`Average price: ${result.averagePrice}`);
+console.log(`Cost: ${result.cost.toString()} USDC`);
+console.log(`Average price: ${result.averagePrice.toString()}`);
 ```
 
-## 📖 API Reference
-
-### Core Functions
-
-#### calculateOpenCost
-
-Calculate cost to open a new position.
+### 2. Large Trade Support (Chunking)
 
 ```typescript
-const result = sdk.calculateOpenCost(
-  lowerTick: number,
-  upperTick: number,
-  quantity: USDCAmount,
-  distribution: MarketDistribution,
-  market: Market
-): OpenCostResult;
-
-// Returns: { cost: USDCAmount, averagePrice: USDCAmount }
+// Large quantities are handled safely (internal safeExp chunking)
+const largeResult = sdk.calculateOpenCost(
+  115000,
+  125000,
+  toUSDC("1000"), // 1000 USDC (large quantity)
+  distribution,
+  market
+); // ✅ No ValidationError, processes normally
 ```
 
-#### calculateIncreaseCost
-
-Calculate additional cost to increase existing position.
+### 3. Inverse Function Calculation
 
 ```typescript
-const result = sdk.calculateIncreaseCost(
-  position: Position,
-  additionalQuantity: USDCAmount,
-  distribution: MarketDistribution,
-  market: Market
-): IncreaseCostResult;
-
-// Returns: { additionalCost: USDCAmount, newAveragePrice: USDCAmount }
-```
-
-#### calculateDecreaseProceeds
-
-Calculate proceeds from reducing position size.
-
-```typescript
-const result = sdk.calculateDecreaseProceeds(
-  lowerTick: number,
-  upperTick: number,
-  quantity: USDCAmount,
-  distribution: MarketDistribution,
-  market: Market
-): DecreaseResult;
-
-// Returns: { proceeds: USDCAmount, averagePrice: USDCAmount }
-```
-
-#### calculateCloseProceeds
-
-Calculate proceeds from closing entire position.
-
-```typescript
-const result = sdk.calculateCloseProceeds(
-  position: Position,
-  distribution: MarketDistribution,
-  market: Market
-): CloseResult;
-
-// Returns: { proceeds: USDCAmount, averagePrice: USDCAmount }
-```
-
-#### calculateClaimAmount
-
-Calculate claim amount after market settlement.
-
-```typescript
-const result = sdk.calculateClaimAmount(
-  position: Position,
-  settlementLowerTick: number,
-  settlementUpperTick: number
-): ClaimResult;
-
-// Returns: { claimAmount: USDCAmount, isWinning: boolean }
-```
-
-#### calculateQuantityFromCost (Inverse Function)
-
-Calculate quantity you can get for a target cost.
-
-```typescript
-const result = sdk.calculateQuantityFromCost(
-  lowerTick: number,
-  upperTick: number,
-  targetCost: USDCAmount,
-  distribution: MarketDistribution,
-  market: Market
-): QuantityResult;
-
-// Returns: { quantity: USDCAmount, averagePrice: USDCAmount }
-```
-
-### Helper Functions
-
-#### toWAD / toUSDC
-
-Convert to proper decimal formats.
-
-```typescript
-const wadAmount = toWAD("100"); // 100 * 10^18 for 18-decimal precision
-const usdcAmount = toUSDC("100"); // 100 * 10^6 for 6-decimal USDC
-```
-
-## 💼 Data Types
-
-### Market
-
-```typescript
-interface Market {
-  liquidityParameter: WADAmount; // α (alpha) - higher = more liquidity
-  minTick: number; // Minimum tick value
-  maxTick: number; // Maximum tick value
-  tickSpacing: number; // Distance between ticks
-}
-```
-
-### MarketDistribution
-
-```typescript
-interface MarketDistribution {
-  totalSum: WADAmount; // Sum of all bin factors
-  binFactors: WADAmount[]; // Factor for each bin (0-indexed)
-}
-```
-
-### Position
-
-```typescript
-interface Position {
-  lowerTick: number; // Position lower bound
-  upperTick: number; // Position upper bound
-  quantity: USDCAmount; // Position size
-}
-```
-
-## 🎯 Real-World Usage
-
-### Example: Interactive Betting UI
-
-```typescript
-import { CLMSRSDK, toUSDC, toWAD } from "./src";
-
-const sdk = new CLMSRSDK();
-
-// User wants to bet on price range [$1100, $1200]
-const lowerTick = 110000;
-const upperTick = 120000;
-
-// User input: "I want to spend $50"
-const targetCost = toUSDC("50");
-
-// Calculate how much they'll get
-const quantityResult = sdk.calculateQuantityFromCost(
-  lowerTick,
-  upperTick,
+// Calculate how much can be bet with target cost of 300 USDC
+const targetCost = toUSDC("300");
+const inverse = sdk.calculateQuantityFromCost(
+  115000,
+  125000,
   targetCost,
   distribution,
   market
 );
 
-console.log(`For $50, you get ${quantityResult.quantity} shares`);
-console.log(`Average price: ${quantityResult.averagePrice}`);
+console.log(`Quantity: ${inverse.quantity.toString()}`);
+console.log(`Actual cost: ${inverse.actualCost.toString()}`);
+```
 
-// Or user input: "I want 100 shares"
-const targetQuantity = toUSDC("100");
+## 📖 API Reference
 
-// Calculate how much it costs
-const costResult = sdk.calculateOpenCost(
+### Data Types
+
+#### Raw Types (Received from GraphQL/Indexer)
+
+```typescript
+interface MarketDistributionRaw {
+  totalSum: string; // "400"
+  totalSumWad: string; // "400000000000000000000"
+  binFactors: string[]; // ["1.0", "2.0", ...]
+  binFactorsWad: string[]; // ["1000000000000000000", ...]
+}
+
+interface MarketRaw {
+  liquidityParameter: string; // "1000000000000000000000"
+  minTick: number;
+  maxTick: number;
+  tickSpacing: number;
+}
+```
+
+#### SDK Calculation Types (Big Objects)
+
+```typescript
+interface MarketDistribution {
+  totalSumWad: WADAmount; // Big object
+  binFactorsWad: WADAmount[]; // Big[] array
+}
+
+interface Market {
+  liquidityParameter: WADAmount; // Big object
+  minTick: number;
+  maxTick: number;
+  tickSpacing: number;
+}
+```
+
+### Adapter Functions
+
+#### mapDistribution()
+
+```typescript
+function mapDistribution(raw: MarketDistributionRaw): MarketDistribution;
+
+// Usage example
+const dist = mapDistribution(await fetchFromGraphQL(marketId));
+```
+
+#### mapMarket()
+
+```typescript
+function mapMarket(raw: MarketRaw): Market;
+
+// Usage example
+const market = mapMarket(await fetchMarketFromGraphQL(marketId));
+```
+
+### Core Calculation Functions
+
+#### calculateOpenCost()
+
+Calculate cost to open new position
+
+```typescript
+calculateOpenCost(
+  lowerTick: number,
+  upperTick: number,
+  quantity: USDCAmount,
+  distribution: MarketDistribution,
+  market: Market
+): OpenCostResult
+```
+
+#### calculateDecreaseProceeds()
+
+Calculate proceeds when decreasing position
+
+```typescript
+calculateDecreaseProceeds(
+  position: Position,
+  sellQuantity: USDCAmount,
+  distribution: MarketDistribution,
+  market: Market
+): DecreaseProceedsResult
+```
+
+#### calculateQuantityFromCost()
+
+Calculate quantity from target cost (inverse function)
+
+```typescript
+calculateQuantityFromCost(
+  lowerTick: number,
+  upperTick: number,
+  targetCost: USDCAmount,
+  distribution: MarketDistribution,
+  market: Market
+): QuantityFromCostResult
+```
+
+#### calculateClaimAmount()
+
+Calculate claim amount after settlement
+
+```typescript
+calculateClaimAmount(
+  position: Position,
+  settlementLowerTick: number,
+  settlementUpperTick: number
+): ClaimResult
+```
+
+### Utility Functions
+
+#### Scale Conversion
+
+```typescript
+toWAD(amount: string | number): WADAmount    // 6 decimal → 18 decimal
+toUSDC(amount: string | number): USDCAmount  // general number → 6 decimal
+```
+
+## 🏗️ Architecture
+
+### Layer Separation Design
+
+```
+┌─────────────────┐    ┌──────────────┐    ┌─────────────┐
+│   GraphQL/API   │───▶│   Adapter    │───▶│ SDK Calc    │
+│ (string data)   │    │ (parse/conv) │    │ (Big ops)   │
+└─────────────────┘    └──────────────┘    └─────────────┘
+     string[]              mapXXX()           pure funcs
+```
+
+- **GraphQL Layer**: Provides raw string-format data
+- **Adapter Layer**: Handles string → Big object conversion
+- **SDK Layer**: Performs pure mathematical calculations only
+
+### Scaling Handling
+
+- **USDC**: 6 decimal (micro-USDC units)
+- **WAD**: 18 decimal (contract standard)
+- **Auto conversion**: Adapters handle scale differences automatically
+
+### Chunking Support
+
+```typescript
+// Internal safeExp use makes large values safe
+// Auto chunk splitting when quantity/α > 0.13
+const result = sdk.calculateOpenCost(
   lowerTick,
   upperTick,
-  targetQuantity,
+  toUSDC("10000"), // very large quantity
   distribution,
   market
-);
-
-console.log(`100 shares costs: ${costResult.cost} USDC`);
-console.log(`Average price: ${costResult.averagePrice}`);
+); // ✅ Processes normally
 ```
 
-### Example: Position Management
-
-```typescript
-// Existing position: 50 USDC bet on [$1150, $1250]
-const position = {
-  lowerTick: 115000,
-  upperTick: 125000,
-  quantity: toUSDC("50"),
-};
-
-// Add 30 more USDC to position
-const addResult = sdk.calculateIncreaseCost(
-  position,
-  toUSDC("30"),
-  distribution,
-  market
-);
-
-console.log(`Additional cost: ${addResult.additionalCost}`);
-
-// Sell 20 USDC worth from position
-const sellResult = sdk.calculateDecreaseProceeds(
-  position.lowerTick,
-  position.upperTick,
-  toUSDC("20"),
-  distribution,
-  market
-);
-
-console.log(`Proceeds from selling 20: ${sellResult.proceeds}`);
-
-// Close entire position
-const closeResult = sdk.calculateCloseProceeds(position, distribution, market);
-console.log(`Total proceeds: ${closeResult.proceeds}`);
-```
-
-### Example: Market Settlement
-
-```typescript
-// Market settles in range $1180-$1190 (tick 118000-119000)
-const settlementLowerTick = 118000;
-const settlementUpperTick = 119000;
-
-// Position that overlaps with settlement range (wins)
-const winningPosition = {
-  lowerTick: 115000, // $1150
-  upperTick: 125000, // $1250
-  quantity: toUSDC("100"),
-};
-
-// Position that doesn't overlap with settlement range (loses)
-const losingPosition = {
-  lowerTick: 130000, // $1300
-  upperTick: 135000, // $1350
-  quantity: toUSDC("50"),
-};
-
-const winResult = sdk.calculateClaimAmount(
-  winningPosition,
-  settlementLowerTick,
-  settlementUpperTick
-);
-const loseResult = sdk.calculateClaimAmount(
-  losingPosition,
-  settlementLowerTick,
-  settlementUpperTick
-);
-
-console.log(`Winning position claims: ${winResult.claimAmount} USDC`);
-console.log(`Losing position claims: ${loseResult.claimAmount} USDC`); // Should be 0
-```
-
-## 🧪 LMSR Properties
-
-The SDK implements true LMSR characteristics:
-
-### Price Impact
-
-More betting increases average price:
-
-```typescript
-const small = sdk.calculateOpenCost(
-  115000,
-  125000,
-  toUSDC("20"),
-  distribution,
-  market
-);
-
-const large = sdk.calculateOpenCost(
-  115000,
-  125000,
-  toUSDC("100"),
-  distribution,
-  market
-);
-
-// large.averagePrice > small.averagePrice ✅
-```
-
-### Range Effect
-
-Wider ranges have higher average price:
-
-```typescript
-const narrow = sdk.calculateOpenCost(
-  118000,
-  119000,
-  toUSDC("50"),
-  distribution,
-  market
-);
-
-const wide = sdk.calculateOpenCost(
-  115000,
-  125000,
-  toUSDC("50"),
-  distribution,
-  market
-);
-
-// wide.averagePrice > narrow.averagePrice ✅
-```
-
-### No Arbitrage
-
-Buy-then-sell should have minimal loss:
-
-```typescript
-const buyResult = sdk.calculateOpenCost(
-  115000,
-  125000,
-  toUSDC("50"),
-  distribution,
-  market
-);
-
-const sellResult = sdk.calculateDecreaseProceeds(
-  115000,
-  125000,
-  toUSDC("50"),
-  distribution,
-  market
-);
-
-const loss =
-  Number(buyResult.cost.toString()) - Number(sellResult.proceeds.toString());
-// loss should be small (< 5% typically)
-```
-
-## ✅ Testing
-
-The SDK includes comprehensive tests covering:
-
-- **LMSR Mathematical Properties**: Price impact, range effects, no arbitrage
-- **Edge Cases**: Zero quantities, boundary ticks, maximum values
-- **Precision**: WAD/USDC conversion accuracy
-- **Inverse Function**: Round-trip accuracy
-- **Position Management**: Increase/decrease consistency
-- **Market Settlement**: Winning/losing position claims
-
-Run tests:
+## 🧪 Testing
 
 ```bash
-yarn test
+npm test
 ```
 
-## 📝 Notes
+21 test cases:
 
-1. **Stateless**: SDK doesn't manage market state - you provide distribution data
-2. **Pure Calculations**: No side effects, same inputs = same outputs
-3. **High Precision**: Uses Big.js to avoid JavaScript floating point issues
-4. **USDC Format**: All amounts use 6-decimal USDC format (micro-USDC)
-5. **Contract Compliance**: Calculations match smart contract exactly
+- ✅ Price impact (non-linearity)
+- ✅ Range effects
+- ✅ Mathematical consistency (pure functions)
+- ✅ Inverse function accuracy
+- ✅ Claim logic
+- ✅ Error handling
+- ✅ Scaling & Chunking
 
-## 🔄 Data Flow
+## 📋 Type Definitions
 
+```typescript
+type WADAmount = Big; // 18 decimal
+type USDCAmount = Big; // 6 decimal
+type Quantity = Big; // 6 decimal
+type Tick = number; // tick value
+
+interface Position {
+  lowerTick: Tick;
+  upperTick: Tick;
+  quantity: Quantity;
+}
 ```
-Subgraph/Indexer → MarketDistribution → SDK → UI
-                                      ↓
-Smart Contract ← User Transaction ← SDK Results
-```
 
-The SDK sits between your UI and both data sources, providing fast calculations while ensuring contract accuracy.
+## 🔗 Related Links
+
+- **Subgraph API**: [CLMSR Subgraph Documentation](https://github.com/whworjs/signals-v0/blob/main/docs/SUBGRAPH_API.md)
+- **Contract Integration**: [Contract Integration Guide](https://github.com/whworjs/signals-v0/blob/main/docs/CONTRACT_INTEGRATION.md)
+- **Quick Start**: [Quick Start Guide](https://github.com/whworjs/signals-v0/blob/main/docs/QUICK_START.md)
+- **Complete Documentation**: [Main Documentation](https://github.com/whworjs/signals-v0/blob/main/docs/README.md)

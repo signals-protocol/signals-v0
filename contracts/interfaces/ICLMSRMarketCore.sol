@@ -141,7 +141,6 @@ interface ICLMSRMarketCore {
     // ========================================
     
     /// @notice Open a new position by buying a range
-    /// @param trader Address of the trader
     /// @param marketId Market identifier
     /// @param lowerTick Lower tick bound (inclusive)
     /// @param upperTick Upper tick bound (inclusive)
@@ -149,7 +148,6 @@ interface ICLMSRMarketCore {
     /// @param maxCost Maximum cost willing to pay
     /// @return positionId Newly created position ID
     function openPosition(
-        address trader,
         uint256 marketId,
         int256 lowerTick,
         int256 upperTick,
@@ -170,9 +168,9 @@ interface ICLMSRMarketCore {
     
     /// @notice Decrease existing position quantity (sell some)
     /// @param positionId Position to decrease
-    /// @param sellQuantity Quantity to sell
-    /// @param minProceeds Minimum proceeds expected
-    /// @return newQuantity New quantity after decrease
+    /// @param sellQuantity Quantity to sell (must be <= current quantity)
+    /// @param minProceeds Minimum proceeds willing to accept
+    /// @return newQuantity New total quantity after decrease
     /// @return proceeds Actual proceeds received
     function decreasePosition(
         uint256 positionId,
@@ -180,18 +178,18 @@ interface ICLMSRMarketCore {
         uint256 minProceeds
     ) external returns (uint128 newQuantity, uint256 proceeds);
     
-    /// @notice Close entire position and receive proceeds
+    /// @notice Close entire position (sell all)
     /// @param positionId Position to close
-    /// @param minProceeds Minimum proceeds expected
-    /// @return proceeds Amount received from closing position
+    /// @param minProceeds Minimum proceeds willing to accept
+    /// @return proceeds Total proceeds from closing position
     function closePosition(
         uint256 positionId,
         uint256 minProceeds
     ) external returns (uint256 proceeds);
     
-    /// @notice Claim payout from settled market position
+    /// @notice Claim position payout after market settlement
     /// @param positionId Position to claim
-    /// @return payout Amount claimed
+    /// @return payout Amount paid out to position holder
     function claimPayout(
         uint256 positionId
     ) external returns (uint256 payout);

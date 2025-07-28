@@ -187,7 +187,6 @@ export async function createActiveMarket(
 
   // Tree 초기화를 위한 첫 번째 position 생성 (매우 작은 수량)
   await contracts.core.connect(contracts.alice).openPosition(
-    contracts.alice.address,
     marketId,
     100500, // 중간 틱
     100500,
@@ -404,14 +403,7 @@ export async function openPositionAtPrice(
 ) {
   return await core
     .connect(trader)
-    .openPosition(
-      trader.address,
-      marketId,
-      lowerPrice,
-      upperPrice,
-      quantity,
-      maxCost
-    );
+    .openPosition(marketId, lowerPrice, upperPrice, quantity, maxCost);
 }
 
 /**

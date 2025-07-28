@@ -1,414 +1,426 @@
 # CLMSR Subgraph API Documentation
 
-> ✅ **완전 구현**: 이 서브그래프는 **분포 시각화**, **복잡한 PnL 추적**, **사용자 통계**, **거래 히스토리** 등 모든 고급 기능이 완전히 구현되어 있습니다.
+> **🚀 v1.3.0**: Enhanced scaling support, binFactorsWad field added, perfect SDK compatibility
 
-## 🎯 **Overview**
+## 🎯 Overview
 
-이 서브그래프는 CLMSR 마켓의 모든 데이터를 실시간으로 추적하며, 특히 **분포 시각화**, **포지션 히스토리**, **PnL 추적**에 최적화되어 있습니다.
+The CLMSR subgraph tracks all CLMSR market data in real-time, optimized for **distribution visualization**, **position history**, **PnL tracking**, and **SDK calculations**.
 
-## 📊 **Core Entities**
+## 🔗 Endpoint Information
 
-### **BinState** - Segment Tree Bin별 실시간 Factor 추적
+- **GraphQL Endpoint**: `https://api.studio.thegraph.com/query/116469/signals-v-0/1.3.0`
+- **Subgraph Name**: `signals-v-0`
+- **Studio Link**: `https://thegraph.com/studio/subgraph/signals-v-0`
+
+## 📊 Core Entities
+
+### **MarketDistribution** - SDK Calculation + Distribution Visualization Integration
+
+```graphql
+type MarketDistribution {
+  id: String! # marketId
+  market: Market!
+  totalBins: BigInt! # total number of bins
+  # LMSR calculation data (SDK compatible)
+  totalSum: BigDecimal! # decimal value for display
+  totalSumWad: BigInt! # WAD value for SDK calculation (matches contract)
+  # Distribution statistics
+  minFactor: BigDecimal! # minimum factor value
+  maxFactor: BigDecimal! # maximum factor value
+  avgFactor: BigDecimal! # average factor value
+  totalVolume: BigDecimal! # total trading volume
+  # Dual format factor data (SDK + FE compatible)
+  binFactors: [String!]! # decimal array for display ["1.0", "2.0", ...]
+  binFactorsWad: [String!]! # WAD array for SDK calculation ["1000000000000000000", ...]
+  binVolumes: [String!]! # volume array for all bins ["100", "200", ...]
+  tickRanges: [String!]! # tick range array ["100500-100600", ...]
+  # Metadata
+  lastSnapshotAt: BigInt! # last snapshot timestamp
+  distributionHash: String! # distribution data hash (for change detection)
+  version: BigInt! # version number (for update tracking)
+}
+```
+
+### **BinState** - Individual Bin State Tracking
 
 ```graphql
 type BinState {
   id: String! # marketId-binIndex
   market: Market!
   binIndex: BigInt! # 0-based segment tree index
-  lowerTick: BigInt! # 실제 틱 범위 시작
-  upperTick: BigInt! # 실제 틱 범위 끝 (exclusive)
-  currentFactor: BigDecimal! # 현재 누적 factor 값
+  lowerTick: BigInt! # actual tick range start
+  upperTick: BigInt! # actual tick range end (exclusive)
+  currentFactor: BigDecimal! # current accumulated factor value
   lastUpdated: BigInt!
-  updateCount: BigInt!
-  totalVolume: BigDecimal! # 이 bin에서 발생한 총 거래량
+  updateCount: BigInt! # number of updates
+  totalVolume: BigDecimal! # total trading volume in this bin
 }
 ```
 
-### **MarketDistribution** - LMSR 계산 + 분포 시각화용 통합 데이터
+### **UserPosition** - Real-time Position Status
 
 ```graphql
-type MarketDistribution {
-  id: String! # marketId
-  market: Market!
-  totalBins: BigInt! # 총 빈 개수
-  # LMSR 계산용 데이터
-  totalSum: BigDecimal! # 전체 segment tree의 sum (Σ exp(q_i/α))
-  totalSumWad: BigInt! # WAD 형식의 전체 sum (컨트랙트와 일치)
-  # 분포 통계
-  minFactor: BigDecimal! # 최소 factor 값
-  maxFactor: BigDecimal! # 최대 factor 값
-  avgFactor: BigDecimal! # 평균 factor 값
-  totalVolume: BigDecimal! # 전체 거래량
-  # 배열 형태 데이터 (FE 효율성용) - String으로 저장
-  binFactors: [String!]! # 모든 bin의 factor 배열 ["1.0", "2.0", "1.5", ...]
-  binVolumes: [String!]! # 모든 bin의 volume 배열 ["100", "200", "150", ...]
-  tickRanges: [String!]! # 틱 범위 문자열 배열 ["100500-100600", ...]
-  # 메타데이터
-  lastSnapshotAt: BigInt! # 마지막 스냅샷 시점
-  distributionHash: String! # 분포 데이터의 해시 (변화 감지용)
-  version: BigInt! # 버전 번호 (업데이트 추적용)
+type UserPosition {
+  id: String! # positionId
+  user: Bytes! # user address
+  marketId: BigInt! # market ID
+  lowerTick: BigInt! # position lower bound tick
+  upperTick: BigInt! # position upper bound tick
+  quantity: BigDecimal! # current holding quantity
+  # PnL tracking
+  totalCost: BigDecimal! # total cost invested (including fees)
+  averageCost: BigDecimal! # average acquisition price
+  realizedPnL: BigDecimal! # realized profit and loss
+  unrealizedPnL: BigDecimal! # unrealized profit and loss (estimated)
+  # Status
+  isActive: Boolean! # whether position is active
+  openedAt: BigInt! # position opened timestamp
+  lastUpdatedAt: BigInt! # last update timestamp
 }
 ```
 
-## 🔍 **주요 쿼리 패턴**
-
-### **1. 분포 시각화용 - 한번에 모든 빈 데이터 조회**
+### **UserStats** - Comprehensive User Statistics
 
 ```graphql
-query GetMarketDistribution($marketId: String!) {
+type UserStats {
+  id: Bytes! # user address
+  user: Bytes! # user address
+  totalTrades: BigInt! # total number of trades
+  totalVolume: BigDecimal! # total trading volume
+  totalCosts: BigDecimal! # total cost invested
+  totalProceeds: BigDecimal! # total proceeds
+  totalRealizedPnL: BigDecimal! # total realized profit and loss
+  totalGasFees: BigDecimal! # total gas fees
+  netPnL: BigDecimal! # net profit and loss (after fees)
+  # Performance metrics
+  activePositionsCount: BigInt! # number of active positions
+  winningTrades: BigInt! # number of winning trades
+  losingTrades: BigInt! # number of losing trades
+  winRate: BigDecimal! # win rate
+  avgTradeSize: BigDecimal! # average trade size
+  # Timing information
+  firstTradeAt: BigInt! # first trade timestamp
+  lastTradeAt: BigInt! # last trade timestamp
+}
+```
+
+## 🔍 Key Query Patterns
+
+### **1. SDK Compatible Distribution Data Query**
+
+```graphql
+query GetDistributionForSDK($marketId: String!) {
+  marketDistribution(id: $marketId) {
+    totalSum # for display
+    totalSumWad # for SDK calculation
+    binFactors # for display ["1.0", "2.0", ...]
+    binFactorsWad # for SDK calculation ["1000000000000000000", ...]
+    version
+    lastSnapshotAt
+  }
+}
+```
+
+**TypeScript Usage Example:**
+
+```typescript
+import { mapDistribution } from "@whworjs7946/clmsr-v0";
+
+const response = await fetch(SUBGRAPH_ENDPOINT, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    query: GET_DISTRIBUTION_QUERY,
+    variables: { marketId: "1" },
+  }),
+});
+
+const { marketDistribution } = await response.json();
+const distribution = mapDistribution(marketDistribution); // Convert to SDK compatible format
+```
+
+### **2. Complete Visualization Data**
+
+```graphql
+query GetVisualizationData($marketId: String!) {
   marketDistribution(id: $marketId) {
     totalBins
-    totalSum # LMSR 계산용
-    totalSumWad # 컨트랙트 호환용
     minFactor
     maxFactor
     avgFactor
-    binFactors # [1.0, 1.2, 0.8, 1.5, ...] - 모든 빈의 factor
-    binVolumes # [0, 100, 50, 200, ...] - 모든 빈의 거래량
-    tickRanges # ["100500-100600", "100600-100700", ...]
+    totalVolume
+    binFactors # for chart display
+    binVolumes # for volume overlay
+    tickRanges # for X-axis labels
     lastSnapshotAt
-    version
   }
 }
 ```
 
-### **2. 개별 빈 상세 조회**
+### **3. User Position Status**
 
 ```graphql
-query GetBinDetails($marketId: String!, $binIndex: BigInt!) {
-  binState(id: "${marketId}-${binIndex}") {
-    binIndex
-    lowerTick
-    upperTick
-    currentFactor
-    totalVolume
-    updateCount
-    lastUpdated
-  }
-}
-```
-
-### **3. 범위별 빈 조회**
-
-```graphql
-query GetBinsInRange($marketId: String!, $startBin: BigInt!, $endBin: BigInt!) {
-  binStates(
-    where: { market: $marketId, binIndex_gte: $startBin, binIndex_lte: $endBin }
-    orderBy: binIndex
-  ) {
-    binIndex
-    lowerTick
-    upperTick
-    currentFactor
-    totalVolume
-  }
-}
-```
-
-### **4. 고급 포지션 및 PnL 추적 조회 (완전 구현됨)**
-
-```graphql
-# 사용자 포지션 현황 조회 (실시간 PnL 포함)
-query GetUserPositions($userAddress: Bytes!) {
+query GetUserPositions($userAddress: Bytes!, $marketId: BigInt) {
   userPositions(
-    where: { user: $userAddress, isActive: true }
-    orderBy: createdAt
+    where: { user: $userAddress, marketId: $marketId, isActive: true }
+    orderBy: openedAt
     orderDirection: desc
   ) {
     id
-    positionId
-    market {
-      id
-      marketId
-    }
-    lowerTick
-    upperTick
-    currentQuantity
-    totalCostBasis
-    averageEntryPrice
-    totalQuantityBought
-    totalQuantitySold
-    totalProceeds
-    realizedPnL
-    isActive
-    createdAt
-    lastUpdated
-  }
-}
-
-# 사용자 거래 히스토리 조회 (상세 PnL 추적)
-query GetUserTrades($userAddress: Bytes!) {
-  trades(
-    where: { user: $userAddress }
-    orderBy: timestamp
-    orderDirection: desc
-    first: 100
-  ) {
-    id
-    type
     lowerTick
     upperTick
     quantity
-    costOrProceeds
-    price
-    gasUsed
-    gasPrice
-    timestamp
-    transactionHash
-    userPosition {
-      id
-      realizedPnL
-    }
+    totalCost
+    averageCost
+    realizedPnL
+    unrealizedPnL
+    openedAt
+    lastUpdatedAt
   }
 }
+```
 
-# 사용자 통계 조회 (종합 성과 분석)
+### **4. User Comprehensive Statistics**
+
+```graphql
 query GetUserStats($userAddress: Bytes!) {
   userStats(id: $userAddress) {
     totalTrades
     totalVolume
-    totalCosts
-    totalProceeds
     totalRealizedPnL
-    totalGasFees
     netPnL
-    activePositionsCount
-    winningTrades
-    losingTrades
     winRate
     avgTradeSize
+    activePositionsCount
     firstTradeAt
     lastTradeAt
   }
 }
 ```
 
-### **5. 시장별 통계 및 가격 히스토리**
+### **5. Trading History**
 
 ```graphql
-query GetMarketStats($marketId: String!) {
-  market(id: $marketId) {
-    marketId
-    minTick
-    maxTick
-    tickSpacing
-    numBins
-    settled
-  }
-
-  marketStats(id: $marketId) {
-    totalVolume
-    totalTrades
-    currentPrice
-    highestPrice
-    lowestPrice
-    volume24h
-  }
-
-  priceSnapshots(
-    where: { market: $marketId }
+query GetTradeHistory($userAddress: Bytes, $marketId: BigInt) {
+  trades(
+    where: { trader: $userAddress, marketId: $marketId }
     orderBy: timestamp
     orderDirection: desc
     first: 100
   ) {
+    id
+    type # OPEN, INCREASE, DECREASE, CLOSE, CLAIM
+    quantity
+    costOrProceeds
     lowerTick
     upperTick
-    price
     timestamp
-    totalSupply
-    marketCap
+    gasUsed
+    gasPrice
   }
 }
 ```
 
-## 💻 **FE TypeScript 타입 정의**
+### **6. Market Activity Monitoring**
 
-```typescript
-// 분포 시각화용 데이터 타입
-export interface MarketDistributionData {
-  totalBins: number;
-  totalSum: number; // LMSR 계산용
-  totalSumWad: string; // BigInt string
-  minFactor: number;
-  maxFactor: number;
-  avgFactor: number;
-  binFactors: string[]; // 모든 빈의 factor 값 (문자열 배열)
-  binVolumes: string[]; // 모든 빈의 거래량 (문자열 배열)
-  tickRanges: string[]; // ["100500-100600", ...]
-  lastSnapshotAt: number;
-  version: number;
-}
+```graphql
+query GetMarketActivity($marketId: String!) {
+  market(id: $marketId) {
+    numBins
+    liquidityParameter
+    isSettled
+    settlementLowerTick
+    settlementUpperTick
 
-// 개별 빈 데이터
-export interface BinData {
-  binIndex: number;
-  lowerTick: number;
-  upperTick: number;
-  currentFactor: number;
-  totalVolume: number;
-  updateCount: number;
-  lastUpdated: number;
-}
+    # Related statistics
+    stats {
+      totalTrades
+      totalVolume
+      uniqueUsers
+      totalGasFees
+      avgTradeSize
+    }
 
-// 포지션 이벤트 데이터 (실제 서브그래프 스키마 기반)
-export interface PositionOpenedData {
-  positionId: string;
-  trader: string;
-  marketId: string;
-  lowerTick: number;
-  upperTick: number;
-  quantity: string;
-  cost: string;
-  blockTimestamp: number;
-  transactionHash: string;
-}
-
-export interface PositionIncreasedData {
-  positionId: string;
-  trader: string;
-  additionalQuantity: string;
-  newQuantity: string;
-  cost: string;
-  blockTimestamp: number;
-  transactionHash: string;
-}
-
-export interface PositionDecreasedData {
-  positionId: string;
-  trader: string;
-  sellQuantity: string;
-  newQuantity: string;
-  proceeds: string;
-  blockTimestamp: number;
-  transactionHash: string;
-}
-
-// 완전 구현된 고급 PnL 추적 데이터 타입들
-export interface UserPositionData {
-  id: string;
-  positionId: string;
-  user: string;
-  market: {
-    id: string;
-    marketId: string;
-  };
-  lowerTick: number;
-  upperTick: number;
-  currentQuantity: number;
-  totalCostBasis: number;
-  averageEntryPrice: number;
-  totalQuantityBought: number;
-  totalQuantitySold: number;
-  totalProceeds: number;
-  realizedPnL: number;
-  isActive: boolean;
-  createdAt: number;
-  lastUpdated: number;
-}
-
-export interface TradeData {
-  id: string;
-  type: "OPEN" | "INCREASE" | "DECREASE" | "CLOSE" | "CLAIM";
-  lowerTick: number;
-  upperTick: number;
-  quantity: number;
-  costOrProceeds: number;
-  price: number;
-  gasUsed: string;
-  gasPrice: string;
-  timestamp: number;
-  transactionHash: string;
-  userPosition: {
-    id: string;
-    realizedPnL: number;
-  };
-}
-
-export interface UserStatsData {
-  totalTrades: number;
-  totalVolume: number;
-  totalCosts: number;
-  totalProceeds: number;
-  totalRealizedPnL: number;
-  totalGasFees: number;
-  netPnL: number;
-  activePositionsCount: number;
-  winningTrades: number;
-  losingTrades: number;
-  winRate: number;
-  avgTradeSize: number;
-  firstTradeAt: number;
-  lastTradeAt: number;
-}
-
-export interface MarketStatsData {
-  totalVolume: number;
-  totalTrades: number;
-  totalUsers: number;
-  highestPrice: number;
-  lowestPrice: number;
-  currentPrice: number;
-  priceChange24h: number;
-  volume24h: number;
-  lastUpdated: number;
+    # Latest distribution
+    distribution {
+      totalSum
+      totalSumWad
+      version
+      lastSnapshotAt
+    }
+  }
 }
 ```
 
-## ⚡ **사용 예시**
+## 📈 Real-time Update Patterns
 
-### **React Hook 예시**
+### **Polling vs Subscription**
+
+#### 1. Distribution Data Polling (Recommended)
 
 ```typescript
-const useMarketDistribution = (marketId: string) => {
-  const [distribution, setDistribution] =
-    useState<MarketDistributionData | null>(null);
+// Check for distribution updates every 5 seconds
+const pollDistribution = async () => {
+  const result = await queryDistribution(marketId);
+  if (result.version > currentVersion) {
+    // Distribution updated - refresh chart
+    updateChart(result);
+    currentVersion = result.version;
+  }
+};
 
-  useEffect(() => {
+setInterval(pollDistribution, 5000);
+```
+
+#### 2. Real-time User Position Monitoring
+
+```typescript
+// Monitor position status via WebSocket or polling
+const monitorPositions = async (userAddress: string) => {
+  const positions = await queryUserPositions(userAddress);
+  const activePositions = positions.filter((p) => p.isActive);
+
+  // PnL calculation and alerts
+  activePositions.forEach((pos) => {
+    if (pos.unrealizedPnL < -threshold) {
+      notifyStopLoss(pos);
+    }
+  });
+};
+```
+
+## 🎯 Optimization Guide
+
+### **1. Efficient Query Design**
+
+```graphql
+# ✅ Good example: Request only needed fields
+query OptimizedDistribution($marketId: String!) {
+  marketDistribution(id: $marketId) {
+    binFactorsWad # only when needed for SDK calculation
+    totalSumWad
+  }
+}
+
+# ❌ Bad example: Request all fields
+query UnoptimizedDistribution($marketId: String!) {
+  marketDistribution(id: $marketId) {
+    # ... all fields (unnecessary data transfer)
+  }
+}
+```
+
+### **2. Large Data Processing**
+
+```typescript
+// Process large market binFactors in chunks
+const processLargeDistribution = (binFactorsWad: string[]) => {
+  const CHUNK_SIZE = 100;
+  const chunks = [];
+
+  for (let i = 0; i < binFactorsWad.length; i += CHUNK_SIZE) {
+    chunks.push(binFactorsWad.slice(i, i + CHUNK_SIZE));
+  }
+
+  return chunks.map((chunk) => processChunk(chunk));
+};
+```
+
+### **3. Caching Strategy**
+
+```typescript
+// Cache distribution data based on version
+const distributionCache = new Map();
+
+const getCachedDistribution = async (marketId: string) => {
+  const cached = distributionCache.get(marketId);
+  const latest = await queryDistributionVersion(marketId);
+
+  if (cached && cached.version === latest.version) {
+    return cached.data;
+  }
+
+  // Update cache
+  const fresh = await queryFullDistribution(marketId);
+  distributionCache.set(marketId, { data: fresh, version: fresh.version });
+  return fresh;
+};
+```
+
+## 🔄 SDK Integration Workflow
+
+### **Complete Integration Example**
+
+```typescript
+import {
+  CLMSRSDK,
+  mapDistribution,
+  mapMarket,
+  toUSDC,
+} from "@whworjs7946/clmsr-v0";
+
+class CLMSRIntegration {
+  private sdk = new CLMSRSDK();
+  private subgraphUrl =
+    "https://api.studio.thegraph.com/query/116469/signals-v-0/1.3.0";
+
+  async calculateCost(
+    marketId: string,
+    lowerTick: number,
+    upperTick: number,
+    quantity: string
+  ) {
+    // 1. Query latest data from subgraph
+    const [rawMarket, rawDistribution] = await Promise.all([
+      this.queryMarket(marketId),
+      this.queryDistribution(marketId),
+    ]);
+
+    // 2. Convert to SDK compatible format
+    const market = mapMarket(rawMarket);
+    const distribution = mapDistribution(rawDistribution);
+
+    // 3. Calculate with SDK
+    const result = this.sdk.calculateOpenCost(
+      lowerTick,
+      upperTick,
+      toUSDC(quantity),
+      distribution,
+      market
+    );
+
+    return {
+      cost: result.cost.toString(),
+      averagePrice: result.averagePrice.toString(),
+    };
+  }
+
+  private async queryDistribution(marketId: string) {
     const query = `
-      query GetMarketDistribution($marketId: String!) {
+      query GetDistribution($marketId: String!) {
         marketDistribution(id: $marketId) {
           totalSum
           totalSumWad
           binFactors
-          binVolumes
-          tickRanges
-          version
+          binFactorsWad
         }
       }
     `;
 
-    // GraphQL 쿼리 실행
-    fetchGraphQL(query, { marketId }).then(setDistribution);
-  }, [marketId]);
+    const response = await fetch(this.subgraphUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, variables: { marketId } }),
+    });
 
-  return distribution;
-};
-
-// 분포 차트 컴포넌트에서 사용
-const DistributionChart = ({ marketId }: { marketId: string }) => {
-  const distribution = useMarketDistribution(marketId);
-
-  if (!distribution) return <div>Loading...</div>;
-
-  // 모든 빈의 factor 값을 차트로 시각화
-  const chartData = distribution.binFactors.map((factor, index) => ({
-    binIndex: index,
-    factor: parseFloat(factor), // 문자열을 숫자로 변환
-    volume: parseFloat(distribution.binVolumes[index]),
-    tickRange: distribution.tickRanges[index],
-  }));
-
-  return <FactorChart data={chartData} />;
-};
+    const data = await response.json();
+    return data.data.marketDistribution;
+  }
+}
 ```
 
-## 🔄 **실시간 업데이트**
+## 🔗 Related Links
 
-서브그래프는 다음 이벤트를 실시간으로 추적합니다:
-
-1. **RangeFactorApplied**: BinState와 MarketDistribution 자동 업데이트
-2. **PositionOpened/Increased/Decreased/Closed**: 기본 이벤트 기록
-3. **MarketCreated**: 모든 BinState 초기화
-4. **MarketSettled**: 최종 정산 정보 업데이트
-
-모든 변경사항은 `version` 필드와 `
+- **SDK Documentation**: [CLMSR SDK](https://github.com/whworjs/signals-v0/blob/main/clmsr-sdk/README.md)
+- **Contract Integration**: [Contract Integration](https://github.com/whworjs/signals-v0/blob/main/docs/CONTRACT_INTEGRATION.md)
+- **Quick Start**: [Quick Start Guide](https://github.com/whworjs/signals-v0/blob/main/docs/QUICK_START.md)

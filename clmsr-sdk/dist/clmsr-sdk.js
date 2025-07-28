@@ -67,11 +67,10 @@ class CLMSRSDK {
         const quantityWad = MathUtils.toWad(quantity);
         const alpha = market.liquidityParameter;
         // Get current state
-        const sumBefore = distribution.totalSum;
+        const sumBefore = distribution.totalSumWad;
         const affectedSum = this.getAffectedSum(lowerTick, upperTick, distribution, market);
-        // 1. Calculate factor: exp(quantity / α) - 컨트랙트와 동일
-        const quantityScaled = MathUtils.wDiv(quantityWad, alpha);
-        const factor = MathUtils.wExp(quantityScaled);
+        // 1. Calculate factor: exp(quantity / α) - 컨트랙트와 동일, safe chunking 사용
+        const factor = MathUtils.safeExp(quantityWad, alpha);
         // 2. Calculate sum after trade - 컨트랙트와 동일
         const sumAfter = sumBefore
             .minus(affectedSum)
@@ -110,12 +109,11 @@ class CLMSRSDK {
         const quantityWad = MathUtils.toWad(sellQuantity);
         const alpha = market.liquidityParameter;
         // Get current state
-        const sumBefore = distribution.totalSum;
+        const sumBefore = distribution.totalSumWad;
         const affectedSum = this.getAffectedSum(position.lowerTick, position.upperTick, distribution, market);
         // 🎯 컨트랙트와 정확히 동일한 LMSR sell 공식 구현
-        // 1. Calculate inverse factor: exp(-quantity / α) = 1 / exp(quantity / α)
-        const quantityScaled = MathUtils.wDiv(quantityWad, alpha);
-        const factor = MathUtils.wExp(quantityScaled);
+        // 1. Calculate inverse factor: exp(-quantity / α) = 1 / exp(quantity / α) - safe chunking 사용
+        const factor = MathUtils.safeExp(quantityWad, alpha);
         const inverseFactor = MathUtils.wDiv(MathUtils.WAD, factor);
         // 2. Calculate sum after sell
         const sumAfter = sumBefore
@@ -144,20 +142,19 @@ class CLMSRSDK {
      * calculateClaimAmount - 정산 후 클레임 금액 계산
      */
     calculateClaimAmount(position, settlementLowerTick, settlementUpperTick) {
-        // Check if position range overlaps with winning range
-        // Same logic as contract: position.lowerTick <= market.settlementUpperTick && position.upperTick >= market.settlementLowerTick
-        const hasOverlap = position.lowerTick <= settlementUpperTick &&
-            position.upperTick >= settlementLowerTick;
+        // 포지션 범위와 정산 범위가 겹치는지 확인
+        const hasOverlap = position.lowerTick < settlementUpperTick &&
+            position.upperTick > settlementLowerTick;
         if (hasOverlap) {
+            // 승리 포지션: 전체 수량을 클레임 가능
             return {
-                claimAmount: position.quantity,
-                isWinning: true,
+                payout: position.quantity,
             };
         }
         else {
+            // 패배 포지션: 클레임 불가
             return {
-                claimAmount: new big_js_1.default(0),
-                isWinning: false,
+                payout: new big_js_1.default(0),
             };
         }
     }
@@ -175,13 +172,14 @@ class CLMSRSDK {
         const targetCostWad = MathUtils.toWad(targetCost);
         const alpha = market.liquidityParameter;
         // Get current state
-        const sumBefore = distribution.totalSum;
+        const sumBefore = distribution.totalSumWad;
         const affectedSum = this.getAffectedSum(lowerTick, upperTick, distribution, market);
         // Direct mathematical inverse:
         // From: C = α * ln(sumAfter / sumBefore)
         // Calculate: q = α * ln(factor)
-        // Calculate target sum after: sumAfter = sumBefore * exp(C/α)
-        const targetSumAfter = MathUtils.wMul(sumBefore, MathUtils.wExp(MathUtils.wDiv(targetCostWad, alpha)));
+        // Calculate target sum after: sumAfter = sumBefore * exp(C/α) - safe chunking 사용
+        const expValue = MathUtils.safeExp(targetCostWad, alpha);
+        const targetSumAfter = MathUtils.wMul(sumBefore, expValue);
         // Calculate required affected sum after trade
         const requiredAffectedSum = targetSumAfter.minus(sumBefore.minus(affectedSum));
         // Calculate factor: newAffectedSum / affectedSum
@@ -220,8 +218,9 @@ class CLMSRSDK {
         let affectedSum = new big_js_1.default(0);
         // 컨트랙트와 동일하게 inclusive 범위로 계산 (lowerBin <= binIndex <= upperBin)
         for (let binIndex = lowerBin; binIndex <= upperBin; binIndex++) {
-            if (binIndex >= 0 && binIndex < distribution.binFactors.length) {
-                affectedSum = affectedSum.plus(distribution.binFactors[binIndex]);
+            if (binIndex >= 0 && binIndex < distribution.binFactorsWad.length) {
+                // 이미 WAD 형식의 Big 객체이므로 직접 사용
+                affectedSum = affectedSum.plus(distribution.binFactorsWad[binIndex]);
             }
         }
         return affectedSum;

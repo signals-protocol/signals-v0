@@ -254,7 +254,6 @@ export async function positionWithDataFixture() {
   const alicePositionId = await core
     .connect(alice)
     .openPosition.staticCall(
-      alice.address,
       positionParams.marketId,
       positionParams.lowerTick,
       positionParams.upperTick,
@@ -264,7 +263,6 @@ export async function positionWithDataFixture() {
   await core
     .connect(alice)
     .openPosition(
-      alice.address,
       positionParams.marketId,
       positionParams.lowerTick,
       positionParams.upperTick,
@@ -272,39 +270,31 @@ export async function positionWithDataFixture() {
       positionParams.maxCost
     );
 
-  // Bob opens different position
-  const bobPositionParams = {
-    ...positionParams,
-    lowerTick: 30,
-    upperTick: 40,
-  };
+  // Bob opens position
   const bobPositionId = await core
     .connect(bob)
     .openPosition.staticCall(
-      bob.address,
-      bobPositionParams.marketId,
-      bobPositionParams.lowerTick,
-      bobPositionParams.upperTick,
-      bobPositionParams.quantity,
-      bobPositionParams.maxCost
+      positionParams.marketId,
+      positionParams.lowerTick,
+      positionParams.upperTick,
+      positionParams.quantity,
+      positionParams.maxCost
     );
   await core
     .connect(bob)
     .openPosition(
-      bob.address,
-      bobPositionParams.marketId,
-      bobPositionParams.lowerTick,
-      bobPositionParams.upperTick,
-      bobPositionParams.quantity,
-      bobPositionParams.maxCost
+      positionParams.marketId,
+      positionParams.lowerTick,
+      positionParams.upperTick,
+      positionParams.quantity,
+      positionParams.maxCost
     );
 
   return {
-    ...contracts,
+    contracts,
     alicePositionId,
     bobPositionId,
     positionParams,
-    bobPositionParams,
   };
 }
 

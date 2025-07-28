@@ -9,15 +9,15 @@
 ```typescript
 const CONTRACTS = {
   // 메인 컨트랙트 (최신 배포)
-  CLMSRMarketCore: "0x03664F2e5eB92Ac39Ec712E9CE90d945d5C061e5",
-  CLMSRPosition: "0xf4eFFF5D5DF0E74b947b2e4E05D8b1CEBC7a9652",
+  CLMSRMarketCore: "0x59bDE8c7bc4bF23465B549052f2D7f586B88550e",
+  CLMSRPosition: "0x3786e87B983470a0676F2367ce7337f66C19EB21",
 
   // 테스트용 토큰 (최신 배포)
-  USDC: "0x60b8E0C9AD5E8A894b044B89D2998Df71e6805BD",
+  USDC: "0x5b3EE16Ce3CD3B46509C3fd824366B1306bA1ed9",
 
   // 라이브러리들 (최신 배포)
-  FixedPointMathU: "0x34F40835F2C9Cc19a07Fd9c53e7F4DfCCa8990F2",
-  LazyMulSegmentTree: "0x528E99AF255B6E43f04f0e6080a711F2A27585E0",
+  FixedPointMathU: "0x79FD2c223601F625Bf5b5e8d09Cf839D52B16374",
+  LazyMulSegmentTree: "0xA4cFb284e97B756fC2D38215b04C06cE4cA4F50c",
 };
 
 const NETWORK = {
@@ -32,9 +32,9 @@ const NETWORK = {
 
 ✅ 모든 컨트랙트가 Arbiscan에서 검증됨
 
-- [CLMSRMarketCore](https://sepolia.arbiscan.io/address/0x03664F2e5eB92Ac39Ec712E9CE90d945d5C061e5#code)
-- [USDC](https://sepolia.arbiscan.io/address/0x60b8E0C9AD5E8A894b044B89D2998Df71e6805BD#code)
-- [CLMSRPosition](https://sepolia.arbiscan.io/address/0xf4eFFF5D5DF0E74b947b2e4E05D8b1CEBC7a9652#code)
+- [CLMSRMarketCore](https://sepolia.arbiscan.io/address/0x59bDE8c7bc4bF23465B549052f2D7f586B88550e#code)
+- [USDC](https://sepolia.arbiscan.io/address/0x5b3EE16Ce3CD3B46509C3fd824366B1306bA1ed9#code)
+- [CLMSRPosition](https://sepolia.arbiscan.io/address/0x3786e87B983470a0676F2367ce7337f66C19EB21#code)
 
 ---
 
@@ -451,36 +451,17 @@ const openPosition = async (params: OpenPositionParams): Promise<bigint> => {
     await approveUSDC();
   }
 
-  // 포지션 열기 실행 (trader 주소 필수)
-  const tx = await coreContract.openPosition(
-    userAddress, // trader 주소 (첫 번째 파라미터)
-    marketId,
-    lowerTick,
-    upperTick,
-    quantity,
-    maxCost
+  // 2. Open position
+  const openTx = await market.openPosition(
+    marketId, // Market ID
+    lowerTick, // Lower tick bound
+    upperTick, // Upper tick bound
+    quantity, // Position quantity
+    maxCost // Maximum cost willing to pay
   );
+  await openTx.wait();
 
-  const receipt = await tx.wait();
-
-  // 이벤트에서 포지션 ID 추출
-  const openEvent = receipt.logs.find(
-    (log) =>
-      log.topics[0] ===
-      coreContract.interface.getEvent("PositionOpened").topicHash
-  );
-
-  if (openEvent) {
-    const decoded = coreContract.interface.parseLog(openEvent);
-    console.log("포지션 열기 완료:", {
-      positionId: decoded.args.positionId.toString(),
-      cost: ethers.formatUnits(decoded.args.cost, 6),
-      txHash: tx.hash,
-    });
-    return decoded.args.positionId;
-  }
-
-  throw new Error("포지션 ID를 찾을 수 없습니다");
+  console.log("Position opened successfully!");
 };
 ```
 

@@ -157,6 +157,7 @@ type MarketDistribution @entity(immutable: false) {
   totalVolume: BigDecimal! # 전체 거래량
   # 배열 형태 데이터 (FE 효율성용) - String으로 변경
   binFactors: [String!]! # 모든 bin의 factor 배열 ["1.0", "2.0", "1.5", ...]
+  binFactorsWad: [String!]! # WAD 형식의 bin factor 배열 (SDK 계산용)
   binVolumes: [String!]! # 모든 bin의 volume 배열 ["100", "200", "150", ...]
   tickRanges: [String!]! # 틱 범위 문자열 배열 ["100500-100600", "100600-100700", ...]
   # 메타데이터

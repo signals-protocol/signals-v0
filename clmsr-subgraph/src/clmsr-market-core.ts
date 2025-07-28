@@ -230,8 +230,12 @@ function updateUserStats(
     .div(BigDecimal.fromString("1000000000000000000"));
   userStats.totalGasFees = userStats.totalGasFees.plus(gasFee);
 
-  // Update realized PnL and win/lose tracking when position is closed or decreased
-  if (trade.type == "DECREASE" || trade.type == "CLOSE") {
+  // Update realized PnL and win/lose tracking when position is closed, decreased, or claimed
+  if (
+    trade.type == "DECREASE" ||
+    trade.type == "CLOSE" ||
+    trade.type == "CLAIM"
+  ) {
     let userPosition = UserPosition.load(trade.userPosition);
     if (userPosition != null) {
       userStats.totalRealizedPnL = userStats.totalRealizedPnL.plus(
@@ -334,6 +338,7 @@ export function handleMarketCreated(event: MarketCreatedEvent): void {
   // ========================================
 
   let binFactors: Array<string> = [];
+  let binFactorsWad: Array<string> = [];
   let binVolumes: Array<string> = [];
   let tickRanges: Array<string> = [];
 
@@ -388,6 +393,7 @@ export function handleMarketCreated(event: MarketCreatedEvent): void {
 
   // 배열 형태 데이터
   distribution.binFactors = binFactors;
+  distribution.binFactorsWad = binFactorsWad;
   distribution.binVolumes = binVolumes;
   distribution.tickRanges = tickRanges;
 
@@ -1116,6 +1122,7 @@ export function handleRangeFactorApplied(event: RangeFactorAppliedEvent): void {
       let minFactor = BigDecimal.fromString("999999999"); // 매우 큰 값으로 초기화
       let maxFactor = BigDecimal.fromString("0");
       let binFactors: Array<string> = [];
+      let binFactorsWad: Array<string> = [];
       let binVolumes: Array<string> = [];
 
       // 모든 bin을 순회하여 통계 재계산
@@ -1133,6 +1140,11 @@ export function handleRangeFactorApplied(event: RangeFactorAppliedEvent): void {
 
           // String 배열로 저장
           binFactors.push(binState.currentFactor.toString());
+          binFactorsWad.push(
+            binState.currentFactor
+              .times(BigDecimal.fromString("1000000000000000000"))
+              .toString()
+          );
           binVolumes.push(binState.totalVolume.toString());
         }
       }
@@ -1159,6 +1171,7 @@ export function handleRangeFactorApplied(event: RangeFactorAppliedEvent): void {
       distribution.maxFactor = maxFactor;
       distribution.avgFactor = avgFactor;
       distribution.binFactors = binFactors;
+      distribution.binFactorsWad = binFactorsWad;
       distribution.binVolumes = binVolumes;
       distribution.version = distribution.version.plus(BigInt.fromI32(1));
       distribution.lastSnapshotAt = event.block.timestamp;

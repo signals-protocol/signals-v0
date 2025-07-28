@@ -4,13 +4,44 @@
  * 컨트랙트 뷰함수들과 역함수 제공
  */
 
-// Main SDK class
-export { CLMSRSDK, createCLMSRSDK } from "./clmsr-sdk";
+// Export main SDK class
+export { CLMSRSDK } from "./clmsr-sdk";
 
-// Re-export all types
-export * from "./types";
+// Export types
+export {
+  // Basic types
+  WADAmount,
+  USDCAmount,
+  Quantity,
+  Tick,
 
-// Math utilities only
+  // Raw GraphQL types (문자열 기반)
+  MarketDistributionRaw,
+  MarketRaw,
+
+  // SDK calculation types (Big 기반)
+  Market,
+  MarketDistribution,
+  Position,
+
+  // Data adapters
+  mapMarket,
+  mapDistribution,
+
+  // Result types
+  OpenCostResult,
+  IncreaseCostResult,
+  DecreaseProceedsResult,
+  CloseProceedsResult,
+  ClaimResult,
+  QuantityFromCostResult,
+
+  // Errors
+  ValidationError,
+  CalculationError,
+} from "./types";
+
+// Export utility functions
 export * as MathUtils from "./utils/math";
 
 // Convenience functions

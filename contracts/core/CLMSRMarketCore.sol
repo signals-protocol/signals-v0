@@ -532,7 +532,6 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     
     /// @inheritdoc ICLMSRMarketCore
     function openPosition(
-        address trader,
         uint256 marketId,
         int256 lowerTick,
         int256 upperTick,
@@ -540,10 +539,6 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         uint256 maxCost
     ) external override whenNotPaused nonReentrant returns (uint256 positionId) {
         // Validate parameters
-        if (trader == address(0)) {
-            revert CE.ZeroAddress();
-        }
-        
         if (quantity == 0) {
             revert CE.InvalidQuantity(quantity);
         }
@@ -595,16 +590,16 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             revert CE.CostExceedsMaximum(cost6, maxCost);
         }
         
-        // Transfer payment from trader
-        _pullUSDC(trader, cost6);
+        // Transfer payment from caller (msg.sender)
+        _pullUSDC(msg.sender, cost6);
         
         // Update market state using WAD quantity
         uint256 qtyWad = uint256(quantity).toWad();
         _applyFactorChunked(marketId, lowerTick, upperTick, qtyWad, markets[marketId].liquidityParameter, true);
         
-        // Mint position NFT with original 6-decimal quantity (storage unchanged)
+        // Mint position NFT to caller (msg.sender) with original 6-decimal quantity (storage unchanged)
         positionId = positionContract.mintPosition(
-            trader,
+            msg.sender,
             marketId,
             lowerTick,
             upperTick,
@@ -613,7 +608,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         
         emit PositionOpened(
             positionId,
-            trader,
+            msg.sender,
             marketId,
             lowerTick,
             upperTick,
@@ -635,6 +630,12 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         // Get position data and validate market
         ICLMSRPosition.Position memory position = positionContract.getPosition(positionId);
         address trader = positionContract.ownerOf(positionId);
+        
+        // Verify caller owns the position
+        if (trader != msg.sender) {
+            revert CE.UnauthorizedCaller(msg.sender);
+        }
+        
         _validateActiveMarket(position.marketId);
         
         // Calculate cost with round-up to prevent zero-cost attacks
@@ -650,8 +651,8 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             revert CE.CostExceedsMaximum(cost6, maxCost);
         }
         
-        // Transfer payment from trader
-        _pullUSDC(trader, cost6);
+        // Transfer payment from caller
+        _pullUSDC(msg.sender, cost6);
         
         // Update market state
         uint256 deltaWad = uint256(additionalQuantity).toWad();
@@ -661,7 +662,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         newQuantity = position.quantity + additionalQuantity;
         positionContract.setPositionQuantity(positionId, newQuantity);
         
-        emit PositionIncreased(positionId, trader, additionalQuantity, newQuantity, cost6);
+        emit PositionIncreased(positionId, msg.sender, additionalQuantity, newQuantity, cost6);
     }
     
     /// @inheritdoc ICLMSRMarketCore
@@ -677,6 +678,12 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         // Get position data and validate market
         ICLMSRPosition.Position memory position = positionContract.getPosition(positionId);
         address trader = positionContract.ownerOf(positionId);
+        
+        // Verify caller owns the position
+        if (trader != msg.sender) {
+            revert CE.UnauthorizedCaller(msg.sender);
+        }
+        
         _validateActiveMarket(position.marketId);
         
         if (sellQuantity > position.quantity) {
@@ -700,8 +707,8 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         uint256 sellDeltaWad = uint256(sellQuantity).toWad();
         _applyFactorChunked(position.marketId, position.lowerTick, position.upperTick, sellDeltaWad, markets[position.marketId].liquidityParameter, false);
         
-        // Transfer proceeds to trader
-        _pushUSDC(trader, proceeds);
+        // Transfer proceeds to caller
+        _pushUSDC(msg.sender, proceeds);
         
         // Update position quantity
         newQuantity = position.quantity - sellQuantity;
@@ -712,7 +719,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             positionContract.setPositionQuantity(positionId, newQuantity);
         }
         
-        emit PositionDecreased(positionId, trader, sellQuantity, newQuantity, proceeds);
+        emit PositionDecreased(positionId, msg.sender, sellQuantity, newQuantity, proceeds);
     }
 
 
@@ -725,6 +732,11 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         ICLMSRPosition.Position memory position = positionContract.getPosition(positionId);
         address trader = positionContract.ownerOf(positionId);
         
+        // Verify caller owns the position
+        if (trader != msg.sender) {
+            revert CE.UnauthorizedCaller(msg.sender);
+        }
+        
         Market memory market = markets[position.marketId];
         if (!market.settled) {
             revert CE.MarketNotSettled(position.marketId);
@@ -733,13 +745,13 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         // Calculate payout
         payout = _calculateClaimAmount(positionId);
         
-        // Transfer payout to trader
-        _pushUSDC(trader, payout);
+        // Transfer payout to caller
+        _pushUSDC(msg.sender, payout);
         
         // Burn position NFT (position is claimed)
         positionContract.burnPosition(positionId);
         
-        emit PositionClaimed(positionId, trader, payout);
+        emit PositionClaimed(positionId, msg.sender, payout);
     }
 
     // ========================================
@@ -1334,6 +1346,12 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         // Get position data and validate market
         ICLMSRPosition.Position memory position = positionContract.getPosition(positionId);
         address trader = positionContract.ownerOf(positionId);
+        
+        // Verify caller owns the position
+        if (trader != msg.sender) {
+            revert CE.UnauthorizedCaller(msg.sender);
+        }
+        
         _validateActiveMarket(position.marketId);
         
         // Calculate proceeds from closing entire position with round-up for fair treatment
@@ -1353,12 +1371,12 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         // Update market state (selling entire position)
         _applyFactorChunked(position.marketId, position.lowerTick, position.upperTick, positionQuantityWad, markets[position.marketId].liquidityParameter, false);
         
-        // Transfer proceeds to trader
-        _pushUSDC(trader, proceeds);
+        // Transfer proceeds to caller
+        _pushUSDC(msg.sender, proceeds);
         
         // Burn position NFT
         positionContract.burnPosition(positionId);
         
-        emit PositionClosed(positionId, trader, proceeds);
+        emit PositionClosed(positionId, msg.sender, proceeds);
     }
 } 
