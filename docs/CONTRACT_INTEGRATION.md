@@ -630,7 +630,15 @@ const listenToUser = (userAddress: string) => {
   // 모든 포지션 이벤트를 받아서 트랜잭션 발신자로 필터링
   coreContract.on(
     "PositionOpened",
-    async (positionId, marketId, lowerTick, upperTick, quantity, cost, event) => {
+    async (
+      positionId,
+      marketId,
+      lowerTick,
+      upperTick,
+      quantity,
+      cost,
+      event
+    ) => {
       // 트랜잭션 발신자 확인
       const tx = await event.getTransaction();
       if (tx.from.toLowerCase() === userAddress.toLowerCase()) {
@@ -653,20 +661,22 @@ const getHistoricalPositions = async (marketId: number, fromBlock?: number) => {
   const filter = coreContract.filters.PositionOpened(null, marketId);
   const events = await coreContract.queryFilter(filter, fromBlock || -10000);
 
-  return await Promise.all(events.map(async (event) => {
-    // 트랜잭션 정보에서 발신자 주소 가져오기
-    const tx = await event.getTransaction();
-    return {
-      positionId: event.args.positionId.toString(),
-      trader: tx.from, // 트랜잭션 발신자가 실제 trader
-      lowerTick: Number(event.args.lowerTick),
-      upperTick: Number(event.args.upperTick),
-      quantity: event.args.quantity.toString(),
-      cost: ethers.formatUnits(event.args.cost, 6),
-      blockNumber: event.blockNumber,
-      transactionHash: event.transactionHash,
-    };
-  }));
+  return await Promise.all(
+    events.map(async (event) => {
+      // 트랜잭션 정보에서 발신자 주소 가져오기
+      const tx = await event.getTransaction();
+      return {
+        positionId: event.args.positionId.toString(),
+        trader: tx.from, // 트랜잭션 발신자가 실제 trader
+        lowerTick: Number(event.args.lowerTick),
+        upperTick: Number(event.args.upperTick),
+        quantity: event.args.quantity.toString(),
+        cost: ethers.formatUnits(event.args.cost, 6),
+        blockNumber: event.blockNumber,
+        transactionHash: event.transactionHash,
+      };
+    })
+  );
 };
 ```
 
