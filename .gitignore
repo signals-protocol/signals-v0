@@ -50,6 +50,9 @@ typechain-types/
 # Hardhat gas reports
 gas-report.txt
 
+# Deployment files
+deployments/
+
 # IDE files
 .vscode/
 .idea/
@@ -67,3 +70,8 @@ Thumbs.db
 
 # Beta distribution sensitive data
 beta-addresses.json
+
+# Development utility files
+combine_all_files.sh
+complete_codebase.md
+coverage.json
