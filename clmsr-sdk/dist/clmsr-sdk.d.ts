@@ -24,7 +24,7 @@ export declare class CLMSRSDK {
     /**
      * Claim amount 계산
      */
-    calculateClaim(position: Position, settlementLowerTick: Tick, settlementUpperTick: Tick): ClaimResult;
+    calculateClaim(position: Position, settlementTick: Tick): ClaimResult;
     /**
      * Sell position의 예상 수익 계산
      * @param position 포지션 정보

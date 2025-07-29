@@ -221,10 +221,9 @@ const quantity = sdk.calculateQuantityFromCost(
 #### 4. Claim Amount Calculation
 
 ```typescript
-const claim = sdk.calculateClaimAmount(
+const claim = sdk.calculateClaim(
   position: Position,
-  settlementLowerTick: number,
-  settlementUpperTick: number
+  settlementTick: number
 );
 // Returns: { payout: USDCAmount }
 ```

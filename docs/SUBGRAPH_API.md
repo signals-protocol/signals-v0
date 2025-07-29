@@ -1,6 +1,6 @@
 # CLMSR Subgraph API Documentation
 
-> **🚀 v1.4.0**: Enhanced UserStats accuracy, volume calculation fixes, proper win/loss tracking
+> **🚀 v1.5.0**: Enhanced settlement logic - exact tick value instead of range-based settlement, new contract deployment
 
 ## 🎯 Overview
 
@@ -8,7 +8,7 @@ The CLMSR subgraph tracks all CLMSR market data in real-time, optimized for **di
 
 ## 🔗 Endpoint Information
 
-- **GraphQL Endpoint**: `https://api.studio.thegraph.com/query/116469/signals-v-0/1.4.0`
+- **GraphQL Endpoint**: `https://api.studio.thegraph.com/query/116469/signals-v-0/1.5.0`
 - **Subgraph Name**: `signals-v-0`
 - **Studio Link**: `https://thegraph.com/studio/subgraph/signals-v-0`
 

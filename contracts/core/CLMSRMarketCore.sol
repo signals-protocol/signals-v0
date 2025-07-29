@@ -175,8 +175,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             settled: false,
             startTimestamp: startTimestamp,
             endTimestamp: endTimestamp,
-            settlementLowerTick: 0,
-            settlementUpperTick: 0,
+            settlementTick: 0,
             minTick: minTick,
             maxTick: maxTick,
             tickSpacing: tickSpacing,
@@ -191,7 +190,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     }
     
     /// @inheritdoc ICLMSRMarketCore
-    function settleMarket(uint256 marketId, int256 lowerTick, int256 upperTick) 
+    function settleMarket(uint256 marketId, int256 settlementTick) 
         external override onlyManager marketExists(marketId) {
         Market storage market = markets[marketId];
         
@@ -199,32 +198,17 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             revert CE.MarketAlreadySettled(marketId);
         }
         
-        // Validate ticks are within market bounds and follow spacing
-        _validateTick(lowerTick, market);
-        _validateTick(upperTick, market);
-        
-        // Validate winning range
-        if (lowerTick > upperTick) {
-            revert CE.InvalidWinningRange(lowerTick, upperTick);
+        // Validate settlement tick is within market bounds
+        if (settlementTick < market.minTick || settlementTick > market.maxTick) {
+            revert CE.InvalidTick(settlementTick, market.minTick, market.maxTick);
         }
         
-        // 🚨 NO POINT SETTLEMENT: Reject same tick settlement
-        if (lowerTick == upperTick) {
-            revert CE.InvalidWinningRange(lowerTick, upperTick);
-        }
-        
-        // ✅ RANGE SETTLEMENT ONLY: Must be exactly one tick spacing apart
-        if (upperTick != lowerTick + market.tickSpacing) {
-            revert CE.InvalidWinningRange(lowerTick, upperTick);
-        }
-        
-        // Settle market
+        // Settle market with exact tick value
         market.settled = true;
-        market.settlementLowerTick = lowerTick;
-        market.settlementUpperTick = upperTick;
+        market.settlementTick = settlementTick;
         market.isActive = false;
         
-        emit MarketSettled(marketId, lowerTick, upperTick);
+        emit MarketSettled(marketId, settlementTick);
     }
 
     // ========================================
@@ -1220,11 +1204,11 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             return 0;
         }
         
-        // Check if position range overlaps with winning range
-        bool hasOverlap = (position.lowerTick <= market.settlementUpperTick && 
-                          position.upperTick >= market.settlementLowerTick);
+        // Check if settlement tick is within position range [lowerTick, upperTick)
+        bool hasWinning = (position.lowerTick <= market.settlementTick && 
+                          position.upperTick > market.settlementTick);
         
-        if (hasOverlap) {
+        if (hasWinning) {
             // Position wins - return quantity as payout
             amount = uint256(position.quantity);
         } else {

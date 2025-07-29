@@ -1,8 +1,8 @@
 {
   "arbitrum-sepolia": {
     "CLMSRMarketCore": {
-      "address": "0x59bDE8c7bc4bF23465B549052f2D7f586B88550e",
-      "startBlock": 174600000
+      "address": "0x894C07d390D7585c5205f2B81b9845e5432282B6",
+      "startBlock": 174650000
     }
   }
 }

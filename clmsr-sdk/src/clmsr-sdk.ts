@@ -168,17 +168,13 @@ export class CLMSRSDK {
   /**
    * Claim amount 계산
    */
-  calculateClaim(
-    position: Position,
-    settlementLowerTick: Tick,
-    settlementUpperTick: Tick
-  ): ClaimResult {
-    // 포지션 범위와 정산 범위가 겹치는지 확인
-    const hasOverlap =
-      position.lowerTick < settlementUpperTick &&
-      position.upperTick > settlementLowerTick;
+  calculateClaim(position: Position, settlementTick: Tick): ClaimResult {
+    // 정산 틱이 포지션 범위 [lowerTick, upperTick)에 포함되는지 확인
+    const hasWinning =
+      position.lowerTick <= settlementTick &&
+      position.upperTick > settlementTick;
 
-    if (!hasOverlap) {
+    if (!hasWinning) {
       // 패배 포지션: 클레임 불가
       return {
         payout: new Big(0),

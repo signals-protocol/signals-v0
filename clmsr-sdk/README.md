@@ -6,7 +6,16 @@
 
 TypeScript SDK for CLMSR (Constant Logarithmic Market Scoring Rule) prediction market calculations.
 
-**v1.7.0** provides critical scaling fixes, enhanced function consistency, and optimized precision management for production-ready CLMSR calculations.
+**v1.8.0** introduces an enhanced settlement logic for improved user experience and exact price transparency.
+
+## 🔄 v1.8.0 Settlement Enhancement
+
+**Settlement Logic Update**: The settlement mechanism has been simplified from range-based to exact tick value.
+
+- **Previous**: `calculateClaim(position, settlementLowerTick, settlementUpperTick)`
+- **Enhanced**: `calculateClaim(position, settlementTick)`
+
+This change allows frontends to display the exact settlement price instead of just knowing a winning range, improving user experience and transparency.
 
 ## 🚀 Key Features
 
@@ -244,15 +253,14 @@ calculateQuantityFromCost(
 ): QuantityFromCostResult
 ```
 
-#### calculateClaimAmount()
+#### calculateClaim()
 
 Calculate claim amount after settlement
 
 ```typescript
-calculateClaimAmount(
+calculateClaim(
   position: Position,
-  settlementLowerTick: number,
-  settlementUpperTick: number
+  settlementTick: number
 ): ClaimResult
 ```
 

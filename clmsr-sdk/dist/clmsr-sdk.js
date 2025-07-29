@@ -128,11 +128,11 @@ class CLMSRSDK {
     /**
      * Claim amount 계산
      */
-    calculateClaim(position, settlementLowerTick, settlementUpperTick) {
-        // 포지션 범위와 정산 범위가 겹치는지 확인
-        const hasOverlap = position.lowerTick < settlementUpperTick &&
-            position.upperTick > settlementLowerTick;
-        if (!hasOverlap) {
+    calculateClaim(position, settlementTick) {
+        // 정산 틱이 포지션 범위 [lowerTick, upperTick)에 포함되는지 확인
+        const hasWinning = position.lowerTick <= settlementTick &&
+            position.upperTick > settlementTick;
+        if (!hasWinning) {
             // 패배 포지션: 클레임 불가
             return {
                 payout: new big_js_1.default(0),

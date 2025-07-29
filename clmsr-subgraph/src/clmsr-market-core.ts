@@ -213,11 +213,10 @@ function isPositionInWinningRange(
     return false; // Cannot determine win/loss for unsettled markets
   }
 
-  let settlementLower = market.settlementLowerTick!;
-  let settlementUpper = market.settlementUpperTick!;
+  let settlementTick = market.settlementTick!;
 
-  // Position wins if settlement range overlaps with position range
-  return lowerTick.le(settlementUpper) && upperTick.gt(settlementLower);
+  // Position wins if settlement tick is within position range [lowerTick, upperTick)
+  return lowerTick.le(settlementTick) && upperTick.gt(settlementTick);
 }
 
 // Helper function to update win/loss stats only for settled markets
@@ -365,8 +364,7 @@ export function handleMarketSettled(event: MarketSettledEvent): void {
     event.transaction.hash.concatI32(event.logIndex.toI32())
   );
   entity.marketId = event.params.marketId;
-  entity.settlementLowerTick = event.params.settlementLowerTick;
-  entity.settlementUpperTick = event.params.settlementUpperTick;
+  entity.settlementTick = event.params.settlementTick;
 
   entity.blockNumber = event.block.number;
   entity.blockTimestamp = event.block.timestamp;
@@ -378,8 +376,7 @@ export function handleMarketSettled(event: MarketSettledEvent): void {
   let market = Market.load(event.params.marketId.toString());
   if (market != null) {
     market.isSettled = true;
-    market.settlementLowerTick = event.params.settlementLowerTick;
-    market.settlementUpperTick = event.params.settlementUpperTick;
+    market.settlementTick = event.params.settlementTick;
     market.lastUpdated = event.block.timestamp;
     market.save();
   }

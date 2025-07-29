@@ -178,8 +178,7 @@ interface MarketInfo {
   settled: boolean;
   startTimestamp: bigint;
   endTimestamp: bigint;
-  settlementLowerTick: bigint; // int256 in contract
-  settlementUpperTick: bigint; // int256 in contract
+  settlementTick: bigint; // int256 in contract - exact winning tick value
   minTick: bigint; // int256 in contract
   maxTick: bigint; // int256 in contract
   tickSpacing: bigint; // int256 in contract
@@ -196,8 +195,7 @@ const getMarketInfo = async (marketId: number): Promise<MarketInfo> => {
     settled: market.settled,
     startTimestamp: market.startTimestamp,
     endTimestamp: market.endTimestamp,
-    settlementLowerTick: market.settlementLowerTick,
-    settlementUpperTick: market.settlementUpperTick,
+    settlementTick: market.settlementTick,
     minTick: market.minTick,
     maxTick: market.maxTick,
     tickSpacing: market.tickSpacing,
@@ -600,15 +598,12 @@ coreContract.on("RangeFactorApplied", (marketId, lo, hi, factor) => {
 });
 
 // 마켓 정산 감지
-coreContract.on(
-  "MarketSettled",
-  (marketId, settlementLowerTick, settlementUpperTick) => {
-    console.log("🏁 마켓 정산:", {
-      marketId: marketId.toString(),
-      winningRange: `${settlementLowerTick}-${settlementUpperTick}`,
-    });
-  }
-);
+coreContract.on("MarketSettled", (marketId, settlementTick) => {
+  console.log("🏁 마켓 정산:", {
+    marketId: marketId.toString(),
+    winningTick: settlementTick.toString(),
+  });
+});
 ```
 
 ### 2. 필터된 이벤트 리스닝
@@ -885,8 +880,7 @@ const getBatchMarketInfo = async (marketIds: number[]) => {
     marketId: marketIds[index],
     startTimestamp: market.startTimestamp,
     endTimestamp: market.endTimestamp,
-    settlementLowerTick: market.settlementLowerTick,
-    settlementUpperTick: market.settlementUpperTick,
+    settlementTick: market.settlementTick,
     minTick: market.minTick,
     maxTick: market.maxTick,
     tickSpacing: market.tickSpacing,

@@ -457,20 +457,18 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
       const settlementUpper = 100510;
 
       winningPositions.forEach((pos) => {
-        // 정산 범위와 겹치는 포지션 (승리) - 105000~110000 범위로 설정
-        const result = sdk.calculateClaimAmount(
+        // 정산 틱이 포지션 범위에 포함 (승리) - 105000으로 설정
+        const result = sdk.calculateClaim(
           pos,
-          105000, // 포지션 범위와 겹침
-          110000
+          105000 // 포지션 범위에 포함
         );
 
         expect(result.payout.toString()).toBe(pos.quantity.toString());
 
-        // 정산 범위 밖 포지션 (패배) - 완전히 다른 범위
-        const result2 = sdk.calculateClaimAmount(
+        // 정산 틱이 포지션 범위 밖 (패배) - 130000으로 설정
+        const result2 = sdk.calculateClaim(
           pos,
-          130000, // 정산 범위 밖
-          135000
+          130000 // 포지션 범위 밖
         );
 
         expect(result2.payout.toString()).toBe("0");
@@ -488,10 +486,9 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
       const settlementUpper = 100510;
 
       losingPositions.forEach((pos) => {
-        const result = sdk.calculateClaimAmount(
+        const result = sdk.calculateClaim(
           pos,
-          settlementLower,
-          settlementUpper
+          105000 // 포지션 범위에 포함되지 않는 틱
         );
         expect(result.payout.toString()).toBe("0");
       });

@@ -15,8 +15,7 @@ interface ICLMSRMarketCore {
         bool settled;                   // Market is settled
         uint64 startTimestamp;          // Market start time
         uint64 endTimestamp;            // Market end time
-        int256 settlementLowerTick;     // Winning range lower bound (only if settled)
-        int256 settlementUpperTick;     // Winning range upper bound (only if settled)
+        int256 settlementTick;          // Winning tick value (only if settled)
         int256 minTick;                 // Minimum allowed tick value
         int256 maxTick;                 // Maximum allowed tick value
         int256 tickSpacing;             // Spacing between valid ticks
@@ -43,8 +42,7 @@ interface ICLMSRMarketCore {
 
     event MarketSettled(
         uint256 indexed marketId,
-        int256 settlementLowerTick,
-        int256 settlementUpperTick
+        int256 settlementTick
     );
 
     event PositionOpened(
@@ -130,11 +128,10 @@ interface ICLMSRMarketCore {
     ) external;
     
     /// @notice Settle a market (only callable by Manager)
-    /// @dev Sets winning range and enables position claiming
+    /// @dev Sets exact winning tick value and enables position claiming
     /// @param marketId Market identifier
-    /// @param lowerTick Winning range lower bound (inclusive)
-    /// @param upperTick Winning range upper bound (inclusive)
-    function settleMarket(uint256 marketId, int256 lowerTick, int256 upperTick) external;
+    /// @param settlementTick Exact winning tick value
+    function settleMarket(uint256 marketId, int256 settlementTick) external;
 
     // ========================================
     // EXECUTION FUNCTIONS

@@ -22,7 +22,8 @@
     "test:comprehensive:arbitrum": "npx hardhat run scripts/comprehensive-test.ts --network arbitrum-sepolia",
     "test:comprehensive:worldchain": "npx hardhat run scripts/comprehensive-test.ts --network worldchain-sepolia",
     "test:subgraph": "npx hardhat run scripts/test-subgraph.ts --network arbitrum-sepolia",
-    "test:subgraph:local": "npx hardhat run scripts/test-subgraph.ts --network localhost"
+    "test:subgraph:local": "npx hardhat run scripts/test-subgraph.ts --network localhost",
+    "beta": "npx hardhat run scripts/beta-distribution.ts --network arbitrum-sepolia"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",

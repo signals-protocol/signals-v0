@@ -33,8 +33,7 @@ type MarketCreated @entity(immutable: true) {
 type MarketSettled @entity(immutable: true) {
   id: Bytes!
   marketId: BigInt! # uint256
-  settlementLowerTick: BigInt! # int256
-  settlementUpperTick: BigInt! # int256
+  settlementTick: BigInt! # int256
   blockNumber: BigInt!
   blockTimestamp: BigInt!
   transactionHash: Bytes!
@@ -121,8 +120,7 @@ type Market @entity(immutable: false) {
   numBins: BigInt! # uint32 - 계산된 빈 개수
   liquidityParameter: BigInt!
   isSettled: Boolean!
-  settlementLowerTick: BigInt # int256
-  settlementUpperTick: BigInt # int256
+  settlementTick: BigInt # int256
   lastUpdated: BigInt!
   # 관계 필드들
   bins: [BinState!]! @derivedFrom(field: "market")

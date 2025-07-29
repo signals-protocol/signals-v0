@@ -1,24 +1,69 @@
-node_modules
+# Dependencies
+node_modules/
+yarn.lock
+package-lock.json
+
+# Environment variables
 .env
+.env.local
+.env.production
+.env.test
+
+# Build outputs
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# Compiled binary addons (https://nodejs.org/api/addons.html)
+build/Release
+
+# Dependency directories
+jspm_packages/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
 
 # Hardhat files
-/cache
-/artifacts
+cache/
+artifacts/
+typechain-types/
 
-# TypeChain files
-/typechain
-/typechain-types
+# Hardhat gas reports
+gas-report.txt
 
-# solidity-coverage files
-/coverage
-/coverage.json
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
 
-# Hardhat Ignition default folder for deployments against a local node
-ignition/deployments/chain-31337
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 
-# Deployment files
-deployments/
-
-# Development utility files
-combine_all_files.sh
-complete_codebase.md
+# Beta distribution sensitive data
+beta-addresses.json
