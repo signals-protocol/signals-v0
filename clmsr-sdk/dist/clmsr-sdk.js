@@ -39,14 +39,16 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CLMSRSDK = void 0;
+exports.CLMSRSDK = exports.toMicroUSDC = exports.toWAD = void 0;
 exports.createCLMSRSDK = createCLMSRSDK;
-exports.toWAD = toWAD;
-exports.toUSDC = toUSDC;
 const big_js_1 = __importDefault(require("big.js"));
+const types_1 = require("./types");
 const MathUtils = __importStar(require("./utils/math"));
-// Re-export types for easy access
+// Re-export types and utilities for easy access
 __exportStar(require("./types"), exports);
+var math_1 = require("./utils/math");
+Object.defineProperty(exports, "toWAD", { enumerable: true, get: function () { return math_1.toWAD; } });
+Object.defineProperty(exports, "toMicroUSDC", { enumerable: true, get: function () { return math_1.toMicroUSDC; } });
 /**
  * CLMSR SDK - 컨트랙트 뷰함수들과 역함수 제공
  */
@@ -60,12 +62,18 @@ class CLMSRSDK {
     calculateOpenCost(lowerTick, upperTick, quantity, distribution, market) {
         // Input validation
         if (new big_js_1.default(quantity).lte(0)) {
-            throw new Error("Quantity must be positive");
+            throw new types_1.ValidationError("Quantity must be positive");
         }
+        if (!distribution) {
+            throw new types_1.ValidationError("Distribution data is required but was undefined");
+        }
+        // Tick range 검증
+        this.validateTickRange(lowerTick, upperTick, market);
         // 시장별 최대 수량 검증 (UX 개선)
         this._assertQuantityWithinLimit(quantity, market.liquidityParameter);
         // Convert to WAD for calculations
         const alpha = market.liquidityParameter;
+        // quantity는 이미 micro-USDC(6 decimals) 정수이므로 바로 WAD로 변환
         const quantityWad = MathUtils.toWad(quantity);
         // Get current state
         const sumBefore = distribution.totalSum;
@@ -82,9 +90,14 @@ class CLMSRSDK {
         const costWad = MathUtils.wMul(alpha, lnRatio);
         // 계산 완료
         const cost = MathUtils.fromWadRoundUp(costWad);
-        // Calculate average price
+        // Calculate average price with proper formatting
+        // cost는 micro USDC, quantity도 micro USDC이므로 결과는 USDC/USDC = 비율
         const averagePrice = cost.div(quantity);
-        return { cost, averagePrice };
+        const formattedAveragePrice = new big_js_1.default(averagePrice.toFixed(6, big_js_1.default.roundDown)); // 6자리 정밀도로 충분
+        return {
+            cost: MathUtils.formatUSDC(cost),
+            averagePrice: formattedAveragePrice,
+        };
     }
     /**
      * calculateIncreaseCost - 기존 포지션 증가 비용 계산
@@ -148,12 +161,13 @@ class CLMSRSDK {
      * 주어진 비용으로 살 수 있는 수량 계산 (역산)
      * @param lowerTick Lower tick bound
      * @param upperTick Upper tick bound
-     * @param targetCostWad 목표 비용 (WAD 형식)
+     * @param cost 목표 비용 (6 decimals)
      * @param distribution Current market distribution
      * @param market Market parameters
      * @returns 구매 가능한 수량
      */
-    calculateQuantityFromCost(lowerTick, upperTick, targetCostWad, distribution, market) {
+    calculateQuantityFromCost(lowerTick, upperTick, cost, distribution, market) {
+        const costWad = MathUtils.toWad(cost); // 6→18 dec 변환
         // Convert from input
         const alpha = market.liquidityParameter;
         // Get current state
@@ -163,32 +177,38 @@ class CLMSRSDK {
         // From: C = α * ln(sumAfter / sumBefore)
         // Calculate: q = α * ln(factor)
         // Calculate target sum after: sumAfter = sumBefore * exp(C/α) - safe chunking 사용
-        const expValue = MathUtils.safeExp(targetCostWad, alpha);
+        const expValue = MathUtils.safeExp(costWad, alpha);
         const targetSumAfter = MathUtils.wMul(sumBefore, expValue);
         // Calculate required affected sum after trade
         const requiredAffectedSum = targetSumAfter.minus(sumBefore.minus(affectedSum));
         // Calculate factor: newAffectedSum / affectedSum
+        if (affectedSum.eq(0)) {
+            throw new types_1.CalculationError("Cannot calculate quantity from cost: affected sum is zero. This usually means the tick range is outside the market or the distribution data is empty.");
+        }
         const factor = MathUtils.wDiv(requiredAffectedSum, affectedSum);
         // Calculate quantity: q = α * ln(factor)
         const quantityWad = MathUtils.wMul(alpha, MathUtils.wLn(factor));
-        const quantity = MathUtils.fromWad(quantityWad);
+        // quantityWad는 WAD 형식이므로 WAD를 일반 수로 변환 후 micro USDC로 변환
+        const quantityValue = MathUtils.wadToNumber(quantityWad);
+        const quantity = quantityValue.mul(MathUtils.USDC_PRECISION); // 일반 수를 micro USDC로 변환
         // 역산 결과 수량이 시장 한계 내에 있는지 검증 (UX 개선)
         this._assertQuantityWithinLimit(quantity, market.liquidityParameter);
-        // Verify by calculating actual cost (with error handling for large quantities)
+        // Verify by calculating actual cost
+        // 스케일링 문제 수정으로 이제 안전하게 검증 가능
         let actualCost;
         try {
             const verification = this.calculateOpenCost(lowerTick, upperTick, quantity, distribution, market);
             actualCost = verification.cost;
         }
         catch (error) {
-            // 큰 수량의 경우 chunk-split 검증을 건너뛰고 approximate cost 사용
-            // 사용자가 지적한 대로: chunk-split은 calculateOpenCost에서 처리하므로
-            // 여기서는 수학적 역산 결과만 반환
-            actualCost = quantity; // 근사치로 quantity 사용 (실제로는 더 정확한 근사 필요)
+            // 매우 큰 수량이나 극단적인 경우에만 예외 처리
+            // 입력 비용을 그대로 사용
+            actualCost = cost;
+            console.warn("calculateQuantityFromCost: verification failed, using target cost as approximation", error);
         }
         return {
-            quantity,
-            actualCost,
+            quantity: MathUtils.formatUSDC(quantity),
+            actualCost: MathUtils.formatUSDC(actualCost),
         };
     }
     // ============================================================================
@@ -204,11 +224,14 @@ class CLMSRSDK {
         // maxQty = α × MAX_EXP_INPUT_WAD × MAX_CHUNKS_PER_TX
         //        = α × 0.13 × 1000
         // alpha는 WAD 형식, 직접 계산
-        const maxQtyWad = MathUtils.wMul(MathUtils.wMul(alpha, MathUtils.MAX_EXP_INPUT_WAD), new big_js_1.default(MathUtils.MAX_CHUNKS_PER_TX.toString()).mul(MathUtils.WAD));
+        const chunksWad = new big_js_1.default(MathUtils.MAX_CHUNKS_PER_TX.toString()).mul(MathUtils.WAD);
+        const step1 = MathUtils.wMul(alpha, MathUtils.MAX_EXP_INPUT_WAD);
+        const maxQtyWad = MathUtils.wMul(step1, chunksWad);
+        // quantity는 이미 micro-USDC(6 decimals) 정수이므로 바로 WAD로 변환
         const qtyWad = MathUtils.toWad(quantity);
         if (qtyWad.gt(maxQtyWad)) {
             const maxQtyFormatted = MathUtils.wadToNumber(maxQtyWad);
-            throw new Error(`Quantity too large. Max per trade = ${maxQtyFormatted.toString()} USDC (market limit: α × 0.13 × 1000)`);
+            throw new types_1.ValidationError(`Quantity too large. Max per trade = ${maxQtyFormatted.toString()} USDC (market limit: α × 0.13 × 1000)`);
         }
     }
     /**
@@ -225,10 +248,10 @@ class CLMSRSDK {
         this.validateTickRange(lowerTick, upperTick, market);
         // Input validation
         if (new big_js_1.default(sellQuantity).lte(0)) {
-            throw new Error("Sell quantity must be positive");
+            throw new types_1.ValidationError("Sell quantity must be positive");
         }
         if (new big_js_1.default(sellQuantity).gt(positionQuantity)) {
-            throw new Error("Cannot sell more than current position");
+            throw new types_1.ValidationError("Cannot sell more than current position");
         }
         // 시장별 최대 수량 검증 (UX 개선)
         this._assertQuantityWithinLimit(sellQuantity, market.liquidityParameter);
@@ -251,34 +274,38 @@ class CLMSRSDK {
         const lnRatio = MathUtils.wLn(ratio);
         const proceedsWad = MathUtils.wMul(alpha, lnRatio);
         const proceeds = MathUtils.fromWadRoundUp(proceedsWad);
-        // Calculate average price
+        // Calculate average price with proper formatting
         const averagePrice = proceeds.div(sellQuantity);
-        return { proceeds, averagePrice };
+        const formattedAveragePrice = new big_js_1.default(averagePrice.toFixed(6, big_js_1.default.roundDown)); // 6자리 정밀도로 충분
+        return {
+            proceeds: MathUtils.formatUSDC(proceeds),
+            averagePrice: formattedAveragePrice,
+        };
     }
     validateTickRange(lowerTick, upperTick, market) {
         if (lowerTick >= upperTick) {
-            throw new Error("Lower tick must be less than upper tick");
+            throw new types_1.ValidationError("Lower tick must be less than upper tick");
         }
         if (lowerTick < market.minTick || upperTick > market.maxTick) {
-            throw new Error("Tick range is out of market bounds");
+            throw new types_1.ValidationError("Tick range is out of market bounds");
         }
         if ((lowerTick - market.minTick) % market.tickSpacing !== 0) {
-            throw new Error("Lower tick is not aligned to tick spacing");
+            throw new types_1.ValidationError("Lower tick is not aligned to tick spacing");
         }
         if ((upperTick - market.minTick) % market.tickSpacing !== 0) {
-            throw new Error("Upper tick is not aligned to tick spacing");
+            throw new types_1.ValidationError("Upper tick is not aligned to tick spacing");
         }
     }
     getAffectedSum(lowerTick, upperTick, distribution, market) {
         // 입력 데이터 검증
         if (!distribution) {
-            throw new Error("Distribution data is required but was undefined");
+            throw new types_1.ValidationError("Distribution data is required but was undefined");
         }
         if (!distribution.binFactors) {
-            throw new Error("binFactors is required but was undefined. Make sure to include 'binFactors' field in your GraphQL query and use mapDistribution() to convert the data.");
+            throw new types_1.ValidationError("binFactors is required but was undefined. Make sure to include 'binFactors' field in your GraphQL query and use mapDistribution() to convert the data.");
         }
         if (!Array.isArray(distribution.binFactors)) {
-            throw new Error("binFactors must be an array");
+            throw new types_1.ValidationError("binFactors must be an array");
         }
         // 컨트랙트와 동일한 _rangeToBins 로직 사용
         const lowerBin = Math.floor((lowerTick - market.minTick) / market.tickSpacing);
@@ -303,16 +330,4 @@ exports.CLMSRSDK = CLMSRSDK;
  */
 function createCLMSRSDK() {
     return new CLMSRSDK();
-}
-/**
- * Convert to WAD amount (18 decimals)
- */
-function toWAD(amount) {
-    return new big_js_1.default(amount).mul(MathUtils.WAD);
-}
-/**
- * Convert to USDC amount (6 decimals)
- */
-function toUSDC(amount) {
-    return new big_js_1.default(amount).mul(new big_js_1.default("1000000")); // 6자리 소수점: 1 USDC = 1,000,000 micro USDC
 }

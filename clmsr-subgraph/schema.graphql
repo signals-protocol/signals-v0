@@ -217,18 +217,18 @@ enum TradeType {
 type UserStats @entity(immutable: false) {
   id: Bytes! # user address
   user: Bytes! # address
-  totalTrades: BigInt! # 총 거래 횟수
-  totalVolume: BigInt! # 총 거래량 (6 decimals, raw USDC)
+  totalTrades: BigInt! # 총 거래 횟수 (OPEN, INCREASE, DECREASE, CLOSE만 포함, CLAIM 제외)
+  totalVolume: BigInt! # 총 거래 금액 (매수: cost, 매도: proceeds) (6 decimals, raw USDC)
   totalCosts: BigInt! # 총 매수 비용 (6 decimals, raw USDC)
   totalProceeds: BigInt! # 총 매도 수익 (6 decimals, raw USDC)
   totalRealizedPnL: BigInt! # 총 실현 손익 (6 decimals, raw USDC, signed)
   totalGasFees: BigInt! # 총 가스 비용 (wei 단위)
   netPnL: BigInt! # 순 손익 (6 decimals, raw USDC, signed)
   activePositionsCount: BigInt! # 활성 포지션 수
-  winningTrades: BigInt! # 수익 거래 수
-  losingTrades: BigInt! # 손실 거래 수
-  winRate: BigDecimal! # 승률 (0.0 ~ 1.0 퍼센트)
-  avgTradeSize: BigInt! # 평균 거래 크기 (6 decimals, raw USDC)
+  winningTrades: BigInt! # 수익 거래 수 (만료까지 기다린 claim만 해당)
+  losingTrades: BigInt! # 손실 거래 수 (만료까지 기다린 claim만 해당)
+  winRate: BigDecimal! # 승률 (0.0 ~ 1.0 퍼센트, 만료까지 기다린 것들만 계산)
+  avgTradeSize: BigInt! # 평균 거래 크기 (총 거래 금액 / 총 거래 횟수) (6 decimals, raw USDC)
   firstTradeAt: BigInt! # 첫 거래 시점
   lastTradeAt: BigInt! # 마지막 거래 시점
   positions: [UserPosition!]! @derivedFrom(field: "stats")
@@ -238,8 +238,8 @@ type UserStats @entity(immutable: false) {
 type MarketStats @entity(immutable: false) {
   id: String! # marketId
   market: Market!
-  totalVolume: BigInt! # 총 거래량 (6 decimals, raw USDC)
-  totalTrades: BigInt! # 총 거래 수
+  totalVolume: BigInt! # 총 거래 금액 (매수: cost, 매도: proceeds) (6 decimals, raw USDC)
+  totalTrades: BigInt! # 총 거래 수 (OPEN, INCREASE, DECREASE, CLOSE만 포함, CLAIM 제외)
   totalFees: BigInt! # 총 수수료 (6 decimals, raw USDC)
   highestPrice: BigInt! # 최고가 (6 decimals, raw cost per raw quantity)
   lowestPrice: BigInt! # 최저가 (6 decimals, raw cost per raw quantity)

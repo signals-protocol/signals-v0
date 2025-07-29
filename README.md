@@ -55,14 +55,18 @@ CLMSR is an automated market maker algorithm for prediction markets:
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   CLMSRRouter   │    │ CLMSRMarketCore │    │ CLMSRPosition   │
 │   (UX Layer)    │───▶│ (Core Logic)    │───▶│   (NFT Mgmt)    │
+│  📅 PLANNED     │    │   ✅ ACTIVE     │    │   ✅ ACTIVE     │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
          │                       │                       │
          ▼                       ▼                       ▼
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │ CLMSRManager    │    │ LazyMulSegTree  │    │ FixedPointMath  │
 │ (Governance)    │    │ (Efficient DS)  │    │ (Math Library)  │
+│  📅 PLANNED     │    │   ✅ ACTIVE     │    │   ✅ ACTIVE     │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
+
+> **📅 Implementation Status**: Core contracts (CLMSRMarketCore, CLMSRPosition) and libraries are fully implemented and tested. Manager and Router contracts are planned for future implementation.
 
 ---
 
@@ -269,17 +273,15 @@ The new `combine_all_files.sh` provides:
 
 ### 🚧 In Progress (v0.2)
 
+- [ ] Frontend integration
+- [ ] Gas optimization improvements
+- [ ] Enhanced error handling
+
+### 📅 Planned (v0.3)
+
 - [ ] Manager contract implementation
 - [ ] Router contract with permit support
-- [ ] Oracle integration
-- [ ] Frontend integration
-
-### 🔮 Future (v1.0)
-
-- [ ] Multi-market batching
-- [ ] Advanced position strategies
-- [ ] Cross-chain deployment
-- [ ] Governance token integration
+- [ ] Oracle integration (price feeds for automatic settlement)
 
 ---
 

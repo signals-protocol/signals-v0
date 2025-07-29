@@ -45,7 +45,7 @@ export {
 export * as MathUtils from "./utils/math";
 
 // Convenience functions
-export { toWAD, toUSDC } from "./clmsr-sdk";
+export { toWAD, toMicroUSDC } from "./clmsr-sdk";
 
 // Version
-export const VERSION = "1.2.0";
+export const VERSION = "1.7.1";

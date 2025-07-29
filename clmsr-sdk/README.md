@@ -6,12 +6,12 @@
 
 TypeScript SDK for CLMSR (Constant Logarithmic Market Scoring Rule) prediction market calculations.
 
-**v1.6.1** provides fixed decimal scaling, enhanced quantity limits, and improved MathUtils integration.
+**v1.7.0** provides critical scaling fixes, enhanced function consistency, and optimized precision management for production-ready CLMSR calculations.
 
 ## 🚀 Key Features
 
 - **Pure functional calculations**: TypeScript implementation of contract view functions
-- **Fixed quantity limits**: Corrected scaling for market-specific limits (α × 0.13 × 1000) 
+- **Fixed quantity limits**: Corrected scaling for market-specific limits (α × 0.13 × 1000)
 - **Large trade support**: Proper handling of quantities up to 26,000 USDC (α=200) with accurate calculations
 - **Enhanced error handling**: Clear validation messages with correct limit display
 - **Improved scaling**: Consistent MathUtils-based decimal handling for all conversions
@@ -35,7 +35,7 @@ npm install @whworjs7946/clmsr-v0
 import {
   CLMSRSDK,
   toWAD,
-  toUSDC,
+  toMicroUSDC,
   mapMarket,
   mapDistribution,
 } from "@whworjs7946/clmsr-v0";
@@ -333,6 +333,21 @@ interface Position {
   quantity: Quantity;
 }
 ```
+
+## 📝 Changelog
+
+### v1.6.2 (Latest)
+
+- **🔧 Error handling consistency**: Unified error types across SDK (ValidationError, CalculationError)
+- **📊 Enhanced MathUtils integration**: Consistent use of MathUtils functions for all scaling operations
+- **🎯 Refined decimal precision**: Improved Big.js usage for consistent decimal handling
+- **⚡ Code consistency improvements**: Eliminated magic numbers, standardized conversion patterns
+
+### v1.6.1
+
+- **🔢 Fixed decimal scaling**: Corrected quantity limits and scaling issues
+- **📈 Enhanced quantity limits**: Proper market-specific limit calculations (α × 0.13 × 1000)
+- **🛠️ Improved error messages**: Clear validation messages with accurate limit display
 
 ## 🔗 Related Links
 

@@ -6,5 +6,5 @@
 export { CLMSRSDK } from "./clmsr-sdk";
 export { WADAmount, USDCAmount, Quantity, Tick, MarketDistributionRaw, MarketRaw, Market, MarketDistribution, Position, mapMarket, mapDistribution, OpenCostResult, IncreaseCostResult, DecreaseProceedsResult, CloseProceedsResult, ClaimResult, QuantityFromCostResult, ValidationError, CalculationError, } from "./types";
 export * as MathUtils from "./utils/math";
-export { toWAD, toUSDC } from "./clmsr-sdk";
-export declare const VERSION = "1.2.0";
+export { toWAD, toMicroUSDC } from "./clmsr-sdk";
+export declare const VERSION = "1.7.1";

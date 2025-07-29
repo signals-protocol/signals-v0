@@ -25,7 +25,7 @@ export const CONFIG = {
 
   // 서브그래프 엔드포인트
   SUBGRAPH_URL:
-    "https://api.studio.thegraph.com/query/116469/signals-v-0/1.1.9",
+    "https://api.studio.thegraph.com/query/116469/signals-v-0/1.3.2",
 };
 ```
 
@@ -43,7 +43,7 @@ import { ApolloClient, InMemoryCache, gql, useQuery } from "@apollo/client";
 
 // Apollo 클라이언트 설정
 const client = new ApolloClient({
-  uri: "https://api.studio.thegraph.com/query/116469/signals-v-0/version/latest",
+  uri: "https://api.studio.thegraph.com/query/116469/signals-v-0/1.3.2",
   cache: new InMemoryCache(),
 });
 

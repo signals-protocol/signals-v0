@@ -16,6 +16,9 @@ export const WAD = new Big("1e18");
 /** Scale difference between USDC (6 decimals) and WAD (18 decimals): 1e12 */
 export const SCALE_DIFF = new Big("1e12");
 
+/** USDC precision constant: 1e6 */
+export const USDC_PRECISION = new Big("1000000");
+
 /** Maximum safe input for exp() function: 0.13 * 1e18 */
 export const MAX_EXP_INPUT_WAD = new Big("130000000000000000"); // 0.13 * 1e18
 
@@ -26,8 +29,8 @@ export const MAX_CHUNKS_PER_TX = 1000;
 export const MIN_FACTOR = new Big("0.01e18"); // 1%
 export const MAX_FACTOR = new Big("100e18"); // 100x
 
-// Big.js configuration for precision
-Big.DP = 40; // 40 decimal places for internal calculations
+// Big.js configuration for precision (optimized for performance)
+Big.DP = 30; // 30 decimal places for internal calculations (sufficient for CLMSR precision)
 Big.RM = Big.roundHalfUp; // Round half up
 
 // ============================================================================
@@ -70,6 +73,16 @@ export function fromWadRoundUp(amtWad: WADAmount): USDCAmount {
  */
 export function wadToNumber(amtWad: WADAmount): Big {
   return amtWad.div(WAD);
+}
+
+/**
+ * Format USDC amount to 6 decimal places maximum
+ * @param amount USDC amount (in micro USDC)
+ * @returns Formatted amount with max 6 decimals
+ */
+export function formatUSDC(amount: USDCAmount): USDCAmount {
+  // amount는 이미 micro USDC 단위이므로 정수여야 함
+  return new Big(amount.toFixed(0, Big.roundDown));
 }
 
 // ============================================================================
@@ -340,19 +353,21 @@ export function toBig(value: string | number | Big): Big {
 }
 
 /**
- * Create WAD amount from string or number
- * @param value Input value
- * @returns WAD amount
+ * Create WAD amount from numeric value (multiply by 1e18)
+ * Use this for converting regular numbers to WAD format
+ * @param value Input value in regular units (e.g., 1.5 USDC)
+ * @returns WAD amount (18 decimals)
  */
 export function toWAD(value: string | number): WADAmount {
   return new Big(value).mul(WAD);
 }
 
 /**
- * Create USDC amount from string or number (6-decimal ERC20)
+ * Create micro-USDC amount from USDC value (multiply by 1e6)
+ * Use this for converting user input USDC amounts to SDK format
  * @param value Input value in USDC (e.g., "100" = 100 USDC)
  * @returns USDC amount in 6-decimal format (micro-USDC)
  */
-export function toUSDC(value: string | number): USDCAmount {
-  return new Big(value).mul(new Big("1000000")); // 6-decimal: 100 USDC = 100,000,000 micro-USDC
+export function toMicroUSDC(value: string | number): USDCAmount {
+  return new Big(value).mul(USDC_PRECISION);
 }

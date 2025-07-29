@@ -3,11 +3,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MAX_FACTOR = exports.MIN_FACTOR = exports.MAX_CHUNKS_PER_TX = exports.MAX_EXP_INPUT_WAD = exports.SCALE_DIFF = exports.WAD = void 0;
+exports.MAX_FACTOR = exports.MIN_FACTOR = exports.MAX_CHUNKS_PER_TX = exports.MAX_EXP_INPUT_WAD = exports.USDC_PRECISION = exports.SCALE_DIFF = exports.WAD = void 0;
 exports.toWad = toWad;
 exports.fromWad = fromWad;
 exports.fromWadRoundUp = fromWadRoundUp;
 exports.wadToNumber = wadToNumber;
+exports.formatUSDC = formatUSDC;
 exports.wMul = wMul;
 exports.wDiv = wDiv;
 exports.wExp = wExp;
@@ -22,7 +23,7 @@ exports.safeExp = safeExp;
 exports.isFactorSafe = isFactorSafe;
 exports.toBig = toBig;
 exports.toWAD = toWAD;
-exports.toUSDC = toUSDC;
+exports.toMicroUSDC = toMicroUSDC;
 const big_js_1 = __importDefault(require("big.js"));
 const types_1 = require("../types");
 // ============================================================================
@@ -32,6 +33,8 @@ const types_1 = require("../types");
 exports.WAD = new big_js_1.default("1e18");
 /** Scale difference between USDC (6 decimals) and WAD (18 decimals): 1e12 */
 exports.SCALE_DIFF = new big_js_1.default("1e12");
+/** USDC precision constant: 1e6 */
+exports.USDC_PRECISION = new big_js_1.default("1000000");
 /** Maximum safe input for exp() function: 0.13 * 1e18 */
 exports.MAX_EXP_INPUT_WAD = new big_js_1.default("130000000000000000"); // 0.13 * 1e18
 /** Maximum number of chunks per transaction */
@@ -39,8 +42,8 @@ exports.MAX_CHUNKS_PER_TX = 1000;
 /** Minimum and maximum factor bounds for segment tree operations */
 exports.MIN_FACTOR = new big_js_1.default("0.01e18"); // 1%
 exports.MAX_FACTOR = new big_js_1.default("100e18"); // 100x
-// Big.js configuration for precision
-big_js_1.default.DP = 40; // 40 decimal places for internal calculations
+// Big.js configuration for precision (optimized for performance)
+big_js_1.default.DP = 30; // 30 decimal places for internal calculations (sufficient for CLMSR precision)
 big_js_1.default.RM = big_js_1.default.roundHalfUp; // Round half up
 // ============================================================================
 // SCALING FUNCTIONS
@@ -78,6 +81,15 @@ function fromWadRoundUp(amtWad) {
  */
 function wadToNumber(amtWad) {
     return amtWad.div(exports.WAD);
+}
+/**
+ * Format USDC amount to 6 decimal places maximum
+ * @param amount USDC amount (in micro USDC)
+ * @returns Formatted amount with max 6 decimals
+ */
+function formatUSDC(amount) {
+    // amount는 이미 micro USDC 단위이므로 정수여야 함
+    return new big_js_1.default(amount.toFixed(0, big_js_1.default.roundDown));
 }
 // ============================================================================
 // BASIC MATH OPERATIONS
@@ -293,18 +305,20 @@ function toBig(value) {
     return new big_js_1.default(value);
 }
 /**
- * Create WAD amount from string or number
- * @param value Input value
- * @returns WAD amount
+ * Create WAD amount from numeric value (multiply by 1e18)
+ * Use this for converting regular numbers to WAD format
+ * @param value Input value in regular units (e.g., 1.5 USDC)
+ * @returns WAD amount (18 decimals)
  */
 function toWAD(value) {
     return new big_js_1.default(value).mul(exports.WAD);
 }
 /**
- * Create USDC amount from string or number (6-decimal ERC20)
+ * Create micro-USDC amount from USDC value (multiply by 1e6)
+ * Use this for converting user input USDC amounts to SDK format
  * @param value Input value in USDC (e.g., "100" = 100 USDC)
  * @returns USDC amount in 6-decimal format (micro-USDC)
  */
-function toUSDC(value) {
-    return new big_js_1.default(value).mul(new big_js_1.default("1000000")); // 6-decimal: 100 USDC = 100,000,000 micro-USDC
+function toMicroUSDC(value) {
+    return new big_js_1.default(value).mul(exports.USDC_PRECISION);
 }

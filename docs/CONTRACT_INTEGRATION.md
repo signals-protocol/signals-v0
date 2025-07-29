@@ -26,6 +26,11 @@ const NETWORK = {
   rpc: "https://sepolia-rollup.arbitrum.io/rpc",
   explorer: "https://sepolia.arbiscan.io",
 };
+
+> **📅 Manager Contract Note**: CLMSRMarketCore requires a Manager contract address during deployment. Currently, the deployed instance uses a placeholder address. For production deployment, you'll need to:
+> 1. Deploy a Manager contract first
+> 2. Deploy CLMSRMarketCore with the Manager address
+> 3. Update the Manager contract with the Core address if needed
 ```
 
 ### 컨트랙트 검증 상태

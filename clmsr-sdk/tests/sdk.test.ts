@@ -6,7 +6,7 @@ import {
   mapDistribution,
   MarketDistributionRaw,
 } from "../src/types";
-import { toWAD, toUSDC } from "../src/index";
+import { toWAD, toMicroUSDC } from "../src/index";
 import Big from "big.js";
 
 describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {

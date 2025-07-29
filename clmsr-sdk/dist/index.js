@@ -38,7 +38,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.VERSION = exports.toUSDC = exports.toWAD = exports.MathUtils = exports.CalculationError = exports.ValidationError = exports.mapDistribution = exports.mapMarket = exports.CLMSRSDK = void 0;
+exports.VERSION = exports.toMicroUSDC = exports.toWAD = exports.MathUtils = exports.CalculationError = exports.ValidationError = exports.mapDistribution = exports.mapMarket = exports.CLMSRSDK = void 0;
 // Export main SDK class
 var clmsr_sdk_1 = require("./clmsr-sdk");
 Object.defineProperty(exports, "CLMSRSDK", { enumerable: true, get: function () { return clmsr_sdk_1.CLMSRSDK; } });
@@ -55,6 +55,6 @@ exports.MathUtils = __importStar(require("./utils/math"));
 // Convenience functions
 var clmsr_sdk_2 = require("./clmsr-sdk");
 Object.defineProperty(exports, "toWAD", { enumerable: true, get: function () { return clmsr_sdk_2.toWAD; } });
-Object.defineProperty(exports, "toUSDC", { enumerable: true, get: function () { return clmsr_sdk_2.toUSDC; } });
+Object.defineProperty(exports, "toMicroUSDC", { enumerable: true, get: function () { return clmsr_sdk_2.toMicroUSDC; } });
 // Version
-exports.VERSION = "1.2.0";
+exports.VERSION = "1.7.1";

@@ -196,6 +196,63 @@ function updateBinVolumes(
   }
 }
 
+// Helper function to check if market is settled
+function isMarketSettled(marketId: string): boolean {
+  let market = Market.load(marketId);
+  return market != null && market.isSettled;
+}
+
+// Helper function to determine if position is in winning range (only for settled markets)
+function isPositionInWinningRange(
+  marketId: string,
+  lowerTick: BigInt,
+  upperTick: BigInt
+): boolean {
+  let market = Market.load(marketId);
+  if (market == null || !market.isSettled) {
+    return false; // Cannot determine win/loss for unsettled markets
+  }
+
+  let settlementLower = market.settlementLowerTick!;
+  let settlementUpper = market.settlementUpperTick!;
+
+  // Position wins if settlement range overlaps with position range
+  return lowerTick.le(settlementUpper) && upperTick.gt(settlementLower);
+}
+
+// Helper function to update win/loss stats only for settled markets
+function updateWinLossStats(
+  userStats: UserStats,
+  userPosition: UserPosition,
+  realizedPnL: BigInt
+): void {
+  // Only count win/loss for settled markets
+  if (!isMarketSettled(userPosition.market)) {
+    return; // Skip win/loss calculation for active markets
+  }
+
+  // Determine win/loss based on settlement outcome
+  let isWinning = isPositionInWinningRange(
+    userPosition.market,
+    userPosition.lowerTick,
+    userPosition.upperTick
+  );
+
+  if (isWinning) {
+    userStats.winningTrades = userStats.winningTrades.plus(BigInt.fromI32(1));
+  } else {
+    userStats.losingTrades = userStats.losingTrades.plus(BigInt.fromI32(1));
+  }
+
+  // Update win rate
+  let totalPnLTrades = userStats.winningTrades.plus(userStats.losingTrades);
+  if (totalPnLTrades.gt(BigInt.fromI32(0))) {
+    userStats.winRate = userStats.winningTrades
+      .toBigDecimal()
+      .div(totalPnLTrades.toBigDecimal());
+  }
+}
+
 export function handleMarketCreated(event: MarketCreatedEvent): void {
   // 이벤트 엔티티 저장
   let entity = new MarketCreated(
@@ -355,11 +412,9 @@ export function handlePositionClaimed(event: PositionClaimedEvent): void {
     let claimedQuantity = userPosition.currentQuantity;
 
     // Calculate final realized PnL from claim
-    // For claims, the "realized PnL" is payout minus original cost basis
-    let claimRealizedPnL = payoutDecimal.minus(
+    // The realized PnL is the payout minus the total cost basis
+    let finalRealizedPnL = event.params.payout.minus(
       userPosition.totalCostBasis
-        .toBigDecimal()
-        .div(BigDecimal.fromString("1000000"))
     );
 
     // Update position data - position is now claimed and closed
@@ -367,9 +422,8 @@ export function handlePositionClaimed(event: PositionClaimedEvent): void {
     userPosition.totalProceeds = userPosition.totalProceeds.plus(
       event.params.payout
     );
-    userPosition.realizedPnL = event.params.payout.minus(
-      userPosition.totalCostBasis
-    ); // Final realized PnL (raw)
+    // Set final realized PnL (includes any previous partial realizations)
+    userPosition.realizedPnL = finalRealizedPnL;
     userPosition.isActive = false;
     userPosition.lastUpdated = event.block.timestamp;
     userPosition.save();
@@ -414,31 +468,20 @@ export function handlePositionClaimed(event: PositionClaimedEvent): void {
     userStats.totalRealizedPnL = userStats.totalRealizedPnL.plus(
       userPosition.realizedPnL
     );
-    userStats.totalTrades = userStats.totalTrades.plus(BigInt.fromI32(1));
     userStats.lastTradeAt = event.block.timestamp;
 
-    // B-5 fix: Calculate avgTradeSize and winRate
+    // B-5 fix: Calculate avgTradeSize and use proper win/loss tracking
     if (userStats.totalTrades.gt(BigInt.fromI32(0))) {
       userStats.avgTradeSize = userStats.totalVolume.div(userStats.totalTrades);
     }
-    // Update win/loss based on final PnL
-    if (userPosition.realizedPnL.gt(BigInt.fromI32(0))) {
-      userStats.winningTrades = userStats.winningTrades.plus(BigInt.fromI32(1));
-    } else if (userPosition.realizedPnL.lt(BigInt.fromI32(0))) {
-      userStats.losingTrades = userStats.losingTrades.plus(BigInt.fromI32(1));
-    }
-    let totalPnLTrades = userStats.winningTrades.plus(userStats.losingTrades);
-    if (totalPnLTrades.gt(BigInt.fromI32(0))) {
-      userStats.winRate = userStats.winningTrades
-        .toBigDecimal()
-        .div(totalPnLTrades.toBigDecimal());
-    }
+
+    // Update win/loss based on market settlement (only for settled markets)
+    updateWinLossStats(userStats, userPosition, userPosition.realizedPnL);
 
     userStats.save();
 
     // Update MarketStats
     let marketStats = getOrCreateMarketStats(userPosition.market);
-    marketStats.totalTrades = marketStats.totalTrades.plus(BigInt.fromI32(1));
     marketStats.lastUpdated = event.block.timestamp;
     marketStats.save();
 
@@ -527,7 +570,7 @@ export function handlePositionClosed(event: PositionClosedEvent): void {
 
     // Update UserStats - close position
     userStats.totalTrades = userStats.totalTrades.plus(BigInt.fromI32(1));
-    userStats.totalVolume = userStats.totalVolume.plus(closedQuantity); // Add volume (positive)
+    userStats.totalVolume = userStats.totalVolume.plus(event.params.proceeds);
     userStats.totalProceeds = userStats.totalProceeds.plus(
       event.params.proceeds
     );
@@ -536,27 +579,18 @@ export function handlePositionClosed(event: PositionClosedEvent): void {
     );
     userStats.lastTradeAt = event.block.timestamp;
 
-    // B-5 fix: Calculate avgTradeSize and winRate for close
+    // B-5 fix: Calculate avgTradeSize and use proper win/loss tracking for close
     if (userStats.totalTrades.gt(BigInt.fromI32(0))) {
       userStats.avgTradeSize = userStats.totalVolume.div(userStats.totalTrades);
-    }
-    if (userPosition.realizedPnL.gt(BigInt.fromI32(0))) {
-      userStats.winningTrades = userStats.winningTrades.plus(BigInt.fromI32(1));
-    } else if (userPosition.realizedPnL.lt(BigInt.fromI32(0))) {
-      userStats.losingTrades = userStats.losingTrades.plus(BigInt.fromI32(1));
-    }
-    let totalPnLTrades = userStats.winningTrades.plus(userStats.losingTrades);
-    if (totalPnLTrades.gt(BigInt.fromI32(0))) {
-      userStats.winRate = userStats.winningTrades
-        .toBigDecimal()
-        .div(totalPnLTrades.toBigDecimal());
     }
 
     userStats.save();
 
     // Update MarketStats
     let marketStats = getOrCreateMarketStats(userPosition.market);
-    marketStats.totalVolume = marketStats.totalVolume.plus(closedQuantity);
+    marketStats.totalVolume = marketStats.totalVolume.plus(
+      event.params.proceeds
+    );
     marketStats.totalTrades = marketStats.totalTrades.plus(BigInt.fromI32(1));
     marketStats.currentPrice = trade.price;
     marketStats.lastUpdated = event.block.timestamp;
@@ -615,7 +649,7 @@ export function handlePositionDecreased(event: PositionDecreasedEvent): void {
     );
     userPosition.realizedPnL = userPosition.realizedPnL.plus(tradeRealizedPnL);
 
-    // If position is closed completely, mark as inactive
+    // If position is closed completely, mark as inactive and update win/loss
     if (event.params.newQuantity.equals(BigInt.fromI32(0))) {
       userPosition.isActive = false;
 
@@ -626,6 +660,7 @@ export function handlePositionDecreased(event: PositionDecreasedEvent): void {
           BigInt.fromI32(1)
         );
       }
+
       userStats.save();
     }
 
@@ -661,15 +696,13 @@ export function handlePositionDecreased(event: PositionDecreasedEvent): void {
       BigInt.fromString(userPosition.market),
       userPosition.lowerTick,
       userPosition.upperTick,
-      event.params.sellQuantity
+      event.params.proceeds
     );
 
     // Update UserStats - decrease position
     let userStats = getOrCreateUserStats(event.params.trader);
     userStats.totalTrades = userStats.totalTrades.plus(BigInt.fromI32(1));
-    userStats.totalVolume = userStats.totalVolume.plus(
-      event.params.sellQuantity
-    );
+    userStats.totalVolume = userStats.totalVolume.plus(event.params.proceeds);
     userStats.totalProceeds = userStats.totalProceeds.plus(
       event.params.proceeds
     );
@@ -678,8 +711,9 @@ export function handlePositionDecreased(event: PositionDecreasedEvent): void {
 
     // Update MarketStats
     let marketStats = getOrCreateMarketStats(userPosition.market);
+    // 🚨 FIX: 마켓 볼륨도 실제 거래 금액(매도는 proceeds)으로 계산
     marketStats.totalVolume = marketStats.totalVolume.plus(
-      event.params.sellQuantity
+      event.params.proceeds
     );
     marketStats.totalTrades = marketStats.totalTrades.plus(BigInt.fromI32(1));
     marketStats.currentPrice = trade.price;
@@ -772,24 +806,20 @@ export function handlePositionIncreased(event: PositionIncreasedEvent): void {
       BigInt.fromString(userPosition.market),
       userPosition.lowerTick,
       userPosition.upperTick,
-      event.params.additionalQuantity
+      event.params.cost
     );
 
     // Update UserStats - increase position
     let userStats = getOrCreateUserStats(event.params.trader);
     userStats.totalTrades = userStats.totalTrades.plus(BigInt.fromI32(1));
-    userStats.totalVolume = userStats.totalVolume.plus(
-      event.params.additionalQuantity
-    );
+    userStats.totalVolume = userStats.totalVolume.plus(event.params.cost);
     userStats.totalCosts = userStats.totalCosts.plus(event.params.cost);
     userStats.lastTradeAt = event.block.timestamp;
     userStats.save();
 
     // Update MarketStats
     let marketStats = getOrCreateMarketStats(userPosition.market);
-    marketStats.totalVolume = marketStats.totalVolume.plus(
-      event.params.additionalQuantity
-    );
+    marketStats.totalVolume = marketStats.totalVolume.plus(event.params.cost);
     marketStats.totalTrades = marketStats.totalTrades.plus(BigInt.fromI32(1));
     marketStats.currentPrice = trade.price;
     marketStats.lastUpdated = event.block.timestamp;
@@ -881,7 +911,7 @@ export function handlePositionOpened(event: PositionOpenedEvent): void {
     event.params.marketId,
     event.params.lowerTick,
     event.params.upperTick,
-    event.params.quantity
+    event.params.cost
   );
 
   // Update UserStats
@@ -892,14 +922,15 @@ export function handlePositionOpened(event: PositionOpenedEvent): void {
   );
   // Update UserStats - open position
   userStats.totalTrades = userStats.totalTrades.plus(BigInt.fromI32(1));
-  userStats.totalVolume = userStats.totalVolume.plus(event.params.quantity);
+  // 🚨 FIX: 볼륨은 실제 베팅 금액(cost)으로 계산
+  userStats.totalVolume = userStats.totalVolume.plus(event.params.cost);
   userStats.totalCosts = userStats.totalCosts.plus(event.params.cost);
   userStats.lastTradeAt = event.block.timestamp;
   if (userStats.firstTradeAt.equals(BigInt.fromI32(0))) {
     userStats.firstTradeAt = event.block.timestamp;
   }
 
-  // B-5 fix: Calculate avgTradeSize
+  // 🚨 FIX: avgTradeSize도 cost 기반으로 계산
   if (userStats.totalTrades.gt(BigInt.fromI32(0))) {
     userStats.avgTradeSize = userStats.totalVolume.div(userStats.totalTrades);
   }
@@ -908,7 +939,8 @@ export function handlePositionOpened(event: PositionOpenedEvent): void {
 
   // Update MarketStats
   let marketStats = getOrCreateMarketStats(event.params.marketId.toString());
-  marketStats.totalVolume = marketStats.totalVolume.plus(event.params.quantity);
+  // 🚨 FIX: 마켓 볼륨도 실제 베팅 금액(cost)으로 계산
+  marketStats.totalVolume = marketStats.totalVolume.plus(event.params.cost);
   marketStats.totalTrades = marketStats.totalTrades.plus(BigInt.fromI32(1));
 
   // 신규 유저인 경우 totalUsers 증가

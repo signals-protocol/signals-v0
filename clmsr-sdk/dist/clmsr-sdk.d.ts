@@ -1,5 +1,6 @@
-import { MarketDistribution, Market, Position, OpenCostResult, IncreaseCostResult, DecreaseProceedsResult, CloseProceedsResult, ClaimResult, QuantityFromCostResult, WADAmount, USDCAmount, Quantity, Tick } from "./types";
+import { MarketDistribution, Market, Position, OpenCostResult, IncreaseCostResult, DecreaseProceedsResult, CloseProceedsResult, ClaimResult, QuantityFromCostResult, USDCAmount, Quantity, Tick } from "./types";
 export * from "./types";
+export { toWAD, toMicroUSDC } from "./utils/math";
 /**
  * CLMSR SDK - 컨트랙트 뷰함수들과 역함수 제공
  */
@@ -37,12 +38,12 @@ export declare class CLMSRSDK {
      * 주어진 비용으로 살 수 있는 수량 계산 (역산)
      * @param lowerTick Lower tick bound
      * @param upperTick Upper tick bound
-     * @param targetCostWad 목표 비용 (WAD 형식)
+     * @param cost 목표 비용 (6 decimals)
      * @param distribution Current market distribution
      * @param market Market parameters
      * @returns 구매 가능한 수량
      */
-    calculateQuantityFromCost(lowerTick: Tick, upperTick: Tick, targetCostWad: WADAmount, distribution: MarketDistribution, market: Market): QuantityFromCostResult;
+    calculateQuantityFromCost(lowerTick: Tick, upperTick: Tick, cost: USDCAmount, distribution: MarketDistribution, market: Market): QuantityFromCostResult;
     /**
      * 시장별 최대 수량 한계 검증 (컨트랙트와 동일한 제한)
      * @param quantity 검증할 수량 (6 decimals)
@@ -68,11 +69,3 @@ export declare class CLMSRSDK {
  * Create CLMSR SDK instance
  */
 export declare function createCLMSRSDK(): CLMSRSDK;
-/**
- * Convert to WAD amount (18 decimals)
- */
-export declare function toWAD(amount: string | number): WADAmount;
-/**
- * Convert to USDC amount (6 decimals)
- */
-export declare function toUSDC(amount: string | number): USDCAmount;

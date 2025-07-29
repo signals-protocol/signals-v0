@@ -4,6 +4,8 @@ import { WADAmount, USDCAmount } from "../types";
 export declare const WAD: Big.Big;
 /** Scale difference between USDC (6 decimals) and WAD (18 decimals): 1e12 */
 export declare const SCALE_DIFF: Big.Big;
+/** USDC precision constant: 1e6 */
+export declare const USDC_PRECISION: Big.Big;
 /** Maximum safe input for exp() function: 0.13 * 1e18 */
 export declare const MAX_EXP_INPUT_WAD: Big.Big;
 /** Maximum number of chunks per transaction */
@@ -36,6 +38,12 @@ export declare function fromWadRoundUp(amtWad: WADAmount): USDCAmount;
  * @returns Regular number
  */
 export declare function wadToNumber(amtWad: WADAmount): Big;
+/**
+ * Format USDC amount to 6 decimal places maximum
+ * @param amount USDC amount (in micro USDC)
+ * @returns Formatted amount with max 6 decimals
+ */
+export declare function formatUSDC(amount: USDCAmount): USDCAmount;
 /**
  * WAD multiplication: (a * b) / WAD
  * @param a First operand
@@ -127,14 +135,16 @@ export declare function isFactorSafe(factor: WADAmount): boolean;
  */
 export declare function toBig(value: string | number | Big): Big;
 /**
- * Create WAD amount from string or number
- * @param value Input value
- * @returns WAD amount
+ * Create WAD amount from numeric value (multiply by 1e18)
+ * Use this for converting regular numbers to WAD format
+ * @param value Input value in regular units (e.g., 1.5 USDC)
+ * @returns WAD amount (18 decimals)
  */
 export declare function toWAD(value: string | number): WADAmount;
 /**
- * Create USDC amount from string or number (6-decimal ERC20)
+ * Create micro-USDC amount from USDC value (multiply by 1e6)
+ * Use this for converting user input USDC amounts to SDK format
  * @param value Input value in USDC (e.g., "100" = 100 USDC)
  * @returns USDC amount in 6-decimal format (micro-USDC)
  */
-export declare function toUSDC(value: string | number): USDCAmount;
+export declare function toMicroUSDC(value: string | number): USDCAmount;

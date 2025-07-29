@@ -1,6 +1,6 @@
 # CLMSR Subgraph API Documentation
 
-> **🚀 v1.3.1**: Unified scaling architecture, raw value processing, comprehensive bug fixes
+> **🚀 v1.4.0**: Enhanced UserStats accuracy, volume calculation fixes, proper win/loss tracking
 
 ## 🎯 Overview
 
@@ -8,7 +8,7 @@ The CLMSR subgraph tracks all CLMSR market data in real-time, optimized for **di
 
 ## 🔗 Endpoint Information
 
-- **GraphQL Endpoint**: `https://api.studio.thegraph.com/query/116469/signals-v-0/1.3.2`
+- **GraphQL Endpoint**: `https://api.studio.thegraph.com/query/116469/signals-v-0/1.4.0`
 - **Subgraph Name**: `signals-v-0`
 - **Studio Link**: `https://thegraph.com/studio/subgraph/signals-v-0`
 
@@ -121,8 +121,8 @@ enum TradeType {
 type UserStats {
   id: Bytes! # user address
   user: Bytes! # user address
-  totalTrades: BigInt! # total number of trades
-  totalVolume: BigInt! # total trading volume (raw 6 decimals USDC)
+  totalTrades: BigInt! # total number of trades (OPEN, INCREASE, DECREASE, CLOSE only, excludes CLAIM)
+  totalVolume: BigInt! # total trading amount (buy: cost, sell: proceeds) (raw 6 decimals USDC)
   totalCosts: BigInt! # total cost invested (raw 6 decimals USDC)
   totalProceeds: BigInt! # total proceeds (raw 6 decimals USDC)
   totalRealizedPnL: BigInt! # total realized profit and loss (raw 6 decimals, signed)
@@ -130,10 +130,10 @@ type UserStats {
   netPnL: BigInt! # net profit and loss after fees (raw 6 decimals, signed)
   # Performance metrics
   activePositionsCount: BigInt! # number of active positions
-  winningTrades: BigInt! # number of winning trades
-  losingTrades: BigInt! # number of losing trades
-  winRate: BigDecimal! # win rate (0.0 ~ 1.0 percentage)
-  avgTradeSize: BigInt! # average trade size (raw 6 decimals USDC)
+  winningTrades: BigInt! # number of winning trades (only positions held until settlement)
+  losingTrades: BigInt! # number of losing trades (only positions held until settlement)
+  winRate: BigDecimal! # win rate (0.0 ~ 1.0, calculated only from settled positions)
+  avgTradeSize: BigInt! # average trade amount (total volume / total trades) (raw 6 decimals USDC)
   firstTradeAt: BigInt! # first trade timestamp
   lastTradeAt: BigInt! # last trade timestamp
   # Relations
@@ -147,9 +147,9 @@ type UserStats {
 type MarketStats {
   id: String! # marketId
   market: Market!
-  totalVolume: BigInt! # total volume (raw 6 decimals USDC)
+  totalVolume: BigInt! # total trading amount (buy: cost, sell: proceeds) (raw 6 decimals USDC)
   totalFees: BigInt! # total fees collected (raw 6 decimals USDC)
-  totalTrades: BigInt! # total number of trades
+  totalTrades: BigInt! # total number of trades (OPEN, INCREASE, DECREASE, CLOSE only, excludes CLAIM)
   uniqueTraders: BigInt! # number of unique traders
   # Price metrics (raw 6 decimals USDC)
   highestPrice: BigInt! # highest price recorded
@@ -221,17 +221,21 @@ query GetUserPositions($user: Bytes!) {
 }
 ```
 
-### **3. User Statistics**
+### **3. User Statistics (Enhanced)**
 
 ```graphql
 query GetUserStats($user: Bytes!) {
   userStats(id: $user) {
-    totalTrades
-    totalVolume # raw 6 decimals USDC
-    totalRealizedPnL # raw 6 decimals, signed
-    netPnL # raw 6 decimals, signed
-    winRate # BigDecimal percentage
-    avgTradeSize # raw 6 decimals USDC
+    totalTrades # excludes CLAIM operations
+    totalVolume # actual trading amounts (cost + proceeds)
+    totalCosts # total money invested
+    totalProceeds # total money received from sales
+    totalRealizedPnL # profit/loss from completed trades
+    netPnL # after gas fees
+    winRate # only from positions held until settlement
+    winningTrades # count of profitable settled positions
+    losingTrades # count of unprofitable settled positions
+    avgTradeSize # actual average trading amount
     activePositionsCount
   }
 }
@@ -337,8 +341,66 @@ All entities update in real-time based on contract events:
 - ✅ Accurate winRate and avgTradeSize calculations (B-5 fix)
 - ✅ Overflow protection for bin index calculations (B-6 fix)
 
+## 📊 UserStats Accuracy Improvements (v1.4.0)
+
+### **Volume Calculation Enhancement**
+
+**Previous Behavior (v1.3.x)**:
+
+- Volume calculated using `quantity` field
+- Did not reflect actual trading amounts
+
+**New Behavior (v1.4.0)**:
+
+- **Buy trades** (OPEN, INCREASE): Volume = `cost` (actual money spent)
+- **Sell trades** (DECREASE, CLOSE): Volume = `proceeds` (actual money received)
+- **Settlement** (CLAIM): No volume impact (settlement, not trading)
+
+### **Win/Loss Tracking Enhancement**
+
+**Previous Behavior (v1.3.x)**:
+
+- Incorrectly counted early closes as losses
+- Win/loss determined before market settlement
+
+**New Behavior (v1.4.0)**:
+
+- **Only positions held until settlement** are counted for win/loss
+- `CLOSE` operations (early exits) do not affect win rate
+- `CLAIM` operations determine win/loss based on settlement outcome
+- Accurate win rate calculation: `winningTrades / (winningTrades + losingTrades)`
+
+### **Trade Type Clarification**
+
+| Trade Type   | Description                             | Volume Impact | Win/Loss Impact |
+| ------------ | --------------------------------------- | ------------- | --------------- |
+| **OPEN**     | New position creation                   | ✅ Cost       | ❌ No           |
+| **INCREASE** | Add to existing position                | ✅ Cost       | ❌ No           |
+| **DECREASE** | Partial position sale                   | ✅ Proceeds   | ❌ No           |
+| **CLOSE**    | Full position sale (before settlement)  | ✅ Proceeds   | ❌ No           |
+| **CLAIM**    | Settlement claim (after market settles) | ❌ No         | ✅ Yes          |
+
+### **Example Scenarios**
+
+**Scenario 1: Early Exit (CLOSE)**
+
+```
+1. OPEN position: cost = $100 → totalVolume += $100
+2. CLOSE position: proceeds = $120 → totalVolume += $120
+Result: Total volume = $220, No win/loss count (early exit)
+```
+
+**Scenario 2: Hold Until Settlement (CLAIM)**
+
+```
+1. OPEN position: cost = $100 → totalVolume += $100
+2. CLAIM position: payout = $150 → totalVolume unchanged
+Result: Total volume = $100, winningTrades += 1 (position was in winning range)
+```
+
 ## 🚀 Version History
 
+- **v1.4.0**: Enhanced UserStats accuracy - proper volume calculation (cost/proceeds based), win/loss tracking only for settled positions, trade type clarification
 - **v1.3.1**: Unified scaling, comprehensive bug fixes, accuracy improvements
 - **v1.3.0**: Enhanced scaling support, binFactorsWad field
 - **v1.2.x**: Basic functionality implementation
