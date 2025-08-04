@@ -29,13 +29,13 @@ npm run compile
 
 ## 📊 Project Status
 
-| Metric                 | Status                | Details                           |
-| ---------------------- | --------------------- | --------------------------------- |
-| **Tests**              | ✅ **324 passing**    | Complete test coverage            |
-| **Security**           | ✅ **Hardened**       | Critical vulnerabilities fixed    |
-| **Documentation**      | ✅ **Complete**       | Auto-generated comprehensive docs |
-| **Gas Optimization**   | ✅ **Optimized**      | Efficient chunk-split algorithms  |
-| **Development Status** | 🚧 **In Development** | Core functionality complete       |
+| Metric                 | Status                  | Details                           |
+| ---------------------- | ----------------------- | --------------------------------- |
+| **Tests**              | ✅ **324 passing**      | Complete test coverage            |
+| **Security**           | ✅ **Hardened**         | Critical vulnerabilities fixed    |
+| **Documentation**      | ✅ **Complete**         | Auto-generated comprehensive docs |
+| **Gas Optimization**   | ✅ **Optimized**        | Efficient chunk-split algorithms  |
+| **Development Status** | ✅ **Production Ready** | Deployed on Base Mainnet          |
 
 ---
 
@@ -332,15 +332,40 @@ MIT License - see [LICENSE](./LICENSE) for details.
 - 🛡️ **Security Hardened** - Critical vulnerabilities fixed
 - ⚡ **Gas Optimized** - Efficient chunk-split algorithms
 - 📚 **Well Documented** - Auto-generated comprehensive docs
-- 🚧 **In Active Development** - Core functionality complete
+- 🌐 **Production Deployed** - Live on Base Mainnet
 
 ---
 
+## 🌐 Live Deployment - Base Mainnet
+
+**✅ PRODUCTION READY** - Successfully deployed on Base Mainnet!
+
+### 📋 Contract Addresses
+
+| Contract               | Address                                                                                                                      | Verified |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------- | -------- |
+| **CLMSRMarketCore**    | [`0x4424687a25302db5d1D3A9f7504e4710b0ab17E9`](https://basescan.org/address/0x4424687a25302db5d1D3A9f7504e4710b0ab17E9#code) | ✅       |
+| **CLMSRPosition**      | [`0x93E61D408456D27d5AB3fC4281B56Eb69A8296e7`](https://basescan.org/address/0x93E61D408456D27d5AB3fC4281B56Eb69A8296e7#code) | ✅       |
+| **SUSD Token**         | [`0x19593B3AF55ad58Ce74514924a2F253FDF89CA34`](https://basescan.org/address/0x19593B3AF55ad58Ce74514924a2F253FDF89CA34#code) | ✅       |
+| **FixedPointMathU**    | [`0xA8Af982597D7A17c651c801B801EC86C92171A5d`](https://basescan.org/address/0xA8Af982597D7A17c651c801B801EC86C92171A5d#code) | ✅       |
+| **LazyMulSegmentTree** | [`0x1Ba59a311Fb42D475dBC55C9bc780e3883E25A53`](https://basescan.org/address/0x1Ba59a311Fb42D475dBC55C9bc780e3883E25A53#code) | ✅       |
+
+### 📊 Subgraph API
+
+- **Studio**: https://thegraph.com/studio/subgraph/signals-v-0
+- **Query Endpoint**: `https://api.studio.thegraph.com/query/116469/signals-v-0/1.0.2`
+
+### 🎯 Active Market
+
+- **Market ID**: 1
+- **Network**: Base Mainnet (Chain ID: 8453)
+- **Tick Range**: 100,000 - 140,000 (400 bins)
+- **Liquidity Parameter**: 1000.0
+- **Payment Token**: SUSD (Signals USD)
+
 ## 🚨 Development Status
 
-This project is currently **in development**. While the core CLMSR functionality is complete and thoroughly tested, additional components (Manager, Router, Oracle integration) are still being implemented.
-
-**Not ready for production deployment yet.**
+The core CLMSR functionality is **production ready** and successfully deployed on Base Mainnet. All contracts are verified and operational.
 
 ---
 

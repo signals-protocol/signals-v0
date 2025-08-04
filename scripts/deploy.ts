@@ -37,13 +37,21 @@ async function main() {
     await lazyMulSegmentTree.getAddress()
   );
 
-  console.log("\n💰 MockERC20 (USDC) 배포 중...");
+  // 네트워크 안정성을 위한 지연
+  console.log("⏳ 네트워크 안정화 대기 중...");
+  await new Promise((resolve) => setTimeout(resolve, 5000)); // 5초 대기
 
-  // 2. MockERC20 배포 (스테이블코인, 데시말 6)
+  console.log("\n💰 MockERC20 (SUSD) 배포 중...");
+
+  // 2. MockERC20 배포 (시그널 토큰, 데시말 6)
   const MockERC20Factory = await ethers.getContractFactory("MockERC20");
-  const paymentToken = await MockERC20Factory.deploy("USD Coin", "USDC", 6);
+  const paymentToken = await MockERC20Factory.deploy("Signals USD", "SUSD", 6);
   await paymentToken.waitForDeployment();
-  console.log("✅ USDC 배포됨:", await paymentToken.getAddress());
+  console.log("✅ SUSD 배포됨:", await paymentToken.getAddress());
+
+  // 네트워크 안정성을 위한 지연
+  console.log("⏳ 네트워크 안정화 대기 중...");
+  await new Promise((resolve) => setTimeout(resolve, 5000)); // 5초 대기
 
   console.log("\n🎯 Position 계약 배포 중...");
 
@@ -58,6 +66,10 @@ async function main() {
   const position = await CLMSRPositionFactory.deploy(futureCore);
   await position.waitForDeployment();
   console.log("✅ CLMSRPosition 배포됨:", await position.getAddress());
+
+  // 네트워크 안정성을 위한 지연
+  console.log("⏳ 네트워크 안정화 대기 중...");
+  await new Promise((resolve) => setTimeout(resolve, 5000)); // 5초 대기
 
   console.log("\n🎲 Core 계약 배포 중...");
 
@@ -88,22 +100,22 @@ async function main() {
     console.log("실제:", actualCoreAddress);
   }
 
-  console.log("\n💵 초기 USDC 발행...");
+  console.log("\n💵 초기 SUSD 발행...");
 
-  // 5. 초기 토큰 발행 (배포자에게 1,000,000 USDC)
-  const initialSupply = parseUnits("1000000", 6); // 1M USDC (6 decimals)
+  // 5. 초기 토큰 발행 (배포자에게 1,000,000 SUSD)
+  const initialSupply = parseUnits("1000000", 6); // 1M SUSD (6 decimals)
   await paymentToken.mint(deployer.address, initialSupply);
   console.log(
-    "✅ 초기 USDC 발행 완료:",
+    "✅ 초기 SUSD 발행 완료:",
     ethers.formatUnits(initialSupply, 6),
-    "USDC"
+    "SUSD"
   );
 
   console.log("\n📊 배포 완료 요약:");
   console.log("====================");
   console.log("🏛️  FixedPointMathU:", await fixedPointMathU.getAddress());
   console.log("🌳 LazyMulSegmentTree:", await lazyMulSegmentTree.getAddress());
-  console.log("💰 USDC Token:", await paymentToken.getAddress());
+  console.log("💰 SUSD Token:", await paymentToken.getAddress());
   console.log("🎯 CLMSRPosition:", await position.getAddress());
   console.log("🎲 CLMSRMarketCore:", await core.getAddress());
 
@@ -128,12 +140,12 @@ async function main() {
     console.log("  - Position Contract:", corePositionContract);
     console.log("  - Manager Contract:", coreManagerContract);
 
-    // USDC 초기 잔액 확인
+    // SUSD 초기 잔액 확인
     const deployerBalance = await paymentToken.balanceOf(deployer.address);
     console.log(
-      "✅ USDC 초기 발행 확인:",
+      "✅ SUSD 초기 발행 확인:",
       ethers.formatUnits(deployerBalance, 6),
-      "USDC"
+      "SUSD"
     );
 
     console.log("✅ 모든 배포 검증 통과!");
@@ -143,16 +155,22 @@ async function main() {
 
   // 배포 정보를 JSON 파일로 저장
   const network = await ethers.provider.getNetwork();
+  const currentBlock = await ethers.provider.getBlockNumber();
   const deploymentInfo = {
     network: network.name,
     chainId: Number(network.chainId),
     deployer: deployer.address,
+    blockNumber: currentBlock,
     contracts: {
       FixedPointMathU: await fixedPointMathU.getAddress(),
       LazyMulSegmentTree: await lazyMulSegmentTree.getAddress(),
-      USDC: await paymentToken.getAddress(),
+      SUSD: await paymentToken.getAddress(),
       CLMSRPosition: await position.getAddress(),
       CLMSRMarketCore: await core.getAddress(),
+    },
+    subgraphConfig: {
+      recommendedStartBlock: currentBlock - 100, // 안전 마진 100블록
+      actualBlock: currentBlock,
     },
     timestamp: new Date().toISOString(),
   };

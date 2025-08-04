@@ -12,9 +12,12 @@
     "deploy:local": "npx hardhat run scripts/deploy.ts --network localhost",
     "deploy:arbitrum": "npx hardhat run scripts/deploy.ts --network arbitrum-sepolia",
     "deploy:worldchain": "npx hardhat run scripts/deploy.ts --network worldchain-sepolia",
+    "deploy:base": "npx hardhat run scripts/deploy.ts --network base",
     "market:local": "npx hardhat run scripts/create-market.ts --network localhost",
     "market:arbitrum": "npx hardhat run scripts/create-market.ts --network arbitrum-sepolia",
     "market:worldchain": "npx hardhat run scripts/create-market.ts --network worldchain-sepolia",
+    "market:base": "npx hardhat run scripts/create-market.ts --network base",
+    "settle:base": "npx hardhat run scripts/settle-market.ts --network base",
     "test:local": "npx hardhat run scripts/test-functionality.ts --network localhost",
     "test:arbitrum": "npx hardhat run scripts/test-functionality.ts --network arbitrum-sepolia",
     "test:worldchain": "npx hardhat run scripts/test-functionality.ts --network worldchain-sepolia",
@@ -23,7 +26,7 @@
     "test:comprehensive:worldchain": "npx hardhat run scripts/comprehensive-test.ts --network worldchain-sepolia",
     "test:subgraph": "npx hardhat run scripts/test-subgraph.ts --network arbitrum-sepolia",
     "test:subgraph:local": "npx hardhat run scripts/test-subgraph.ts --network localhost",
-    "beta": "npx hardhat run scripts/beta-distribution.ts --network arbitrum-sepolia"
+    "beta": "npx hardhat run scripts/beta-distribution.ts --network base"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",

@@ -1,14 +1,14 @@
 # CLMSR Subgraph API Documentation
 
-> **🚀 v1.5.0**: Enhanced settlement logic - exact tick value instead of range-based settlement, new contract deployment
+> **🚀 v1.1.0**: Major upgrade with Points System, Position Outcomes, PositionSettled events, and Base Mainnet deployment
 
 ## 🎯 Overview
 
-The CLMSR subgraph tracks all CLMSR market data in real-time, optimized for **distribution visualization**, **position history**, **PnL tracking**, and **SDK calculations** with unified raw-scale architecture.
+The CLMSR subgraph tracks all CLMSR market data in real-time, optimized for **distribution visualization**, **position history**, **PnL tracking**, **points system tracking**, and **SDK calculations** with unified raw-scale architecture.
 
 ## 🔗 Endpoint Information
 
-- **GraphQL Endpoint**: `https://api.studio.thegraph.com/query/116469/signals-v-0/1.5.0`
+- **GraphQL Endpoint**: `https://api.studio.thegraph.com/query/116469/signals-v-0/1.1.0`
 - **Subgraph Name**: `signals-v-0`
 - **Studio Link**: `https://thegraph.com/studio/subgraph/signals-v-0`
 
@@ -27,10 +27,10 @@ type MarketDistribution {
   minFactor: BigInt! # minimum factor value (raw WAD)
   maxFactor: BigInt! # maximum factor value (raw WAD)
   avgFactor: BigInt! # average factor value (raw WAD)
-  totalVolume: BigInt! # total trading volume (raw 6 decimals USDC)
+  totalVolume: BigInt! # total trading volume (raw 6 decimals SUSD)
   # Array data
   binFactors: [String!]! # WAD format factor array ["1000000000000000000", ...]
-  binVolumes: [String!]! # raw USDC volume array ["1000000", "2000000", ...]
+  binVolumes: [String!]! # raw SUSD volume array ["1000000", "2000000", ...]
   tickRanges: [String!]! # tick range array ["100000-100100", "100100-100200", ...]
   # Metadata
   lastSnapshotAt: BigInt! # last snapshot timestamp
@@ -51,7 +51,7 @@ type BinState {
   currentFactor: BigInt! # current accumulated factor value (raw WAD)
   lastUpdated: BigInt!
   updateCount: BigInt! # number of updates
-  totalVolume: BigInt! # total trading volume in this bin (raw 6 decimals USDC)
+  totalVolume: BigInt! # total trading volume in this bin (raw 6 decimals SUSD)
 }
 ```
 
@@ -59,13 +59,13 @@ type BinState {
 
 ```graphql
 type UserPosition {
-  id: String! # user-marketId-positionId
+  id: String! # positionId
   user: Bytes! # user address
   market: Market!
   positionId: BigInt! # on-chain position ID
   lowerTick: BigInt! # position lower bound tick
   upperTick: BigInt! # position upper bound tick
-  # Current state (raw 6 decimals USDC)
+  # Current state (raw 6 decimals SUSD)
   currentQuantity: BigInt! # current holding quantity
   totalCostBasis: BigInt! # total cost basis
   totalQuantityBought: BigInt! # total quantity bought
@@ -73,14 +73,25 @@ type UserPosition {
   totalProceeds: BigInt! # total proceeds from sales
   averageEntryPrice: BigInt! # average entry price (raw 6 decimals)
   realizedPnL: BigInt! # realized profit and loss (raw 6 decimals, signed)
-  # Status
-  isActive: Boolean! # whether position is active
-  isClaimed: Boolean! # whether position is claimed
-  openedAt: BigInt! # position opened timestamp
-  lastUpdatedAt: BigInt! # last update timestamp
+  # Position status and outcome
+  outcome: PositionOutcome! # position state (OPEN/CLOSED/WIN/LOSS)
+  isClaimed: Boolean! # whether winning position payout is claimed
+  # Points system tracking
+  activityRemaining: BigInt! # remaining activity points (6 decimals)
+  weightedEntryTime: BigInt! # weighted average entry time for remaining quantity
+  # Timestamps
+  createdAt: BigInt! # position creation timestamp
+  lastUpdated: BigInt! # last update timestamp
   # Relations
   stats: UserStats!
   trades: [Trade!]! @derivedFrom(field: "userPosition")
+}
+
+enum PositionOutcome {
+  OPEN # Position is still open and tradeable
+  CLOSED # Position was manually closed before settlement
+  WIN # Position won after market settlement
+  LOSS # Position lost after market settlement
 }
 ```
 
@@ -89,29 +100,34 @@ type UserPosition {
 ```graphql
 type Trade {
   id: Bytes! # transactionHash-logIndex
-  userPosition: String! # UserPosition ID
+  userPosition: UserPosition!
   user: Bytes! # user address
   market: Market!
   positionId: BigInt!
-  type: TradeType! # OPEN, INCREASE, DECREASE, CLOSE, CLAIM
+  type: TradeType! # OPEN, INCREASE, DECREASE, CLOSE, SETTLE
   lowerTick: BigInt! # int256
   upperTick: BigInt! # int256
-  quantity: BigInt! # trade quantity (raw 6 decimals USDC, DECREASE/CLOSE are negative)
-  costOrProceeds: BigInt! # cost or proceeds (raw 6 decimals USDC)
-  price: BigInt! # unit price (raw 6 decimals USDC)
+  quantity: BigInt! # trade quantity (raw 6 decimals SUSD)
+  costOrProceeds: BigInt! # cost or proceeds (raw 6 decimals SUSD)
+  price: BigInt! # unit price (raw 6 decimals SUSD)
   gasUsed: BigInt! # gas used
   gasPrice: BigInt! # gas price
+  # Points system - NEW in v1.1.0!
+  activityPt: BigInt! # Activity points earned from OPEN/INCREASE (6 decimals)
+  performancePt: BigInt! # Performance points from PnL on DECREASE/CLOSE/SETTLE (6 decimals)
+  riskBonusPt: BigInt! # Risk bonus points from holding conditions (6 decimals)
+  # Metadata
   timestamp: BigInt!
   blockNumber: BigInt!
   transactionHash: Bytes!
 }
 
 enum TradeType {
-  OPEN
-  INCREASE
-  DECREASE
-  CLOSE
-  CLAIM
+  OPEN # Open new position
+  INCREASE # Increase existing position
+  DECREASE # Partially close position
+  CLOSE # Fully close position manually
+  SETTLE # Position settled after market resolution
 }
 ```
 
@@ -121,19 +137,21 @@ enum TradeType {
 type UserStats {
   id: Bytes! # user address
   user: Bytes! # user address
-  totalTrades: BigInt! # total number of trades (OPEN, INCREASE, DECREASE, CLOSE only, excludes CLAIM)
-  totalVolume: BigInt! # total trading amount (buy: cost, sell: proceeds) (raw 6 decimals USDC)
-  totalCosts: BigInt! # total cost invested (raw 6 decimals USDC)
-  totalProceeds: BigInt! # total proceeds (raw 6 decimals USDC)
+  totalTrades: BigInt! # total number of trades (OPEN, INCREASE, DECREASE, CLOSE only, excludes SETTLE)
+  totalVolume: BigInt! # total trading amount (buy: cost, sell: proceeds) (raw 6 decimals SUSD)
+  totalCosts: BigInt! # total cost invested (raw 6 decimals SUSD)
+  totalProceeds: BigInt! # total proceeds (raw 6 decimals SUSD)
   totalRealizedPnL: BigInt! # total realized profit and loss (raw 6 decimals, signed)
   totalGasFees: BigInt! # total gas fees (wei units)
   netPnL: BigInt! # net profit and loss after fees (raw 6 decimals, signed)
+  # Points system - NEW in v1.1.0!
+  totalPoints: BigInt! # accumulated points balance (6 decimals)
   # Performance metrics
   activePositionsCount: BigInt! # number of active positions
   winningTrades: BigInt! # number of winning trades (only positions held until settlement)
   losingTrades: BigInt! # number of losing trades (only positions held until settlement)
   winRate: BigDecimal! # win rate (0.0 ~ 1.0, calculated only from settled positions)
-  avgTradeSize: BigInt! # average trade amount (total volume / total trades) (raw 6 decimals USDC)
+  avgTradeSize: BigInt! # average trade amount (total volume / total trades) (raw 6 decimals SUSD)
   firstTradeAt: BigInt! # first trade timestamp
   lastTradeAt: BigInt! # last trade timestamp
   # Relations
@@ -147,28 +165,45 @@ type UserStats {
 type MarketStats {
   id: String! # marketId
   market: Market!
-  totalVolume: BigInt! # total trading amount (buy: cost, sell: proceeds) (raw 6 decimals USDC)
-  totalFees: BigInt! # total fees collected (raw 6 decimals USDC)
-  totalTrades: BigInt! # total number of trades (OPEN, INCREASE, DECREASE, CLOSE only, excludes CLAIM)
+  totalVolume: BigInt! # total trading amount (buy: cost, sell: proceeds) (raw 6 decimals SUSD)
+  totalFees: BigInt! # total fees collected (raw 6 decimals SUSD)
+  totalTrades: BigInt! # total number of trades (OPEN, INCREASE, DECREASE, CLOSE only, excludes SETTLE)
   uniqueTraders: BigInt! # number of unique traders
-  # Price metrics (raw 6 decimals USDC)
+  # Price metrics (raw 6 decimals SUSD)
   highestPrice: BigInt! # highest price recorded
   lowestPrice: BigInt! # lowest price recorded
   currentPrice: BigInt! # current price
   # Time-based metrics
-  volume24h: BigInt! # 24-hour volume (raw 6 decimals USDC)
+  volume24h: BigInt! # 24-hour volume (raw 6 decimals SUSD)
   priceChange24h: BigDecimal! # 24-hour price change percentage
   firstTradeAt: BigInt! # first trade timestamp
   lastTradeAt: BigInt! # last trade timestamp
 }
 ```
 
+### **PositionSettled** - Settlement Event Records (NEW in v1.1.0!)
+
+```graphql
+type PositionSettled {
+  id: Bytes! # transactionHash-logIndex
+  positionId: BigInt! # position ID that was settled
+  trader: Bytes! # trader address
+  payout: BigInt! # settlement payout amount (raw 6 decimals SUSD)
+  isWin: Boolean! # whether position won (settlement tick within position range)
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+```
+
+This entity captures automatic settlement events when markets resolve. Unlike manual `CLOSE` trades, settlements determine the final win/loss outcome based on whether the settlement tick falls within the position's range.
+
 ## 🔧 Scaling Architecture
 
 ### **Data Scale Standards**
 
 - **Factor Values**: WAD format (18 decimals, BigInt) - `1000000000000000000` = 1.0
-- **USDC Values**: Raw 6 decimals (BigInt) - `1000000` = 1.0 USDC
+- **SUSD Values**: Raw 6 decimals (BigInt) - `1000000` = 1.0 SUSD
 - **Percentages**: BigDecimal format - `0.85` = 85%
 
 ### **No Normalization Philosophy**
@@ -176,7 +211,7 @@ type MarketStats {
 All values maintain contract-native scales:
 
 - ✅ Factors stored as raw WAD BigInt
-- ✅ USDC amounts stored as raw 6-decimal BigInt
+- ✅ SUSD amounts stored as raw 6-decimal BigInt
 - ✅ Direct SDK compatibility without conversion
 - ❌ No display normalization in subgraph layer
 
@@ -191,9 +226,9 @@ query GetMarketDistribution($marketId: String!) {
     minFactor # WAD format
     maxFactor # WAD format
     avgFactor # WAD format
-    totalVolume # raw 6 decimals USDC
+    totalVolume # raw 6 decimals SUSD
     binFactors # WAD format array for SDK
-    binVolumes # raw USDC array
+    binVolumes # raw SUSD array
     tickRanges # tick range strings
   }
 }
@@ -203,7 +238,7 @@ query GetMarketDistribution($marketId: String!) {
 
 ```graphql
 query GetUserPositions($user: Bytes!) {
-  userPositions(where: { user: $user, isActive: true }) {
+  userPositions(where: { user: $user, outcome: OPEN }) {
     positionId
     lowerTick
     upperTick
@@ -266,7 +301,7 @@ query GetTradeHistory($user: Bytes!, $marketId: BigInt!) {
 ```graphql
 query GetMarketStats($marketId: String!) {
   marketStats(id: $marketId) {
-    totalVolume # raw 6 decimals USDC
+    totalVolume # raw 6 decimals SUSD
     totalTrades
     uniqueTraders
     highestPrice # raw 6 decimals
@@ -289,7 +324,7 @@ The subgraph data format perfectly matches SDK expectations:
 const rawDistribution = {
   totalSum: "400000000000000000000", // WAD
   binFactors: ["1000000000000000000", "1500000000000000000"], // WAD
-  totalVolume: "50000000", // raw USDC (6 decimals)
+  totalVolume: "50000000", // raw SUSD (6 decimals)
   // ... other fields
 };
 
@@ -312,8 +347,8 @@ For frontend display purposes:
 // WAD to decimal
 const displayFactor = wadValue / 1e18;
 
-// Raw USDC to decimal
-const displayUSDC = rawUSDC / 1e6;
+// Raw SUSD to decimal
+const displaySUSD = rawSUSD / 1e6;
 
 // Percentage display
 const displayPercentage = bigDecimalValue * 100; // 0.85 → 85%

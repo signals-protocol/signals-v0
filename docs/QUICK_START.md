@@ -9,23 +9,23 @@
 ```typescript
 // config.ts
 export const CONFIG = {
-  // 네트워크 설정
-  ARBITRUM_SEPOLIA: {
-    chainId: 421614,
-    rpcUrl: "https://sepolia-rollup.arbitrum.io/rpc",
-    name: "Arbitrum Sepolia",
+  // 네트워크 설정 - Base Mainnet
+  BASE_MAINNET: {
+    chainId: 8453,
+    rpcUrl: "https://mainnet.base.org",
+    name: "Base Mainnet",
   },
 
-  // 컨트랙트 주소들 (최신 배포)
+  // 컨트랙트 주소들 (Base 메인넷 배포)
   CONTRACTS: {
-    CLMSRMarketCore: "0x59bDE8c7bc4bF23465B549052f2D7f586B88550e",
-    USDC: "0x5b3EE16Ce3CD3B46509C3fd824366B1306bA1ed9",
-    CLMSRPosition: "0x3786e87B983470a0676F2367ce7337f66C19EB21",
+    CLMSRMarketCore: "0xE3d019db1E1987D05bBC8cc578BB78aa92761dce",
+    SUSD: "0x9a0dAb48676D20ed08cd2eE390d869961d4C98Cd",
+    CLMSRPosition: "0x1Cb2e3ffd25b93a454290FAae4dBcF253c3927e1",
   },
 
-  // 서브그래프 엔드포인트
+  // 서브그래프 엔드포인트 (Base 메인넷)
   SUBGRAPH_URL:
-    "https://api.studio.thegraph.com/query/116469/signals-v-0/1.3.2",
+    "https://api.studio.thegraph.com/query/116469/signals-v-0/1.1.0",
 };
 ```
 
@@ -493,7 +493,7 @@ export const WalletConnect = () => {
     try {
       await window.ethereum.request({
         method: "wallet_switchEthereumChain",
-        params: [{ chainId: "0x66eee" }], // Arbitrum Sepolia
+        params: [{ chainId: "0x2105" }], // Base Mainnet
       });
     } catch (error: any) {
       if (error.code === 4902) {
@@ -502,9 +502,9 @@ export const WalletConnect = () => {
           method: "wallet_addEthereumChain",
           params: [
             {
-              chainId: "0x66eee",
-              chainName: "Arbitrum Sepolia",
-              rpcUrls: ["https://sepolia-rollup.arbitrum.io/rpc"],
+              chainId: "0x2105",
+              chainName: "Base Mainnet",
+              rpcUrls: ["https://mainnet.base.org"],
               nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
             },
           ],

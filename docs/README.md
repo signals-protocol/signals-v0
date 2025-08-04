@@ -51,15 +51,15 @@
 ### Scaling Architecture
 
 - **Factors**: WAD format (18 decimals) - used for LMSR calculations
-- **USDC Amounts**: Raw 6 decimals - quantity, cost, proceeds
+- **SUSD Amounts**: Raw 6 decimals - quantity, cost, proceeds
 - **No normalization**: All values maintain contract-native scales across all layers
 
 ### Network Information
 
 ```
-Network: Arbitrum Sepolia
-Chain ID: 421614
-RPC: https://sepolia-rollup.arbitrum.io/rpc
+Network: Base Mainnet
+Chain ID: 8453
+RPC: https://mainnet.base.org
 ```
 
 ### Latest Deployment Information
@@ -73,16 +73,16 @@ npm install @whworjs7946/clmsr-v0@1.6.2
 **Subgraph**
 
 ```
-Endpoint: https://api.studio.thegraph.com/query/116469/signals-v-0/1.3.2
+Endpoint: https://api.studio.thegraph.com/query/116469/signals-v-0/1.1.0
 Name: signals-v-0
 ```
 
 **Contracts**
 
 ```
-CLMSRMarketCore: 0x59bDE8c7bc4bF23465B549052f2D7f586B88550e
-USDC (Test):     0x5b3EE16Ce3CD3B46509C3fd824366B1306bA1ed9
-CLMSRPosition:   0x3786e87B983470a0676F2367ce7337f66C19EB21
+CLMSRMarketCore: 0xE3d019db1E1987D05bBC8cc578BB78aa92761dce
+SUSD (Signals):  0x9a0dAb48676D20ed08cd2eE390d869961d4C98Cd
+CLMSRPosition:   0x1Cb2e3ffd25b93a454290FAae4dBcF253c3927e1
 ```
 
 ---
@@ -105,7 +105,7 @@ npm install @apollo/client graphql
 import {
   CLMSRSDK,
   toWAD,
-  toUSDC,
+  toSUSD,
   mapDistribution,
   mapMarket,
 } from "@whworjs7946/clmsr-v0";
@@ -495,27 +495,27 @@ export const useCLMSR = (marketId: string) => {
 ```typescript
 import { ethers } from "ethers";
 
-const CONTRACT_ADDRESS = "0x59bDE8c7bc4bF23465B549052f2D7f586B88550e";
-const USDC_ADDRESS = "0x5b3EE16Ce3CD3B46509C3fd824366B1306bA1ed9";
+const CONTRACT_ADDRESS = "0xE3d019db1E1987D05bBC8cc578BB78aa92761dce";
+const SUSD_ADDRESS = "0x9a0dAb48676D20ed08cd2eE390d869961d4C98Cd";
 
 // Create contract instances
 const provider = new ethers.providers.JsonRpcProvider(
-  "https://sepolia-rollup.arbitrum.io/rpc"
+  "https://mainnet.base.org"
 );
 const signer = provider.getSigner();
 const market = new ethers.Contract(CONTRACT_ADDRESS, MARKET_ABI, signer);
-const usdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, signer);
+const susd = new ethers.Contract(SUSD_ADDRESS, SUSD_ABI, signer);
 ```
 
 ### Transaction Execution
 
 ```typescript
-// 1. USDC approval
-const approveTx = await usdc.approve(CONTRACT_ADDRESS, costInUSDC);
+// 1. SUSD approval
+const approveTx = await susd.approve(CONTRACT_ADDRESS, costInSUSD);
 await approveTx.wait();
 
 // 2. Open position
-const openTx = await market.openPosition(lowerTick, upperTick, quantityInUSDC);
+const openTx = await market.openPosition(lowerTick, upperTick, quantityInSUSD);
 await openTx.wait();
 
 console.log("Position opened successfully!");

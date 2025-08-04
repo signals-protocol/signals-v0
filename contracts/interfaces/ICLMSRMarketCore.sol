@@ -45,6 +45,13 @@ interface ICLMSRMarketCore {
         int256 settlementTick
     );
 
+    event PositionSettled(
+        uint256 indexed positionId,
+        address indexed trader,
+        uint256 payout,
+        bool isWin
+    );
+
     event PositionOpened(
         uint256 indexed positionId,
         address indexed trader,

@@ -29,6 +29,12 @@ const config: HardhatUserConfig = {
       chainId: 4801,
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
     },
+    // Base Mainnet
+    base: {
+      url: "https://mainnet.base.org",
+      chainId: 8453,
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+    },
     // Hardhat local network
     hardhat: {
       chainId: 31337,

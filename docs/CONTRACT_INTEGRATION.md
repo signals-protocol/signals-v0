@@ -1,6 +1,6 @@
 # CLMSR 컨트랙트 연동 가이드
 
-> Arbitrum Sepolia에 배포된 CLMSR 컨트랙트들과의 상호작용 완전 가이드
+> Base Mainnet에 배포된 CLMSR 컨트랙트들과의 상호작용 완전 가이드
 
 ## 🏗️ 컨트랙트 정보
 
@@ -8,23 +8,23 @@
 
 ```typescript
 const CONTRACTS = {
-  // 메인 컨트랙트 (최신 배포)
-  CLMSRMarketCore: "0x59bDE8c7bc4bF23465B549052f2D7f586B88550e",
-  CLMSRPosition: "0x3786e87B983470a0676F2367ce7337f66C19EB21",
+  // 메인 컨트랙트 (Base 메인넷 배포)
+  CLMSRMarketCore: "0xE3d019db1E1987D05bBC8cc578BB78aa92761dce",
+  CLMSRPosition: "0x1Cb2e3ffd25b93a454290FAae4dBcF253c3927e1",
 
-  // 테스트용 토큰 (최신 배포)
-  USDC: "0x5b3EE16Ce3CD3B46509C3fd824366B1306bA1ed9",
+  // Signals USD 토큰 (메인넷 배포)
+  SUSD: "0x9a0dAb48676D20ed08cd2eE390d869961d4C98Cd",
 
-  // 라이브러리들 (최신 배포)
-  FixedPointMathU: "0x79FD2c223601F625Bf5b5e8d09Cf839D52B16374",
-  LazyMulSegmentTree: "0xA4cFb284e97B756fC2D38215b04C06cE4cA4F50c",
+  // 라이브러리들 (Base 메인넷 배포)
+  FixedPointMathU: "TBD",
+  LazyMulSegmentTree: "TBD",
 };
 
 const NETWORK = {
-  name: "Arbitrum Sepolia",
-  chainId: 421614,
-  rpc: "https://sepolia-rollup.arbitrum.io/rpc",
-  explorer: "https://sepolia.arbiscan.io",
+  name: "Base Mainnet",
+  chainId: 8453,
+  rpc: "https://mainnet.base.org",
+  explorer: "https://basescan.org",
 };
 
 > **📅 Manager Contract Note**: CLMSRMarketCore requires a Manager contract address during deployment. Currently, the deployed instance uses a placeholder address. For production deployment, you'll need to:
@@ -35,11 +35,11 @@ const NETWORK = {
 
 ### 컨트랙트 검증 상태
 
-✅ 모든 컨트랙트가 Arbiscan에서 검증됨
+✅ 모든 컨트랙트가 Basescan에서 검증됨
 
-- [CLMSRMarketCore](https://sepolia.arbiscan.io/address/0x59bDE8c7bc4bF23465B549052f2D7f586B88550e#code)
-- [USDC](https://sepolia.arbiscan.io/address/0x5b3EE16Ce3CD3B46509C3fd824366B1306bA1ed9#code)
-- [CLMSRPosition](https://sepolia.arbiscan.io/address/0x3786e87B983470a0676F2367ce7337f66C19EB21#code)
+- [CLMSRMarketCore](https://basescan.org/address/0xE3d019db1E1987D05bBC8cc578BB78aa92761dce#code)
+- [SUSD](https://basescan.org/address/0x9a0dAb48676D20ed08cd2eE390d869961d4C98Cd#code)
+- [CLMSRPosition](https://basescan.org/address/0x1Cb2e3ffd25b93a454290FAae4dBcF253c3927e1#code)
 
 ---
 
@@ -113,7 +113,7 @@ const initializeContracts = async () => {
     signer
   );
 
-  const usdcContract = new ethers.Contract(CONTRACTS.USDC, ERC20ABI, signer);
+  const susdContract = new ethers.Contract(CONTRACTS.SUSD, ERC20ABI, signer);
 
   const positionContract = new ethers.Contract(
     CONTRACTS.CLMSRPosition,
@@ -121,7 +121,7 @@ const initializeContracts = async () => {
     signer
   );
 
-  return { coreContract, usdcContract, positionContract };
+  return { coreContract, susdContract, positionContract };
 };
 ```
 
@@ -240,7 +240,7 @@ const getAllMarkets = async (): Promise<MarketInfo[]> => {
 
 ```typescript
 interface CostInfo {
-  cost: bigint; // 6-decimal USDC
+  cost: bigint; // 6-decimal SUSD
   effectivePrice: string; // 단위당 가격
 }
 
@@ -348,17 +348,17 @@ const getPositionValue = async (positionId: bigint): Promise<bigint> => {
 
 ### 4. 밸런스 및 어로우 조회
 
-#### USDC 잔액
+#### SUSD 잔액
 
 ```typescript
-const getUSDCBalance = async (userAddress: string): Promise<string> => {
-  const balance = await usdcContract.balanceOf(userAddress);
-  return ethers.formatUnits(balance, 6); // USDC는 6 decimals
+const getSUSDBalance = async (userAddress: string): Promise<string> => {
+  const balance = await susdContract.balanceOf(userAddress);
+  return ethers.formatUnits(balance, 6); // SUSD는 6 decimals
 };
 
 // 컨트랙트에 대한 승인 확인
-const getUSDCAllowance = async (userAddress: string): Promise<bigint> => {
-  return await usdcContract.allowance(userAddress, CONTRACTS.CLMSRMarketCore);
+const getSUSDAllowance = async (userAddress: string): Promise<bigint> => {
+  return await susdContract.allowance(userAddress, CONTRACTS.CLMSRMarketCore);
 };
 ```
 
@@ -368,28 +368,28 @@ const getUSDCAllowance = async (userAddress: string): Promise<bigint> => {
 
 ### 1. 초기 설정
 
-#### USDC 승인
+#### SUSD 승인
 
 ```typescript
-const approveUSDC = async (amount?: bigint): Promise<void> => {
+const approveSUSD = async (amount?: bigint): Promise<void> => {
   // 무제한 승인 (권장) 또는 특정 금액 승인
   const approvalAmount = amount || ethers.MaxUint256;
 
-  const tx = await usdcContract.approve(
+  const tx = await susdContract.approve(
     CONTRACTS.CLMSRMarketCore,
     approvalAmount
   );
   await tx.wait();
 
-  console.log("USDC 승인 완료:", tx.hash);
+  console.log("SUSD 승인 완료:", tx.hash);
 };
 
-// 테스트 USDC 발급 (테스트넷에서만)
-const mintTestUSDC = async (amount: bigint): Promise<void> => {
-  const tx = await usdcContract.mint(amount);
+// 테스트 SUSD 발급 (테스트넷에서만)
+const mintTestSUSD = async (amount: bigint): Promise<void> => {
+  const tx = await susdContract.mint(amount);
   await tx.wait();
 
-  console.log(`${ethers.formatUnits(amount, 6)} USDC 발급 완료`);
+  console.log(`${ethers.formatUnits(amount, 6)} SUSD 발급 완료`);
 };
 ```
 
@@ -446,12 +446,12 @@ const openPosition = async (params: OpenPositionParams): Promise<bigint> => {
     );
   }
 
-  // USDC 승인 확인
+  // SUSD 승인 확인
   const userAddress = await coreContract.runner.getAddress();
-  const allowance = await getUSDCAllowance(userAddress);
+  const allowance = await getSUSDAllowance(userAddress);
   if (allowance < maxCost) {
-    console.log("USDC 승인이 필요합니다...");
-    await approveUSDC();
+    console.log("SUSD 승인이 필요합니다...");
+    await approveSUSD();
   }
 
   // 2. Open position
@@ -945,10 +945,10 @@ class ContractCache {
 ## 🔗 참고 링크
 
 - **컨트랙트 소스코드**: [contracts/core/CLMSRMarketCore.sol](../contracts/core/CLMSRMarketCore.sol)
-- **Arbitrum Sepolia 익스플로러**: [sepolia.arbiscan.io](https://sepolia.arbiscan.io)
+- **Base Mainnet 익스플로러**: [basescan.org](https://basescan.org)
 - **Ethers.js 문서**: [docs.ethers.org](https://docs.ethers.org)
 - **CLMSR 논문**: [학술 자료 링크]
 
 ---
 
-**마지막 업데이트**: 2025년 1월
+**마지막 업데이트**: 2025년 8월

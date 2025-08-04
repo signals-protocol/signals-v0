@@ -209,6 +209,20 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         market.isActive = false;
         
         emit MarketSettled(marketId, settlementTick);
+        
+        uint256[] memory positionIds = positionContract.getMarketPositions(marketId);
+        
+        for (uint256 i = 0; i < positionIds.length; i++) {
+            uint256 posId = positionIds[i];
+            ICLMSRPosition.Position memory pos = positionContract.getPosition(posId);
+            address owner = positionContract.ownerOf(posId);
+            
+            // Position wins if settlement tick is within position range [lowerTick, upperTick)
+            bool isWin = pos.lowerTick <= settlementTick && pos.upperTick > settlementTick;
+            uint256 payout = isWin ? uint256(pos.quantity) : 0;
+            
+            emit PositionSettled(posId, owner, payout, isWin);
+        }
     }
 
     // ========================================

@@ -9,7 +9,7 @@ interface BetaAddress {
   timestamp?: string;
   txHash?: {
     eth?: string;
-    usdc?: string;
+    susd?: string;
   };
 }
 
@@ -18,19 +18,19 @@ interface BetaConfig {
   chainId: number;
   usdcAddress: string;
   ethAmount: string; // ETH amount in ether units
-  usdcAmount: string; // USDC amount (will be converted to 6 decimals)
+  usdcAmount: string; // SUSD amount (will be converted to 6 decimals)
   addresses: BetaAddress[];
 }
 
 const CONFIG_FILE = path.join(__dirname, "..", "beta-addresses.json");
 
-// 기본 설정
+// 기본 설정 - Base 메인넷
 const DEFAULT_CONFIG: Omit<BetaConfig, "addresses"> = {
-  network: "arbitrum-sepolia",
-  chainId: 421614,
-  usdcAddress: "0x21a725A1FF23503fA22c5061297434981190E8c9",
-  ethAmount: "0.1", // 0.1 ETH
-  usdcAmount: "1000", // 1000 USDC
+  network: "base",
+  chainId: 8453,
+  usdcAddress: "0x78070bF4525A5A5600Ff97220139a6F77F840A96", // SUSD Token
+  ethAmount: "0.0001", // 0.0001 ETH
+  usdcAmount: "1000", // 1000 SUSD
 };
 
 function loadConfig(): BetaConfig {
@@ -76,7 +76,7 @@ async function sendTokens(
   usdcAmount: string,
   usdcContract: any,
   signer: any
-): Promise<{ ethTx: string; usdcTx: string }> {
+): Promise<{ ethTx: string; susdTx: string }> {
   console.log(`💸 ${recipient}에게 송금 시작...`);
 
   // ETH 송금
@@ -88,16 +88,16 @@ async function sendTokens(
   await ethTx.wait();
   console.log(`  ✅ ETH 송금 완료: ${ethTx.hash}`);
 
-  // USDC 송금
-  console.log(`  📤 ${usdcAmount} USDC 송금 중...`);
-  const usdcAmountParsed = parseUnits(usdcAmount, 6); // USDC는 6 decimals
-  const usdcTx = await usdcContract.transfer(recipient, usdcAmountParsed);
-  await usdcTx.wait();
-  console.log(`  ✅ USDC 송금 완료: ${usdcTx.hash}`);
+  // SUSD 송금
+  console.log(`  📤 ${usdcAmount} SUSD 송금 중...`);
+  const usdcAmountParsed = parseUnits(usdcAmount, 6); // SUSD는 6 decimals
+  const susdTx = await usdcContract.transfer(recipient, usdcAmountParsed);
+  await susdTx.wait();
+  console.log(`  ✅ SUSD 송금 완료: ${susdTx.hash}`);
 
   return {
     ethTx: ethTx.hash,
-    usdcTx: usdcTx.hash,
+    susdTx: susdTx.hash,
   };
 }
 
@@ -121,13 +121,13 @@ async function sendToBetaUsers(): Promise<void> {
     );
   }
 
-  // USDC 컨트랙트 연결
+  // SUSD 컨트랙트 연결
   const usdcContract = await ethers.getContractAt(
     "MockERC20",
     config.usdcAddress
   );
   console.log(
-    "💰 USDC 잔액:",
+    "💰 SUSD 잔액:",
     ethers.formatUnits(await usdcContract.balanceOf(signer.address), 6)
   );
 
@@ -145,7 +145,7 @@ async function sendToBetaUsers(): Promise<void> {
   // 각 주소에 송금
   for (const addressInfo of pendingAddresses) {
     try {
-      const { ethTx, usdcTx } = await sendTokens(
+      const { ethTx, susdTx } = await sendTokens(
         addressInfo.address,
         config.ethAmount,
         config.usdcAmount,
@@ -156,7 +156,7 @@ async function sendToBetaUsers(): Promise<void> {
       // 기록 업데이트
       addressInfo.sent = true;
       addressInfo.timestamp = new Date().toISOString();
-      addressInfo.txHash = { eth: ethTx, usdc: usdcTx };
+      addressInfo.txHash = { eth: ethTx, susd: susdTx };
 
       // 설정 저장
       saveConfig(config);
@@ -202,14 +202,14 @@ async function sendToAddress(
 
   console.log(`🎯 ${address}에게 개별 송금 ${force ? "(강제)" : ""}`);
 
-  // USDC 컨트랙트 연결
+  // SUSD 컨트랙트 연결
   const usdcContract = await ethers.getContractAt(
     "MockERC20",
     config.usdcAddress
   );
 
   try {
-    const { ethTx, usdcTx } = await sendTokens(
+    const { ethTx, susdTx } = await sendTokens(
       address,
       config.ethAmount,
       config.usdcAmount,
@@ -221,13 +221,13 @@ async function sendToAddress(
     if (existingAddr) {
       existingAddr.sent = true;
       existingAddr.timestamp = new Date().toISOString();
-      existingAddr.txHash = { eth: ethTx, usdc: usdcTx };
+      existingAddr.txHash = { eth: ethTx, susd: susdTx };
     } else {
       config.addresses.push({
         address,
         sent: true,
         timestamp: new Date().toISOString(),
-        txHash: { eth: ethTx, usdc: usdcTx },
+        txHash: { eth: ethTx, susd: susdTx },
       });
     }
 
@@ -272,6 +272,215 @@ function addAddresses(addresses: string[]): void {
   }
 }
 
+// ====== SUSD 주소 업데이트 기능 ======
+function updateSusdAddress(newAddress?: string): void {
+  console.log("🔄 SUSD 주소 업데이트 중...");
+
+  let susdAddress = newAddress;
+
+  // 주소가 제공되지 않으면 최신 배포 파일에서 가져오기
+  if (!susdAddress) {
+    susdAddress = getLatestDeploymentSusdAddress();
+    if (!susdAddress) {
+      throw new Error(
+        `❌ SUSD 주소를 찾을 수 없습니다. 배포 파일을 확인하세요.`
+      );
+    }
+    console.log(`📄 최신 배포 파일에서 SUSD 주소 자동 감지: ${susdAddress}`);
+  }
+
+  if (!validateAddress(susdAddress)) {
+    throw new Error(`❌ 잘못된 SUSD 주소: ${susdAddress}`);
+  }
+
+  const config = loadConfig();
+  const oldAddress = config.usdcAddress;
+  config.usdcAddress = susdAddress;
+  saveConfig(config);
+
+  console.log(`✅ SUSD 주소 업데이트 완료!`);
+  console.log(`  이전: ${oldAddress}`);
+  console.log(`  현재: ${susdAddress}`);
+}
+
+function getLatestDeploymentSusdAddress(): string | null {
+  const deploymentsDir = path.join(__dirname, "../deployments");
+
+  if (!fs.existsSync(deploymentsDir)) {
+    return null;
+  }
+
+  const deploymentFiles = fs
+    .readdirSync(deploymentsDir)
+    .filter((file) => file.startsWith("deployment-") && file.endsWith(".json"))
+    .sort((a, b) => {
+      // 파일명에서 타임스탬프 추출하여 최신 파일 찾기
+      const timestampA = parseInt(
+        a.split("-").pop()?.replace(".json", "") || "0"
+      );
+      const timestampB = parseInt(
+        b.split("-").pop()?.replace(".json", "") || "0"
+      );
+      return timestampB - timestampA;
+    });
+
+  if (deploymentFiles.length === 0) {
+    return null;
+  }
+
+  try {
+    const latestFile = path.join(deploymentsDir, deploymentFiles[0]);
+    const deploymentData = JSON.parse(fs.readFileSync(latestFile, "utf8"));
+    return deploymentData.contracts?.SUSD || null;
+  } catch (error) {
+    console.error("❌ 배포 파일 읽기 실패:", error);
+    return null;
+  }
+}
+
+// ====== 중복 검사/정리 기능 ======
+function checkDuplicates(): { address: string; indices: number[] }[] {
+  console.log("🔍 베타 주소 중복 검사 시작...");
+  const config = loadConfig();
+
+  const addressMap = new Map<string, number[]>();
+  const duplicates: { address: string; indices: number[] }[] = [];
+
+  // 중복 주소 찾기
+  config.addresses.forEach((addr, index) => {
+    const normalizedAddress = addr.address.toLowerCase();
+
+    if (addressMap.has(normalizedAddress)) {
+      addressMap.get(normalizedAddress)!.push(index);
+    } else {
+      addressMap.set(normalizedAddress, [index]);
+    }
+  });
+
+  // 중복 리스트 생성
+  for (const [address, indices] of addressMap.entries()) {
+    if (indices.length > 1) {
+      duplicates.push({
+        address: config.addresses[indices[0]].address, // 원본 케이스 보존
+        indices,
+      });
+    }
+  }
+
+  console.log(`📊 총 주소 수: ${config.addresses.length}`);
+  console.log(`📊 고유 주소 수: ${addressMap.size}`);
+  console.log(`🔄 중복 주소 수: ${duplicates.length}`);
+
+  if (duplicates.length > 0) {
+    console.log("\n🚨 중복 주소 발견:");
+    duplicates.forEach((dup, i) => {
+      console.log(`\n${i + 1}. ${dup.address}`);
+      console.log(`   인덱스: ${dup.indices.join(", ")}`);
+
+      dup.indices.forEach((index) => {
+        const addr = config.addresses[index];
+        console.log(
+          `   [${index}] sent: ${addr.sent}, timestamp: ${addr.timestamp}`
+        );
+      });
+    });
+  } else {
+    console.log("✅ 중복 주소가 없습니다!");
+  }
+
+  return duplicates;
+}
+
+function removeDuplicates(strategy: "latest" | "latest-sent" = "latest"): void {
+  console.log(`🛠️ 중복 제거 시작 (전략: ${strategy})...`);
+  const config = loadConfig();
+
+  const addressMap = new Map<string, BetaAddress>();
+
+  config.addresses.forEach((addr) => {
+    const normalizedAddress = addr.address.toLowerCase();
+
+    if (addressMap.has(normalizedAddress)) {
+      const existing = addressMap.get(normalizedAddress)!;
+      const current = addr;
+
+      let shouldReplace = false;
+
+      if (strategy === "latest") {
+        // 가장 최근 타임스탬프
+        shouldReplace =
+          new Date(current.timestamp || 0) > new Date(existing.timestamp || 0);
+      } else if (strategy === "latest-sent") {
+        // sent=true 중에서 가장 최근, sent=false면 무시
+        if (current.sent && existing.sent) {
+          shouldReplace =
+            new Date(current.timestamp || 0) >
+            new Date(existing.timestamp || 0);
+        } else if (current.sent && !existing.sent) {
+          shouldReplace = true;
+        }
+      }
+
+      if (shouldReplace) {
+        addressMap.set(normalizedAddress, current);
+      }
+    } else {
+      addressMap.set(normalizedAddress, addr);
+    }
+  });
+
+  const cleanedAddresses = Array.from(addressMap.values()).sort(
+    (a, b) =>
+      new Date(a.timestamp || 0).getTime() -
+      new Date(b.timestamp || 0).getTime()
+  );
+
+  // 백업 생성
+  const backupPath = path.join(
+    __dirname,
+    `../beta-addresses.backup.${Date.now()}.json`
+  );
+  fs.writeFileSync(backupPath, JSON.stringify(config, null, 2));
+  console.log(`📄 백업 생성: ${path.basename(backupPath)}`);
+
+  const originalCount = config.addresses.length;
+  config.addresses = cleanedAddresses;
+  saveConfig(config);
+
+  console.log(`✅ 중복 제거 완료!`);
+  console.log(`📊 제거 전: ${originalCount}개 주소`);
+  console.log(`📊 제거 후: ${cleanedAddresses.length}개 주소`);
+  console.log(`🗑️ 제거된 항목: ${originalCount - cleanedAddresses.length}개`);
+}
+
+// ====== 초기화 기능 ======
+function resetBetaDistribution(): void {
+  console.log("🔄 베타 배포 상태 초기화 중...");
+  const config = loadConfig();
+
+  // 백업 생성
+  const backupPath = path.join(
+    __dirname,
+    `../beta-addresses.reset-backup.${Date.now()}.json`
+  );
+  fs.writeFileSync(backupPath, JSON.stringify(config, null, 2));
+  console.log(`📄 초기화 전 백업 생성: ${path.basename(backupPath)}`);
+
+  let resetCount = 0;
+  config.addresses.forEach((addr) => {
+    if (addr.sent) {
+      addr.sent = false;
+      delete addr.timestamp;
+      delete addr.txHash;
+      resetCount++;
+    }
+  });
+
+  saveConfig(config);
+  console.log(`✅ ${resetCount}개 주소 초기화 완료!`);
+  console.log("이제 'send' 명령어로 모든 주소에 다시 송금할 수 있습니다.");
+}
+
 function showStatus(): void {
   const config = loadConfig();
 
@@ -279,8 +488,9 @@ function showStatus(): void {
   console.log("================================");
   console.log(`🌐 네트워크: ${config.network} (${config.chainId})`);
   console.log(
-    `💰 송금 금액: ${config.ethAmount} ETH + ${config.usdcAmount} USDC`
+    `💰 송금 금액: ${config.ethAmount} ETH + ${config.usdcAmount} SUSD`
   );
+  console.log(`💰 SUSD 주소: ${config.usdcAddress}`);
   console.log(`📝 총 주소 수: ${config.addresses.length}`);
 
   const sentCount = config.addresses.filter((addr) => addr.sent).length;
@@ -288,6 +498,12 @@ function showStatus(): void {
 
   console.log(`✅ 송금 완료: ${sentCount}`);
   console.log(`⏳ 송금 대기: ${pendingCount}`);
+
+  // 중복 검사 결과도 표시
+  const duplicates = checkDuplicates();
+  if (duplicates.length > 0) {
+    console.log(`⚠️ 중복 주소: ${duplicates.length}개`);
+  }
 
   if (config.addresses.length > 0) {
     console.log("\n📋 주소 목록:");
@@ -310,6 +526,11 @@ async function main() {
 
   try {
     switch (command) {
+      case "update-susd":
+        const susdAddress = process.env.BETA_SUSD_ADDRESS;
+        updateSusdAddress(susdAddress); // 주소가 없으면 자동으로 최신 배포에서 가져옴
+        break;
+
       case "send":
         await sendToBetaUsers();
         break;
@@ -341,6 +562,20 @@ async function main() {
         showStatus();
         break;
 
+      case "check-duplicates":
+        checkDuplicates();
+        break;
+
+      case "clean-duplicates":
+        const strategy =
+          (process.env.BETA_STRATEGY as "latest" | "latest-sent") || "latest";
+        removeDuplicates(strategy);
+        break;
+
+      case "reset":
+        resetBetaDistribution();
+        break;
+
       case "init":
         // 초기 주소들 추가
         const initialAddresses = [
@@ -357,11 +592,28 @@ async function main() {
         break;
 
       default:
-        console.log("🎯 클로즈드 베타 배포 스크립트");
-        console.log("\n사용법:");
+        console.log("🎯 클로즈드 베타 사용자 관리 스크립트");
+        console.log("\n🔧 설정 관리:");
         console.log(
-          "  BETA_COMMAND=init npm run beta              - 초기 주소들 설정"
+          "  BETA_COMMAND=update-susd npm run beta       - 최신 배포에서 SUSD 주소 자동 업데이트"
         );
+        console.log(
+          "  BETA_COMMAND=update-susd BETA_SUSD_ADDRESS=<addr> npm run beta - 특정 SUSD 주소로 업데이트"
+        );
+        console.log("\n📋 주소 관리:");
+        console.log(
+          "  BETA_COMMAND=add BETA_ADDRESSES=<addr1,addr2> npm run beta - 새 주소들 추가"
+        );
+        console.log(
+          "  BETA_COMMAND=check-duplicates npm run beta  - 중복 주소 검사"
+        );
+        console.log(
+          "  BETA_COMMAND=clean-duplicates npm run beta  - 중복 주소 제거"
+        );
+        console.log(
+          "  BETA_COMMAND=clean-duplicates BETA_STRATEGY=latest-sent npm run beta - sent=true 중 최신만 유지"
+        );
+        console.log("\n💸 토큰 전송:");
         console.log(
           "  BETA_COMMAND=send npm run beta              - 대기 중인 모든 주소에 송금"
         );
@@ -372,10 +624,14 @@ async function main() {
           "  BETA_COMMAND=send-to BETA_ADDRESS=<addr> BETA_FORCE=true npm run beta - 강제 재송금"
         );
         console.log(
-          "  BETA_COMMAND=add BETA_ADDRESSES=<addr1,addr2> npm run beta - 새 주소들 추가"
+          "  BETA_COMMAND=reset npm run beta             - 모든 전송 상태 초기화"
         );
+        console.log("\n📊 상태 확인:");
         console.log(
           "  BETA_COMMAND=status npm run beta            - 현재 상태 확인"
+        );
+        console.log(
+          "  BETA_COMMAND=init npm run beta              - 초기 주소들 설정"
         );
         break;
     }
@@ -393,4 +649,13 @@ if (require.main === module) {
   });
 }
 
-export { sendToBetaUsers, sendToAddress, addAddresses, showStatus };
+export {
+  updateSusdAddress,
+  sendToBetaUsers,
+  sendToAddress,
+  addAddresses,
+  showStatus,
+  checkDuplicates,
+  removeDuplicates,
+  resetBetaDistribution,
+};
