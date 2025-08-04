@@ -227,8 +227,6 @@ enum TradeType {
 
 ### Base Mainnet
 
-
-
 #### 새로운 컨트랙트 주소
 
 ```typescript
