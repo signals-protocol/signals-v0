@@ -4,5 +4,11 @@
       "address": "0x894C07d390D7585c5205f2B81b9845e5432282B6",
       "startBlock": 174650000
     }
+  },
+  "base": {
+    "CLMSRMarketCore": {
+      "address": "0xE3d019db1E1987D05bBC8cc578BB78aa92761dce",
+      "startBlock": 33772759
+    }
   }
 }

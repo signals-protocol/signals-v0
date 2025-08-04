@@ -178,9 +178,12 @@ type UserPosition @entity(immutable: false) {
   totalQuantitySold: BigInt! # 총 매도량 (6 decimals, raw USDC)
   totalProceeds: BigInt! # 총 매도 수익 (6 decimals, raw USDC)
   realizedPnL: BigInt! # 실현 손익 (6 decimals, raw USDC, signed)
-  isActive: Boolean! # 포지션이 활성 상태인지
+  outcome: PositionOutcome! # 포지션 상태 (OPEN/CLOSED/WIN/LOSS)
+  isClaimed: Boolean! # 승리 포지션 수령 여부
   createdAt: BigInt!
   lastUpdated: BigInt!
+  activityRemaining: BigInt! # OPEN+INCREASE 누적, DECREASE/CLOSE/CLAIM로 차감 (6 decimals)
+  weightedEntryTime: BigInt! # 모든 남은 수량의 가중 평균 진입 시각
 }
 
 # 개별 거래 기록 (매수/매도)
@@ -201,6 +204,9 @@ type Trade @entity(immutable: true) {
   timestamp: BigInt!
   blockNumber: BigInt!
   transactionHash: Bytes!
+  activityPt: BigInt! # OPEN·INCREASE에서 발생하는 Activity 포인트 (6 decimals)
+  performancePt: BigInt! # DECREASE·CLOSE·SETTLE에서 PnL 기반 Performance 포인트 (6 decimals)
+  riskBonusPt: BigInt! # DECREASE·CLOSE·SETTLE에서 조건 충족 시 Risk Bonus 포인트 (6 decimals)
 }
 
 enum TradeType {
@@ -208,7 +214,14 @@ enum TradeType {
   INCREASE
   DECREASE
   CLOSE
-  CLAIM
+  SETTLE
+}
+
+enum PositionOutcome {
+  OPEN
+  CLOSED
+  WIN
+  LOSS
 }
 
 # 사용자별 전체 통계 및 PnL
@@ -229,6 +242,7 @@ type UserStats @entity(immutable: false) {
   avgTradeSize: BigInt! # 평균 거래 크기 (총 거래 금액 / 총 거래 횟수) (6 decimals, raw USDC)
   firstTradeAt: BigInt! # 첫 거래 시점
   lastTradeAt: BigInt! # 마지막 거래 시점
+  totalPoints: BigInt! # 사용자 누적 포인트 잔고 (6 decimals)
   positions: [UserPosition!]! @derivedFrom(field: "stats")
 }
 
@@ -245,4 +259,16 @@ type MarketStats @entity(immutable: false) {
   priceChange24h: BigDecimal! # 24시간 가격 변화율 (퍼센트)
   volume24h: BigInt! # 24시간 거래량 (6 decimals, raw USDC)
   lastUpdated: BigInt!
+}
+
+# 이벤트 엔티티들
+type PositionSettled @entity(immutable: true) {
+  id: Bytes! # transactionHash-logIndex
+  positionId: BigInt!
+  trader: Bytes!
+  payout: BigInt!
+  isWin: Boolean!
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
 }

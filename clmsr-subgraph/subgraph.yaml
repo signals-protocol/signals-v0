@@ -6,11 +6,11 @@ schema:
 dataSources:
   - kind: ethereum
     name: CLMSRMarketCore
-    network: arbitrum-sepolia
+    network: base
     source:
-      address: "0x894C07d390D7585c5205f2B81b9845e5432282B6"
+      address: "0xE3d019db1E1987D05bBC8cc578BB78aa92761dce"
       abi: CLMSRMarketCore
-      startBlock: 174650000
+      startBlock: 33772759
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.9
@@ -42,6 +42,8 @@ dataSources:
           handler: handlePositionIncreased
         - event: PositionOpened(indexed uint256,indexed address,indexed uint256,int256,int256,uint128,uint256)
           handler: handlePositionOpened
+        - event: PositionSettled(indexed uint256,indexed address,uint256,bool)
+          handler: handlePositionSettled
         - event: RangeFactorApplied(indexed uint256,indexed int256,indexed int256,uint256)
           handler: handleRangeFactorApplied
       file: ./src/clmsr-market-core.ts

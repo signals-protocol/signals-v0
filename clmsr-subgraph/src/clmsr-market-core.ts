@@ -5,6 +5,7 @@ import {
   PositionDecreased as PositionDecreasedEvent,
   PositionClosed as PositionClosedEvent,
   PositionClaimed as PositionClaimedEvent,
+  PositionSettled as PositionSettledEvent,
   MarketCreated as MarketCreatedEvent,
   MarketSettled as MarketSettledEvent,
   RangeFactorApplied as RangeFactorAppliedEvent,
@@ -15,6 +16,7 @@ import {
   PositionDecreased,
   PositionClosed,
   PositionClaimed,
+  PositionSettled,
   MarketCreated,
   MarketSettled,
   RangeFactorApplied,
@@ -58,6 +60,7 @@ function getOrCreateUserStats(userAddress: Bytes): UserStats {
     userStats.avgTradeSize = BigInt.fromI32(0);
     userStats.firstTradeAt = BigInt.fromI32(0);
     userStats.lastTradeAt = BigInt.fromI32(0);
+    userStats.totalPoints = BigInt.fromI32(0); // 포인트 초기화
     userStats.save(); // B-1 fix: save new entity immediately
   }
 
@@ -85,6 +88,7 @@ function getOrCreateUserStatsWithFlag(userAddress: Bytes): UserStatsResult {
     userStats.avgTradeSize = BigInt.fromI32(0);
     userStats.firstTradeAt = BigInt.fromI32(0);
     userStats.lastTradeAt = BigInt.fromI32(0);
+    userStats.totalPoints = BigInt.fromI32(0); // 포인트 초기화
     userStats.save(); // B-1 fix: save new entity immediately
     isNew = true;
   } else {
@@ -136,6 +140,52 @@ function calculateDisplayPrice(cost: BigInt, quantity: BigInt): BigDecimal {
     .div(BigDecimal.fromString("1000000"));
   return costDecimal.div(quantityDecimal);
 }
+
+function calcActivityPoints(cost: BigInt): BigInt {
+  return cost.div(BigInt.fromI32(10));
+} // A = cost / 10
+
+function calcPerformancePoints(realizedPnL: BigInt): BigInt {
+  return realizedPnL.gt(BigInt.fromI32(0)) ? realizedPnL : BigInt.fromI32(0);
+}
+
+// Risk 보너스 포인트 계산 (보유시간 >= 1시간일 때만) (6 decimals)
+// R = min(A × 0.3 × (1 + (marketRange - userRange)/marketRange), 2A)
+function calcRiskBonusPoints(
+  activityPoints: BigInt,
+  userRange: BigInt,
+  marketRange: BigInt,
+  holdingSeconds: BigInt
+): BigInt {
+  // 1시간(3600초) 미만이면 0 포인트
+  if (holdingSeconds.lt(BigInt.fromI32(3600))) {
+    return BigInt.fromI32(0);
+  }
+
+  // 범위 차이 계산
+  let rangeDiff = marketRange.minus(userRange);
+  if (rangeDiff.lt(BigInt.fromI32(0))) rangeDiff = BigInt.fromI32(0);
+
+  // multiplier = 1 + rangeDiff/marketRange (최대 2.0으로 제한)
+  let multiplier = BigInt.fromI32(1000000).plus(
+    rangeDiff.times(BigInt.fromI32(1000000)).div(marketRange)
+  ); // 10000 = 100%
+  if (multiplier.gt(BigInt.fromI32(2000000)))
+    multiplier = BigInt.fromI32(2000000); // 최대 200%
+
+  // R = A × 0.3 × multiplier = A × 3000 / 10000
+  let risk = activityPoints
+    .times(BigInt.fromI32(300000))
+    .div(BigInt.fromI32(1000000))
+    .times(multiplier)
+    .div(BigInt.fromI32(1000000));
+
+  // min(R, 2A)
+  let maxRisk = activityPoints.times(BigInt.fromI32(2));
+  return risk.gt(maxRisk) ? maxRisk : risk;
+}
+
+// ============= 기존 헬퍼 함수들 =============
 
 // Helper function to update bin volumes for given tick range
 function updateBinVolumes(
@@ -253,7 +303,6 @@ function updateWinLossStats(
 }
 
 export function handleMarketCreated(event: MarketCreatedEvent): void {
-  // 이벤트 엔티티 저장
   let entity = new MarketCreated(
     event.transaction.hash.concatI32(event.logIndex.toI32())
   );
@@ -272,7 +321,6 @@ export function handleMarketCreated(event: MarketCreatedEvent): void {
 
   entity.save();
 
-  // 마켓 상태 엔티티 생성
   let market = new Market(event.params.marketId.toString());
   market.marketId = event.params.marketId;
   market.minTick = event.params.minTick;
@@ -286,72 +334,54 @@ export function handleMarketCreated(event: MarketCreatedEvent): void {
   market.lastUpdated = event.block.timestamp;
   market.save();
 
-  // 마켓 통계 엔티티 초기화
   let marketStats = getOrCreateMarketStats(event.params.marketId.toString());
   marketStats.lastUpdated = event.block.timestamp;
   marketStats.save();
-
-  // ========================================
-  // BIN STATE 초기화 (Segment Tree 기반)
-  // ========================================
 
   let binFactorsWad: Array<string> = [];
   let binVolumes: Array<string> = [];
   let tickRanges: Array<string> = [];
 
-  // 모든 bin 초기화 (0-based 인덱스)
   for (let binIndex = 0; binIndex < event.params.numBins.toI32(); binIndex++) {
-    // bin이 커버하는 실제 틱 범위 계산
     let lowerTick = event.params.minTick.plus(
       BigInt.fromI32(binIndex).times(event.params.tickSpacing)
     );
     let upperTick = lowerTick.plus(event.params.tickSpacing);
 
-    // BinState 엔티티 생성
     let binId = event.params.marketId.toString() + "-" + binIndex.toString();
     let binState = new BinState(binId);
     binState.market = market.id;
     binState.binIndex = BigInt.fromI32(binIndex);
     binState.lowerTick = lowerTick;
     binState.upperTick = upperTick;
-    binState.currentFactor = BigInt.fromString("1000000000000000000"); // 초기값 1.0 in WAD
+    binState.currentFactor = BigInt.fromString("1000000000000000000");
     binState.lastUpdated = event.block.timestamp;
     binState.updateCount = BigInt.fromI32(0);
     binState.totalVolume = BigInt.fromI32(0);
     binState.save();
 
-    // 배열 데이터 구성 (WAD 기준)
-    binFactorsWad.push("1000000000000000000"); // WAD 형태 그대로
+    binFactorsWad.push("1000000000000000000");
     binVolumes.push("0");
     tickRanges.push(lowerTick.toString() + "-" + upperTick.toString());
   }
-
-  // ========================================
-  // MARKET DISTRIBUTION 초기화
-  // ========================================
 
   let distribution = new MarketDistribution(event.params.marketId.toString());
   distribution.market = market.id;
   distribution.totalBins = event.params.numBins;
 
-  // LMSR 계산용 데이터 (WAD 기준 - 초기값: 모든 bin이 1.0 WAD이므로 총합 = numBins * 1e18)
   distribution.totalSum = event.params.numBins.times(
     BigInt.fromString("1000000000000000000")
   );
 
-  // 분포 통계 (초기값 - 모든 bin이 1.0 WAD)
-  let wadOne = BigInt.fromString("1000000000000000000");
-  distribution.minFactor = wadOne;
-  distribution.maxFactor = wadOne;
-  distribution.avgFactor = wadOne;
+  distribution.minFactor = BigInt.fromString("1000000000000000000");
+  distribution.maxFactor = BigInt.fromString("1000000000000000000");
+  distribution.avgFactor = BigInt.fromString("1000000000000000000");
   distribution.totalVolume = BigInt.fromI32(0);
 
-  // 배열 형태 데이터
   distribution.binFactors = binFactorsWad;
   distribution.binVolumes = binVolumes;
   distribution.tickRanges = tickRanges;
 
-  // 메타데이터
   distribution.lastSnapshotAt = event.block.timestamp;
   distribution.distributionHash = "init-" + event.block.timestamp.toString();
   distribution.version = BigInt.fromI32(1);
@@ -359,7 +389,6 @@ export function handleMarketCreated(event: MarketCreatedEvent): void {
 }
 
 export function handleMarketSettled(event: MarketSettledEvent): void {
-  // 이벤트 엔티티 저장
   let entity = new MarketSettled(
     event.transaction.hash.concatI32(event.logIndex.toI32())
   );
@@ -372,14 +401,95 @@ export function handleMarketSettled(event: MarketSettledEvent): void {
 
   entity.save();
 
-  // 마켓 상태 업데이트
-  let market = Market.load(event.params.marketId.toString());
-  if (market != null) {
-    market.isSettled = true;
-    market.settlementTick = event.params.settlementTick;
-    market.lastUpdated = event.block.timestamp;
-    market.save();
+  let market = Market.load(event.params.marketId.toString())!;
+  market.isSettled = true;
+  market.settlementTick = event.params.settlementTick;
+  market.lastUpdated = event.block.timestamp;
+  market.save();
+}
+
+export function handlePositionSettled(event: PositionSettledEvent): void {
+  let entity = new PositionSettled(
+    event.transaction.hash.concatI32(event.logIndex.toI32())
+  );
+  entity.positionId = event.params.positionId;
+  entity.trader = event.params.trader;
+  entity.payout = event.params.payout;
+  entity.isWin = event.params.isWin;
+
+  entity.blockNumber = event.block.number;
+  entity.blockTimestamp = event.block.timestamp;
+  entity.transactionHash = event.transaction.hash;
+
+  entity.save();
+
+  let userPosition = UserPosition.load(event.params.positionId.toString())!;
+  userPosition.outcome = event.params.isWin ? "WIN" : "LOSS";
+
+  let calculatedPnL = event.params.payout.minus(userPosition.totalCostBasis);
+  userPosition.realizedPnL = calculatedPnL;
+  userPosition.totalProceeds = userPosition.totalProceeds.plus(
+    event.params.payout
+  );
+  userPosition.isClaimed = false;
+  userPosition.lastUpdated = event.block.timestamp;
+
+  let holdingSeconds = event.block.timestamp.minus(
+    userPosition.weightedEntryTime
+  );
+  let userRange = userPosition.upperTick.minus(userPosition.lowerTick);
+
+  let performancePoints = calcPerformancePoints(calculatedPnL);
+
+  let market = Market.load(userPosition.market)!;
+  let marketRange = market.maxTick.minus(market.minTick);
+  let riskBonusPoints = calcRiskBonusPoints(
+    userPosition.activityRemaining,
+    userRange,
+    marketRange,
+    holdingSeconds
+  );
+
+  userPosition.activityRemaining = BigInt.fromI32(0);
+  userPosition.weightedEntryTime = BigInt.fromI32(0);
+  userPosition.save();
+
+  let userStats = getOrCreateUserStats(event.params.trader);
+  userStats.totalRealizedPnL = userStats.totalRealizedPnL.plus(calculatedPnL);
+
+  if (event.params.isWin) {
+    userStats.winningTrades = userStats.winningTrades.plus(BigInt.fromI32(1));
+  } else {
+    userStats.losingTrades = userStats.losingTrades.plus(BigInt.fromI32(1));
   }
+
+  let totalSettlementPoints = performancePoints.plus(riskBonusPoints);
+  userStats.totalPoints = userStats.totalPoints.plus(totalSettlementPoints);
+  userStats.save();
+
+  let trade = new Trade(
+    event.transaction.hash.concatI32(event.logIndex.toI32())
+  );
+  trade.userPosition = userPosition.id;
+  trade.user = event.params.trader;
+  trade.market = userPosition.market;
+  trade.positionId = event.params.positionId;
+  trade.type = "SETTLE";
+  trade.lowerTick = userPosition.lowerTick;
+  trade.upperTick = userPosition.upperTick;
+  trade.quantity = BigInt.fromI32(0);
+  trade.costOrProceeds = event.params.payout;
+  trade.price = BigInt.fromI32(0);
+  trade.gasUsed = event.receipt ? event.receipt!.gasUsed : BigInt.fromI32(0);
+  trade.gasPrice = event.transaction.gasPrice;
+  trade.timestamp = event.block.timestamp;
+  trade.blockNumber = event.block.number;
+  trade.transactionHash = event.transaction.hash;
+
+  trade.activityPt = BigInt.fromI32(0);
+  trade.performancePt = performancePoints;
+  trade.riskBonusPt = riskBonusPoints;
+  trade.save();
 }
 
 export function handlePositionClaimed(event: PositionClaimedEvent): void {
@@ -396,94 +506,10 @@ export function handlePositionClaimed(event: PositionClaimedEvent): void {
 
   entity.save();
 
-  // ========================================
-  // PnL TRACKING: FINALIZE USER POSITION WITH CLAIM PAYOUT
-  // ========================================
-
-  // Update UserPosition
-  let userPosition = UserPosition.load(event.params.positionId.toString());
-  if (userPosition != null) {
-    let payoutDecimal = event.params.payout
-      .toBigDecimal()
-      .div(BigDecimal.fromString("1000000"));
-    let claimedQuantity = userPosition.currentQuantity;
-
-    // Calculate final realized PnL from claim
-    // The realized PnL is the payout minus the total cost basis
-    let finalRealizedPnL = event.params.payout.minus(
-      userPosition.totalCostBasis
-    );
-
-    // Update position data - position is now claimed and closed
-    userPosition.currentQuantity = BigInt.fromI32(0);
-    userPosition.totalProceeds = userPosition.totalProceeds.plus(
-      event.params.payout
-    );
-    // Set final realized PnL (includes any previous partial realizations)
-    userPosition.realizedPnL = finalRealizedPnL;
-    userPosition.isActive = false;
-    userPosition.lastUpdated = event.block.timestamp;
-    userPosition.save();
-
-    // Update user stats active position count
-    let userStats = getOrCreateUserStats(event.params.trader);
-    if (userStats.activePositionsCount.gt(BigInt.fromI32(0))) {
-      userStats.activePositionsCount = userStats.activePositionsCount.minus(
-        BigInt.fromI32(1)
-      );
-    }
-
-    // Create Trade record for claim
-    let trade = new Trade(
-      event.transaction.hash.concatI32(event.logIndex.toI32())
-    );
-    trade.userPosition = userPosition.id;
-    trade.user = event.params.trader;
-    trade.market = userPosition.market;
-    trade.positionId = event.params.positionId;
-    trade.type = "CLAIM";
-    trade.lowerTick = userPosition.lowerTick;
-    trade.upperTick = userPosition.upperTick;
-    trade.quantity = BigInt.fromI32(0); // No quantity change, just claim
-    trade.costOrProceeds = event.params.payout;
-
-    // B-2 fix: Calculate claim price as payout per total quantity bought
-    trade.price = userPosition.totalQuantityBought.equals(BigInt.fromI32(0))
-      ? BigInt.fromI32(0)
-      : event.params.payout
-          .times(BigInt.fromString("1000000"))
-          .div(userPosition.totalQuantityBought);
-
-    trade.gasUsed = event.receipt ? event.receipt!.gasUsed : BigInt.fromI32(0);
-    trade.gasPrice = event.transaction.gasPrice;
-    trade.timestamp = event.block.timestamp;
-    trade.blockNumber = event.block.number;
-    trade.transactionHash = event.transaction.hash;
-    trade.save();
-
-    // Update UserStats - claim has no quantity/cost but affects total realized PnL
-    userStats.totalRealizedPnL = userStats.totalRealizedPnL.plus(
-      userPosition.realizedPnL
-    );
-    userStats.lastTradeAt = event.block.timestamp;
-
-    // B-5 fix: Calculate avgTradeSize and use proper win/loss tracking
-    if (userStats.totalTrades.gt(BigInt.fromI32(0))) {
-      userStats.avgTradeSize = userStats.totalVolume.div(userStats.totalTrades);
-    }
-
-    // Update win/loss based on market settlement (only for settled markets)
-    updateWinLossStats(userStats, userPosition, userPosition.realizedPnL);
-
-    userStats.save();
-
-    // Update MarketStats
-    let marketStats = getOrCreateMarketStats(userPosition.market);
-    marketStats.lastUpdated = event.block.timestamp;
-    marketStats.save();
-
-    // Note: Position claimed - no additional snapshot needed
-  }
+  let userPosition = UserPosition.load(event.params.positionId.toString())!;
+  userPosition.isClaimed = true;
+  userPosition.lastUpdated = event.block.timestamp;
+  userPosition.save();
 }
 
 export function handlePositionClosed(event: PositionClosedEvent): void {
@@ -500,110 +526,104 @@ export function handlePositionClosed(event: PositionClosedEvent): void {
 
   entity.save();
 
-  // ========================================
-  // PnL TRACKING: CLOSE USER POSITION & CALCULATE FINAL REALIZED PnL
-  // ========================================
+  let userPosition = UserPosition.load(event.params.positionId.toString())!;
+  let closedQuantity = userPosition.currentQuantity;
+  let tradeRealizedPnL = event.params.proceeds.minus(
+    userPosition.totalCostBasis
+  );
 
-  // Update UserPosition
-  let userPosition = UserPosition.load(event.params.positionId.toString());
-  if (userPosition != null) {
-    let proceedsDecimal = event.params.proceeds
-      .toBigDecimal()
-      .div(BigDecimal.fromString("1000000"));
-    let closedQuantity = userPosition.currentQuantity;
+  userPosition.currentQuantity = BigInt.fromI32(0);
+  userPosition.totalQuantitySold =
+    userPosition.totalQuantitySold.plus(closedQuantity);
+  userPosition.totalProceeds = userPosition.totalProceeds.plus(
+    event.params.proceeds
+  );
+  userPosition.realizedPnL = tradeRealizedPnL;
+  userPosition.outcome = "CLOSED";
+  userPosition.activityRemaining = BigInt.fromI32(0);
+  userPosition.weightedEntryTime = BigInt.fromI32(0);
+  userPosition.lastUpdated = event.block.timestamp;
+  userPosition.save();
 
-    // Simplified calculation - realized PnL = proceeds - cost basis
-    let tradeRealizedPnL = event.params.proceeds.minus(
-      userPosition.totalCostBasis
-    );
+  let userStats = getOrCreateUserStats(event.params.trader);
+  userStats.activePositionsCount = userStats.activePositionsCount.minus(
+    BigInt.fromI32(1)
+  );
 
-    // Update position data - closing entire position
-    userPosition.currentQuantity = BigInt.fromI32(0);
-    userPosition.totalQuantitySold =
-      userPosition.totalQuantitySold.plus(closedQuantity);
-    userPosition.totalProceeds = userPosition.totalProceeds.plus(
-      event.params.proceeds
-    );
-    userPosition.realizedPnL = tradeRealizedPnL;
-    userPosition.isActive = false;
-    userPosition.lastUpdated = event.block.timestamp;
-    userPosition.save();
+  let trade = new Trade(
+    event.transaction.hash.concatI32(event.logIndex.toI32())
+  );
+  trade.userPosition = userPosition.id;
+  trade.user = event.params.trader;
+  trade.market = userPosition.market;
+  trade.positionId = event.params.positionId;
+  trade.type = "CLOSE";
+  trade.lowerTick = userPosition.lowerTick;
+  trade.upperTick = userPosition.upperTick;
+  trade.quantity = closedQuantity.times(BigInt.fromI32(-1));
+  trade.costOrProceeds = event.params.proceeds;
+  trade.price = event.params.proceeds
+    .times(BigInt.fromString("1000000"))
+    .div(closedQuantity);
+  trade.gasUsed = event.receipt ? event.receipt!.gasUsed : BigInt.fromI32(0);
+  trade.gasPrice = event.transaction.gasPrice;
+  trade.timestamp = event.block.timestamp;
+  trade.blockNumber = event.block.number;
+  trade.transactionHash = event.transaction.hash;
 
-    // Update user stats active position count
-    let userStats = getOrCreateUserStats(event.params.trader);
-    if (userStats.activePositionsCount.gt(BigInt.fromI32(0))) {
-      userStats.activePositionsCount = userStats.activePositionsCount.minus(
-        BigInt.fromI32(1)
-      );
-    }
+  let performancePoints = calcPerformancePoints(tradeRealizedPnL);
+  let holdingSeconds = event.block.timestamp.minus(
+    userPosition.weightedEntryTime
+  );
+  let userRange = userPosition.upperTick.minus(userPosition.lowerTick);
 
-    // Create Trade record (negative quantity for sell)
-    let trade = new Trade(
-      event.transaction.hash.concatI32(event.logIndex.toI32())
-    );
-    trade.userPosition = userPosition.id;
-    trade.user = event.params.trader;
-    trade.market = userPosition.market;
-    trade.positionId = event.params.positionId;
-    trade.type = "CLOSE";
-    trade.lowerTick = userPosition.lowerTick;
-    trade.upperTick = userPosition.upperTick;
-    trade.quantity = closedQuantity.times(BigInt.fromI32(-1)); // Negative for sell
-    trade.costOrProceeds = event.params.proceeds;
+  let market = Market.load(userPosition.market)!;
+  let marketRange = market.maxTick.minus(market.minTick);
+  let riskBonusPoints = calcRiskBonusPoints(
+    userPosition.activityRemaining,
+    userRange,
+    marketRange,
+    holdingSeconds
+  );
 
-    // B-2 fix: Calculate close price as proceeds per closed quantity
-    trade.price = closedQuantity.equals(BigInt.fromI32(0))
-      ? BigInt.fromI32(0)
-      : event.params.proceeds
-          .times(BigInt.fromString("1000000"))
-          .div(closedQuantity);
+  trade.activityPt = BigInt.fromI32(0);
+  trade.performancePt = performancePoints;
+  trade.riskBonusPt = riskBonusPoints;
+  trade.save();
 
-    trade.gasUsed = event.receipt ? event.receipt!.gasUsed : BigInt.fromI32(0);
-    trade.gasPrice = event.transaction.gasPrice;
-    trade.timestamp = event.block.timestamp;
-    trade.blockNumber = event.block.number;
-    trade.transactionHash = event.transaction.hash;
-    trade.save();
+  userStats.totalTrades = userStats.totalTrades.plus(BigInt.fromI32(1));
+  userStats.totalVolume = userStats.totalVolume.plus(event.params.proceeds);
+  userStats.totalProceeds = userStats.totalProceeds.plus(event.params.proceeds);
+  userStats.totalRealizedPnL = userStats.totalRealizedPnL.plus(
+    userPosition.realizedPnL
+  );
+  userStats.lastTradeAt = event.block.timestamp;
+  userStats.avgTradeSize = userStats.totalVolume.div(userStats.totalTrades);
 
-    // Update UserStats - close position
-    userStats.totalTrades = userStats.totalTrades.plus(BigInt.fromI32(1));
-    userStats.totalVolume = userStats.totalVolume.plus(event.params.proceeds);
-    userStats.totalProceeds = userStats.totalProceeds.plus(
-      event.params.proceeds
-    );
-    userStats.totalRealizedPnL = userStats.totalRealizedPnL.plus(
-      userPosition.realizedPnL
-    );
-    userStats.lastTradeAt = event.block.timestamp;
+  let totalEarnedPoints = performancePoints.plus(riskBonusPoints);
+  userStats.totalPoints = userStats.totalPoints.plus(totalEarnedPoints);
+  userStats.save();
 
-    // B-5 fix: Calculate avgTradeSize and use proper win/loss tracking for close
-    if (userStats.totalTrades.gt(BigInt.fromI32(0))) {
-      userStats.avgTradeSize = userStats.totalVolume.div(userStats.totalTrades);
-    }
+  updateBinVolumes(
+    BigInt.fromString(userPosition.market),
+    userPosition.lowerTick,
+    userPosition.upperTick,
+    event.params.proceeds
+  );
 
-    userStats.save();
+  let marketStats = getOrCreateMarketStats(userPosition.market);
+  marketStats.totalVolume = marketStats.totalVolume.plus(event.params.proceeds);
+  marketStats.totalTrades = marketStats.totalTrades.plus(BigInt.fromI32(1));
+  marketStats.currentPrice = trade.price;
+  marketStats.lastUpdated = event.block.timestamp;
 
-    // Update MarketStats
-    let marketStats = getOrCreateMarketStats(userPosition.market);
-    marketStats.totalVolume = marketStats.totalVolume.plus(
-      event.params.proceeds
-    );
-    marketStats.totalTrades = marketStats.totalTrades.plus(BigInt.fromI32(1));
-    marketStats.currentPrice = trade.price;
-    marketStats.lastUpdated = event.block.timestamp;
-
-    // Update price bounds
-    if (trade.price.gt(marketStats.highestPrice)) {
-      marketStats.highestPrice = trade.price;
-    }
-    if (trade.price.lt(marketStats.lowestPrice)) {
-      marketStats.lowestPrice = trade.price;
-    }
-
-    marketStats.save();
-
-    // Note: Position closed - tracked in UserPosition and Trade entities
+  if (trade.price.gt(marketStats.highestPrice)) {
+    marketStats.highestPrice = trade.price;
   }
+  if (trade.price.lt(marketStats.lowestPrice)) {
+    marketStats.lowestPrice = trade.price;
+  }
+  marketStats.save();
 }
 
 export function handlePositionDecreased(event: PositionDecreasedEvent): void {
@@ -622,110 +642,118 @@ export function handlePositionDecreased(event: PositionDecreasedEvent): void {
 
   entity.save();
 
-  // ========================================
-  // PnL TRACKING: UPDATE USER POSITION & CALCULATE REALIZED PnL
-  // ========================================
+  let userPosition = UserPosition.load(event.params.positionId.toString())!;
+  let oldQuantity = userPosition.currentQuantity;
+  let costPortion = userPosition.totalCostBasis
+    .times(event.params.sellQuantity)
+    .div(oldQuantity);
 
-  // Update UserPosition
-  let userPosition = UserPosition.load(event.params.positionId.toString());
-  if (userPosition != null) {
-    // Simplified realized PnL calculation (proceeds - cost basis)
-    let tradeRealizedPnL = event.params.proceeds.minus(
-      userPosition.totalCostBasis
-        .times(event.params.sellQuantity)
-        .div(userPosition.currentQuantity.plus(event.params.sellQuantity))
-    );
+  let tradeRealizedPnL = event.params.proceeds.minus(costPortion);
 
-    // Update position data
-    userPosition.currentQuantity = event.params.newQuantity;
-    userPosition.totalQuantitySold = userPosition.totalQuantitySold.plus(
-      event.params.sellQuantity
-    );
-    userPosition.totalProceeds = userPosition.totalProceeds.plus(
-      event.params.proceeds
-    );
-    userPosition.realizedPnL = userPosition.realizedPnL.plus(tradeRealizedPnL);
+  userPosition.currentQuantity = event.params.newQuantity;
+  userPosition.totalCostBasis = userPosition.totalCostBasis.minus(costPortion);
+  userPosition.totalQuantitySold = userPosition.totalQuantitySold.plus(
+    event.params.sellQuantity
+  );
+  userPosition.totalProceeds = userPosition.totalProceeds.plus(
+    event.params.proceeds
+  );
+  userPosition.realizedPnL = userPosition.realizedPnL.plus(tradeRealizedPnL);
 
-    // If position is closed completely, mark as inactive and update win/loss
-    if (event.params.newQuantity.equals(BigInt.fromI32(0))) {
-      userPosition.isActive = false;
+  let activityPortion = userPosition.activityRemaining
+    .times(event.params.sellQuantity)
+    .div(oldQuantity);
 
-      // Update user stats active position count
-      let userStats = getOrCreateUserStats(event.params.trader);
-      if (userStats.activePositionsCount.gt(BigInt.fromI32(0))) {
-        userStats.activePositionsCount = userStats.activePositionsCount.minus(
-          BigInt.fromI32(1)
-        );
-      }
+  userPosition.activityRemaining =
+    userPosition.activityRemaining.minus(activityPortion);
 
-      userStats.save();
-    }
+  if (event.params.newQuantity.equals(BigInt.fromI32(0))) {
+    userPosition.outcome = "CLOSED";
+    userPosition.weightedEntryTime = BigInt.fromI32(0);
 
-    userPosition.lastUpdated = event.block.timestamp;
-    userPosition.save();
-
-    // Create Trade record (negative quantity for sell)
-    let trade = new Trade(
-      event.transaction.hash.concatI32(event.logIndex.toI32())
-    );
-    trade.userPosition = userPosition.id;
-    trade.user = event.params.trader;
-    trade.market = userPosition.market;
-    trade.positionId = event.params.positionId;
-    trade.type = "DECREASE";
-    trade.lowerTick = userPosition.lowerTick;
-    trade.upperTick = userPosition.upperTick;
-    trade.quantity = event.params.sellQuantity.times(BigInt.fromI32(-1)); // Negative for sell
-    trade.costOrProceeds = event.params.proceeds;
-    trade.price = calculateRawPrice(
-      event.params.proceeds,
-      event.params.sellQuantity
-    );
-    trade.gasUsed = event.receipt ? event.receipt!.gasUsed : BigInt.fromI32(0);
-    trade.gasPrice = event.transaction.gasPrice;
-    trade.timestamp = event.block.timestamp;
-    trade.blockNumber = event.block.number;
-    trade.transactionHash = event.transaction.hash;
-    trade.save();
-
-    // Update bin volumes (매도량도 거래량에 포함)
-    updateBinVolumes(
-      BigInt.fromString(userPosition.market),
-      userPosition.lowerTick,
-      userPosition.upperTick,
-      event.params.proceeds
-    );
-
-    // Update UserStats - decrease position
     let userStats = getOrCreateUserStats(event.params.trader);
-    userStats.totalTrades = userStats.totalTrades.plus(BigInt.fromI32(1));
-    userStats.totalVolume = userStats.totalVolume.plus(event.params.proceeds);
-    userStats.totalProceeds = userStats.totalProceeds.plus(
-      event.params.proceeds
+    userStats.activePositionsCount = userStats.activePositionsCount.minus(
+      BigInt.fromI32(1)
     );
-    userStats.lastTradeAt = event.block.timestamp;
     userStats.save();
-
-    // Update MarketStats
-    let marketStats = getOrCreateMarketStats(userPosition.market);
-    // 🚨 FIX: 마켓 볼륨도 실제 거래 금액(매도는 proceeds)으로 계산
-    marketStats.totalVolume = marketStats.totalVolume.plus(
-      event.params.proceeds
-    );
-    marketStats.totalTrades = marketStats.totalTrades.plus(BigInt.fromI32(1));
-    marketStats.currentPrice = trade.price;
-    marketStats.lastUpdated = event.block.timestamp;
-
-    // Update price bounds
-    if (trade.price.gt(marketStats.highestPrice)) {
-      marketStats.highestPrice = trade.price;
-    }
-    if (trade.price.lt(marketStats.lowestPrice)) {
-      marketStats.lowestPrice = trade.price;
-    }
-
-    marketStats.save();
   }
+
+  userPosition.lastUpdated = event.block.timestamp;
+  userPosition.save();
+
+  let trade = new Trade(
+    event.transaction.hash.concatI32(event.logIndex.toI32())
+  );
+  trade.userPosition = userPosition.id;
+  trade.user = event.params.trader;
+  trade.market = userPosition.market;
+  trade.positionId = event.params.positionId;
+  trade.type = "DECREASE";
+  trade.lowerTick = userPosition.lowerTick;
+  trade.upperTick = userPosition.upperTick;
+  trade.quantity = event.params.sellQuantity.times(BigInt.fromI32(-1));
+  trade.costOrProceeds = event.params.proceeds;
+  trade.price = calculateRawPrice(
+    event.params.proceeds,
+    event.params.sellQuantity
+  );
+  trade.gasUsed = event.receipt ? event.receipt!.gasUsed : BigInt.fromI32(0);
+  trade.gasPrice = event.transaction.gasPrice;
+  trade.timestamp = event.block.timestamp;
+  trade.blockNumber = event.block.number;
+  trade.transactionHash = event.transaction.hash;
+
+  let performancePoints = calcPerformancePoints(tradeRealizedPnL);
+  let holdingSeconds = event.block.timestamp.minus(
+    userPosition.weightedEntryTime
+  );
+  let userRange = userPosition.upperTick.minus(userPosition.lowerTick);
+
+  let market = Market.load(userPosition.market)!;
+  let marketRange = market.maxTick.minus(market.minTick);
+  let riskBonusPoints = calcRiskBonusPoints(
+    activityPortion,
+    userRange,
+    marketRange,
+    holdingSeconds
+  );
+
+  trade.activityPt = BigInt.fromI32(0);
+  trade.performancePt = performancePoints;
+  trade.riskBonusPt = riskBonusPoints;
+
+  trade.save();
+
+  updateBinVolumes(
+    BigInt.fromString(userPosition.market),
+    userPosition.lowerTick,
+    userPosition.upperTick,
+    event.params.proceeds
+  );
+
+  let userStats = getOrCreateUserStats(event.params.trader);
+  userStats.totalTrades = userStats.totalTrades.plus(BigInt.fromI32(1));
+  userStats.totalVolume = userStats.totalVolume.plus(event.params.proceeds);
+  userStats.totalProceeds = userStats.totalProceeds.plus(event.params.proceeds);
+  userStats.lastTradeAt = event.block.timestamp;
+
+  let totalEarnedPoints = performancePoints.plus(riskBonusPoints);
+  userStats.totalPoints = userStats.totalPoints.plus(totalEarnedPoints);
+  userStats.save();
+
+  let marketStats = getOrCreateMarketStats(userPosition.market);
+  marketStats.totalVolume = marketStats.totalVolume.plus(event.params.proceeds);
+  marketStats.totalTrades = marketStats.totalTrades.plus(BigInt.fromI32(1));
+  marketStats.currentPrice = trade.price;
+  marketStats.lastUpdated = event.block.timestamp;
+
+  if (trade.price.gt(marketStats.highestPrice)) {
+    marketStats.highestPrice = trade.price;
+  }
+  if (trade.price.lt(marketStats.lowestPrice)) {
+    marketStats.lowestPrice = trade.price;
+  }
+  marketStats.save();
 }
 
 export function handlePositionIncreased(event: PositionIncreasedEvent): void {
@@ -749,88 +777,93 @@ export function handlePositionIncreased(event: PositionIncreasedEvent): void {
   // ========================================
 
   // Update UserPosition
-  let userPosition = UserPosition.load(event.params.positionId.toString());
-  if (userPosition != null) {
-    let additionalCostDecimal = event.params.cost
-      .toBigDecimal()
-      .div(BigDecimal.fromString("1000000"));
+  let userPosition = UserPosition.load(event.params.positionId.toString())!;
 
-    // Update cost basis and calculate new average entry price
-    userPosition.totalCostBasis = userPosition.totalCostBasis.plus(
-      event.params.cost
-    );
-    userPosition.totalQuantityBought = userPosition.totalQuantityBought.plus(
-      event.params.additionalQuantity
-    );
-    userPosition.currentQuantity = event.params.newQuantity;
+  userPosition.totalCostBasis = userPosition.totalCostBasis.plus(
+    event.params.cost
+  );
+  userPosition.totalQuantityBought = userPosition.totalQuantityBought.plus(
+    event.params.additionalQuantity
+  );
+  userPosition.currentQuantity = event.params.newQuantity;
 
-    // Simplified average entry price calculation
-    if (!userPosition.totalQuantityBought.equals(BigInt.fromI32(0))) {
-      userPosition.averageEntryPrice = userPosition.totalCostBasis
-        .times(BigInt.fromString("1000000"))
-        .div(userPosition.totalQuantityBought);
-    }
+  userPosition.averageEntryPrice = userPosition.totalCostBasis
+    .times(BigInt.fromString("1000000"))
+    .div(userPosition.totalQuantityBought);
 
-    userPosition.lastUpdated = event.block.timestamp;
-    userPosition.save();
+  let currentTime = event.block.timestamp;
+  let oldQuantity = userPosition.currentQuantity.minus(
+    event.params.additionalQuantity
+  );
+  userPosition.weightedEntryTime = userPosition.weightedEntryTime
+    .times(oldQuantity)
+    .plus(currentTime.times(event.params.additionalQuantity))
+    .div(userPosition.currentQuantity);
 
-    // Create Trade record
-    let trade = new Trade(
-      event.transaction.hash.concatI32(event.logIndex.toI32())
-    );
-    trade.userPosition = userPosition.id;
-    trade.user = event.params.trader;
-    trade.market = userPosition.market;
-    trade.positionId = event.params.positionId;
-    trade.type = "INCREASE";
-    trade.lowerTick = userPosition.lowerTick;
-    trade.upperTick = userPosition.upperTick;
-    trade.quantity = event.params.additionalQuantity;
-    trade.costOrProceeds = event.params.cost;
-    trade.price = calculateRawPrice(
-      event.params.cost,
-      event.params.additionalQuantity
-    );
-    trade.gasUsed = event.receipt ? event.receipt!.gasUsed : BigInt.fromI32(0);
-    trade.gasPrice = event.transaction.gasPrice;
-    trade.timestamp = event.block.timestamp;
-    trade.blockNumber = event.block.number;
-    trade.transactionHash = event.transaction.hash;
-    trade.save();
+  userPosition.lastUpdated = event.block.timestamp;
+  userPosition.save();
 
-    // Update bin volumes
-    updateBinVolumes(
-      BigInt.fromString(userPosition.market),
-      userPosition.lowerTick,
-      userPosition.upperTick,
-      event.params.cost
-    );
+  let trade = new Trade(
+    event.transaction.hash.concatI32(event.logIndex.toI32())
+  );
+  trade.userPosition = userPosition.id;
+  trade.user = event.params.trader;
+  trade.market = userPosition.market;
+  trade.positionId = event.params.positionId;
+  trade.type = "INCREASE";
+  trade.lowerTick = userPosition.lowerTick;
+  trade.upperTick = userPosition.upperTick;
+  trade.quantity = event.params.additionalQuantity;
+  trade.costOrProceeds = event.params.cost;
+  trade.price = calculateRawPrice(
+    event.params.cost,
+    event.params.additionalQuantity
+  );
+  trade.gasUsed = event.receipt ? event.receipt!.gasUsed : BigInt.fromI32(0);
+  trade.gasPrice = event.transaction.gasPrice;
+  trade.timestamp = event.block.timestamp;
+  trade.blockNumber = event.block.number;
+  trade.transactionHash = event.transaction.hash;
 
-    // Update UserStats - increase position
-    let userStats = getOrCreateUserStats(event.params.trader);
-    userStats.totalTrades = userStats.totalTrades.plus(BigInt.fromI32(1));
-    userStats.totalVolume = userStats.totalVolume.plus(event.params.cost);
-    userStats.totalCosts = userStats.totalCosts.plus(event.params.cost);
-    userStats.lastTradeAt = event.block.timestamp;
-    userStats.save();
+  let activityPoints = calcActivityPoints(event.params.cost);
+  trade.activityPt = activityPoints;
+  trade.performancePt = BigInt.fromI32(0);
+  trade.riskBonusPt = BigInt.fromI32(0);
+  trade.save();
 
-    // Update MarketStats
-    let marketStats = getOrCreateMarketStats(userPosition.market);
-    marketStats.totalVolume = marketStats.totalVolume.plus(event.params.cost);
-    marketStats.totalTrades = marketStats.totalTrades.plus(BigInt.fromI32(1));
-    marketStats.currentPrice = trade.price;
-    marketStats.lastUpdated = event.block.timestamp;
+  userPosition.activityRemaining =
+    userPosition.activityRemaining.plus(activityPoints);
+  userPosition.save();
 
-    // Update price bounds
-    if (trade.price.gt(marketStats.highestPrice)) {
-      marketStats.highestPrice = trade.price;
-    }
-    if (trade.price.lt(marketStats.lowestPrice)) {
-      marketStats.lowestPrice = trade.price;
-    }
+  updateBinVolumes(
+    BigInt.fromString(userPosition.market),
+    userPosition.lowerTick,
+    userPosition.upperTick,
+    event.params.cost
+  );
 
-    marketStats.save();
+  let userStats = getOrCreateUserStats(event.params.trader);
+  userStats.totalTrades = userStats.totalTrades.plus(BigInt.fromI32(1));
+  userStats.totalVolume = userStats.totalVolume.plus(event.params.cost);
+  userStats.totalCosts = userStats.totalCosts.plus(event.params.cost);
+  userStats.lastTradeAt = event.block.timestamp;
+
+  userStats.totalPoints = userStats.totalPoints.plus(activityPoints);
+  userStats.save();
+
+  let marketStats = getOrCreateMarketStats(userPosition.market);
+  marketStats.totalVolume = marketStats.totalVolume.plus(event.params.cost);
+  marketStats.totalTrades = marketStats.totalTrades.plus(BigInt.fromI32(1));
+  marketStats.currentPrice = trade.price;
+  marketStats.lastUpdated = event.block.timestamp;
+
+  if (trade.price.gt(marketStats.highestPrice)) {
+    marketStats.highestPrice = trade.price;
   }
+  if (trade.price.lt(marketStats.lowestPrice)) {
+    marketStats.lowestPrice = trade.price;
+  }
+  marketStats.save();
 }
 
 export function handlePositionOpened(event: PositionOpenedEvent): void {
@@ -851,22 +884,14 @@ export function handlePositionOpened(event: PositionOpenedEvent): void {
 
   entity.save();
 
-  // 포지션 거래량은 BinState에서 추적됨 (TickRange 제거)
-
-  // ========================================
-  // PnL TRACKING: CREATE USER POSITION & TRADE
-  // ========================================
-
-  // Create UserPosition
   let userPosition = new UserPosition(event.params.positionId.toString());
   userPosition.positionId = event.params.positionId;
   userPosition.user = event.params.trader;
-  userPosition.stats = event.params.trader; // UserStats 관계 설정
+  userPosition.stats = event.params.trader;
   userPosition.market = event.params.marketId.toString();
   userPosition.lowerTick = event.params.lowerTick;
   userPosition.upperTick = event.params.upperTick;
 
-  // Raw 값 그대로 저장 (quantity/cost는 6 decimals)
   userPosition.currentQuantity = event.params.quantity;
   userPosition.totalCostBasis = event.params.cost;
   userPosition.averageEntryPrice = calculateRawPrice(
@@ -877,12 +902,14 @@ export function handlePositionOpened(event: PositionOpenedEvent): void {
   userPosition.totalQuantitySold = BigInt.fromI32(0);
   userPosition.totalProceeds = BigInt.fromI32(0);
   userPosition.realizedPnL = BigInt.fromI32(0);
-  userPosition.isActive = true;
+  userPosition.outcome = "OPEN";
+  userPosition.isClaimed = false;
   userPosition.createdAt = event.block.timestamp;
   userPosition.lastUpdated = event.block.timestamp;
+  userPosition.activityRemaining = BigInt.fromI32(0);
+  userPosition.weightedEntryTime = event.block.timestamp;
   userPosition.save();
 
-  // Create Trade record
   let trade = new Trade(
     event.transaction.hash.concatI32(event.logIndex.toI32())
   );
@@ -893,17 +920,24 @@ export function handlePositionOpened(event: PositionOpenedEvent): void {
   trade.type = "OPEN";
   trade.lowerTick = event.params.lowerTick;
   trade.upperTick = event.params.upperTick;
-  trade.quantity = event.params.quantity; // Raw 값 그대로
-  trade.costOrProceeds = event.params.cost; // Raw 값 그대로
+  trade.quantity = event.params.quantity;
+  trade.costOrProceeds = event.params.cost;
   trade.price = userPosition.averageEntryPrice;
   trade.gasUsed = event.receipt ? event.receipt!.gasUsed : BigInt.fromI32(0);
   trade.gasPrice = event.transaction.gasPrice;
   trade.timestamp = event.block.timestamp;
   trade.blockNumber = event.block.number;
   trade.transactionHash = event.transaction.hash;
+
+  let activityPoints = calcActivityPoints(event.params.cost);
+  trade.activityPt = activityPoints;
+  trade.performancePt = BigInt.fromI32(0);
+  trade.riskBonusPt = BigInt.fromI32(0);
   trade.save();
 
-  // Update bin volumes with raw quantity
+  userPosition.activityRemaining = activityPoints;
+  userPosition.save();
+
   updateBinVolumes(
     event.params.marketId,
     event.params.lowerTick,
@@ -911,15 +945,12 @@ export function handlePositionOpened(event: PositionOpenedEvent): void {
     event.params.cost
   );
 
-  // Update UserStats
   let userStatsResult = getOrCreateUserStatsWithFlag(event.params.trader);
   let userStats = userStatsResult.userStats;
   userStats.activePositionsCount = userStats.activePositionsCount.plus(
     BigInt.fromI32(1)
   );
-  // Update UserStats - open position
   userStats.totalTrades = userStats.totalTrades.plus(BigInt.fromI32(1));
-  // 🚨 FIX: 볼륨은 실제 베팅 금액(cost)으로 계산
   userStats.totalVolume = userStats.totalVolume.plus(event.params.cost);
   userStats.totalCosts = userStats.totalCosts.plus(event.params.cost);
   userStats.lastTradeAt = event.block.timestamp;
@@ -927,40 +958,26 @@ export function handlePositionOpened(event: PositionOpenedEvent): void {
     userStats.firstTradeAt = event.block.timestamp;
   }
 
-  // 🚨 FIX: avgTradeSize도 cost 기반으로 계산
-  if (userStats.totalTrades.gt(BigInt.fromI32(0))) {
-    userStats.avgTradeSize = userStats.totalVolume.div(userStats.totalTrades);
-  }
-
+  userStats.avgTradeSize = userStats.totalVolume.div(userStats.totalTrades);
+  userStats.totalPoints = userStats.totalPoints.plus(activityPoints);
   userStats.save();
 
-  // Update MarketStats
   let marketStats = getOrCreateMarketStats(event.params.marketId.toString());
-  // 🚨 FIX: 마켓 볼륨도 실제 베팅 금액(cost)으로 계산
   marketStats.totalVolume = marketStats.totalVolume.plus(event.params.cost);
   marketStats.totalTrades = marketStats.totalTrades.plus(BigInt.fromI32(1));
-
-  // 신규 유저인 경우 totalUsers 증가
-  if (userStatsResult.isNew) {
-    // Note: totalUsers field removed from schema
-  }
-
   marketStats.currentPrice = userPosition.averageEntryPrice;
   marketStats.lastUpdated = event.block.timestamp;
 
-  // Update price bounds
   if (userPosition.averageEntryPrice.gt(marketStats.highestPrice)) {
     marketStats.highestPrice = userPosition.averageEntryPrice;
   }
   if (userPosition.averageEntryPrice.lt(marketStats.lowestPrice)) {
     marketStats.lowestPrice = userPosition.averageEntryPrice;
   }
-
   marketStats.save();
 }
 
 export function handleRangeFactorApplied(event: RangeFactorAppliedEvent): void {
-  // 이벤트 엔티티 저장
   let entity = new RangeFactorApplied(
     event.transaction.hash.concatI32(event.logIndex.toI32())
   );
@@ -975,85 +992,58 @@ export function handleRangeFactorApplied(event: RangeFactorAppliedEvent): void {
 
   entity.save();
 
-  // 마켓 상태 업데이트
-  let market = Market.load(event.params.marketId.toString());
-  if (market != null) {
-    market.lastUpdated = event.block.timestamp;
-    market.save();
+  let market = Market.load(event.params.marketId.toString())!;
+  market.lastUpdated = event.block.timestamp;
+  market.save();
 
-    // Factor는 이미 WAD 형식이므로 그대로 사용
-    let factorWad = event.params.factor;
+  let lowerBinIndex = event.params.lo
+    .minus(market.minTick)
+    .div(market.tickSpacing)
+    .toI32();
+  let upperBinIndex =
+    event.params.hi.minus(market.minTick).div(market.tickSpacing).toI32() - 1;
 
-    // ========================================
-    // BIN STATE 업데이트 (틱 범위를 bin 인덱스로 변환)
-    // ========================================
-
-    // 틱 범위를 bin 인덱스 범위로 변환
-    let lowerBinIndex = event.params.lo
-      .minus(market.minTick)
-      .div(market.tickSpacing)
-      .toI32();
-    let upperBinIndex =
-      event.params.hi.minus(market.minTick).div(market.tickSpacing).toI32() - 1;
-
-    // 영향받은 bin들의 factor 업데이트
-    for (let binIndex = lowerBinIndex; binIndex <= upperBinIndex; binIndex++) {
-      let binState = BinState.load(market.id + "-" + binIndex.toString());
-      if (binState != null) {
-        // WAD * WAD = WAD*2이므로 WAD로 나누어야 함
-        binState.currentFactor = binState.currentFactor
-          .times(factorWad)
-          .div(BigInt.fromString("1000000000000000000"));
-        binState.lastUpdated = event.block.timestamp;
-        binState.updateCount = binState.updateCount.plus(BigInt.fromI32(1));
-        binState.save();
-      }
-    }
-
-    // ========================================
-    // MARKET DISTRIBUTION 재계산 (모든 bin 스캔)
-    // ========================================
-    let distribution = MarketDistribution.load(market.id);
-    if (distribution != null) {
-      let totalSumWad = BigInt.fromI32(0);
-      let minFactorWad = BigInt.fromString("999999999999999999999999999999"); // 매우 큰 값으로 초기화
-      let maxFactorWad = BigInt.fromI32(0);
-      let binFactorsWad: Array<string> = [];
-      let binVolumes: Array<string> = [];
-
-      // 모든 bin을 순회하여 통계 재계산
-      for (let i = 0; i < market.numBins.toI32(); i++) {
-        let binState = BinState.load(market.id + "-" + i.toString());
-        if (binState != null) {
-          totalSumWad = totalSumWad.plus(binState.currentFactor);
-
-          // 통계값 계산
-          if (binState.currentFactor.lt(minFactorWad)) {
-            minFactorWad = binState.currentFactor;
-          }
-          if (binState.currentFactor.gt(maxFactorWad)) {
-            maxFactorWad = binState.currentFactor;
-          }
-
-          // String 배열로 저장
-          binFactorsWad.push(binState.currentFactor.toString());
-          binVolumes.push(binState.totalVolume.toString());
-        }
-      }
-
-      // 평균 계산 (WAD 기준)
-      let avgFactorWad = totalSumWad.div(market.numBins);
-
-      // 분포 업데이트 (WAD 기준)
-      distribution.totalSum = totalSumWad;
-      distribution.minFactor = minFactorWad;
-      distribution.maxFactor = maxFactorWad;
-      distribution.avgFactor = avgFactorWad;
-      distribution.binFactors = binFactorsWad;
-      distribution.binVolumes = binVolumes;
-      distribution.version = distribution.version.plus(BigInt.fromI32(1));
-      distribution.lastSnapshotAt = event.block.timestamp;
-      distribution.save();
-    }
+  for (let binIndex = lowerBinIndex; binIndex <= upperBinIndex; binIndex++) {
+    let binState = BinState.load(market.id + "-" + binIndex.toString())!;
+    binState.currentFactor = binState.currentFactor
+      .times(event.params.factor)
+      .div(BigInt.fromString("1000000000000000000"));
+    binState.lastUpdated = event.block.timestamp;
+    binState.updateCount = binState.updateCount.plus(BigInt.fromI32(1));
+    binState.save();
   }
+
+  let distribution = MarketDistribution.load(market.id)!;
+  let totalSumWad = BigInt.fromI32(0);
+  let minFactorWad = BigInt.fromString("999999999999999999999999999999");
+  let maxFactorWad = BigInt.fromI32(0);
+  let binFactorsWad: Array<string> = [];
+  let binVolumes: Array<string> = [];
+
+  for (let i = 0; i < market.numBins.toI32(); i++) {
+    let binState = BinState.load(market.id + "-" + i.toString())!;
+    totalSumWad = totalSumWad.plus(binState.currentFactor);
+
+    if (binState.currentFactor.lt(minFactorWad)) {
+      minFactorWad = binState.currentFactor;
+    }
+    if (binState.currentFactor.gt(maxFactorWad)) {
+      maxFactorWad = binState.currentFactor;
+    }
+
+    binFactorsWad.push(binState.currentFactor.toString());
+    binVolumes.push(binState.totalVolume.toString());
+  }
+
+  let avgFactorWad = totalSumWad.div(market.numBins);
+
+  distribution.totalSum = totalSumWad;
+  distribution.minFactor = minFactorWad;
+  distribution.maxFactor = maxFactorWad;
+  distribution.avgFactor = avgFactorWad;
+  distribution.binFactors = binFactorsWad;
+  distribution.binVolumes = binVolumes;
+  distribution.version = distribution.version.plus(BigInt.fromI32(1));
+  distribution.lastSnapshotAt = event.block.timestamp;
+  distribution.save();
 }
