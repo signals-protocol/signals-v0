@@ -52,8 +52,9 @@ library LazyMulSegmentTree {
     // ========================================
     
     uint256 public constant ONE_WAD = 1e18;
-    uint256 public constant MIN_FACTOR = 0.01e18;  // 1% minimum - allow wide range for CLMSR
+    uint256 public constant MIN_FACTOR = 0.01e18;  // 0.01% minimum - allow wide range for CLMSR
     uint256 public constant MAX_FACTOR = 100e18;   // 100x maximum - allow wide range for CLMSR
+    uint256 public constant FLUSH_THRESHOLD = 1e30; // 1,000,000,000,000 WAD - auto-flush when pendingFactor exceeds this
 
     // ========================================
     // HELPER FUNCTIONS
@@ -140,7 +141,7 @@ library LazyMulSegmentTree {
         
         // Auto-flush mechanism: if pending factor gets too large, flush it down
         // This prevents overflow while maintaining mathematical correctness
-        if (newPendingFactor > 1e30) { // Much lower threshold for auto-flush
+        if (newPendingFactor > FLUSH_THRESHOLD) { // Much lower threshold for auto-flush
             // If we have children, push the current pending factor down first
             if (node.childPtr != 0) {
                 // Force push current pending factor to children
@@ -177,7 +178,7 @@ library LazyMulSegmentTree {
                 Node storage leftNode = tree.nodes[left];
                 leftNode.sum = leftNode.sum.wMul(uint256(pendingFactor));
                 uint256 newLeftPending = uint256(leftNode.pendingFactor).wMul(uint256(pendingFactor));
-                if (newLeftPending <= 1e30) {
+                if (newLeftPending <= FLUSH_THRESHOLD) {
                     leftNode.pendingFactor = uint192(newLeftPending);
                 } else {
                     // Recursive flush if still too large
@@ -190,7 +191,7 @@ library LazyMulSegmentTree {
                 Node storage rightNode = tree.nodes[right];
                 rightNode.sum = rightNode.sum.wMul(uint256(pendingFactor));
                 uint256 newRightPending = uint256(rightNode.pendingFactor).wMul(uint256(pendingFactor));
-                if (newRightPending <= 1e30) {
+                if (newRightPending <= FLUSH_THRESHOLD) {
                     rightNode.pendingFactor = uint192(newRightPending);
                 } else {
                     // Recursive flush if still too large

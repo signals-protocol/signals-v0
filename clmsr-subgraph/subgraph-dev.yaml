@@ -8,7 +8,7 @@ dataSources:
     name: CLMSRMarketCore
     network: base
     source:
-      address: "0xbBf5703b1755B462FC5FC7319A1d3ACA4E1988Bc"
+      address: "0x894C07d390D7585c5205f2B81b9845e5432282B6"
       abi: CLMSRMarketCore
       startBlock: 33772759
     mapping:

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-/// @title ICLMSRMarketCore
-/// @notice Core interface for CLMSR Daily-Market System
-/// @dev Immutable contract handling core trading logic and market state
-interface ICLMSRMarketCore {
+/// @title ICLMSRMarketCoreUpgradeable
+/// @notice Upgradeable core interface for CLMSR Daily-Market System
+/// @dev UUPS upgradeable contract handling core trading logic and market state
+interface ICLMSRMarketCoreUpgradeable {
     // ========================================
     // STRUCTS
     // ========================================
@@ -23,7 +23,6 @@ interface ICLMSRMarketCore {
         uint256 liquidityParameter;    // Alpha parameter (1e18 scale)
     }
     
-
 
     // ========================================
     // EVENTS
@@ -115,7 +114,7 @@ interface ICLMSRMarketCore {
     // MARKET MANAGEMENT FUNCTIONS
     // ========================================
     
-    /// @notice Create a new market (only callable by Manager)
+    /// @notice Create a new market (only callable by Owner)
     /// @dev Stores market data and initializes all tick values to WAD (1e18)
     /// @param marketId Market identifier
     /// @param minTick Minimum allowed tick value
@@ -134,7 +133,7 @@ interface ICLMSRMarketCore {
         uint256 liquidityParameter
     ) external returns (uint256 marketId);
     
-    /// @notice Settle a market (only callable by Manager)
+    /// @notice Settle a market (only callable by Owner)
     /// @dev Sets exact winning tick value and enables position claiming
     /// @param marketId Market identifier
     /// @param settlementTick Exact winning tick value
@@ -270,9 +269,6 @@ interface ICLMSRMarketCore {
     /// @return Payment token address
     function getPaymentToken() external view returns (address);
     
-    
-
-    
     // ========================================
     // SEGMENT TREE FUNCTIONS
     // ========================================
@@ -287,7 +283,7 @@ interface ICLMSRMarketCore {
         external view returns (uint256 sum);
     
     /// @notice Propagate lazy values and return range sum (state-changing function)
-    /// @dev For Keeper/Manager - actually pushes lazy values down the tree
+    /// @dev For Keeper/Owner - actually pushes lazy values down the tree
     /// @param marketId Market identifier
     /// @param lo Left boundary (inclusive, actual tick value)
     /// @param hi Right boundary (inclusive, actual tick value)
@@ -296,7 +292,7 @@ interface ICLMSRMarketCore {
         external returns (uint256 sum);
     
     /// @notice Apply multiplication factor to range (state-changing function)
-    /// @dev For Keeper/Manager - updates market state by applying factor
+    /// @dev For Keeper/Owner - updates market state by applying factor
     /// @param marketId Market identifier
     /// @param lo Left boundary (inclusive, actual tick value)
     /// @param hi Right boundary (inclusive, actual tick value)
@@ -318,4 +314,4 @@ interface ICLMSRMarketCore {
     /// @notice Check if contract is paused
     /// @return True if paused
     function isPaused() external view returns (bool);
-} 
+}

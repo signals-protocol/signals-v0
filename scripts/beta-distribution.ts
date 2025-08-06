@@ -165,8 +165,8 @@ async function sendToBetaUsers(): Promise<void> {
 
       // 다음 송금 전 잠시 대기 (네트워크 부하 방지)
       if (pendingAddresses.indexOf(addressInfo) < pendingAddresses.length - 1) {
-        console.log("⏳ 3초 대기 중...");
-        await new Promise((resolve) => setTimeout(resolve, 3000));
+        console.log("⏳ 1초 대기 중...");
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
     } catch (error) {
       console.error(`❌ ${addressInfo.address} 송금 실패:`, error);
@@ -276,7 +276,7 @@ function addAddresses(addresses: string[]): void {
 function updateSusdAddress(newAddress?: string): void {
   console.log("🔄 SUSD 주소 업데이트 중...");
 
-  let susdAddress = newAddress;
+  let susdAddress: string | null | undefined = newAddress;
 
   // 주소가 제공되지 않으면 최신 배포 파일에서 가져오기
   if (!susdAddress) {

@@ -4,11 +4,13 @@
   "scripts": {
     "codegen": "graph codegen",
     "build": "graph build",
-    "deploy": "graph deploy --node https://api.studio.thegraph.com/deploy/ signals-v-0",
+    "deploy:prod": "graph deploy --node https://api.studio.thegraph.com/deploy/ signals-v-0",
+    "deploy:dev": "graph deploy --node https://api.studio.thegraph.com/deploy/ signals-v-0-dev subgraph-dev.yaml",
     "create-local": "graph create --node http://localhost:8020/ clmsr-subgraph",
     "remove-local": "graph remove --node http://localhost:8020/ clmsr-subgraph",
     "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 clmsr-subgraph",
-    "test": "graph test"
+    "test": "graph test",
+    "deploy": "npm run deploy:prod"
   },
   "dependencies": {
     "@graphprotocol/graph-cli": "0.97.1",

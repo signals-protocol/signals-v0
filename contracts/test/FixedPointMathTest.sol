@@ -7,12 +7,8 @@ import {FixedPointMathU, FixedPointMathS} from "../libraries/FixedPointMath.sol"
 /// @notice Test contract for FixedPointMath library
 /// @dev Exposes library functions for testing with new dual-library structure
 contract FixedPointMathTest {
-    // Re-export errors for testing
-    error FP_Overflow();
-    error FP_EmptyArray();
-    error FP_DivisionByZero();
-    error FP_InvalidInput();
-    error PRBMath_UD60x18_Log_InputTooSmall();
+    // Note: Errors are now imported from FixedPointMath library directly
+    // to avoid duplicate definition warnings
     // ========================================
     // UNSIGNED MATH TESTS
     // ========================================

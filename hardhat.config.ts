@@ -1,6 +1,8 @@
 import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
+import "@openzeppelin/hardhat-upgrades";
 import "hardhat-gas-reporter";
+import "hardhat-tracer";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -29,7 +31,19 @@ const config: HardhatUserConfig = {
       chainId: 4801,
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
     },
-    // Base Mainnet
+    // Base Mainnet (Production)
+    "base-prod": {
+      url: "https://mainnet.base.org",
+      chainId: 8453,
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+    },
+    // Base Mainnet (Development)
+    "base-dev": {
+      url: "https://mainnet.base.org",
+      chainId: 8453,
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+    },
+    // Base Mainnet (Legacy - 호환성)
     base: {
       url: "https://mainnet.base.org",
       chainId: 8453,
@@ -54,10 +68,11 @@ const config: HardhatUserConfig = {
     },
     localhost: {
       url: "http://127.0.0.1:8545",
-      // Use environment variables for localhost accounts or let Hardhat auto-generate
-      accounts: process.env.LOCALHOST_PRIVATE_KEYS
-        ? process.env.LOCALHOST_PRIVATE_KEYS.split(",")
-        : [], // Hardhat will use default accounts if empty
+      // Use default Hardhat accounts
+      accounts: [
+        "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", // Account #0
+        "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d", // Account #1
+      ],
     },
   },
   gasReporter: {
