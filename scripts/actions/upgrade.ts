@@ -196,11 +196,6 @@ export async function upgradeAction(
     deployer: deployer.address,
   });
 
-  // 매니페스트 커밋
-  console.log("📝 Committing manifest changes...");
-  const version = envManager.getCurrentVersion(environment);
-  await manifestManager.commit(environment, `Upgrade to v${version} completed`);
-
   console.log("🎉 Upgrade completed successfully!");
   envManager.printEnvironmentStatus(environment);
 }

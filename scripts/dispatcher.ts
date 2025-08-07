@@ -30,6 +30,11 @@ if (!COMMAND) {
   settle-market:base:dev    - Settle market on base dev
   settle-market:base:prod   - Settle market on base prod
   
+⏰ Market Timing Commands:
+  update-market-timing:localhost   - Update market timing on localhost (hardcoded values)
+  update-market-timing:base:dev    - Update market timing on base dev (hardcoded values)
+  update-market-timing:base:prod   - Update market timing on base prod (hardcoded values)
+  
 📊 Status Commands:
   status:localhost          - Show localhost status
   status:base:dev           - Show base dev status
@@ -88,6 +93,15 @@ async function dispatch() {
       case "settle-market":
         const { settleMarketAction } = await import("./actions/settle-market");
         await settleMarketAction(environment as "localhost" | "dev" | "prod");
+        break;
+
+      case "update-market-timing":
+        const { updateMarketTimingAction } = await import(
+          "./actions/update-market-timing"
+        );
+        await updateMarketTimingAction(
+          environment as "localhost" | "dev" | "prod"
+        );
         break;
 
       case "deploy-susd":

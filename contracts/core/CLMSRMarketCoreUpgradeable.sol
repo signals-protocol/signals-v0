@@ -232,6 +232,31 @@ contract CLMSRMarketCoreUpgradeable is
         }
     }
 
+    /// @inheritdoc ICLMSRMarketCoreUpgradeable
+    function updateMarketTiming(
+        uint256 marketId,
+        uint64 newStartTimestamp,
+        uint64 newEndTimestamp
+    ) external override onlyOwner marketExists(marketId) {
+        Market storage market = markets[marketId];
+        
+        // Market must not be settled
+        if (market.settled) {
+            revert CE.MarketAlreadySettled(marketId);
+        }
+        
+        // Validate new time range
+        if (newStartTimestamp >= newEndTimestamp) {
+            revert CE.InvalidTimeRange();
+        }
+        
+        // Update timing
+        market.startTimestamp = newStartTimestamp;
+        market.endTimestamp = newEndTimestamp;
+        
+        emit MarketTimingUpdated(marketId, newStartTimestamp, newEndTimestamp);
+    }
+
     // ========================================
     // TICK VALIDATION AND CONVERSION FUNCTIONS
     // ========================================

@@ -98,6 +98,12 @@ interface ICLMSRMarketCoreUpgradeable {
         address indexed by
     );
 
+    event MarketTimingUpdated(
+        uint256 indexed marketId,
+        uint64 newStartTimestamp,
+        uint64 newEndTimestamp
+    );
+
     /// @notice Emitted when range multiplication factor is applied
     /// @param marketId Market identifier
     /// @param lo Left boundary (inclusive)
@@ -138,6 +144,17 @@ interface ICLMSRMarketCoreUpgradeable {
     /// @param marketId Market identifier
     /// @param settlementTick Exact winning tick value
     function settleMarket(uint256 marketId, int256 settlementTick) external;
+
+    /// @notice Update market timing (only callable by Owner)
+    /// @dev Changes market start and end timestamps for a specific market
+    /// @param marketId Market identifier
+    /// @param newStartTimestamp New market start time
+    /// @param newEndTimestamp New market end time
+    function updateMarketTiming(
+        uint256 marketId,
+        uint64 newStartTimestamp,
+        uint64 newEndTimestamp
+    ) external;
 
     // ========================================
     // EXECUTION FUNCTIONS
