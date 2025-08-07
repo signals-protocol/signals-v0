@@ -109,6 +109,9 @@ function getOrCreateUserStats(userAddress: Bytes): UserStats {
     userStats.firstTradeAt = BigInt.fromI32(0);
     userStats.lastTradeAt = BigInt.fromI32(0);
     userStats.totalPoints = BigInt.fromI32(0); // 포인트 초기화
+    userStats.activityPoints = BigInt.fromI32(0); // Activity 포인트 초기화
+    userStats.performancePoints = BigInt.fromI32(0); // Performance 포인트 초기화
+    userStats.riskBonusPoints = BigInt.fromI32(0); // Risk Bonus 포인트 초기화
     userStats.save(); // B-1 fix: save new entity immediately
   }
 
@@ -137,6 +140,9 @@ function getOrCreateUserStatsWithFlag(userAddress: Bytes): UserStatsResult {
     userStats.firstTradeAt = BigInt.fromI32(0);
     userStats.lastTradeAt = BigInt.fromI32(0);
     userStats.totalPoints = BigInt.fromI32(0); // 포인트 초기화
+    userStats.activityPoints = BigInt.fromI32(0); // Activity 포인트 초기화
+    userStats.performancePoints = BigInt.fromI32(0); // Performance 포인트 초기화
+    userStats.riskBonusPoints = BigInt.fromI32(0); // Risk Bonus 포인트 초기화
     userStats.save(); // B-1 fix: save new entity immediately
     isNew = true;
   } else {
@@ -516,6 +522,9 @@ export function handlePositionSettled(event: PositionSettledEvent): void {
 
   let totalSettlementPoints = performancePoints.plus(riskBonusPoints);
   userStats.totalPoints = userStats.totalPoints.plus(totalSettlementPoints);
+  userStats.performancePoints =
+    userStats.performancePoints.plus(performancePoints);
+  userStats.riskBonusPoints = userStats.riskBonusPoints.plus(riskBonusPoints);
   userStats.save();
 
   let trade = new Trade(
@@ -659,6 +668,9 @@ export function handlePositionClosed(event: PositionClosedEvent): void {
 
   let totalEarnedPoints = performancePoints.plus(riskBonusPoints);
   userStats.totalPoints = userStats.totalPoints.plus(totalEarnedPoints);
+  userStats.performancePoints =
+    userStats.performancePoints.plus(performancePoints);
+  userStats.riskBonusPoints = userStats.riskBonusPoints.plus(riskBonusPoints);
   userStats.save();
 
   updateBinVolumes(
@@ -799,6 +811,9 @@ export function handlePositionDecreased(event: PositionDecreasedEvent): void {
 
   let totalEarnedPoints = performancePoints.plus(riskBonusPoints);
   userStats.totalPoints = userStats.totalPoints.plus(totalEarnedPoints);
+  userStats.performancePoints =
+    userStats.performancePoints.plus(performancePoints);
+  userStats.riskBonusPoints = userStats.riskBonusPoints.plus(riskBonusPoints);
   userStats.save();
 
   let marketStats = getOrCreateMarketStats(userPosition.market);
@@ -911,6 +926,7 @@ export function handlePositionIncreased(event: PositionIncreasedEvent): void {
   userStats.lastTradeAt = event.block.timestamp;
 
   userStats.totalPoints = userStats.totalPoints.plus(activityPoints);
+  userStats.activityPoints = userStats.activityPoints.plus(activityPoints);
   userStats.save();
 
   let marketStats = getOrCreateMarketStats(userPosition.market);
@@ -1022,6 +1038,7 @@ export function handlePositionOpened(event: PositionOpenedEvent): void {
 
   userStats.avgTradeSize = userStats.totalVolume.div(userStats.totalTrades);
   userStats.totalPoints = userStats.totalPoints.plus(activityPoints);
+  userStats.activityPoints = userStats.activityPoints.plus(activityPoints);
   userStats.save();
 
   let marketStats = getOrCreateMarketStats(
