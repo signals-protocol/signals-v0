@@ -10,11 +10,19 @@
     "remove-local": "graph remove --node http://localhost:8020/ clmsr-subgraph",
     "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 clmsr-subgraph",
     "test": "graph test",
-    "deploy": "npm run deploy:prod"
+    "deploy": "npm run deploy:prod",
+    "check-indexing": "node scripts/check-indexing.js",
+    "check-indexing:dev": "node scripts/check-indexing.js dev",
+    "verify-contracts": "node scripts/verify-contracts.js",
+    "quick-diagnosis": "node scripts/quick-diagnosis.js",
+    "monitor": "node scripts/check-indexing.js",
+    "install-monitoring": "npm install graphql-request web3"
   },
   "dependencies": {
     "@graphprotocol/graph-cli": "0.97.1",
-    "@graphprotocol/graph-ts": "0.37.0"
+    "@graphprotocol/graph-ts": "0.37.0",
+    "graphql-request": "^6.1.0",
+    "web3": "^4.16.0"
   },
   "devDependencies": {
     "matchstick-as": "0.6.0"

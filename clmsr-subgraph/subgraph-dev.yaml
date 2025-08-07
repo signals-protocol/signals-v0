@@ -4,6 +4,52 @@ indexerHints:
 schema:
   file: ./schema.graphql
 dataSources:
+  # ===== 레거시 컨트랙트 (prefix: "L-") =====
+  - kind: ethereum
+    name: LegacyCLMSRMarketCore
+    network: base
+    source:
+      address: "0x4424687a25302db5d1D3A9f7504e4710b0ab17E9"
+      abi: CLMSRMarketCore
+      startBlock: 33546252
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - MarketCreated
+        - MarketSettled
+        - PositionClaimed
+        - PositionClosed
+        - PositionDecreased
+        - PositionIncreased
+        - PositionOpened
+        - RangeFactorApplied
+      abis:
+        - name: CLMSRMarketCore
+          file: ./abis/CLMSRMarketCore.json
+      eventHandlers:
+        - event: MarketCreated(indexed uint256,uint64,uint64,int256,int256,int256,uint32,uint256)
+          handler: handleMarketCreated
+        - event: MarketSettled(indexed uint256,int256)
+          handler: handleMarketSettled
+        - event: PositionClaimed(indexed uint256,indexed address,uint256)
+          handler: handlePositionClaimed
+        - event: PositionClosed(indexed uint256,indexed address,uint256)
+          handler: handlePositionClosed
+        - event: PositionDecreased(indexed uint256,indexed address,uint128,uint128,uint256)
+          handler: handlePositionDecreased
+        - event: PositionIncreased(indexed uint256,indexed address,uint128,uint128,uint256)
+          handler: handlePositionIncreased
+        - event: PositionOpened(indexed uint256,indexed address,indexed uint256,int256,int256,uint128,uint256)
+          handler: handlePositionOpened
+        - event: PositionSettled(indexed uint256,indexed address,uint256,bool)
+          handler: handlePositionSettled
+        - event: RangeFactorApplied(indexed uint256,indexed int256,indexed int256,uint256)
+          handler: handleRangeFactorApplied
+      file: ./src/clmsr-market-core.ts
+
+  # ===== 신규 업그레이더블 컨트랙트 (prefix 없음) =====
   - kind: ethereum
     name: CLMSRMarketCore
     network: base

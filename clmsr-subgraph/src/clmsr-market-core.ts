@@ -1,4 +1,4 @@
-import { BigInt, BigDecimal, Bytes } from "@graphprotocol/graph-ts";
+import { BigInt, BigDecimal, Bytes, dataSource } from "@graphprotocol/graph-ts";
 import {
   PositionOpened as PositionOpenedEvent,
   PositionIncreased as PositionIncreasedEvent,
@@ -28,6 +28,54 @@ import {
   BinState,
   MarketDistribution,
 } from "../generated/schema";
+
+// ============= PREFIX HELPER FUNCTIONS =============
+
+/**
+ * 공통 ID 생성 헬퍼 함수
+ * dataSource 주소로 prefix 결정
+ * - Legacy 컨트랙트: "L-42"
+ * - 신규 컨트랙트: "42"
+ */
+export function buildId(raw: BigInt): string {
+  let address = dataSource.address().toHexString();
+  let isLegacy = address == "0x4424687a25302db5d1d3a9f7504e4710b0ab17e9";
+  return isLegacy ? "L-" + raw.toString() : raw.toString();
+}
+
+/**
+ * MarketId 기반 ID 생성 (Market, MarketStats, MarketDistribution 용)
+ */
+export function buildMarketId(marketId: BigInt): string {
+  return buildId(marketId);
+}
+
+/**
+ * PositionId 기반 ID 생성 (UserPosition 용)
+ */
+export function buildPositionId(positionId: BigInt): string {
+  return buildId(positionId);
+}
+
+/**
+ * BinState ID 생성 (marketId-binIndex 형식)
+ */
+export function buildBinStateId(marketId: BigInt, binIndex: i32): string {
+  let marketIdStr = buildMarketId(marketId);
+  return marketIdStr + "-" + binIndex.toString();
+}
+
+/**
+ * Market ID 문자열에서 raw BigInt 추출 (prefix 제거)
+ * "L-42" → BigInt(42), "42" → BigInt(42)
+ */
+export function extractRawMarketId(marketIdStr: string): BigInt {
+  let rawIdStr = marketIdStr;
+  if (rawIdStr.startsWith("L-")) {
+    rawIdStr = rawIdStr.substring(2); // Remove "L-" prefix
+  }
+  return BigInt.fromString(rawIdStr);
+}
 
 // Helper types
 class UserStatsResult {
@@ -223,7 +271,7 @@ function updateBinVolumes(
 
   // Update each affected bin's volume
   for (let binIndex = lowerBinIndex; binIndex <= upperBinIndex; binIndex++) {
-    let binStateId = marketId.toString() + "-" + binIndex.toString();
+    let binStateId = buildBinStateId(marketId, binIndex);
     let binState = BinState.load(binStateId);
     if (binState != null) {
       binState.totalVolume = binState.totalVolume.plus(volume);
@@ -232,7 +280,7 @@ function updateBinVolumes(
   }
 
   // Update MarketDistribution's binVolumes array
-  let distribution = MarketDistribution.load(marketId.toString());
+  let distribution = MarketDistribution.load(buildMarketId(marketId));
   if (distribution != null) {
     let binVolumes = distribution.binVolumes;
     for (let binIndex = lowerBinIndex; binIndex <= upperBinIndex; binIndex++) {
@@ -321,7 +369,8 @@ export function handleMarketCreated(event: MarketCreatedEvent): void {
 
   entity.save();
 
-  let market = new Market(event.params.marketId.toString());
+  let marketIdStr = buildMarketId(event.params.marketId);
+  let market = new Market(marketIdStr);
   market.marketId = event.params.marketId;
   market.minTick = event.params.minTick;
   market.maxTick = event.params.maxTick;
@@ -334,7 +383,7 @@ export function handleMarketCreated(event: MarketCreatedEvent): void {
   market.lastUpdated = event.block.timestamp;
   market.save();
 
-  let marketStats = getOrCreateMarketStats(event.params.marketId.toString());
+  let marketStats = getOrCreateMarketStats(marketIdStr);
   marketStats.lastUpdated = event.block.timestamp;
   marketStats.save();
 
@@ -348,7 +397,7 @@ export function handleMarketCreated(event: MarketCreatedEvent): void {
     );
     let upperTick = lowerTick.plus(event.params.tickSpacing);
 
-    let binId = event.params.marketId.toString() + "-" + binIndex.toString();
+    let binId = buildBinStateId(event.params.marketId, binIndex);
     let binState = new BinState(binId);
     binState.market = market.id;
     binState.binIndex = BigInt.fromI32(binIndex);
@@ -365,7 +414,7 @@ export function handleMarketCreated(event: MarketCreatedEvent): void {
     tickRanges.push(lowerTick.toString() + "-" + upperTick.toString());
   }
 
-  let distribution = new MarketDistribution(event.params.marketId.toString());
+  let distribution = new MarketDistribution(marketIdStr);
   distribution.market = market.id;
   distribution.totalBins = event.params.numBins;
 
@@ -401,7 +450,7 @@ export function handleMarketSettled(event: MarketSettledEvent): void {
 
   entity.save();
 
-  let market = Market.load(event.params.marketId.toString())!;
+  let market = Market.load(buildMarketId(event.params.marketId))!;
   market.isSettled = true;
   market.settlementTick = event.params.settlementTick;
   market.lastUpdated = event.block.timestamp;
@@ -423,7 +472,9 @@ export function handlePositionSettled(event: PositionSettledEvent): void {
 
   entity.save();
 
-  let userPosition = UserPosition.load(event.params.positionId.toString())!;
+  let userPosition = UserPosition.load(
+    buildPositionId(event.params.positionId)
+  )!;
   userPosition.outcome = event.params.isWin ? "WIN" : "LOSS";
 
   let calculatedPnL = event.params.payout.minus(userPosition.totalCostBasis);
@@ -506,7 +557,9 @@ export function handlePositionClaimed(event: PositionClaimedEvent): void {
 
   entity.save();
 
-  let userPosition = UserPosition.load(event.params.positionId.toString())!;
+  let userPosition = UserPosition.load(
+    buildPositionId(event.params.positionId)
+  )!;
   userPosition.isClaimed = true;
   userPosition.lastUpdated = event.block.timestamp;
   userPosition.save();
@@ -526,7 +579,9 @@ export function handlePositionClosed(event: PositionClosedEvent): void {
 
   entity.save();
 
-  let userPosition = UserPosition.load(event.params.positionId.toString())!;
+  let userPosition = UserPosition.load(
+    buildPositionId(event.params.positionId)
+  )!;
   let closedQuantity = userPosition.currentQuantity;
   let tradeRealizedPnL = event.params.proceeds.minus(
     userPosition.totalCostBasis
@@ -538,6 +593,10 @@ export function handlePositionClosed(event: PositionClosedEvent): void {
   userPosition.totalProceeds = userPosition.totalProceeds.plus(
     event.params.proceeds
   );
+  // Store values before resetting for risk calculation
+  let originalActivityRemaining = userPosition.activityRemaining;
+  let originalWeightedEntryTime = userPosition.weightedEntryTime;
+
   userPosition.realizedPnL = tradeRealizedPnL;
   userPosition.outcome = "CLOSED";
   userPosition.activityRemaining = BigInt.fromI32(0);
@@ -572,15 +631,13 @@ export function handlePositionClosed(event: PositionClosedEvent): void {
   trade.transactionHash = event.transaction.hash;
 
   let performancePoints = calcPerformancePoints(tradeRealizedPnL);
-  let holdingSeconds = event.block.timestamp.minus(
-    userPosition.weightedEntryTime
-  );
+  let holdingSeconds = event.block.timestamp.minus(originalWeightedEntryTime);
   let userRange = userPosition.upperTick.minus(userPosition.lowerTick);
 
   let market = Market.load(userPosition.market)!;
   let marketRange = market.maxTick.minus(market.minTick);
   let riskBonusPoints = calcRiskBonusPoints(
-    userPosition.activityRemaining,
+    originalActivityRemaining,
     userRange,
     marketRange,
     holdingSeconds
@@ -605,7 +662,7 @@ export function handlePositionClosed(event: PositionClosedEvent): void {
   userStats.save();
 
   updateBinVolumes(
-    BigInt.fromString(userPosition.market),
+    extractRawMarketId(userPosition.market),
     userPosition.lowerTick,
     userPosition.upperTick,
     event.params.proceeds
@@ -642,7 +699,9 @@ export function handlePositionDecreased(event: PositionDecreasedEvent): void {
 
   entity.save();
 
-  let userPosition = UserPosition.load(event.params.positionId.toString())!;
+  let userPosition = UserPosition.load(
+    buildPositionId(event.params.positionId)
+  )!;
   let oldQuantity = userPosition.currentQuantity;
   let costPortion = userPosition.totalCostBasis
     .times(event.params.sellQuantity)
@@ -663,6 +722,9 @@ export function handlePositionDecreased(event: PositionDecreasedEvent): void {
   let activityPortion = userPosition.activityRemaining
     .times(event.params.sellQuantity)
     .div(oldQuantity);
+
+  // Store original weightedEntryTime before potentially resetting it
+  let originalWeightedEntryTime = userPosition.weightedEntryTime;
 
   userPosition.activityRemaining =
     userPosition.activityRemaining.minus(activityPortion);
@@ -704,9 +766,7 @@ export function handlePositionDecreased(event: PositionDecreasedEvent): void {
   trade.transactionHash = event.transaction.hash;
 
   let performancePoints = calcPerformancePoints(tradeRealizedPnL);
-  let holdingSeconds = event.block.timestamp.minus(
-    userPosition.weightedEntryTime
-  );
+  let holdingSeconds = event.block.timestamp.minus(originalWeightedEntryTime);
   let userRange = userPosition.upperTick.minus(userPosition.lowerTick);
 
   let market = Market.load(userPosition.market)!;
@@ -725,7 +785,7 @@ export function handlePositionDecreased(event: PositionDecreasedEvent): void {
   trade.save();
 
   updateBinVolumes(
-    BigInt.fromString(userPosition.market),
+    extractRawMarketId(userPosition.market),
     userPosition.lowerTick,
     userPosition.upperTick,
     event.params.proceeds
@@ -777,7 +837,9 @@ export function handlePositionIncreased(event: PositionIncreasedEvent): void {
   // ========================================
 
   // Update UserPosition
-  let userPosition = UserPosition.load(event.params.positionId.toString())!;
+  let userPosition = UserPosition.load(
+    buildPositionId(event.params.positionId)
+  )!;
 
   userPosition.totalCostBasis = userPosition.totalCostBasis.plus(
     event.params.cost
@@ -836,7 +898,7 @@ export function handlePositionIncreased(event: PositionIncreasedEvent): void {
   userPosition.save();
 
   updateBinVolumes(
-    BigInt.fromString(userPosition.market),
+    extractRawMarketId(userPosition.market),
     userPosition.lowerTick,
     userPosition.upperTick,
     event.params.cost
@@ -884,11 +946,11 @@ export function handlePositionOpened(event: PositionOpenedEvent): void {
 
   entity.save();
 
-  let userPosition = new UserPosition(event.params.positionId.toString());
+  let userPosition = new UserPosition(buildPositionId(event.params.positionId));
   userPosition.positionId = event.params.positionId;
   userPosition.user = event.params.trader;
   userPosition.stats = event.params.trader;
-  userPosition.market = event.params.marketId.toString();
+  userPosition.market = buildMarketId(event.params.marketId);
   userPosition.lowerTick = event.params.lowerTick;
   userPosition.upperTick = event.params.upperTick;
 
@@ -915,7 +977,7 @@ export function handlePositionOpened(event: PositionOpenedEvent): void {
   );
   trade.userPosition = userPosition.id;
   trade.user = event.params.trader;
-  trade.market = event.params.marketId.toString();
+  trade.market = buildMarketId(event.params.marketId);
   trade.positionId = event.params.positionId;
   trade.type = "OPEN";
   trade.lowerTick = event.params.lowerTick;
@@ -962,7 +1024,9 @@ export function handlePositionOpened(event: PositionOpenedEvent): void {
   userStats.totalPoints = userStats.totalPoints.plus(activityPoints);
   userStats.save();
 
-  let marketStats = getOrCreateMarketStats(event.params.marketId.toString());
+  let marketStats = getOrCreateMarketStats(
+    buildMarketId(event.params.marketId)
+  );
   marketStats.totalVolume = marketStats.totalVolume.plus(event.params.cost);
   marketStats.totalTrades = marketStats.totalTrades.plus(BigInt.fromI32(1));
   marketStats.currentPrice = userPosition.averageEntryPrice;
@@ -992,7 +1056,7 @@ export function handleRangeFactorApplied(event: RangeFactorAppliedEvent): void {
 
   entity.save();
 
-  let market = Market.load(event.params.marketId.toString())!;
+  let market = Market.load(buildMarketId(event.params.marketId))!;
   market.lastUpdated = event.block.timestamp;
   market.save();
 
@@ -1004,7 +1068,9 @@ export function handleRangeFactorApplied(event: RangeFactorAppliedEvent): void {
     event.params.hi.minus(market.minTick).div(market.tickSpacing).toI32() - 1;
 
   for (let binIndex = lowerBinIndex; binIndex <= upperBinIndex; binIndex++) {
-    let binState = BinState.load(market.id + "-" + binIndex.toString())!;
+    let binState = BinState.load(
+      buildBinStateId(event.params.marketId, binIndex)
+    )!;
     binState.currentFactor = binState.currentFactor
       .times(event.params.factor)
       .div(BigInt.fromString("1000000000000000000"));
@@ -1021,7 +1087,7 @@ export function handleRangeFactorApplied(event: RangeFactorAppliedEvent): void {
   let binVolumes: Array<string> = [];
 
   for (let i = 0; i < market.numBins.toI32(); i++) {
-    let binState = BinState.load(market.id + "-" + i.toString())!;
+    let binState = BinState.load(buildBinStateId(event.params.marketId, i))!;
     totalSumWad = totalSumWad.plus(binState.currentFactor);
 
     if (binState.currentFactor.lt(minFactorWad)) {
