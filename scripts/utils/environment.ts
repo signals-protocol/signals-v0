@@ -20,6 +20,10 @@ export interface EnvironmentConfig {
       CLMSRMarketCoreProxy: string | null;
       CLMSRMarketCoreImplementation: string | null;
     };
+    points: {
+      PointsGranterProxy: string | null;
+      PointsGranterImplementation: string | null;
+    };
   };
   deploymentHistory: DeploymentRecord[];
   lastUpdated: string | null;
@@ -90,7 +94,7 @@ export class EnvironmentManager {
    */
   updateContract(
     env: "localhost" | "dev" | "prod",
-    contractType: "libraries" | "tokens" | "core",
+    contractType: "libraries" | "tokens" | "core" | "points",
     contractName: string,
     address: string
   ): void {
@@ -150,6 +154,15 @@ export class EnvironmentManager {
       if (address) addresses[name] = address;
     });
 
+    // Points contracts
+    if ((config.contracts as any).points) {
+      Object.entries((config.contracts as any).points).forEach(
+        ([name, address]) => {
+          if (address) addresses[name] = address as string;
+        }
+      );
+    }
+
     return addresses;
   }
 
@@ -208,6 +221,15 @@ export class EnvironmentManager {
     Object.entries(config.contracts.core).forEach(([name, address]) => {
       console.log(`  ${name}: ${address || "❌ Not deployed"}`);
     });
+
+    if ((config.contracts as any).points) {
+      console.log(`\n🎯 Points Contracts:`);
+      Object.entries((config.contracts as any).points).forEach(
+        ([name, address]) => {
+          console.log(`  ${name}: ${address || "❌ Not deployed"}`);
+        }
+      );
+    }
 
     console.log(
       `\n📋 Deployment History: ${config.deploymentHistory.length} records`
@@ -279,6 +301,10 @@ export class EnvironmentManager {
           CLMSRPositionImplementation: null,
           CLMSRMarketCoreProxy: null,
           CLMSRMarketCoreImplementation: null,
+        },
+        points: {
+          PointsGranterProxy: null,
+          PointsGranterImplementation: null,
         },
       },
       deploymentHistory: [],

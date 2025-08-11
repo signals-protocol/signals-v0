@@ -264,6 +264,22 @@ type MarketStats @entity(immutable: false) {
   lastUpdated: BigInt!
 }
 
+# =================== Points (Minimal) ===================
+enum PointReason {
+  ACTIVITY
+  PERFORMANCE
+  RISK_BONUS
+  MANUAL
+}
+
+type EventHistory @entity(immutable: true) {
+  id: Bytes!
+  user: Bytes!
+  amount: BigInt!
+  reason: PointReason!
+  timestamp: BigInt!
+}
+
 # 이벤트 엔티티들
 type PositionSettled @entity(immutable: true) {
   id: Bytes! # transactionHash-logIndex

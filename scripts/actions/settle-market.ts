@@ -5,8 +5,8 @@ export async function settleMarketAction(
   environment: "localhost" | "dev" | "prod"
 ): Promise<void> {
   // 🎯 기본 설정값 (필요시 환경변수로 오버라이드 가능)
-  const marketId = parseInt(process.env.MARKET_ID || "1");
-  const settlementTick = parseInt(process.env.SETTLEMENT_TICK || "115028");
+  const marketId = parseInt(process.env.MARKET_ID || "5");
+  const settlementTick = parseInt(process.env.SETTLEMENT_TICK || "119306");
 
   console.log(`⚖️ Settling market ${marketId} on ${environment}`);
 

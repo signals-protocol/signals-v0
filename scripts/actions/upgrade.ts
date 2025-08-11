@@ -62,6 +62,22 @@ export async function upgradeAction(
     { kind: "uups" }
   );
   console.log("✅ Core proxy pre-imported");
+
+  await delay(1000);
+
+  if (addresses.PointsGranterProxy) {
+    const PointsGranterUpgradeable = await ethers.getContractFactory(
+      "PointsGranterUpgradeable"
+    );
+
+    await upgrades.forceImport(
+      addresses.PointsGranterProxy,
+      PointsGranterUpgradeable,
+      { kind: "uups" }
+    );
+    console.log("✅ PointsGranter proxy pre-imported");
+  }
+
   console.log("📝 Manifest synchronized with on-chain state");
 
   // 새 라이브러리 배포 (FLUSH_THRESHOLD 등 신기능 포함)
@@ -183,6 +199,41 @@ export async function upgradeAction(
   );
   console.log("✅ Core contract upgraded:", newImplAddress);
 
+  // PointsGranter 업그레이드
+  console.log("🎯 Upgrading PointsGranter...");
+  await delay(3000);
+
+  if (!addresses.PointsGranterProxy) {
+    throw new Error(
+      `PointsGranter proxy not deployed in ${environment} environment`
+    );
+  }
+
+  const PointsGranterUpgradeable = await ethers.getContractFactory(
+    "PointsGranterUpgradeable"
+  );
+  const upgradedPoints = await upgrades.upgradeProxy(
+    addresses.PointsGranterProxy,
+    PointsGranterUpgradeable,
+    {
+      kind: "uups",
+    }
+  );
+  await upgradedPoints.waitForDeployment();
+
+  const pointsProxyAddress = addresses.PointsGranterProxy;
+  const pointsImplAddress = await upgrades.erc1967.getImplementationAddress(
+    pointsProxyAddress
+  );
+
+  envManager.updateContract(
+    environment,
+    "points",
+    "PointsGranterImplementation",
+    pointsImplAddress
+  );
+  console.log("✅ PointsGranter upgraded:", pointsImplAddress);
+
   // 업그레이드 기록 저장
   const nextVersion = envManager.getNextVersion(environment);
   envManager.addDeploymentRecord(environment, {
@@ -192,6 +243,8 @@ export async function upgradeAction(
       LazyMulSegmentTree: newSegmentTreeAddress,
       CLMSRPositionImplementation: newPositionImplAddress,
       CLMSRMarketCoreImplementation: newImplAddress,
+      PointsGranterProxy: pointsProxyAddress,
+      PointsGranterImplementation: pointsImplAddress,
     },
     deployer: deployer.address,
   });
