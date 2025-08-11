@@ -161,6 +161,39 @@ export async function deployAction(
   await positionProxy.updateCore(coreProxyAddress);
   console.log("✅ Position core address updated");
 
+  // PointsGranter 배포 (항상 배포)
+  console.log("🎯 Deploying PointsGranter (UUPS)...");
+  const PointsGranterUpgradeable = await ethers.getContractFactory(
+    "PointsGranterUpgradeable"
+  );
+  const pointsProxy = await upgrades.deployProxy(
+    PointsGranterUpgradeable,
+    [deployer.address],
+    {
+      kind: "uups",
+      initializer: "initialize",
+    }
+  );
+  await pointsProxy.waitForDeployment();
+  const pointsProxyAddress = await pointsProxy.getAddress();
+  const pointsImplAddress = await upgrades.erc1967.getImplementationAddress(
+    pointsProxyAddress
+  );
+
+  envManager.updateContract(
+    environment,
+    "points" as any,
+    "PointsGranterProxy",
+    pointsProxyAddress
+  );
+  envManager.updateContract(
+    environment,
+    "points" as any,
+    "PointsGranterImplementation",
+    pointsImplAddress
+  );
+  console.log("✅ PointsGranter deployed:", pointsProxyAddress);
+
   // localhost에서만 초기 SUSD 민팅
   if (environment === "localhost") {
     console.log("💰 Minting initial SUSD...");
@@ -182,6 +215,8 @@ export async function deployAction(
       CLMSRPositionImplementation: positionImplAddress,
       CLMSRMarketCoreProxy: coreProxyAddress,
       CLMSRMarketCoreImplementation: coreImplAddress,
+      PointsGranterProxy: pointsProxyAddress,
+      PointsGranterImplementation: pointsImplAddress,
     },
     deployer: deployer.address,
   });

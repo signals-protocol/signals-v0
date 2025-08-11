@@ -39,6 +39,7 @@ if (!COMMAND) {
   status:localhost          - Show localhost status
   status:base:dev           - Show base dev status
   status:base:prod          - Show base prod status
+
   
 💰 SUSD Commands:
   deploy-susd:base:dev      - Deploy SUSD to base dev
@@ -47,6 +48,13 @@ if (!COMMAND) {
   safety-check:localhost    - Run safety checks for localhost
   safety-check:base:dev     - Run safety checks for base dev
   safety-check:base:prod    - Run safety checks for base prod
+
+🔄 Backfill Commands:
+  backfill:preview          - Preview legacy contract backfill (no actual execution)
+  backfill:dev:dry          - Dry run backfill on dev environment
+  backfill:dev:execute      - Execute backfill on dev environment
+  backfill:prod:dry         - Dry run backfill on prod environment
+  backfill:prod:execute     - Execute backfill on prod environment
   
 📋 Manifest Commands:
   manifest-backup:ENV       - Backup OpenZeppelin manifest for environment
@@ -56,7 +64,7 @@ if (!COMMAND) {
 
 Usage:
   COMMAND=deploy:localhost npx hardhat run scripts/dispatcher.ts --network localhost
-  COMMAND=upgrade:base:prod npx hardhat run scripts/dispatcher.ts --network base
+  COMMAND=upgrade:base:prod npx hardhat run scripts/dispatcher.ts --network base-prod
 `);
   process.exit(1);
 }
@@ -163,6 +171,51 @@ async function dispatch() {
           await import("./manage-manifest");
         const managerValidate = new ManifestManagerValidate();
         await managerValidate.validate(environment);
+        break;
+
+      // Backfill Commands
+      case "backfill":
+        const parts = COMMAND!.split(":");
+        const subaction = parts[1];
+        switch (subaction) {
+          case "preview":
+            const { LegacyBackfillAnalyzer } = await import(
+              "./backfill-legacy-preview"
+            );
+            console.log("🔍 레거시 백필 미리보기 실행...");
+            const analyzer = new LegacyBackfillAnalyzer();
+            await analyzer.analyzeLegacyContract();
+            analyzer.generateReport();
+            break;
+
+          case "dev":
+          case "prod":
+            const executeMode = parts[2]; // "dry" or "execute"
+            const isDryRun = executeMode !== "execute";
+
+            const { LegacyBackfillExecutor } = await import(
+              "./backfill-legacy-execute"
+            );
+            const executor = new LegacyBackfillExecutor();
+
+            console.log(
+              `🚀 레거시 백필 ${
+                isDryRun ? "DRY RUN" : "실행"
+              } - ${subaction} 환경`
+            );
+
+            await executor.initialize(subaction);
+            await executor.processLegacyContract(isDryRun);
+            executor.generateSummary();
+            break;
+
+          default:
+            console.error(`❌ Unknown backfill subaction: ${subaction}`);
+            console.log(
+              "Available: preview, dev:dry, dev:execute, prod:dry, prod:execute"
+            );
+            process.exit(1);
+        }
         break;
 
       default:

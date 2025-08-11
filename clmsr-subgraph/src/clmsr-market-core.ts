@@ -88,7 +88,7 @@ class UserStatsResult {
   }
 }
 
-function getOrCreateUserStats(userAddress: Bytes): UserStats {
+export function getOrCreateUserStats(userAddress: Bytes): UserStats {
   let userStats = UserStats.load(userAddress);
 
   if (userStats == null) {

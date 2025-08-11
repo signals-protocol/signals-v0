@@ -31,24 +31,19 @@ const config: HardhatUserConfig = {
       chainId: 4801,
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
     },
-    // Base Mainnet (Production)
+    // Base Mainnet (Production) - Alchemy RPC
     "base-prod": {
-      url: "https://mainnet.base.org",
+      url: "https://base-mainnet.g.allthatnode.com/archive/evm/92c0459bd6394890a091bead6672bde8",
       chainId: 8453,
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
     },
-    // Base Mainnet (Development)
+    // Base Mainnet (Development) - Alchemy RPC
     "base-dev": {
-      url: "https://mainnet.base.org",
+      url: "https://base-mainnet.g.allthatnode.com/archive/evm/92c0459bd6394890a091bead6672bde8",
       chainId: 8453,
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
     },
-    // Base Mainnet (Legacy - 호환성)
-    base: {
-      url: "https://mainnet.base.org",
-      chainId: 8453,
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-    },
+
     // Hardhat local network
     hardhat: {
       chainId: 31337,
