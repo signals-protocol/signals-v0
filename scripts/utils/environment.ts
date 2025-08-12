@@ -1,5 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
+import type { Environment } from "../types/environment";
 
 export interface EnvironmentConfig {
   environment: string;
@@ -57,14 +58,14 @@ export class EnvironmentManager {
   /**
    * 환경 설정 파일 경로 반환
    */
-  private getEnvPath(env: "localhost" | "dev" | "prod"): string {
+  private getEnvPath(env: Environment): string {
     return path.join(this.envDir, `${env}.json`);
   }
 
   /**
    * 환경 설정 로드
    */
-  loadEnvironment(env: "localhost" | "dev" | "prod"): EnvironmentConfig {
+  loadEnvironment(env: Environment): EnvironmentConfig {
     const envPath = this.getEnvPath(env);
 
     if (!fs.existsSync(envPath)) {
@@ -78,10 +79,7 @@ export class EnvironmentManager {
   /**
    * 환경 설정 저장
    */
-  saveEnvironment(
-    env: "localhost" | "dev" | "prod",
-    config: EnvironmentConfig
-  ): void {
+  saveEnvironment(env: Environment, config: EnvironmentConfig): void {
     const envPath = this.getEnvPath(env);
     config.lastUpdated = new Date().toISOString();
 
@@ -93,7 +91,7 @@ export class EnvironmentManager {
    * 컨트랙트 주소 업데이트
    */
   updateContract(
-    env: "localhost" | "dev" | "prod",
+    env: Environment,
     contractType: "libraries" | "tokens" | "core" | "points",
     contractName: string,
     address: string
@@ -113,7 +111,7 @@ export class EnvironmentManager {
    * 배포 기록 추가
    */
   addDeploymentRecord(
-    env: "localhost" | "dev" | "prod",
+    env: Environment,
     record: Omit<DeploymentRecord, "timestamp">
   ): void {
     const config = this.loadEnvironment(env);
@@ -133,9 +131,7 @@ export class EnvironmentManager {
   /**
    * 현재 배포된 주소들 반환
    */
-  getDeployedAddresses(
-    env: "localhost" | "dev" | "prod"
-  ): Record<string, string> {
+  getDeployedAddresses(env: Environment): Record<string, string> {
     const config = this.loadEnvironment(env);
     const addresses: Record<string, string> = {};
 
@@ -171,7 +167,7 @@ export class EnvironmentManager {
    * @param environment Environment name
    * @returns Next version string
    */
-  getNextVersion(environment: "localhost" | "dev" | "prod"): string {
+  getNextVersion(environment: Environment): string {
     const env = this.loadEnvironment(environment);
 
     if (!env.deploymentHistory || env.deploymentHistory.length === 0) {
@@ -198,7 +194,7 @@ export class EnvironmentManager {
   /**
    * 환경 상태 출력
    */
-  printEnvironmentStatus(env: "localhost" | "dev" | "prod"): void {
+  printEnvironmentStatus(env: Environment): void {
     const config = this.loadEnvironment(env);
 
     console.log(`\n🌍 Environment: ${config.environment.toUpperCase()}`);
@@ -246,7 +242,7 @@ export class EnvironmentManager {
   /**
    * SUSD 주소 반환 (이미 배포된 것 사용)
    */
-  getSUSDAddress(env: "localhost" | "dev" | "prod"): string | null {
+  getSUSDAddress(env: Environment): string | null {
     const config = this.loadEnvironment(env);
     return config.contracts.tokens.SUSD;
   }
@@ -254,7 +250,7 @@ export class EnvironmentManager {
   /**
    * Core 프록시 주소 반환
    */
-  getCoreProxyAddress(env: "localhost" | "dev" | "prod"): string | null {
+  getCoreProxyAddress(env: Environment): string | null {
     const config = this.loadEnvironment(env);
     return config.contracts.core.CLMSRMarketCoreProxy;
   }
@@ -262,7 +258,7 @@ export class EnvironmentManager {
   /**
    * Position 프록시 주소 반환
    */
-  getPositionProxyAddress(env: "localhost" | "dev" | "prod"): string | null {
+  getPositionProxyAddress(env: Environment): string | null {
     const config = this.loadEnvironment(env);
     return config.contracts.core.CLMSRPositionProxy;
   }
@@ -270,7 +266,7 @@ export class EnvironmentManager {
   /**
    * 새로운 환경 파일 초기화
    */
-  initializeEnvironment(env: "localhost" | "dev" | "prod"): void {
+  initializeEnvironment(env: Environment): void {
     const envPath = this.getEnvPath(env);
 
     // 기존 파일이 있으면 백업
@@ -282,11 +278,25 @@ export class EnvironmentManager {
 
     const defaultConfig: EnvironmentConfig = {
       environment: env,
-      network: env === "localhost" ? "localhost" : "base",
-      chainId: env === "localhost" ? 31337 : 8453,
+      network:
+        env === "localhost"
+          ? "localhost"
+          : env.startsWith("citrea")
+          ? "citrea"
+          : "base",
+      chainId:
+        env === "localhost" ? 31337 : env.startsWith("citrea") ? 5115 : 8453,
       description:
         env === "localhost"
           ? "Local development environment with MockUSDC"
+          : env.startsWith("citrea")
+          ? `Citrea ${
+              env.includes("dev") ? "development" : "production"
+            } environment`
+          : env.startsWith("base")
+          ? `Base ${
+              env.includes("dev") ? "development" : "production"
+            } environment`
           : `${env.charAt(0).toUpperCase() + env.slice(1)} environment`,
       contracts: {
         libraries: {
@@ -319,7 +329,7 @@ export class EnvironmentManager {
   /**
    * 환경 파일이 존재하는지 확인
    */
-  environmentExists(env: "localhost" | "dev" | "prod"): boolean {
+  environmentExists(env: Environment): boolean {
     const envPath = this.getEnvPath(env);
     return fs.existsSync(envPath);
   }
@@ -327,9 +337,7 @@ export class EnvironmentManager {
   /**
    * 안전한 환경 로드 (파일이 없으면 초기화)
    */
-  loadOrInitializeEnvironment(
-    env: "localhost" | "dev" | "prod"
-  ): EnvironmentConfig {
+  loadOrInitializeEnvironment(env: Environment): EnvironmentConfig {
     if (!this.environmentExists(env)) {
       console.log(`🔧 Environment file not found for ${env}, initializing...`);
       this.initializeEnvironment(env);
@@ -340,7 +348,7 @@ export class EnvironmentManager {
   /**
    * 현재 버전 조회
    */
-  getCurrentVersion(env: "localhost" | "dev" | "prod"): string {
+  getCurrentVersion(env: Environment): string {
     const config = this.loadEnvironment(env);
 
     if (config.deploymentHistory.length === 0) {
@@ -357,20 +365,18 @@ export class EnvironmentManager {
 // 편의 함수들
 export const envManager = new EnvironmentManager();
 
-export function getEnvironment(
-  env: "localhost" | "dev" | "prod"
-): EnvironmentConfig {
+export function getEnvironment(env: Environment): EnvironmentConfig {
   return envManager.loadEnvironment(env);
 }
 
 export function updateEnvironment(
-  env: "localhost" | "dev" | "prod",
+  env: Environment,
   config: EnvironmentConfig
 ): void {
   envManager.saveEnvironment(env, config);
 }
 
-export function getCoreProxy(env: "localhost" | "dev" | "prod"): string {
+export function getCoreProxy(env: Environment): string {
   const address = envManager.getCoreProxyAddress(env);
   if (!address) {
     throw new Error(`Core proxy not deployed in ${env} environment`);
@@ -378,7 +384,7 @@ export function getCoreProxy(env: "localhost" | "dev" | "prod"): string {
   return address;
 }
 
-export function getPositionProxy(env: "localhost" | "dev" | "prod"): string {
+export function getPositionProxy(env: Environment): string {
   const address = envManager.getPositionProxyAddress(env);
   if (!address) {
     throw new Error(`Position proxy not deployed in ${env} environment`);

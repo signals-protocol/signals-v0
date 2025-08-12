@@ -1,8 +1,9 @@
 import { ethers } from "hardhat";
 import { envManager } from "../utils/environment";
+import type { Environment } from "../types/environment";
 
 export async function settleMarketAction(
-  environment: "localhost" | "dev" | "prod"
+  environment: Environment
 ): Promise<void> {
   // 🎯 기본 설정값 (필요시 환경변수로 오버라이드 가능)
   const marketId = parseInt(process.env.MARKET_ID || "5");
@@ -62,8 +63,8 @@ export async function settleMarketAction(
 }
 
 // CLI에서 직접 호출할 때 사용
-export async function settleMarketCLI(
-  environment: "localhost" | "dev" | "prod"
-): Promise<void> {
+export async function settleMarketCLI(environment: Environment): Promise<void> {
   await settleMarketAction(environment);
 }
+
+

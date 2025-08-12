@@ -336,9 +336,13 @@ MIT License - see [LICENSE](./LICENSE) for details.
 
 ---
 
-## 🌐 Live Deployment - Base Mainnet
+## 🌐 Live Deployments
 
-**✅ PRODUCTION READY** - Successfully deployed on Base Mainnet!
+**✅ PRODUCTION READY** - Successfully deployed on multiple networks!
+
+### 🔷 Base Mainnet
+
+Successfully deployed and operational on Base Mainnet:
 
 ### 📋 Contract Addresses
 
@@ -355,13 +359,44 @@ MIT License - see [LICENSE](./LICENSE) for details.
 - **Studio**: https://thegraph.com/studio/subgraph/signals-v-0
 - **Query Endpoint**: `https://api.studio.thegraph.com/query/116469/signals-v-0/1.0.2`
 
-### 🎯 Active Market
+### 🎯 Active Market (Base)
 
 - **Market ID**: 1
 - **Network**: Base Mainnet (Chain ID: 8453)
 - **Tick Range**: 100,000 - 140,000 (400 bins)
 - **Liquidity Parameter**: 1000.0
 - **Payment Token**: SUSD (Signals USD)
+
+### 🟠 Citrea Testnet Tangerine
+
+**🚀 READY FOR DEPLOYMENT** - Configured for Citrea Testnet:
+
+```
+Network: Citrea Testnet Tangerine
+Chain ID: 5115
+RPC: https://rpc.testnet.citrea.xyz
+Explorer: https://explorer.testnet.citrea.xyz
+```
+
+**Deployment Commands:**
+
+```bash
+# Deploy to Citrea Development
+yarn deploy:citrea:dev
+
+# Deploy to Citrea Production
+yarn deploy:citrea:prod
+```
+
+**Indexer:** GoldSky (TheGraph not supported on Citrea)
+
+```bash
+cd clmsr-subgraph
+npm run deploy:goldsky:citrea:dev
+npm run deploy:goldsky:citrea:prod
+```
+
+📖 **Full Guide**: [CITREA_DEPLOYMENT.md](./CITREA_DEPLOYMENT.md)
 
 ## 🚨 Development Status
 

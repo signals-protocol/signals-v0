@@ -1,5 +1,5 @@
 {
-  "base": {
+  "base-prod": {
     "CLMSRMarketCore": {
       "address": "0xbBf5703b1755B462FC5FC7319A1d3ACA4E1988Bc",
       "startBlock": 33772759
@@ -9,6 +9,18 @@
     "CLMSRMarketCore": {
       "address": "0x894C07d390D7585c5205f2B81b9845e5432282B6",
       "startBlock": 33772759
+    }
+  },
+  "citrea-dev": {
+    "CLMSRMarketCore": {
+      "address": "0x971F9bcE130743BB3eFb37aeAC2050cD44d7579a",
+      "startBlock": 14044300
+    }
+  },
+  "citrea-prod": {
+    "CLMSRMarketCore": {
+      "address": "TBD",
+      "startBlock": 14044300
     }
   }
 }

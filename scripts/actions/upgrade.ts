@@ -1,12 +1,11 @@
 import { ethers, upgrades } from "hardhat";
 import { envManager } from "../utils/environment";
+import type { Environment } from "../types/environment";
 import { safeTxOpts, delay, safeExecuteTx } from "../utils/txOpts";
 import { UpgradeSafetyChecker } from "../safety-checks";
 import { OpenZeppelinManifestManager } from "../manage-manifest";
 
-export async function upgradeAction(
-  environment: "localhost" | "dev" | "prod"
-): Promise<void> {
+export async function upgradeAction(environment: Environment): Promise<void> {
   console.log(`⬆️ Upgrading ${environment} to latest contract`);
 
   const [deployer] = await ethers.getSigners();
