@@ -43,6 +43,18 @@ const config: HardhatUserConfig = {
       chainId: 8453,
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
     },
+    // Citrea Testnet Tangerine (Production)
+    "citrea-prod": {
+      url: "https://rpc.testnet.citrea.xyz",
+      chainId: 5115,
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+    },
+    // Citrea Testnet Tangerine (Development)
+    "citrea-dev": {
+      url: "https://rpc.testnet.citrea.xyz",
+      chainId: 5115,
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+    },
 
     // Hardhat local network
     hardhat: {

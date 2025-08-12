@@ -1,0 +1,76 @@
+specVersion: 1.3.0
+indexerHints:
+  prune: auto
+schema:
+  file: ./schema.graphql
+dataSources:
+  # ===== 코어 컨트랙트 =====
+
+  - kind: ethereum
+    name: CLMSRMarketCore
+    network: citrea-testnet-tangerine
+    source:
+      address: "0x971F9bcE130743BB3eFb37aeAC2050cD44d7579a"
+      abi: CLMSRMarketCore
+      startBlock: 14044300
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - MarketCreated
+        - MarketSettled
+        - PositionClaimed
+        - PositionClosed
+        - PositionDecreased
+        - PositionIncreased
+        - PositionOpened
+        - RangeFactorApplied
+        - EventHistory
+        - UserStats
+      abis:
+        - name: CLMSRMarketCore
+          file: ./abis/CLMSRMarketCore.json
+      eventHandlers:
+        - event: MarketCreated(indexed uint256,uint64,uint64,int256,int256,int256,uint32,uint256)
+          handler: handleMarketCreated
+        - event: MarketSettled(indexed uint256,int256)
+          handler: handleMarketSettled
+        - event: PositionClaimed(indexed uint256,indexed address,uint256)
+          handler: handlePositionClaimed
+        - event: PositionClosed(indexed uint256,indexed address,uint256)
+          handler: handlePositionClosed
+        - event: PositionDecreased(indexed uint256,indexed address,uint128,uint128,uint256)
+          handler: handlePositionDecreased
+        - event: PositionIncreased(indexed uint256,indexed address,uint128,uint128,uint256)
+          handler: handlePositionIncreased
+        - event: PositionOpened(indexed uint256,indexed address,indexed uint256,int256,int256,uint128,uint256)
+          handler: handlePositionOpened
+        - event: PositionSettled(indexed uint256,indexed address,uint256,bool)
+          handler: handlePositionSettled
+        - event: RangeFactorApplied(indexed uint256,indexed int256,indexed int256,uint256)
+          handler: handleRangeFactorApplied
+      file: ./src/clmsr-market-core.ts
+
+  # ===== PointsGranter 컨트랙트 =====
+  - kind: ethereum
+    name: PointsGranterUpgradeable
+    network: citrea-testnet-tangerine
+    source:
+      address: "0x59eb810fa5e7c0646902C29D9e8bfdaDf25Ce274"
+      abi: PointsGranterUpgradeable
+      startBlock: 14044300
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - PointsEventHistory
+        - UserStats
+      abis:
+        - name: PointsGranterUpgradeable
+          file: ./abis/PointsGranterUpgradeable.json
+      eventHandlers:
+        - event: PointsGranted(indexed address,uint256,uint8,uint64)
+          handler: handlePointsGranted
+      file: ./src/points.ts

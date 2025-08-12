@@ -5,7 +5,18 @@ import { envManager } from "../utils/environment";
  * Deploy new SUSD token for dev/prod environments (shared)
  */
 export async function deploySUSDAction() {
-  console.log("🪙 Deploying new SUSD for dev/prod environments");
+  // 네트워크 감지 (환경변수 COMMAND에서)
+  const command = process.env.COMMAND || "";
+  const isBase = command.includes("base");
+  const isCitrea = command.includes("citrea");
+
+  if (isBase) {
+    console.log("🪙 Deploying new SUSD for Base dev/prod environments");
+  } else if (isCitrea) {
+    console.log("🪙 Deploying new SUSD for Citrea dev/prod environments");
+  } else {
+    console.log("🪙 Deploying new SUSD for dev/prod environments");
+  }
 
   const [deployer] = await ethers.getSigners();
   console.log("👤 Deployer:", deployer.address);
@@ -19,9 +30,22 @@ export async function deploySUSDAction() {
   const susdAddress = await susd.getAddress();
   console.log("✅ SUSD deployed:", susdAddress);
 
-  // Update both dev and prod environments
-  envManager.updateContract("dev", "tokens", "SUSD", susdAddress);
-  envManager.updateContract("prod", "tokens", "SUSD", susdAddress);
+  // Update environments based on network
+  if (isCitrea) {
+    envManager.updateContract("citrea-dev", "tokens", "SUSD", susdAddress);
+
+    // citrea-prod 파일이 없으면 먼저 초기화
+    if (!envManager.environmentExists("citrea-prod")) {
+      envManager.initializeEnvironment("citrea-prod");
+    }
+    envManager.updateContract("citrea-prod", "tokens", "SUSD", susdAddress);
+    console.log("✅ Updated citrea-dev and citrea-prod environments");
+  } else {
+    // Default to base environments
+    envManager.updateContract("base-dev", "tokens", "SUSD", susdAddress);
+    envManager.updateContract("base-prod", "tokens", "SUSD", susdAddress);
+    console.log("✅ Updated base-dev and base-prod environments");
+  }
 
   // Mint generous amounts to deployer
   const mintAmount = ethers.parseUnits("10000000", 6); // 10M SUSD (6 decimals)
@@ -45,7 +69,11 @@ export async function deploySUSDAction() {
   console.log("📋 Summary:");
   console.log(`  SUSD Address: ${susdAddress}`);
   console.log(`  Initial Supply: ${balanceFormatted} SUSD`);
-  console.log(`  Updated environments: dev, prod`);
+  if (isCitrea) {
+    console.log(`  Updated environments: citrea-dev, citrea-prod`);
+  } else {
+    console.log(`  Updated environments: base-dev, base-prod`);
+  }
 
   return susdAddress;
 }

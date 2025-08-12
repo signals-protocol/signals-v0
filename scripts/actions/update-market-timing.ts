@@ -1,9 +1,10 @@
 import { ethers } from "hardhat";
 import { envManager } from "../utils/environment";
+import type { Environment } from "../types/environment";
 import { safeTxOpts, safeExecuteTx } from "../utils/txOpts";
 
 export async function updateMarketTimingAction(
-  environment: "localhost" | "dev" | "prod"
+  environment: Environment
 ): Promise<void> {
   // 하드코딩된 값들
   const marketId = 2; // 두 번째 마켓

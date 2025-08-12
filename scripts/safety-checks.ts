@@ -1,5 +1,6 @@
 import { ethers, upgrades } from "hardhat";
 import { EnvironmentManager } from "./utils/environment";
+import type { Environment } from "./types/environment";
 
 interface SafetyCheck {
   name: string;
@@ -8,10 +9,10 @@ interface SafetyCheck {
 }
 
 class UpgradeSafetyChecker {
-  private environment: "localhost" | "dev" | "prod";
+  private environment: Environment;
   private envManager: EnvironmentManager;
 
-  constructor(environment: "localhost" | "dev" | "prod") {
+  constructor(environment: Environment) {
     this.environment = environment;
     this.envManager = new EnvironmentManager();
   }
@@ -43,7 +44,7 @@ class UpgradeSafetyChecker {
       };
 
       // dev 환경에서 kind 옵션 추가 (OpenZeppelin 에러 해결)
-      if (this.environment === "dev") {
+      if (this.environment === "base-dev") {
         validateOptions.kind = "uups";
         console.log(`🔧 dev 환경: kind=uups 옵션 추가`);
       }
@@ -88,7 +89,7 @@ class UpgradeSafetyChecker {
       };
 
       // dev 환경에서 kind 옵션 추가
-      if (this.environment === "dev") {
+      if (this.environment === "base-dev") {
         prepareOptions.kind = "uups";
       }
 
@@ -136,7 +137,7 @@ class UpgradeSafetyChecker {
       };
 
       // dev 환경에서 kind 옵션 추가
-      if (this.environment === "dev") {
+      if (this.environment === "base-dev") {
         gasUpgradeOptions.kind = "uups";
       }
 
@@ -298,10 +299,7 @@ class UpgradeSafetyChecker {
 }
 
 async function main() {
-  const environment = (process.argv[2] || "localhost") as
-    | "localhost"
-    | "dev"
-    | "prod";
+  const environment = (process.argv[2] || "localhost") as Environment;
   const contractName = process.argv[3] || "CLMSRMarketCoreUpgradeable";
 
   const checker = new UpgradeSafetyChecker(environment);

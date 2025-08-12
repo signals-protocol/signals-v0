@@ -1,17 +1,20 @@
 import { ethers, upgrades } from "hardhat";
 import { envManager } from "../utils/environment";
+import type { Environment } from "../types/environment";
 
-export async function deployAction(
-  environment: "localhost" | "dev" | "prod"
-): Promise<void> {
+export async function deployAction(environment: Environment): Promise<void> {
   console.log(`🚀 Deploying to ${environment}`);
 
   const [deployer] = await ethers.getSigners();
   console.log("👤 Deployer:", deployer.address);
 
-  // 새로운 배포를 위해 환경 파일 초기화
-  console.log("🔧 Initializing fresh environment for new deployment...");
-  envManager.initializeEnvironment(environment);
+  // 환경 파일 확인 및 필요시 초기화
+  if (!envManager.environmentExists(environment)) {
+    console.log("🔧 Initializing fresh environment for new deployment...");
+    envManager.initializeEnvironment(environment);
+  } else {
+    console.log("🔍 Using existing environment configuration...");
+  }
 
   // SUSD 주소 확인 (localhost는 새로 배포, dev/prod는 기존 것 사용)
   let susdAddress: string | null | undefined;
@@ -38,8 +41,11 @@ export async function deployAction(
       console.log("✅ MockUSDC deployed:", susdAddress);
     } else {
       // dev/prod: 새로운 SUSD 필요 (deploy-susd 스크립트로 미리 배포해야 함)
+      const networkPrefix = environment.startsWith("citrea")
+        ? "citrea"
+        : "base";
       throw new Error(
-        `❌ SUSD not found for ${environment}. Please run: npm run deploy-susd:base:${environment}`
+        `❌ SUSD not found for ${environment}. Please run: npm run deploy-susd:${networkPrefix}`
       );
     }
   } else {
