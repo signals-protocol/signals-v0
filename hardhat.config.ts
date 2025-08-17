@@ -87,8 +87,32 @@ const config: HardhatUserConfig = {
     currency: "USD",
   },
   etherscan: {
-    // Use environment variable for API key
-    apiKey: process.env.ETHERSCAN_API_KEY || "",
+    apiKey: {
+      // Base networks
+      "base-prod": process.env.BASESCAN_API_KEY || "",
+      "base-dev": process.env.BASESCAN_API_KEY || "",
+      // Citrea networks (Blockscout doesn't require API key)
+      "citrea-dev": "dummy",
+      "citrea-prod": "dummy",
+    },
+    customChains: [
+      {
+        network: "citrea-dev",
+        chainId: 5115,
+        urls: {
+          apiURL: "https://explorer.testnet.citrea.xyz/api",
+          browserURL: "https://explorer.testnet.citrea.xyz",
+        },
+      },
+      {
+        network: "citrea-prod",
+        chainId: 5115,
+        urls: {
+          apiURL: "https://explorer.testnet.citrea.xyz/api",
+          browserURL: "https://explorer.testnet.citrea.xyz",
+        },
+      },
+    ],
   },
 };
 

@@ -19,8 +19,8 @@
   },
   "citrea-prod": {
     "CLMSRMarketCore": {
-      "address": "TBD",
-      "startBlock": 14044300
+      "address": "0xE480ca1C63B6dd929af1EeA4D3de1073942F3cEf",
+      "startBlock": 14176879
     }
   }
 }

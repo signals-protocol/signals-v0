@@ -1,122 +1,143 @@
-# CLMSR 컨트랙트 연동 가이드
+# CLMSR Contract Integration Guide
 
-> Base Mainnet에 배포된 CLMSR 컨트랙트들과의 상호작용 완전 가이드
+> Complete guide for interacting with CLMSR contracts deployed on Citrea Testnet
 
-## 🏗️ 컨트랙트 정보
+## 🏗️ Contract Information
 
-### 배포된 주소들
+### Deployed Addresses
 
 ```typescript
-const CONTRACTS = {
-  // 메인 컨트랙트 (Base 메인넷 배포)
-  CLMSRMarketCore: "0xE3d019db1E1987D05bBC8cc578BB78aa92761dce",
-  CLMSRPosition: "0x1Cb2e3ffd25b93a454290FAae4dBcF253c3927e1",
+const CONTRACTS_PROD = {
+  // Main contracts (Citrea Production)
+  CLMSRMarketCore: "0xE480ca1C63B6dd929af1EeA4D3de1073942F3cEf",
+  CLMSRPosition: "0xB4c33Df898F8139D784ADE1aDCa9B5979898fE03",
 
-  // Signals USD 토큰 (메인넷 배포)
-  SUSD: "0x9a0dAb48676D20ed08cd2eE390d869961d4C98Cd",
+  // Signals USD token (Production deployment)
+  SUSD: "0xE32527F8b3f142a69278f22CdA334d70644b9743",
 
-  // 라이브러리들 (Base 메인넷 배포)
-  FixedPointMathU: "TBD",
-  LazyMulSegmentTree: "TBD",
+  // Libraries (Production deployment)
+  FixedPointMathU: "0x629E255320Ab520062A07F22A8a407CFbad62025",
+  LazyMulSegmentTree: "0xA3574e839e675045c67956eC2AfCA15FC9b844d5",
 };
 
-const NETWORK = {
-  name: "Base Mainnet",
-  chainId: 8453,
-  rpc: "https://mainnet.base.org",
-  explorer: "https://basescan.org",
-};
+const CONTRACTS_DEV = {
+  // Main contracts (Citrea Development)
+  CLMSRMarketCore: "0x971F9bcE130743BB3eFb37aeAC2050cD44d7579a",
+  CLMSRPosition: "0xe163497F304ad4b7482C84Bc82079d46050c6e93",
 
-> **📅 Manager Contract Note**: CLMSRMarketCore requires a Manager contract address during deployment. Currently, the deployed instance uses a placeholder address. For production deployment, you'll need to:
+  // Signals USD token (same)
+  SUSD: "0xE32527F8b3f142a69278f22CdA334d70644b9743",
+
+  // Libraries (Development deployment)
+  FixedPointMathU: "0x38E8b884baEbC730d7129EF64dC0A0888dC5AcC1",
+  LazyMulSegmentTree: "0x5fA54D601320691D57E4DAd0d8c0F4A96323727c",
+};
+```
+
+### Architecture Overview
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   CLMSRManager  │────│ CLMSRMarketCore │────│ CLMSRPosition   │
+│   (Future)      │    │                 │    │                 │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+                                │
+                       ┌─────────────────┐
+                       │      SUSD       │
+                       │   (ERC-20)      │
+                       └─────────────────┘
+```
+
+> **Note**: Current deployment order:
+>
 > 1. Deploy a Manager contract first
 > 2. Deploy CLMSRMarketCore with the Manager address
 > 3. Update the Manager contract with the Core address if needed
-```
 
-### 컨트랙트 검증 상태
+### Contract Verification Status
 
-✅ 모든 컨트랙트가 Basescan에서 검증됨
+✅ All contracts verified on Citrea Explorer
 
-- [CLMSRMarketCore](https://basescan.org/address/0xE3d019db1E1987D05bBC8cc578BB78aa92761dce#code)
-- [SUSD](https://basescan.org/address/0x9a0dAb48676D20ed08cd2eE390d869961d4C98Cd#code)
-- [CLMSRPosition](https://basescan.org/address/0x1Cb2e3ffd25b93a454290FAae4dBcF253c3927e1#code)
+**Production:**
+
+- [CLMSRMarketCore](https://explorer.testnet.citrea.xyz/address/0xE480ca1C63B6dd929af1EeA4D3de1073942F3cEf#code)
+- [SUSD](https://explorer.testnet.citrea.xyz/address/0xE32527F8b3f142a69278f22CdA334d70644b9743#code)
+- [CLMSRPosition](https://explorer.testnet.citrea.xyz/address/0xB4c33Df898F8139D784ADE1aDCa9B5979898fE03#code)
+
+**Development:**
+
+- [CLMSRMarketCore](https://explorer.testnet.citrea.xyz/address/0x971F9bcE130743BB3eFb37aeAC2050cD44d7579a#code)
+- [CLMSRPosition](https://explorer.testnet.citrea.xyz/address/0xe163497F304ad4b7482C84Bc82079d46050c6e93#code)
 
 ---
 
-## ⚙️ 기본 설정
+## ⚙️ Basic Setup
 
-### 1. Web3 Provider 설정
+### 1. Web3 Provider Setup
 
 ```typescript
 import { ethers } from "ethers";
 
-// MetaMask 등 지갑 연결
-const getProvider = async () => {
-  if (typeof window !== "undefined" && window.ethereum) {
-    await window.ethereum.request({ method: "eth_requestAccounts" });
-    return new ethers.BrowserProvider(window.ethereum);
-  }
+// Connect wallet like MetaMask
+const provider = new ethers.providers.Web3Provider(window.ethereum);
+const signer = provider.getSigner();
 
-  // 또는 RPC 직접 연결
-  return new ethers.JsonRpcProvider("https://sepolia-rollup.arbitrum.io/rpc");
-};
+// Or direct RPC connection
+const provider = new ethers.providers.JsonRpcProvider(
+  "https://rpc.testnet.citrea.xyz"
+);
 
-// 네트워크 확인 및 자동 전환
-const ensureCorrectNetwork = async (provider: ethers.BrowserProvider) => {
-  const network = await provider.getNetwork();
-
-  if (network.chainId !== 421614n) {
-    try {
+// Network verification and auto-switch
+const switchToNetwork = async () => {
+  try {
+    await window.ethereum.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: "0x13FB" }], // Citrea Testnet
+    });
+  } catch (error: any) {
+    if (error.code === 4902) {
+      // Add network if not exists
       await window.ethereum.request({
-        method: "wallet_switchEthereumChain",
-        params: [{ chainId: "0x66eee" }], // 421614 in hex
-      });
-    } catch (error: any) {
-      if (error.code === 4902) {
-        // 네트워크가 없으면 추가
-        await window.ethereum.request({
-          method: "wallet_addEthereumChain",
-          params: [
-            {
-              chainId: "0x66eee",
-              chainName: "Arbitrum Sepolia",
-              rpcUrls: ["https://sepolia-rollup.arbitrum.io/rpc"],
-              nativeCurrency: {
-                name: "ETH",
-                symbol: "ETH",
-                decimals: 18,
-              },
-              blockExplorerUrls: ["https://sepolia.arbiscan.io"],
+        method: "wallet_addEthereumChain",
+        params: [
+          {
+            chainId: "0x13FB",
+            chainName: "Citrea Testnet",
+            rpcUrls: ["https://rpc.testnet.citrea.xyz"],
+            nativeCurrency: {
+              name: "Citrea Bitcoin",
+              symbol: "CBTC",
+              decimals: 8,
             },
-          ],
-        });
-      }
+          },
+        ],
+      });
     }
   }
 };
 ```
 
-### 2. 컨트랙트 인스턴스 생성
+### 2. Contract Instance Creation
 
 ```typescript
-// ABI는 hardhat artifacts에서 가져오거나 etherscan에서 복사
-import CLMSRMarketCoreABI from "./abis/CLMSRMarketCore.json";
-import ERC20ABI from "./abis/ERC20.json";
+// Get ABI from hardhat artifacts or copy from etherscan
+import { CLMSRMarketCoreABI, SUSDABI, CLMSRPositionABI } from "./abi";
 
-const initializeContracts = async () => {
-  const provider = await getProvider();
-  const signer = await provider.getSigner();
-
+const createContracts = (signer: ethers.Signer) => {
   const coreContract = new ethers.Contract(
-    CONTRACTS.CLMSRMarketCore,
+    CONTRACTS_PROD.CLMSRMarketCore,
     CLMSRMarketCoreABI,
     signer
   );
 
-  const susdContract = new ethers.Contract(CONTRACTS.SUSD, ERC20ABI, signer);
+  const susdContract = new ethers.Contract(
+    CONTRACTS_PROD.SUSD,
+    SUSDABI,
+    signer
+  );
 
   const positionContract = new ethers.Contract(
-    CONTRACTS.CLMSRPosition,
+    CONTRACTS_PROD.CLMSRPosition,
     CLMSRPositionABI,
     signer
   );
@@ -127,182 +148,185 @@ const initializeContracts = async () => {
 
 ---
 
-## 🎯 틱 시스템 이해
+## 🎯 Understanding Tick System
 
-### 틱과 Bin의 관계
+### Tick and Bin Relationship
 
-CLMSR 시스템에서는 두 가지 좌표 체계를 사용합니다:
+CLMSR system uses two coordinate systems:
 
-- **틱(Tick)**: 실제 확률값을 나타내는 정수 (예: 100, 200, 300)
-- **Bin**: 세그먼트 트리에서 사용하는 0-based 인덱스 (내부 구현)
+- **Tick**: Integer representing actual probability value (e.g.: 100, 200, 300)
+- **Bin**: 0-based index used in segment tree (internal implementation)
 
-### 마켓 파라미터
+### Market Parameters
 
 ```typescript
 interface MarketParams {
-  minTick: number; // 최소 틱값 (예: 0)
-  maxTick: number; // 최대 틱값 (예: 10000)
-  tickSpacing: number; // 틱 간격 (예: 100)
+  minTick: number; // Minimum tick value (e.g.: 0)
+  maxTick: number; // Maximum tick value (e.g.: 10000)
+  tickSpacing: number; // Tick spacing (e.g.: 100)
 }
 
-// 예시: minTick=0, maxTick=10000, tickSpacing=100
-// 유효한 틱: 0, 100, 200, 300, ..., 10000
-// 유효한 구간: [0,100), [100,200), [200,300), ..., [9900,10000)
+// Example: minTick=0, maxTick=10000, tickSpacing=100
+// Valid ticks: 0, 100, 200, 300, ..., 10000
+// Valid ranges: [0,100), [100,200), [200,300), ..., [9900,10000)
 ```
 
-### 포지션 범위 규칙
+### Position Range Rules
 
-1. **lowerTick < upperTick**: 반드시 하한이 상한보다 작아야 함
-2. **tickSpacing 정렬**: `(upperTick - lowerTick) % tickSpacing === 0`
-3. **동일 틱 금지**: `lowerTick !== upperTick`
-4. **다중 구간 허용**: 여러 개의 연속된 구간도 가능
+1. **lowerTick < upperTick**: Lower bound must be less than upper bound
+2. **tickSpacing alignment**: `(upperTick - lowerTick) % tickSpacing === 0`
+3. **No same tick**: `lowerTick !== upperTick`
+4. **Multiple ranges allowed**: Multiple consecutive ranges are possible
 
 ---
 
-## 📖 읽기 함수들 (View Functions)
+## 📖 View Functions
 
-### 1. 마켓 정보 조회
+### 1. Market Information Query
 
-#### 기본 마켓 정보
+#### Basic Market Info
 
 ```typescript
-// 방법 1: public markets 매핑 직접 접근 (간단)
+// Method 1: Direct access to public markets mapping (simple)
 const market = await coreContract.markets(marketId);
 
-// 방법 2: getMarket 함수 호출 (더 안전 - 존재하지 않는 마켓에 대해 에러 발생)
+// Method 2: Call getMarket function (safer - throws error for non-existent markets)
 const market = await coreContract.getMarket(marketId);
 
-// 두 방법 모두 동일한 Market 구조체를 반환합니다
-interface MarketInfo {
+// Both methods return the same Market struct
+interface Market {
   isActive: boolean;
   settled: boolean;
   startTimestamp: bigint;
   endTimestamp: bigint;
-  settlementTick: bigint; // int256 in contract - exact winning tick value
-  minTick: bigint; // int256 in contract
-  maxTick: bigint; // int256 in contract
-  tickSpacing: bigint; // int256 in contract
-  numBins: number; // uint32 in contract, converted to number
+  settlementTick: bigint;
+  minTick: bigint;
+  maxTick: bigint;
+  tickSpacing: bigint;
+  numBins: number;
   liquidityParameter: bigint;
+  positionEventsCursor: number;
+  positionEventsEmitted: boolean;
 }
+```
 
-const getMarketInfo = async (marketId: number): Promise<MarketInfo> => {
-  // getMarket 함수 사용 (권장 - 마켓 존재 여부 자동 검증)
+#### Market Status Check
+
+```typescript
+const checkMarketStatus = async (marketId: number) => {
+  // Use getMarket function (recommended - automatically verifies market existence)
   const market = await coreContract.getMarket(marketId);
 
   return {
+    id: marketId,
     isActive: market.isActive,
     settled: market.settled,
-    startTimestamp: market.startTimestamp,
-    endTimestamp: market.endTimestamp,
-    settlementTick: market.settlementTick,
-    minTick: market.minTick,
-    maxTick: market.maxTick,
-    tickSpacing: market.tickSpacing,
-    numBins: Number(market.numBins),
-    liquidityParameter: market.liquidityParameter,
+    timeLeft: market.endTimestamp - BigInt(Math.floor(Date.now() / 1000)),
+    tickRange: `${market.minTick} ~ ${market.maxTick}`,
+    spacing: market.tickSpacing,
   };
-};
 
-// 마켓 상태 확인
-const getMarketStatus = async (marketId: number) => {
-  // markets 매핑 직접 접근도 가능 (더 빠름)
-  const market = await coreContract.markets(marketId);
-
-  return {
-    isActive: market.isActive,
-    isSettled: market.settled,
-  };
+  // Direct access to markets mapping also possible (faster)
+  // const market = await coreContract.markets(marketId);
 };
 ```
 
-#### 마켓 조회 (배포 파일 기반)
+#### Market Query (Deployment File Based)
 
 ```typescript
-// 전체 마켓 조회 - 서브그래프나 이벤트 로그 사용 권장
-const getAllMarkets = async (): Promise<MarketInfo[]> => {
-  // 실제로는 서브그래프에서 조회하는 것이 효율적
-  // 또는 MarketCreated 이벤트 로그를 파싱
-  const filter = coreContract.filters.MarketCreated();
-  const events = await coreContract.queryFilter(filter);
+// Full market query - recommend using subgraph or event logs
+const getAllMarkets = async () => {
+  // In practice, querying from subgraph is more efficient
+  // Or parse MarketCreated event logs
 
-  const marketIds = events.map((event) => Number(event.args.marketId));
-
-  const markets = await Promise.all(marketIds.map((id) => getMarketInfo(id)));
-
+  const markets = [];
+  for (let i = 1; i <= 10; i++) {
+    // Example range
+    try {
+      const market = await coreContract.getMarket(i);
+      markets.push({ id: i, ...market });
+    } catch (error) {
+      break; // Market doesn't exist
+    }
+  }
   return markets;
 };
 ```
 
-## 2. 가격 조회
+### 2. Price Queries
 
-### 포지션 비용 계산
+#### Position Cost Calculation
 
 ```typescript
-interface CostInfo {
-  cost: bigint; // 6-decimal SUSD
-  effectivePrice: string; // 단위당 가격
+interface PriceInfo {
+  cost: string; // Total cost in SUSD
+  effectivePrice: string; // Price per unit
 }
 
-const calculatePositionCost = async (
+const getPositionCost = async (
   marketId: number,
   lowerTick: number,
   upperTick: number,
   quantity: bigint
-): Promise<CostInfo> => {
-  // calculateOpenCost 함수 사용 (실제 존재하는 함수)
-  const cost = await coreContract.calculateOpenCost(
+): Promise<PriceInfo> => {
+  // Use calculateOpenCost function (actual existing function)
+  const cost = await coreContract.getOpenCost(
     marketId,
     lowerTick,
     upperTick,
     quantity
   );
 
-  const effectivePrice = (
-    (Number(cost) / 1e6 / Number(quantity)) *
-    1e18
-  ).toFixed(6);
-
-  return { cost, effectivePrice };
+  return {
+    cost: ethers.formatUnits(cost, 6), // SUSD has 6 decimals
+    effectivePrice: ethers.formatUnits((cost * BigInt(1e6)) / quantity, 6),
+  };
 };
 ```
 
-### 포지션 변경 비용 조회
+#### Position Change Cost Query
 
 ```typescript
-// 포지션 증가 비용
+// Position increase cost
 const getIncreaseCost = async (
+  marketId: number,
   positionId: bigint,
   additionalQuantity: bigint
-): Promise<bigint> => {
-  return await coreContract.calculateIncreaseCost(
+) => {
+  return await coreContract.getIncreaseCost(
+    marketId,
     positionId,
     additionalQuantity
   );
 };
 
-// 포지션 감소 수익
+// Position decrease proceeds
 const getDecreaseProceeds = async (
+  marketId: number,
   positionId: bigint,
-  sellQuantity: bigint
-): Promise<bigint> => {
-  return await coreContract.calculateDecreaseProceeds(positionId, sellQuantity);
+  decreaseQuantity: bigint
+) => {
+  return await coreContract.getDecreaseProceeds(
+    marketId,
+    positionId,
+    decreaseQuantity
+  );
 };
 
-// 포지션 완전 청산 수익
-const getCloseProceeds = async (positionId: bigint): Promise<bigint> => {
-  return await coreContract.calculateCloseProceeds(positionId);
+// Complete position liquidation proceeds
+const getCloseProceeds = async (marketId: number, positionId: bigint) => {
+  return await coreContract.getCloseProceeds(marketId, positionId);
 };
 
-// 정산된 포지션 클레임 금액
-const getClaimAmount = async (positionId: bigint): Promise<bigint> => {
-  return await coreContract.calculateClaimAmount(positionId);
+// Settled position claim amount
+const getClaimAmount = async (positionId: bigint) => {
+  return await coreContract.getClaimAmount(positionId);
 };
 ```
 
-### 3. 포지션 조회
+### 3. Position Queries
 
-#### 사용자 포지션 목록
+#### User Position List
 
 ```typescript
 interface UserPosition {
@@ -311,91 +335,98 @@ interface UserPosition {
   lowerTick: number;
   upperTick: number;
   quantity: bigint;
-  owner: string; // msg.sender가 owner가 됨
+  owner: string; // msg.sender becomes owner
 }
 
 const getUserPositions = async (
   userAddress: string
 ): Promise<UserPosition[]> => {
+  // Get position IDs from Position contract
   const positionIds = await positionContract.getPositionsByOwner(userAddress);
 
-  const positions = await Promise.all(
-    positionIds.map(async (id: bigint) => {
-      const positionData = await positionContract.getPosition(id);
-      return {
-        positionId: id,
-        marketId: Number(positionData.marketId),
-        owner: userAddress, // 조회한 사용자가 owner
-        lowerTick: Number(positionData.lowerTick),
-        upperTick: Number(positionData.upperTick),
-        quantity: positionData.quantity,
-      };
-    })
-  );
+  const positions = [];
+  for (const positionId of positionIds) {
+    const position = await positionContract.getPosition(positionId);
+    positions.push({
+      positionId,
+      marketId: position.marketId,
+      lowerTick: position.lowerTick,
+      upperTick: position.upperTick,
+      quantity: position.quantity,
+      owner: userAddress, // Queried user is owner
+    });
+  }
 
   return positions;
 };
 ```
 
-#### 포지션 가치 계산
+#### Position Value Calculation
 
 ```typescript
-const getPositionValue = async (positionId: bigint): Promise<bigint> => {
-  // 현재 판매 시 받을 수 있는 금액 계산
-  return await coreContract.calculateCloseProceeds(positionId);
+const getPositionValue = async (positionId: bigint) => {
+  // Calculate amount receivable when selling current position
+  const position = await positionContract.getPosition(positionId);
+  const marketId = position.marketId;
+
+  return await coreContract.getCloseProceeds(marketId, positionId);
 };
 ```
 
-### 4. 밸런스 및 어로우 조회
+### 4. Balance and Allowance Queries
 
-#### SUSD 잔액
+#### SUSD Balance
 
 ```typescript
 const getSUSDBalance = async (userAddress: string): Promise<string> => {
   const balance = await susdContract.balanceOf(userAddress);
-  return ethers.formatUnits(balance, 6); // SUSD는 6 decimals
+  return ethers.formatUnits(balance, 6); // SUSD has 6 decimals
 };
 
-// 컨트랙트에 대한 승인 확인
-const getSUSDAllowance = async (userAddress: string): Promise<bigint> => {
-  return await susdContract.allowance(userAddress, CONTRACTS.CLMSRMarketCore);
+// Check approval for contract
+const getSUSDAllowance = async (userAddress: string): Promise<string> => {
+  const allowance = await susdContract.allowance(
+    userAddress,
+    CONTRACTS_PROD.CLMSRMarketCore
+  );
+  return ethers.formatUnits(allowance, 6);
 };
 ```
 
 ---
 
-## ✍️ 쓰기 함수들 (State-Changing Functions)
+## ✍️ State-Changing Functions
 
-### 1. 초기 설정
+### 1. Initial Setup
 
-#### SUSD 승인
+#### SUSD Approval
 
 ```typescript
 const approveSUSD = async (amount?: bigint): Promise<void> => {
-  // 무제한 승인 (권장) 또는 특정 금액 승인
+  // Unlimited approval (recommended) or specific amount approval
   const approvalAmount = amount || ethers.MaxUint256;
 
   const tx = await susdContract.approve(
-    CONTRACTS.CLMSRMarketCore,
+    CONTRACTS_PROD.CLMSRMarketCore,
     approvalAmount
   );
   await tx.wait();
 
-  console.log("SUSD 승인 완료:", tx.hash);
+  console.log("SUSD approval completed:", tx.hash);
 };
 
-// 테스트 SUSD 발급 (테스트넷에서만)
+// Mint test SUSD (testnet only)
 const mintTestSUSD = async (amount: bigint): Promise<void> => {
   const tx = await susdContract.mint(amount);
   await tx.wait();
 
-  console.log(`${ethers.formatUnits(amount, 6)} SUSD 발급 완료`);
+  console.log(`${ethers.formatUnits(amount, 6)} SUSD minted successfully`);
 };
 ```
 
-### 2. 포지션 거래
+### 2. Position Trading
 
-#### 포지션 열기 (구매)
+#### Open Position (Purchase)
 
 ```typescript
 interface OpenPositionParams {
@@ -403,8 +434,8 @@ interface OpenPositionParams {
   lowerTick: number;
   upperTick: number;
   quantity: bigint;
-  maxCost: bigint; // 슬리피지 보호
-  deadlineMinutes?: number; // 기본 10분
+  maxCost: bigint; // Slippage protection
+  deadlineMinutes?: number; // Default 10 minutes
 }
 
 const openPosition = async (params: OpenPositionParams): Promise<bigint> => {
@@ -417,206 +448,273 @@ const openPosition = async (params: OpenPositionParams): Promise<bigint> => {
     deadlineMinutes = 10,
   } = params;
 
-  // 마켓 정보 조회
+  // Query market information
   const market = await coreContract.markets(marketId);
 
-  // 입력값 검증
+  // Input validation
   if ((upperTick - lowerTick) % Number(market.tickSpacing) !== 0) {
-    throw new Error("틱 범위가 tickSpacing에 맞지 않습니다");
+    throw new Error("Tick range doesn't match tickSpacing");
   }
 
   if (lowerTick >= upperTick) {
-    throw new Error("올바르지 않은 틱 범위입니다 (lowerTick >= upperTick)");
+    throw new Error("Invalid tick range (lowerTick >= upperTick)");
   }
 
   if (lowerTick === upperTick) {
-    throw new Error("같은 틱으로는 포지션을 열 수 없습니다");
+    throw new Error("Cannot open position with same tick");
   }
 
-  // 예상 가격 확인
-  const estimatedCost = await coreContract.calculateOpenCost(
+  // Check estimated price
+  const estimatedCost = await coreContract.getOpenCost(
     marketId,
     lowerTick,
     upperTick,
     quantity
   );
+
   if (estimatedCost > maxCost) {
     throw new Error(
-      `예상 비용이 최대 비용을 초과합니다: ${estimatedCost} > ${maxCost}`
+      `Estimated cost exceeds max cost: ${estimatedCost} > ${maxCost}`
     );
   }
 
-  // SUSD 승인 확인
-  const userAddress = await coreContract.runner.getAddress();
-  const allowance = await getSUSDAllowance(userAddress);
-  if (allowance < maxCost) {
-    console.log("SUSD 승인이 필요합니다...");
-    await approveSUSD();
-  }
+  // Execute transaction
+  const deadline = Math.floor(Date.now() / 1000) + deadlineMinutes * 60;
+  const userAddress = await signer.getAddress();
 
-  // 2. Open position
-  const openTx = await market.openPosition(
-    marketId, // Market ID
-    lowerTick, // Lower tick bound
-    upperTick, // Upper tick bound
-    quantity, // Position quantity
-    maxCost // Maximum cost willing to pay
+  const tx = await coreContract.openPosition(
+    userAddress,
+    marketId,
+    lowerTick,
+    upperTick,
+    quantity,
+    maxCost,
+    deadline
   );
-  await openTx.wait();
 
-  console.log("Position opened successfully!");
+  const receipt = await tx.wait();
+  console.log("Position opened successfully:", receipt.hash);
+
+  // Extract position ID from events
+  const openEvent = receipt.events?.find(
+    (event) => event.event === "PositionOpened"
+  );
+
+  return openEvent?.args?.positionId || 0n;
 };
 ```
 
-#### 포지션 늘리기
+#### Increase Position
 
 ```typescript
 const increasePosition = async (
+  marketId: number,
   positionId: bigint,
   additionalQuantity: bigint,
   maxCost: bigint
 ): Promise<void> => {
+  const deadline = Math.floor(Date.now() / 1000) + 600; // 10 minutes
+
   const tx = await coreContract.increasePosition(
+    marketId,
     positionId,
     additionalQuantity,
-    maxCost
+    maxCost,
+    deadline
   );
-  const receipt = await tx.wait();
 
-  console.log("포지션 증가 완료:", tx.hash);
+  await tx.wait();
+  console.log("Position increased successfully:", tx.hash);
 };
 ```
 
-#### 포지션 줄이기 (부분 판매)
+#### Decrease Position
 
 ```typescript
 const decreasePosition = async (
+  marketId: number,
   positionId: bigint,
-  sellQuantity: bigint,
+  decreaseQuantity: bigint,
   minProceeds: bigint
 ): Promise<void> => {
+  const deadline = Math.floor(Date.now() / 1000) + 600; // 10 minutes
+
   const tx = await coreContract.decreasePosition(
+    marketId,
     positionId,
-    sellQuantity,
-    minProceeds
-  );
-  const receipt = await tx.wait();
-
-  const decreaseEvent = receipt.logs.find(
-    (log) =>
-      log.topics[0] ===
-      coreContract.interface.getEvent("PositionDecreased").topicHash
+    decreaseQuantity,
+    minProceeds,
+    deadline
   );
 
-  if (decreaseEvent) {
-    const decoded = coreContract.interface.parseLog(decreaseEvent);
-    console.log("포지션 감소 완료:", {
-      proceeds: ethers.formatUnits(decoded.args.proceeds, 6),
-      newQuantity: decoded.args.newQuantity.toString(),
-      txHash: tx.hash,
-    });
-  }
+  await tx.wait();
+  console.log("Position decreased successfully:", tx.hash);
 };
 ```
 
-#### 포지션 닫기 (전체 판매)
+#### Close Position
 
 ```typescript
 const closePosition = async (
+  marketId: number,
   positionId: bigint,
   minProceeds: bigint
 ): Promise<void> => {
-  const tx = await coreContract.closePosition(positionId, minProceeds);
-  const receipt = await tx.wait();
+  const deadline = Math.floor(Date.now() / 1000) + 600; // 10 minutes
 
-  console.log("포지션 닫기 완료:", tx.hash);
+  const tx = await coreContract.closePosition(
+    marketId,
+    positionId,
+    minProceeds,
+    deadline
+  );
+
+  await tx.wait();
+  console.log("Position closed successfully:", tx.hash);
 };
 ```
 
-### 3. 정산 후 처리
+### 3. Batch Position Settlement (v1.2.0)
 
-#### 포지션 클레임 (정산 후)
+Large-scale markets' gas limit issue solution using batch processing settlement system.
+
+#### Market Settlement (Step 1)
+
+```typescript
+// Market settlement - only MarketSettled event emitted
+const settleMarket = async (
+  marketId: number,
+  settlementTick: number
+): Promise<void> => {
+  const tx = await coreContract.settleMarket(marketId, settlementTick);
+  await tx.wait();
+
+  console.log("Market settlement completed - batch processing needed");
+};
+```
+
+#### Batch Position Event Emission (Step 2)
+
+```typescript
+// Emit PositionSettled events in batches (owner only)
+const emitPositionBatch = async (
+  marketId: number,
+  batchSize: number = 100
+): Promise<void> => {
+  const tx = await coreContract.emitPositionSettledBatch(marketId, batchSize);
+  await tx.wait();
+
+  console.log(
+    `Batch processing completed - processed up to ${batchSize} positions`
+  );
+};
+
+// Repeat execution for all position processing
+const processAllPositions = async (marketId: number): Promise<void> => {
+  let done = false;
+  const batchSize = 100;
+
+  while (!done) {
+    const tx = await coreContract.emitPositionSettledBatch(marketId, batchSize);
+    const receipt = await tx.wait();
+
+    // Check completion status from PositionEventsProgress event
+    const progressEvents = receipt.logs.filter(
+      (log) =>
+        log.topics[0] ===
+        coreContract.interface.getEventTopic("PositionEventsProgress")
+    );
+
+    if (progressEvents.length > 0) {
+      const event = coreContract.interface.parseLog(progressEvents[0]);
+      done = event.args.done;
+      console.log(
+        `Progress: ${event.args.from}-${event.args.to}, completed: ${done}`
+      );
+    }
+
+    // Slight delay to prevent gas limit issues
+    if (!done) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
+
+  console.log("All position settlement events processing completed");
+};
+```
+
+### 4. Post-Settlement Processing
+
+#### Claim Payout (After Settlement)
 
 ```typescript
 const claimPayout = async (positionId: bigint): Promise<void> => {
-  // 마켓이 정산되었는지 확인
+  // Check if market is settled
   const positionData = await positionContract.getPosition(positionId);
   const marketId = positionData.marketId;
   const market = await coreContract.markets(marketId);
 
   if (!market.settled) {
-    throw new Error("마켓이 아직 정산되지 않았습니다");
+    throw new Error("Market not yet settled");
   }
 
   const tx = await coreContract.claimPayout(positionId);
-  const receipt = await tx.wait();
+  await tx.wait();
 
-  const claimEvent = receipt.logs.find(
-    (log) =>
-      log.topics[0] ===
-      coreContract.interface.getEvent("PositionClaimed").topicHash
-  );
-
-  if (claimEvent) {
-    const decoded = coreContract.interface.parseLog(claimEvent);
-    console.log("포지션 클레임 완료:", {
-      payout: ethers.formatUnits(decoded.args.payout, 6),
-      txHash: tx.hash,
-    });
-  }
+  console.log("Payout claimed successfully:", tx.hash);
 };
 ```
 
 ---
 
-## 🎧 이벤트 리스닝
+## 📡 Event Listening
 
-### 1. 기본 이벤트 리스너
+### 1. Real-time Event Monitoring
 
 ```typescript
-// 새 포지션 생성 감지
+// Position creation detection
 coreContract.on(
   "PositionOpened",
   (positionId, marketId, lowerTick, upperTick, quantity, cost) => {
-    console.log("🆕 새 포지션 생성:", {
+    console.log("🆕 New position:", {
       positionId: positionId.toString(),
       marketId: marketId.toString(),
       range: `${lowerTick}-${upperTick}`,
-      quantity: quantity.toString(),
+      quantity: ethers.formatUnits(quantity, 0),
       cost: ethers.formatUnits(cost, 6),
     });
   }
 );
 
-// 가격 변동 감지
-coreContract.on("RangeFactorApplied", (marketId, lo, hi, factor) => {
-  console.log("💰 가격 업데이트:", {
-    marketId: marketId.toString(),
-    range: `${lo}-${hi}`,
-    factor: factor.toString(),
-  });
-});
-
-// 마켓 정산 감지
+// Market settlement detection
 coreContract.on("MarketSettled", (marketId, settlementTick) => {
-  console.log("🏁 마켓 정산:", {
+  console.log("🏁 Market settled:", {
     marketId: marketId.toString(),
     winningTick: settlementTick.toString(),
   });
 });
+
+// Batch settlement progress detection (v1.2.0)
+coreContract.on("PositionEventsProgress", (marketId, from, to, done) => {
+  console.log("📊 Batch settlement progress:", {
+    marketId: marketId.toString(),
+    range: `${from}-${to}`,
+    completed: done,
+  });
+});
 ```
 
-### 2. 필터된 이벤트 리스닝
+### 2. Filtered Event Listening
 
 ```typescript
-// 특정 마켓만 감지
+// Listen to specific market only
 const listenToMarket = (marketId: number) => {
   const filter = coreContract.filters.PositionOpened(null, marketId);
 
   coreContract.on(
     filter,
     (positionId, marketId, lowerTick, upperTick, quantity, cost) => {
-      console.log(`마켓 ${marketId}에 새 포지션:`, {
+      console.log(`New position in market ${marketId}:`, {
         positionId: positionId.toString(),
         range: `${lowerTick}-${upperTick}`,
         cost: ethers.formatUnits(cost, 6),
@@ -624,331 +722,299 @@ const listenToMarket = (marketId: number) => {
     }
   );
 };
-
-// 특정 사용자의 활동만 감지 (트랜잭션 발신자 기준)
-const listenToUser = (userAddress: string) => {
-  // 모든 포지션 이벤트를 받아서 트랜잭션 발신자로 필터링
-  coreContract.on(
-    "PositionOpened",
-    async (
-      positionId,
-      marketId,
-      lowerTick,
-      upperTick,
-      quantity,
-      cost,
-      event
-    ) => {
-      // 트랜잭션 발신자 확인
-      const tx = await event.getTransaction();
-      if (tx.from.toLowerCase() === userAddress.toLowerCase()) {
-        console.log(`사용자 ${userAddress}의 새 포지션:`, {
-          positionId: positionId.toString(),
-          marketId: marketId.toString(),
-          range: `${lowerTick}-${upperTick}`,
-        });
-      }
-    }
-  );
-};
 ```
 
-### 3. 과거 이벤트 조회
+### 3. Historical Event Query
 
 ```typescript
-// 과거 포지션 생성 이벤트 조회
-const getHistoricalPositions = async (marketId: number, fromBlock?: number) => {
+// Query past events
+const getMarketHistory = async (marketId: number) => {
   const filter = coreContract.filters.PositionOpened(null, marketId);
-  const events = await coreContract.queryFilter(filter, fromBlock || -10000);
+  const events = await coreContract.queryFilter(filter, -10000); // Last 10,000 blocks
 
-  return await Promise.all(
-    events.map(async (event) => {
-      // 트랜잭션 정보에서 발신자 주소 가져오기
-      const tx = await event.getTransaction();
-      return {
-        positionId: event.args.positionId.toString(),
-        trader: tx.from, // 트랜잭션 발신자가 실제 trader
-        lowerTick: Number(event.args.lowerTick),
-        upperTick: Number(event.args.upperTick),
-        quantity: event.args.quantity.toString(),
-        cost: ethers.formatUnits(event.args.cost, 6),
-        blockNumber: event.blockNumber,
-        transactionHash: event.transactionHash,
-      };
-    })
-  );
-};
-```
-
----
-
-## 🔧 유틸리티 함수들
-
-### 1. 틱 시스템 도우미
-
-```typescript
-// 틱을 bin 인덱스로 변환
-const tickToBinIndex = (
-  tick: bigint,
-  minTick: bigint,
-  tickSpacing: bigint
-): number => {
-  return Number((tick - minTick) / tickSpacing);
-};
-
-// bin 인덱스를 틱으로 변환
-const binIndexToTick = (
-  binIndex: number,
-  minTick: bigint,
-  tickSpacing: bigint
-): bigint => {
-  return minTick + BigInt(binIndex) * tickSpacing;
-};
-
-// 틱 범위를 확률 범위로 해석 (단순 근사)
-const tickRangeToProbabilityRange = (
-  lowerTick: bigint,
-  upperTick: bigint,
-  minTick: bigint,
-  maxTick: bigint
-) => {
-  const totalTicks = Number(maxTick - minTick);
-  const lowerOffset = Number(lowerTick - minTick);
-  const upperOffset = Number(upperTick - minTick);
-
-  return {
-    lower: (lowerOffset / totalTicks) * 100,
-    upper: (upperOffset / totalTicks) * 100,
-  };
-};
-
-// 유효한 틱 범위인지 확인
-const isValidTickRange = (
-  lowerTick: bigint,
-  upperTick: bigint,
-  minTick: bigint,
-  maxTick: bigint,
-  tickSpacing: bigint
-): boolean => {
-  return (
-    lowerTick >= minTick &&
-    upperTick <= maxTick &&
-    lowerTick < upperTick &&
-    (lowerTick - minTick) % tickSpacing === 0n &&
-    (upperTick - minTick) % tickSpacing === 0n
-  );
-};
-```
-
-### 2. 슬리피지 계산
-
-```typescript
-// 슬리피지를 고려한 최대 비용 계산
-const calculateMaxCost = (
-  estimatedCost: bigint,
-  slippagePercent: number
-): bigint => {
-  const slippageMultiplier = BigInt(Math.floor((100 + slippagePercent) * 100));
-  return (estimatedCost * slippageMultiplier) / BigInt(10000);
-};
-
-// 슬리피지를 고려한 최소 수익 계산
-const calculateMinProceeds = (
-  estimatedProceeds: bigint,
-  slippagePercent: number
-): bigint => {
-  const slippageMultiplier = BigInt(Math.floor((100 - slippagePercent) * 100));
-  return (estimatedProceeds * slippageMultiplier) / BigInt(10000);
-};
-```
-
-### 3. 포맷팅 함수들
-
-```typescript
-// 가격 포맷팅
-const formatPrice = (price: bigint): string => {
-  return `$${ethers.formatUnits(price, 6)}`;
-};
-
-// 수량 포맷팅
-const formatQuantity = (quantity: bigint): string => {
-  return ethers.formatEther(quantity);
-};
-
-// 확률 포맷팅
-const formatProbability = (prob: number): string => {
-  return `${prob.toFixed(1)}%`;
-};
-
-// 시간 포맷팅
-const formatTimestamp = (timestamp: bigint): string => {
-  return new Date(Number(timestamp) * 1000).toLocaleString();
-};
-```
-
----
-
-## 🚨 에러 처리
-
-### 1. 일반적인 에러들
-
-```typescript
-const handleContractError = (error: any): string => {
-  // Revert 메시지 파싱
-  if (error.reason) {
-    switch (error.reason) {
-      case "MarketNotFound":
-        return "마켓을 찾을 수 없습니다.";
-      case "MarketNotActive":
-        return "마켓이 비활성화되었습니다.";
-      case "InvalidQuantity":
-        return "수량이 잘못되었습니다.";
-      case "InvalidTickRange":
-        return "올바르지 않은 틱 범위입니다.";
-      case "BinCountExceedsLimit":
-        return "bin 개수가 제한을 초과했습니다.";
-      case "ZeroAddress":
-        return "주소가 올바르지 않습니다.";
-      case "ContractPaused":
-        return "컨트랙트가 일시 중지되었습니다.";
-      case "UnauthorizedCaller":
-        return "권한이 없는 호출자입니다.";
-      default:
-        return `컨트랙트 오류: ${error.reason}`;
-    }
-  }
-
-  // 지갑 관련 오류
-  if (error.code) {
-    switch (error.code) {
-      case 4001:
-        return "사용자가 트랜잭션을 취소했습니다.";
-      case -32000:
-        return "가스가 부족합니다.";
-      case -32002:
-        return "이미 대기 중인 트랜잭션이 있습니다.";
-      default:
-        return `지갑 오류 (${error.code}): ${error.message}`;
-    }
-  }
-
-  return `알 수 없는 오류: ${error.message}`;
-};
-```
-
-### 2. 트랜잭션 재시도 로직
-
-```typescript
-const executeWithRetry = async <T>(
-  operation: () => Promise<T>,
-  maxRetries: number = 3,
-  delay: number = 1000
-): Promise<T> => {
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      return await operation();
-    } catch (error: any) {
-      console.warn(`시도 ${i + 1}/${maxRetries} 실패:`, error.message);
-
-      if (i === maxRetries - 1) {
-        throw error;
-      }
-
-      // 재시도 전 대기
-      await new Promise((resolve) => setTimeout(resolve, delay * (i + 1)));
-    }
-  }
-
-  throw new Error("최대 재시도 횟수 초과");
-};
-```
-
----
-
-## ⚡ 성능 최적화
-
-### 1. 배치 호출
-
-```typescript
-// 여러 마켓 정보를 한번에 조회
-const getBatchMarketInfo = async (marketIds: number[]) => {
-  const promises = marketIds.map((id) => coreContract.markets(id));
-
-  const results = await Promise.all(promises);
-
-  return results.map((market, index) => ({
-    marketId: marketIds[index],
-    startTimestamp: market.startTimestamp,
-    endTimestamp: market.endTimestamp,
-    settlementTick: market.settlementTick,
-    minTick: market.minTick,
-    maxTick: market.maxTick,
-    tickSpacing: market.tickSpacing,
-    numBins: Number(market.numBins),
-    liquidityParameter: market.liquidityParameter,
-    isActive: market.isActive,
-    settled: market.settled,
+  return events.map((event) => ({
+    positionId: event.args.positionId.toString(),
+    lowerTick: event.args.lowerTick.toString(),
+    upperTick: event.args.upperTick.toString(),
+    quantity: ethers.formatUnits(event.args.quantity, 0),
+    cost: ethers.formatUnits(event.args.cost, 6),
+    blockNumber: event.blockNumber,
+    transactionHash: event.transactionHash,
   }));
 };
 ```
 
-### 2. 캐싱 전략
+---
+
+## 🛠️ Utility Functions
+
+### 1. Data Type Conversion
 
 ```typescript
-class ContractCache {
-  private marketInfoCache = new Map<number, any>();
-  private priceCache = new Map<string, { price: bigint; timestamp: number }>();
-  private cacheTimeout = 30000; // 30초
+// Tick conversion utilities
+const tickToPrice = (
+  tick: number,
+  minTick: number,
+  maxTick: number
+): number => {
+  return (tick - minTick) / (maxTick - minTick);
+};
 
-  async getMarketInfo(marketId: number) {
-    if (this.marketInfoCache.has(marketId)) {
-      return this.marketInfoCache.get(marketId);
+const priceToTick = (
+  price: number,
+  minTick: number,
+  maxTick: number
+): number => {
+  return Math.floor(price * (maxTick - minTick) + minTick);
+};
+
+// SUSD amount formatting
+const formatSUSD = (amount: bigint): string => {
+  return `${ethers.formatUnits(amount, 6)} SUSD`;
+};
+
+const parseSUSD = (amount: string): bigint => {
+  return ethers.parseUnits(amount, 6);
+};
+```
+
+### 2. Validation Functions
+
+```typescript
+// Tick range validation
+const validateTickRange = (
+  lowerTick: number,
+  upperTick: number,
+  minTick: number,
+  maxTick: number,
+  tickSpacing: number
+): boolean => {
+  if (lowerTick >= upperTick) return false;
+  if (lowerTick < minTick || upperTick > maxTick) return false;
+  if ((upperTick - lowerTick) % tickSpacing !== 0) return false;
+  return true;
+};
+
+// Amount validation
+const validateAmount = (amount: string): boolean => {
+  try {
+    const parsed = ethers.parseUnits(amount, 6);
+    return parsed > 0n;
+  } catch {
+    return false;
+  }
+};
+```
+
+### 3. Formatting Functions
+
+```typescript
+// Market status formatting
+const formatMarketStatus = (market: any) => {
+  const now = Math.floor(Date.now() / 1000);
+  const timeLeft = Number(market.endTimestamp) - now;
+
+  return {
+    isActive: market.isActive,
+    settled: market.settled,
+    timeLeft:
+      timeLeft > 0
+        ? `${Math.floor(timeLeft / 3600)}h ${Math.floor(
+            (timeLeft % 3600) / 60
+          )}m`
+        : "Expired",
+    tickRange: `${market.minTick} ~ ${market.maxTick}`,
+    spacing: market.tickSpacing.toString(),
+  };
+};
+
+// Position summary formatting
+const formatPosition = (position: any) => {
+  return {
+    id: position.positionId.toString(),
+    market: position.marketId.toString(),
+    range: `${position.lowerTick} ~ ${position.upperTick}`,
+    quantity: ethers.formatUnits(position.quantity, 0),
+    probability: `${((position.upperTick - position.lowerTick) / 100).toFixed(
+      1
+    )}%`,
+  };
+};
+```
+
+---
+
+## 🔧 Error Handling
+
+### 1. Common Error Types
+
+```typescript
+// Market-related errors
+const handleMarketError = (error: any) => {
+  if (error.message.includes("MarketNotFound")) {
+    return "Market does not exist";
+  }
+  if (error.message.includes("MarketNotActive")) {
+    return "Market is not active";
+  }
+  if (error.message.includes("MarketExpired")) {
+    return "Market has expired";
+  }
+  return "Unknown market error";
+};
+
+// Position-related errors
+const handlePositionError = (error: any) => {
+  if (error.message.includes("InsufficientBalance")) {
+    return "Insufficient SUSD balance";
+  }
+  if (error.message.includes("InsufficientAllowance")) {
+    return "Insufficient SUSD allowance";
+  }
+  if (error.message.includes("InvalidTickRange")) {
+    return "Invalid tick range";
+  }
+  if (error.message.includes("SlippageExceeded")) {
+    return "Slippage tolerance exceeded";
+  }
+  return "Unknown position error";
+};
+```
+
+### 2. Retry Logic
+
+```typescript
+// Transaction retry with exponential backoff
+const executeWithRetry = async (
+  transaction: () => Promise<any>,
+  maxRetries: number = 3,
+  baseDelay: number = 1000
+): Promise<any> => {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await transaction();
+    } catch (error) {
+      if (i === maxRetries - 1) throw error;
+
+      const delay = baseDelay * Math.pow(2, i);
+      console.log(`Transaction failed, retrying in ${delay}ms...`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
+  }
+};
+```
 
-    const info = await coreContract.markets(marketId);
-    this.marketInfoCache.set(marketId, info);
+---
 
-    // 1시간 후 캐시 제거
-    setTimeout(() => this.marketInfoCache.delete(marketId), 3600000);
+## 📊 Advanced Integration
 
-    return info;
+### 1. Real-time Price Monitoring
+
+```typescript
+class PriceMonitor {
+  private coreContract: ethers.Contract;
+  private marketId: number;
+  private callbacks: Array<(price: string) => void> = [];
+
+  constructor(coreContract: ethers.Contract, marketId: number) {
+    this.coreContract = coreContract;
+    this.marketId = marketId;
+    this.startMonitoring();
   }
 
-  async calculateCost(
-    marketId: number,
-    lowerTick: number,
-    upperTick: number,
-    quantity: bigint
-  ) {
-    const key = `${marketId}-${lowerTick}-${upperTick}-${quantity}`;
-    const cached = this.priceCache.get(key);
+  onPriceChange(callback: (price: string) => void) {
+    this.callbacks.push(callback);
+  }
 
-    if (cached && Date.now() - cached.timestamp < this.cacheTimeout) {
-      return cached.price;
+  private startMonitoring() {
+    // Listen for price-affecting events
+    const filter = this.coreContract.filters.PositionOpened(
+      null,
+      this.marketId
+    );
+
+    this.coreContract.on(filter, async () => {
+      await this.updatePrice();
+    });
+  }
+
+  private async updatePrice() {
+    try {
+      // Calculate current price for reference position
+      const cost = await this.coreContract.getOpenCost(
+        this.marketId,
+        100,
+        200, // Reference position
+        ethers.parseUnits("1", 0) // 1 unit
+      );
+
+      const price = ethers.formatUnits(cost, 6);
+      this.callbacks.forEach((callback) => callback(price));
+    } catch (error) {
+      console.error("Price update failed:", error);
+    }
+  }
+}
+```
+
+### 2. Portfolio Management
+
+```typescript
+class PortfolioManager {
+  private coreContract: ethers.Contract;
+  private positionContract: ethers.Contract;
+  private userAddress: string;
+
+  constructor(contracts: any, userAddress: string) {
+    this.coreContract = contracts.coreContract;
+    this.positionContract = contracts.positionContract;
+    this.userAddress = userAddress;
+  }
+
+  async getPortfolioSummary() {
+    const positionIds = await this.positionContract.getPositionsByOwner(
+      this.userAddress
+    );
+
+    let totalValue = 0n;
+    let totalCost = 0n;
+    const positions = [];
+
+    for (const positionId of positionIds) {
+      const position = await this.positionContract.getPosition(positionId);
+      const currentValue = await this.coreContract.getCloseProceeds(
+        position.marketId,
+        positionId
+      );
+
+      positions.push({
+        id: positionId.toString(),
+        marketId: position.marketId.toString(),
+        value: ethers.formatUnits(currentValue, 6),
+        quantity: ethers.formatUnits(position.quantity, 0),
+      });
+
+      totalValue += currentValue;
     }
 
-    const cost = await coreContract.calculateOpenCost(
-      marketId,
-      lowerTick,
-      upperTick,
-      quantity
-    );
-    this.priceCache.set(key, { price: cost, timestamp: Date.now() });
-
-    return cost;
+    return {
+      totalPositions: positions.length,
+      totalValue: ethers.formatUnits(totalValue, 6),
+      positions,
+    };
   }
 }
 ```
 
 ---
 
-## 🔗 참고 링크
+## 🔗 Reference Links
 
-- **컨트랙트 소스코드**: [contracts/core/CLMSRMarketCore.sol](../contracts/core/CLMSRMarketCore.sol)
-- **Base Mainnet 익스플로러**: [basescan.org](https://basescan.org)
-- **Ethers.js 문서**: [docs.ethers.org](https://docs.ethers.org)
-- **CLMSR 논문**: [학술 자료 링크]
+- **Contract Source Code**: [contracts/core/CLMSRMarketCore.sol](../contracts/core/CLMSRMarketCore.sol)
+- **Citrea Testnet Explorer**: [explorer.testnet.citrea.xyz](https://explorer.testnet.citrea.xyz)
+- **Ethers.js Documentation**: [docs.ethers.org](https://docs.ethers.org)
+- **CLMSR Paper**: [Academic Resource Link]
 
 ---
 
-**마지막 업데이트**: 2025년 8월
+**🚀 Ready for production-grade CLMSR integrations!**

@@ -1,376 +1,366 @@
-# CLMSR 빠른 시작 가이드
+# CLMSR Quick Start Guide
 
-> 5분 만에 CLMSR 시스템과 연동하기
+> Connect with CLMSR system in 5 minutes
 
-## ⚡ 빠른 설정 (복사 & 붙여넣기)
+## ⚡ Quick Setup (Copy & Paste)
 
-### 1. 환경 설정
+### 1. Environment Setup
 
 ```typescript
 // config.ts
 export const CONFIG = {
-  // 네트워크 설정 - Base Mainnet
-  BASE_MAINNET: {
-    chainId: 8453,
-    rpcUrl: "https://mainnet.base.org",
-    name: "Base Mainnet",
+  // Network settings - Citrea Testnet
+  CITREA_TESTNET: {
+    chainId: 5115,
+    rpcUrl: "https://rpc.testnet.citrea.xyz",
+    name: "Citrea Testnet",
+    explorer: "https://explorer.testnet.citrea.xyz",
   },
 
-  // 컨트랙트 주소들 (Base 메인넷 배포)
-  CONTRACTS: {
-    CLMSRMarketCore: "0xE3d019db1E1987D05bBC8cc578BB78aa92761dce",
-    SUSD: "0x9a0dAb48676D20ed08cd2eE390d869961d4C98Cd",
-    CLMSRPosition: "0x1Cb2e3ffd25b93a454290FAae4dBcF253c3927e1",
+  // Contract addresses (Citrea Production)
+  CONTRACTS_PROD: {
+    CLMSRMarketCore: "0xE480ca1C63B6dd929af1EeA4D3de1073942F3cEf",
+    SUSD: "0xE32527F8b3f142a69278f22CdA334d70644b9743",
+    CLMSRPosition: "0xB4c33Df898F8139D784ADE1aDCa9B5979898fE03",
   },
 
-  // 서브그래프 엔드포인트 (Base 메인넷)
-  SUBGRAPH_URL:
-    "https://api.studio.thegraph.com/query/116469/signals-v-0/1.1.0",
+  // Contract addresses (Citrea Development)
+  CONTRACTS_DEV: {
+    CLMSRMarketCore: "0x971F9bcE130743BB3eFb37aeAC2050cD44d7579a",
+    SUSD: "0xE32527F8b3f142a69278f22CdA334d70644b9743",
+    CLMSRPosition: "0xe163497F304ad4b7482C84Bc82079d46050c6e93",
+  },
+
+  // Subgraph endpoints (Goldsky)
+  SUBGRAPH_URL_PROD:
+    "https://api.goldsky.com/api/public/project_cme6kru6aowuy01tb4c9xbdrj/subgraphs/signals-v0-citrea-prod/1.0.0/gn",
+  SUBGRAPH_URL_DEV:
+    "https://api.goldsky.com/api/public/project_cme6kru6aowuy01tb4c9xbdrj/subgraphs/signals-v0-citrea-dev/1.0.0/gn",
 };
 ```
 
-### 2. 기본 의존성 설치
+### 2. Basic Dependencies
 
 ```bash
-npm install ethers @apollo/client graphql
+npm install ethers@^6.0.0 @apollo/client graphql
 ```
 
-### 3. 실시간 차트 컴포넌트 (완성본)
+### 3. Real-time Chart Component (Complete)
 
 ```tsx
 import React, { useEffect, useState } from "react";
 import { ApolloClient, InMemoryCache, gql, useQuery } from "@apollo/client";
 
-// Apollo 클라이언트 설정
+// Apollo client setup (Production)
 const client = new ApolloClient({
-  uri: "https://api.studio.thegraph.com/query/116469/signals-v-0/1.3.2",
+  uri: "https://api.goldsky.com/api/public/project_cme6kru6aowuy01tb4c9xbdrj/subgraphs/signals-v0-citrea-prod/1.0.0/gn",
   cache: new InMemoryCache(),
 });
 
-// GraphQL 쿼리 - 새로운 bin 시스템
+// GraphQL query - new bin system
 const GET_MARKET_DISTRIBUTION = gql`
   query GetMarketDistribution($marketId: String!) {
     marketDistribution(id: $marketId) {
+      id
       totalBins
       totalSum
       minFactor
       maxFactor
       avgFactor
+      totalVolume
       binFactors
       binVolumes
       tickRanges
       lastSnapshotAt
+      distributionHash
       version
-    }
-    market(id: $marketId) {
-      id
-      numBins
-      minTick
-      maxTick
-      tickSpacing
-      isActive
-      isSettled
     }
   }
 `;
 
-interface BinData {
-  binIndex: number;
-  tickRange: string;
-  factor: number;
-  volume: number;
-}
-
-interface PriceChartProps {
+interface MarketChartProps {
   marketId: string;
 }
 
-const PriceChart: React.FC<PriceChartProps> = ({ marketId }) => {
-  const { data, loading, error } = useQuery(GET_MARKET_DISTRIBUTION, {
+export const MarketChart: React.FC<MarketChartProps> = ({ marketId }) => {
+  const { loading, error, data } = useQuery(GET_MARKET_DISTRIBUTION, {
     variables: { marketId },
-    pollInterval: 5000, // 5초마다 업데이트
+    pollInterval: 5000, // Update every 5 seconds
     client,
   });
 
-  if (loading) return <div>차트 로딩 중...</div>;
-  if (error) return <div>오류 발생: {error.message}</div>;
-  if (!data?.marketDistribution || !data?.market)
-    return <div>마켓을 찾을 수 없습니다.</div>;
+  if (loading) return <div>Loading chart...</div>;
+  if (error) return <div>Error: {error.message}</div>;
+  if (!data?.marketDistribution) {
+    return <div>Market not found.</div>;
+  }
 
-  const bins: BinData[] = data.marketDistribution.binFactors.map(
+  // Convert data for visualization
+  const chartData = data.marketDistribution.binFactors.map(
     (factor: string, index: number) => ({
-      binIndex: index,
-      tickRange: data.marketDistribution.tickRanges[index],
+      x: index,
       factor: parseFloat(factor),
       volume: parseFloat(data.marketDistribution.binVolumes[index]),
+      range: data.marketDistribution.tickRanges[index],
     })
   );
 
   return (
-    <div className="price-chart">
-      <h3>마켓 {marketId} 분포 시각화</h3>
-      <div className="distribution-stats">
-        <p>총 bins: {data.marketDistribution.totalBins}</p>
+    <div style={{ padding: "20px", border: "1px solid #ccc" }}>
+      <h3>Market {marketId} Distribution Visualization</h3>
+      <div>
+        <p>Total bins: {data.marketDistribution.totalBins}</p>
         <p>
-          전체 합: {parseFloat(data.marketDistribution.totalSum).toFixed(4)}
+          Total sum: {parseFloat(data.marketDistribution.totalSum).toFixed(4)}
         </p>
         <p>
-          최소/최대 factor: {data.marketDistribution.minFactor} /{" "}
+          Min/Max factor: {data.marketDistribution.minFactor} /{" "}
           {data.marketDistribution.maxFactor}
         </p>
       </div>
-      <div className="chart-container">
-        {bins.map((bin) => (
+
+      {/* Simple chart visualization */}
+      <div style={{ display: "flex", height: "200px", alignItems: "end" }}>
+        {chartData.map((point, i) => (
           <div
-            key={bin.binIndex}
-            className="bin-bar"
+            key={i}
             style={{
-              height: `${Math.min(bin.factor * 50, 200)}px`,
-              backgroundColor: bin.factor > 1 ? "#4CAF50" : "#f44336",
-              width: `${100 / bins.length}%`,
+              width: "20px",
+              height: `${
+                (point.factor / parseFloat(data.marketDistribution.maxFactor)) *
+                180
+              }px`,
+              backgroundColor: "#3498db",
+              margin: "0 1px",
+              position: "relative",
             }}
-            title={`Bin ${bin.binIndex} (${
-              bin.tickRange
-            }): Factor ${bin.factor.toFixed(4)}, Volume ${bin.volume}`}
+            title={`Range: ${point.range}, Factor: ${point.factor}, Volume: ${point.volume}`}
           />
         ))}
       </div>
-      <p>마지막 업데이트: {new Date().toLocaleTimeString()}</p>
+      <p>Last update: {new Date().toLocaleTimeString()}</p>
     </div>
   );
 };
-
-export default PriceChart;
 ```
 
-### 4. 포지션 거래 컴포넌트 (완성본)
+### 4. Position Trading Component (Complete)
 
 ```tsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { ethers } from "ethers";
-import { CONFIG } from "./config";
 
-// 컨트랙트 ABI (필수 함수들만) - 실제 컨트랙트와 일치하는 타입 사용
-const CORE_ABI = [
-  "function calculateOpenCost(uint256 marketId, int256 lowerTick, int256 upperTick, uint128 quantity) view returns (uint256)",
-  "function openPosition(address trader, uint256 marketId, int256 lowerTick, int256 upperTick, uint128 quantity, uint256 maxCost) returns (uint256)",
+// Contract ABI (essential functions only) - matching actual contract types
+const MARKET_ABI = [
+  "function openPosition(address trader, uint256 marketId, int256 lowerTick, int256 upperTick, uint256 quantity, uint256 maxCost, uint256 deadline) external returns (uint256)",
+  "function getOpenCost(uint256 marketId, int256 lowerTick, int256 upperTick, uint256 quantity) external view returns (uint256)",
+  "function markets(uint256) external view returns (bool isActive, bool settled, uint64 startTimestamp, uint64 endTimestamp, int256 settlementTick, int256 minTick, int256 maxTick, int256 tickSpacing, uint32 numBins, uint256 liquidityParameter)",
 ];
 
-const USDC_ABI = [
-  "function approve(address spender, uint256 amount) returns (bool)",
-  "function balanceOf(address account) view returns (uint256)",
+const SUSD_ABI = [
+  "function approve(address spender, uint256 amount) external returns (bool)",
+  "function allowance(address owner, address spender) external view returns (uint256)",
 ];
 
-interface TradingPanelProps {
+interface PositionTraderProps {
   marketId: number;
 }
 
-const TradingPanel: React.FC<TradingPanelProps> = ({ marketId }) => {
+export const PositionTrader: React.FC<PositionTraderProps> = ({ marketId }) => {
   const [lowerTick, setLowerTick] = useState<number>(0);
-  const [upperTick, setUpperTick] = useState<number>(1);
-  const [quantity, setQuantity] = useState<string>("1000000"); // 1 USDC (6 decimals)
+  const [upperTick, setUpperTick] = useState<number>(100);
+  const [quantity, setQuantity] = useState<string>("1000000"); // 1 SUSD in micro units
   const [estimatedCost, setEstimatedCost] = useState<string>("0");
   const [loading, setLoading] = useState(false);
 
-  // 가격 추정
+  // Price estimation
   const estimatePrice = async () => {
-    if (!window.ethereum) return;
-
     try {
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const contract = new ethers.Contract(
-        CONFIG.CONTRACTS.CLMSRMarketCore,
-        CORE_ABI,
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const marketContract = new ethers.Contract(
+        "0xE480ca1C63B6dd929af1EeA4D3de1073942F3cEf",
+        MARKET_ABI,
         provider
       );
 
-      const cost = await contract.calculateOpenCost(
+      const cost = await marketContract.getOpenCost(
         marketId,
         lowerTick,
         upperTick,
-        quantity
+        ethers.parseUnits(quantity, 0)
       );
 
-      setEstimatedCost(ethers.formatUnits(cost, 6)); // USDC는 6 decimals
+      setEstimatedCost(ethers.formatUnits(cost, 6)); // SUSD has 6 decimals
     } catch (error) {
-      console.error("가격 추정 실패:", error);
+      console.error("Price estimation failed:", error);
     }
   };
 
-  // 포지션 구매
+  // Buy position
   const buyPosition = async () => {
-    if (!window.ethereum) {
-      alert("MetaMask를 연결해주세요.");
-      return;
-    }
-
-    setLoading(true);
     try {
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
+      if (!window.ethereum) {
+        alert("Please connect MetaMask.");
+        return;
+      }
+
+      setLoading(true);
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const signer = provider.getSigner();
       const userAddress = await signer.getAddress();
 
-      // 1. USDC 승인
-      const usdcContract = new ethers.Contract(
-        CONFIG.CONTRACTS.USDC,
-        USDC_ABI,
+      const marketContract = new ethers.Contract(
+        "0xE480ca1C63B6dd929af1EeA4D3de1073942F3cEf",
+        MARKET_ABI,
         signer
       );
-      const costWei = ethers.parseUnits(estimatedCost, 6);
+      const susdContract = new ethers.Contract(
+        "0xE32527F8b3f142a69278f22CdA334d70644b9743",
+        SUSD_ABI,
+        signer
+      );
 
-      console.log("USDC 승인 중...");
-      const approveTx = await usdcContract.approve(
-        CONFIG.CONTRACTS.CLMSRMarketCore,
+      console.log("Approving SUSD...");
+      const costWei = ethers.parseUnits(estimatedCost, 6);
+      const approveTx = await susdContract.approve(
+        "0xE480ca1C63B6dd929af1EeA4D3de1073942F3cEf",
         costWei
       );
       await approveTx.wait();
 
-      // 2. 포지션 구매
-      const coreContract = new ethers.Contract(
-        CONFIG.CONTRACTS.CLMSRMarketCore,
-        CORE_ABI,
-        signer
-      );
+      // 2. Buy position
+      const quantityWei = ethers.parseUnits(quantity, 0);
+      const deadline = Math.floor(Date.now() / 1000) + 600; // 10 minutes
 
-      console.log("포지션 구매 중...");
-      const buyTx = await coreContract.openPosition(
+      console.log("Buying position...");
+      const tx = await marketContract.openPosition(
         userAddress,
         marketId,
         lowerTick,
         upperTick,
-        quantity,
-        costWei // maxCost와 동일하게 설정
+        quantityWei,
+        costWei // Set maxCost same as estimated cost
       );
 
-      const receipt = await buyTx.wait();
-      console.log("포지션 구매 완료:", receipt.hash);
-      alert(`포지션 구매 성공! 트랜잭션: ${receipt.hash}`);
+      const receipt = await tx.wait();
+      console.log("Position purchase completed:", receipt.hash);
+      alert(`Position purchase successful! Transaction: ${receipt.hash}`);
     } catch (error) {
-      console.error("포지션 구매 실패:", error);
-      alert("포지션 구매에 실패했습니다. 콘솔을 확인해주세요.");
+      console.error("Position purchase failed:", error);
+      alert("Position purchase failed. Check console for details.");
     } finally {
       setLoading(false);
     }
   };
 
-  // upperTick 자동 설정 (CLMSR은 연속된 2개 틱만 허용)
-  const handleLowerTickChange = (value: number) => {
-    setLowerTick(value);
-    setUpperTick(value + 1);
-  };
+  // Auto-set upperTick (CLMSR only allows consecutive 2 ticks)
+  useEffect(() => {
+    setUpperTick(lowerTick + 100); // Assuming tickSpacing = 100
+  }, [lowerTick]);
 
   return (
-    <div className="trading-panel">
-      <h3>포지션 거래</h3>
+    <div style={{ padding: "20px", border: "1px solid #ddd" }}>
+      <h3>Position Trading</h3>
 
-      <div className="input-group">
-        <label>시작 틱:</label>
+      <div>
+        <label>Start Tick:</label>
         <input
           type="number"
           value={lowerTick}
-          onChange={(e) => handleLowerTickChange(parseInt(e.target.value))}
-          min="0"
+          onChange={(e) => setLowerTick(Number(e.target.value))}
+          step="100"
         />
       </div>
 
-      <div className="input-group">
-        <label>종료 틱:</label>
+      <div>
+        <label>End Tick:</label>
         <input
           type="number"
           value={upperTick}
-          disabled
-          title="CLMSR에서는 연속된 틱만 지원됩니다"
+          readOnly
+          title="CLMSR only supports consecutive ticks"
         />
       </div>
 
-      <div className="input-group">
-        <label>수량 (micro USDC):</label>
+      <div>
+        <label>Quantity (micro SUSD):</label>
         <input
           type="text"
           value={quantity}
           onChange={(e) => setQuantity(e.target.value)}
-          placeholder="1000000 = 1 USDC"
         />
       </div>
 
-      <div className="button-group">
-        <button onClick={estimatePrice}>가격 추정</button>
+      <div>
+        <button onClick={estimatePrice}>Estimate Price</button>
         <button onClick={buyPosition} disabled={loading}>
-          {loading ? "처리 중..." : "포지션 구매"}
+          {loading ? "Processing..." : "Buy Position"}
         </button>
       </div>
 
       {estimatedCost !== "0" && (
-        <div className="price-info">
-          <p>예상 비용: {estimatedCost} USDC</p>
+        <div>
+          <p>Estimated cost: {estimatedCost} SUSD</p>
           <p>
-            틱 범위: {lowerTick} ~ {upperTick}
+            Tick range: {lowerTick} ~ {upperTick}
           </p>
         </div>
       )}
     </div>
   );
 };
-
-export default TradingPanel;
 ```
 
----
+## 📊 Data Queries (5 minutes)
 
-## 📊 데이터 조회 (5분)
-
-### 1. GraphQL 클라이언트 설정
+### 1. GraphQL Client Setup
 
 ```typescript
-// lib/apollo.ts
-import { ApolloClient, InMemoryCache } from "@apollo/client";
-import { CLMSR_CONFIG } from "../config/constants";
+import { ApolloClient, InMemoryCache, gql } from "@apollo/client";
 
-export const apolloClient = new ApolloClient({
-  uri: CLMSR_CONFIG.subgraphUrl,
+const client = new ApolloClient({
+  uri: "https://api.goldsky.com/api/public/project_cme6kru6aowuy01tb4c9xbdrj/subgraphs/signals-v0-citrea-prod/1.0.0/gn",
   cache: new InMemoryCache(),
 });
 ```
 
-### 2. 마켓 목록 조회
+### 2. Market List Query
 
-```typescript
-// components/MarketList.tsx
-import { useQuery, gql } from "@apollo/client";
-
+```tsx
 const GET_MARKETS = gql`
   query GetMarkets {
-    markets(first: 10, orderBy: lastUpdated, orderDirection: desc) {
+    markets(first: 10, orderBy: startTimestamp, orderDirection: desc) {
       id
       marketId
+      isActive
+      settled
       numBins
       minTick
       maxTick
       tickSpacing
-      settled
-      lastUpdated
+      liquidityParameter
     }
   }
 `;
 
-export const MarketList = () => {
-  const { data, loading, error } = useQuery(GET_MARKETS);
+const MarketList = () => {
+  const { loading, error, data } = useQuery(GET_MARKETS);
 
-  if (loading) return <div>로딩 중...</div>;
-  if (error) return <div>오류: {error.message}</div>;
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div>Error: {error.message}</div>;
 
   return (
     <div>
-      <h2>마켓 목록</h2>
-      {data?.markets?.map((market: any) => (
-        <div key={market.id} className="market-card">
-          <h3>마켓 #{market.marketId}</h3>
-          <p>Bin 개수: {market.numBins}</p>
+      <h2>Market List</h2>
+      {data.markets.map((market: any) => (
+        <div key={market.id}>
+          <h3>Market #{market.marketId}</h3>
+          <p>Bin count: {market.numBins}</p>
           <p>
-            틱 범위: {market.minTick} ~ {market.maxTick}
+            Tick range: {market.minTick} ~ {market.maxTick}
           </p>
-          <p>틱 간격: {market.tickSpacing}</p>
-          <p>상태: {market.settled ? "정산완료" : "활성"}</p>
+          <p>Tick spacing: {market.tickSpacing}</p>
+          <p>Status: {market.settled ? "Settled" : "Active"}</p>
         </div>
       ))}
     </div>
@@ -378,113 +368,93 @@ export const MarketList = () => {
 };
 ```
 
-### 3. 실시간 분포 시각화
+### 3. Real-time Distribution Visualization
 
-```typescript
-// components/PriceDistribution.tsx
-import { useQuery, gql } from "@apollo/client";
-import { Line } from "react-chartjs-2";
-
-const GET_MARKET_DISTRIBUTION = gql`
-  query GetMarketDistribution($marketId: String!) {
+```tsx
+const GET_DISTRIBUTION = gql`
+  query GetDistribution($marketId: String!) {
     marketDistribution(id: $marketId) {
       totalBins
       totalSum
       binFactors
       binVolumes
       tickRanges
-      lastSnapshotAt
-      version
     }
   }
 `;
 
-interface PriceDistributionProps {
-  marketId: string;
-}
-
-export const PriceDistribution = ({ marketId }: PriceDistributionProps) => {
-  const { data, loading } = useQuery(GET_MARKET_DISTRIBUTION, {
+const DistributionChart = ({ marketId }: { marketId: string }) => {
+  const { loading, error, data } = useQuery(GET_DISTRIBUTION, {
     variables: { marketId },
-    pollInterval: 3000, // 3초마다 업데이트 (서브그래프 인덱서에서 데이터 조회)
+    pollInterval: 3000, // Update every 3 seconds (query data from subgraph indexer)
   });
 
-  if (loading) return <div>분포 데이터 로딩 중...</div>;
+  if (loading) return <div>Loading distribution data...</div>;
 
-  // 서브그래프에서 받은 데이터를 차트용으로 변환
-  const chartData = {
-    labels:
-      data?.marketDistribution?.binFactors?.map(
-        (_: any, index: number) =>
-          `Bin ${index} (${data.marketDistribution.tickRanges[index]})`
-      ) || [],
-    datasets: [
-      {
-        label: "Bin Factor",
-        data:
-          data?.marketDistribution?.binFactors?.map((factor: string) =>
-            parseFloat(factor)
-          ) || [],
-        borderColor: "rgb(75, 192, 192)",
-        backgroundColor: "rgba(75, 192, 192, 0.2)",
-        tension: 0.1,
-      },
-      {
-        label: "거래량",
-        data:
-          data?.marketDistribution?.binVolumes?.map((volume: string) =>
-            parseFloat(volume)
-          ) || [],
-        borderColor: "rgb(255, 99, 132)",
-        backgroundColor: "rgba(255, 99, 132, 0.2)",
-        tension: 0.1,
-        yAxisID: "y1",
-      },
-    ],
+  // Convert data from subgraph for chart use
+  const chartData =
+    data?.marketDistribution?.binFactors?.map((factor: string, i: number) => ({
+      index: i,
+      factor: parseFloat(factor),
+      volume: parseFloat(data.marketDistribution.binVolumes[i]),
+      range: data.marketDistribution.tickRanges[i],
+    })) || [];
+
+  // Chart configuration (using Chart.js or similar)
+  const chartConfig = {
+    type: "bar",
+    data: {
+      labels: chartData.map((d: any) => d.range),
+      datasets: [
+        {
+          label: "Factor",
+          data: chartData.map((d: any) => d.factor),
+          backgroundColor: "rgba(54, 162, 235, 0.8)",
+        },
+        {
+          label: "Volume",
+          data: chartData.map((d: any) => d.volume),
+          backgroundColor: "rgba(255, 99, 132, 0.8)",
+        },
+      ],
+    },
   };
 
   return (
     <div>
-      <h3>마켓 #{marketId} 실시간 분포 시각화</h3>
-      <p>📊 서브그래프에서 Bin별 Factor와 거래량 데이터 조회</p>
+      <h3>Market #{marketId} Real-time Distribution Visualization</h3>
+      <p>📊 Query bin-level Factor and Volume data from subgraph</p>
       <p>
-        총 합: {data?.marketDistribution?.totalSum} | 업데이트: v
+        Total sum: {data?.marketDistribution?.totalSum} | Update: v
         {data?.marketDistribution?.version}
       </p>
-      <Line data={chartData} />
+      {/* Chart component here */}
     </div>
   );
 };
 ```
 
----
+## 💰 Trading Features (10 minutes)
 
-## 💰 거래 기능 (10분)
+### 1. Wallet Connection
 
-### 1. 지갑 연결
-
-```typescript
-// components/WalletConnect.tsx
-import { useState, useEffect } from "react";
-import { ethers } from "ethers";
-
-export const WalletConnect = () => {
+```tsx
+const WalletConnect = () => {
   const [account, setAccount] = useState<string>("");
-  const [isConnected, setIsConnected] = useState(false);
 
   const connectWallet = async () => {
-    if (typeof window.ethereum !== "undefined") {
+    if (window.ethereum) {
       try {
-        const accounts = await window.ethereum.request({
-          method: "eth_requestAccounts",
-        });
-        setAccount(accounts[0]);
-        setIsConnected(true);
+        await window.ethereum.request({ method: "eth_requestAccounts" });
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        const signer = provider.getSigner();
+        const address = await signer.getAddress();
+        setAccount(address);
 
-        // 네트워크 확인
+        // Network verification
         await ensureCorrectNetwork();
       } catch (error) {
-        console.error("지갑 연결 실패:", error);
+        console.error("Wallet connection failed:", error);
       }
     }
   };
@@ -493,19 +463,23 @@ export const WalletConnect = () => {
     try {
       await window.ethereum.request({
         method: "wallet_switchEthereumChain",
-        params: [{ chainId: "0x2105" }], // Base Mainnet
+        params: [{ chainId: "0x13FB" }], // Citrea Testnet
       });
     } catch (error: any) {
       if (error.code === 4902) {
-        // 네트워크 추가
+        // Add network
         await window.ethereum.request({
           method: "wallet_addEthereumChain",
           params: [
             {
-              chainId: "0x2105",
-              chainName: "Base Mainnet",
-              rpcUrls: ["https://mainnet.base.org"],
-              nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+              chainId: "0x13FB",
+              chainName: "Citrea Testnet",
+              rpcUrls: ["https://rpc.testnet.citrea.xyz"],
+              nativeCurrency: {
+                name: "Citrea Bitcoin",
+                symbol: "CBTC",
+                decimals: 8,
+              },
             },
           ],
         });
@@ -515,456 +489,643 @@ export const WalletConnect = () => {
 
   return (
     <div>
-      {isConnected ? (
-        <div>
-          <p>
-            연결됨: {account.slice(0, 6)}...{account.slice(-4)}
-          </p>
-        </div>
+      {account ? (
+        <p>
+          Connected: {account.slice(0, 6)}...{account.slice(-4)}
+        </p>
       ) : (
-        <button onClick={connectWallet}>지갑 연결</button>
+        <button onClick={connectWallet}>Connect Wallet</button>
       )}
     </div>
   );
 };
 ```
 
-### 2. 포지션 구매 컴포넌트
+### 2. Position Purchase Component
 
-```typescript
-// components/BuyPosition.tsx
-import { useState } from "react";
-import { ethers } from "ethers";
-import { useContracts } from "../hooks/useContracts";
-
-interface BuyPositionProps {
-  marketId: number;
-  minTick: bigint;
-  maxTick: bigint;
-  tickSpacing: bigint;
-}
-
-export const BuyPosition = ({
-  marketId,
-  minTick,
-  maxTick,
-  tickSpacing,
-}: BuyPositionProps) => {
-  const [lowerTick, setLowerTick] = useState(Number(minTick));
-  const [upperTick, setUpperTick] = useState(Number(minTick + tickSpacing));
-  const [quantity, setQuantity] = useState("1");
+```tsx
+const PositionBuyer = ({ marketId }: { marketId: number }) => {
+  const [lowerTick, setLowerTick] = useState(0);
+  const [upperTick, setUpperTick] = useState(100);
+  const [quantity, setQuantity] = useState("1000000");
+  const [estimatedCost, setEstimatedCost] = useState("0");
   const [loading, setLoading] = useState(false);
-  const [estimatedCost, setEstimatedCost] = useState<string>("");
 
-  const contracts = useContracts();
+  // Market info query
+  const [marketInfo, setMarketInfo] = useState({
+    minTick: 0,
+    maxTick: 10000,
+    tickSpacing: 100,
+  });
 
-  // 실시간 가격 계산
-  const updatePrice = async () => {
-    if (!contracts) return;
-
+  // Real-time price calculation
+  const calculatePrice = async () => {
     try {
-      const cost = await contracts.core.calculateOpenCost(
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const contract = new ethers.Contract(
+        "0xE480ca1C63B6dd929af1EeA4D3de1073942F3cEf",
+        MARKET_ABI,
+        provider
+      );
+
+      const cost = await contract.getOpenCost(
         marketId,
         lowerTick,
         upperTick,
-        ethers.parseEther(quantity)
+        quantity
       );
       setEstimatedCost(ethers.formatUnits(cost, 6));
     } catch (error) {
-      console.error("가격 계산 실패:", error);
+      console.error("Price calculation failed:", error);
     }
   };
 
   const buyPosition = async () => {
-    if (!contracts) return;
-
-    setLoading(true);
     try {
-      // 💰 컨트랙트 직접 호출로 거래 실행
-
-      // 1. USDC 승인 확인 및 사용자 주소 획득
-      const signer = await contracts.core.runner;
+      setLoading(true);
+      // 💰 Execute trade with direct contract call
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      // 1. Check SUSD approval and get user address
+      const signer = provider.getSigner();
       const userAddress = await signer.getAddress();
-      const allowance = await contracts.usdc.allowance(
-        userAddress,
-        contracts.core.target
+
+      const marketContract = new ethers.Contract(
+        CONTRACT_ADDRESS,
+        MARKET_ABI,
+        signer
       );
+      const susdContract = new ethers.Contract(SUSD_ADDRESS, SUSD_ABI, signer);
 
-      const maxCost = ethers.parseUnits(
-        (parseFloat(estimatedCost) * 1.05).toString(),
-        6
-      ); // 5% 슬리피지
+      const costWei = ethers.parseUnits(estimatedCost, 6);
+      const maxCostWithSlippage = costWei.mul(105).div(100); // 5% slippage
 
-      if (allowance < maxCost) {
-        console.log("USDC 승인 중...");
-        const approveTx = await contracts.usdc.approve(
-          contracts.core.target,
-          ethers.MaxUint256
+      if (true) {
+        console.log("Approving SUSD...");
+        const approveTx = await susdContract.approve(
+          CONTRACT_ADDRESS,
+          maxCostWithSlippage
         );
         await approveTx.wait();
       }
 
-      // 2. 포지션 구매 (블록체인에 직접 트랜잭션 전송)
-      const tx = await contracts.core.openPosition(
-        userAddress, // trader 주소 (첫 번째 파라미터)
+      // 2. Buy position (send transaction directly to blockchain)
+      const tx = await marketContract.openPosition(
+        userAddress, // trader address (first parameter)
         marketId,
         lowerTick,
-        upperTick, // 사용자가 선택한 범위
-        ethers.parseEther(quantity),
-        maxCost
+        upperTick, // user selected range
+        quantity,
+        maxCostWithSlippage,
+        Math.floor(Date.now() / 1000) + 600 // 10 min deadline
       );
 
       const receipt = await tx.wait();
-      console.log("포지션 구매 완료:", receipt.hash);
+      console.log("Position purchase completed:", receipt.hash);
 
-      alert("포지션 구매가 완료되었습니다!");
-    } catch (error: any) {
-      console.error("포지션 구매 실패:", error);
-      alert(`구매 실패: ${error.message}`);
+      alert("Position purchase completed!");
+    } catch (error) {
+      console.error("Position purchase failed:", error);
+      alert(`Purchase failed: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="buy-position">
-      <h3>포지션 구매</h3>
+    <div>
+      <h3>Buy Position</h3>
 
       <div>
         <label>
-          하한 틱 ({Number(minTick)}-{Number(maxTick - tickSpacing)}):
-          <input
-            type="number"
-            min={Number(minTick)}
-            max={Number(maxTick - tickSpacing)}
-            step={Number(tickSpacing)}
-            value={lowerTick}
-            onChange={(e) => {
-              const value = parseInt(e.target.value);
-              setLowerTick(value);
-              setUpperTick(value + Number(tickSpacing));
-            }}
-            onBlur={updatePrice}
-          />
+          Lower tick ({Number(minTick)}-{Number(maxTick - tickSpacing)}):
         </label>
+        <input
+          type="number"
+          value={lowerTick}
+          onChange={(e) => setLowerTick(Number(e.target.value))}
+          min={marketInfo.minTick}
+          max={marketInfo.maxTick - marketInfo.tickSpacing}
+          step={marketInfo.tickSpacing}
+        />
       </div>
 
       <div>
-        <label>
-          상한 틱:
-          <input
-            type="number"
-            min={lowerTick + Number(tickSpacing)}
-            max={Number(maxTick)}
-            step={Number(tickSpacing)}
-            value={upperTick}
-            onChange={(e) => setUpperTick(parseInt(e.target.value))}
-            onBlur={updatePrice}
-          />
-        </label>
+        <label>Upper tick:</label>
+        <input
+          type="number"
+          value={upperTick}
+          onChange={(e) => setUpperTick(Number(e.target.value))}
+          min={lowerTick + marketInfo.tickSpacing}
+          max={marketInfo.maxTick}
+          step={marketInfo.tickSpacing}
+        />
       </div>
 
       <div>
-        <label>
-          수량:
-          <input
-            type="number"
-            step="0.1"
-            min="0.1"
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
-            onBlur={updatePrice}
-          />
-        </label>
+        <label>Quantity:</label>
+        <input
+          type="text"
+          value={quantity}
+          onChange={(e) => setQuantity(e.target.value)}
+        />
       </div>
 
       <div>
         <p>
-          선택된 틱 범위: {lowerTick} ~ {upperTick}
+          Selected tick range: {lowerTick} ~ {upperTick}
         </p>
         <p>
-          확률 해석:{" "}
+          Probability interpretation:{" "}
           {(
-            ((lowerTick - Number(minTick)) /
-              (Number(maxTick) - Number(minTick))) *
+            ((upperTick - lowerTick) /
+              (marketInfo.maxTick - marketInfo.minTick)) *
             100
-          ).toFixed(1)}
-          % ~ {(
-            ((upperTick - Number(minTick)) /
-              (Number(maxTick) - Number(minTick))) *
-            100
-          ).toFixed(1)}%
+          ).toFixed(2)}
+          %
         </p>
-        <p>예상 비용: ${estimatedCost} USDC</p>
       </div>
 
-      <button onClick={buyPosition} disabled={loading || !estimatedCost}>
-        {loading ? "구매 중..." : "포지션 구매"}
+      <div>
+        <button onClick={calculatePrice}>Calculate Price</button>
+        <p>Estimated cost: ${estimatedCost} SUSD</p>
+      </div>
+
+      <button onClick={buyPosition} disabled={loading}>
+        {loading ? "Purchasing..." : "Buy Position"}
       </button>
     </div>
   );
 };
 ```
 
-### 3. 내 포지션 조회
+### 3. My Positions Query
 
-```typescript
-// components/MyPositions.tsx
-import { useQuery, gql } from "@apollo/client";
-import { useContracts } from "../hooks/useContracts";
-
+```tsx
 const GET_USER_POSITIONS = gql`
-  query GetUserPositions($trader: Bytes!) {
-    positionOpeneds(
-      where: { trader: $trader }
-      orderBy: blockTimestamp
+  query GetUserPositions($user: Bytes!) {
+    userPositions(
+      where: { user: $user, outcome: OPEN }
+      orderBy: createdAt
       orderDirection: desc
     ) {
+      id
       positionId
       marketId
       lowerTick
       upperTick
-      quantity
-      cost
-      blockTimestamp
+      currentQuantity
+      totalCostBasis
+      realizedPnL
+      outcome
+      isClaimed
+      createdAt
+      lastUpdated
     }
   }
 `;
 
-interface MyPositionsProps {
-  userAddress: string;
-}
-
-export const MyPositions = ({ userAddress }: MyPositionsProps) => {
-  const { data, loading } = useQuery(GET_USER_POSITIONS, {
-    variables: { trader: userAddress.toLowerCase() },
-    skip: !userAddress,
+const MyPositions = ({ userAddress }: { userAddress: string }) => {
+  const { loading, error, data } = useQuery(GET_USER_POSITIONS, {
+    variables: { user: userAddress.toLowerCase() },
+    pollInterval: 10000, // Update every 10 seconds
   });
 
-  const contracts = useContracts();
+  if (loading) return <div>Loading positions...</div>;
+  if (error) return <div>Error: {error.message}</div>;
 
-  const sellPosition = async (positionId: string) => {
-    if (!contracts) return;
-
-    try {
-      // 현재 포지션 정보 조회 및 판매 가격 계산
-      const proceeds = await contracts.core.calculateCloseProceeds(positionId);
-
-      const minProceeds = (proceeds * BigInt(95)) / BigInt(100); // 5% 슬리피지
-
-      const tx = await contracts.core.closePosition(positionId, minProceeds);
-      await tx.wait();
-
-      alert("포지션 판매 완료!");
-    } catch (error: any) {
-      alert(`판매 실패: ${error.message}`);
-    }
-  };
-
-  if (loading) return <div>포지션 로딩 중...</div>;
+  const positions = data?.userPositions || [];
 
   return (
     <div>
-      <h3>내 포지션</h3>
-      {data?.positionOpeneds?.map((position: any) => (
-        <div key={position.positionId} className="position-card">
-          <h4>포지션 #{position.positionId}</h4>
-          <p>마켓: #{position.marketId}</p>
+      <h3>My Positions ({positions.length})</h3>
+      {positions.map((position: any) => (
+        <div
+          key={position.id}
+          style={{
+            border: "1px solid #ccc",
+            padding: "10px",
+            margin: "10px 0",
+          }}
+        >
+          <h4>Position #{position.positionId}</h4>
+          <p>Market: #{position.marketId}</p>
           <p>
-            범위: {position.lowerTick}-{position.upperTick}
+            Range: {position.lowerTick} ~ {position.upperTick}
           </p>
-          <p>수량: {ethers.formatEther(position.quantity)}</p>
-          <p>구매가: ${ethers.formatUnits(position.cost, 6)}</p>
-          <button onClick={() => sellPosition(position.positionId)}>
-            판매
-          </button>
+          <p>Quantity: {position.currentQuantity}</p>
+          <p>
+            Cost Basis: ${ethers.formatUnits(position.totalCostBasis, 6)} SUSD
+          </p>
+          <p>PnL: ${ethers.formatUnits(position.realizedPnL, 6)} SUSD</p>
+          <p>Status: {position.outcome}</p>
+
+          {/* Current position info query and sell price calculation
+          <PositionActions positionId={position.positionId} /> */}
         </div>
-      )) || <p>포지션이 없습니다.</p>}
+      ))}
     </div>
   );
 };
 ```
 
----
+## 🎨 Frontend Architecture (Advanced)
 
-## 🧩 완성된 앱 예제
+### 1. State Management (Redux Toolkit)
 
 ```typescript
-// App.tsx
-import { ApolloProvider } from "@apollo/client";
-import { apolloClient } from "./lib/apollo";
-import { WalletConnect } from "./components/WalletConnect";
-import { MarketList } from "./components/MarketList";
-import { PriceDistribution } from "./components/PriceDistribution";
-import { BuyPosition } from "./components/BuyPosition";
-import { MyPositions } from "./components/MyPositions";
+// store/marketSlice.ts
+import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 
-function App() {
-  const [selectedMarket, setSelectedMarket] = useState("0");
-  const [userAddress, setUserAddress] = useState("");
+export const fetchMarketData = createAsyncThunk(
+  "market/fetchData",
+  async (marketId: string) => {
+    // GraphQL query execution
+    const response = await client.query({
+      query: GET_MARKET_DISTRIBUTION,
+      variables: { marketId },
+    });
+    return response.data;
+  }
+);
 
-  return (
-    <ApolloProvider client={apolloClient}>
-      <div className="app">
-        <header>
-          <h1>CLMSR 예측 마켓</h1>
-          <WalletConnect onConnect={setUserAddress} />
-        </header>
+const marketSlice = createSlice({
+  name: "market",
+  initialState: {
+    distributions: {},
+    loading: false,
+    error: null,
+  },
+  reducers: {
+    updateDistribution: (state, action) => {
+      const { marketId, data } = action.payload;
+      state.distributions[marketId] = data;
+    },
+  },
+  extraReducers: (builder) => {
+    builder.addCase(fetchMarketData.fulfilled, (state, action) => {
+      state.loading = false;
+      // Update state with fetched data
+    });
+  },
+});
+```
 
-        <main>
-          <div className="left-panel">
-            <MarketList onSelectMarket={setSelectedMarket} />
-          </div>
+### 2. Real-time Updates (WebSocket + Polling)
 
-          <div className="center-panel">
-            <PriceDistribution marketId={selectedMarket} />
-          </div>
+```typescript
+// hooks/useRealtimeMarket.ts
+import { useEffect, useState } from "react";
 
-          <div className="right-panel">
-            {selectedMarket && <MarketTradingPanel marketId={selectedMarket} />}
-            {userAddress && <MyPositions userAddress={userAddress} />}
-          </div>
-        </main>
-      </div>
-    </ApolloProvider>
-  );
+export const useRealtimeMarket = (marketId: string) => {
+  const [data, setData] = useState(null);
+  const [lastUpdate, setLastUpdate] = useState(Date.now());
+
+  useEffect(() => {
+    // Polling strategy: query subgraph every 3 seconds
+    const interval = setInterval(async () => {
+      try {
+        const result = await client.query({
+          query: GET_MARKET_DISTRIBUTION,
+          variables: { marketId },
+          fetchPolicy: "network-only", // Always fetch fresh data
+        });
+
+        if (result.data?.marketDistribution) {
+          setData(result.data.marketDistribution);
+          setLastUpdate(Date.now());
+        }
+      } catch (error) {
+        console.error("Real-time update failed:", error);
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [marketId]);
+
+  return { data, lastUpdate };
+};
+```
+
+### 3. Advanced Chart (Chart.js Integration)
+
+```tsx
+// components/AdvancedChart.tsx
+import React from "react";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+} from "chart.js";
+import { Bar } from "react-chartjs-2";
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend
+);
+
+interface AdvancedChartProps {
+  marketData: any;
 }
 
-// 마켓 정보를 가져와서 BuyPosition에 전달하는 래퍼 컴포넌트
-const MarketTradingPanel = ({ marketId }: { marketId: string }) => {
-  const { data, loading } = useQuery(
-    gql`
-      query GetMarketInfo($marketId: String!) {
-        market(id: $marketId) {
-          minTick
-          maxTick
-          tickSpacing
-          settled
-        }
-      }
-    `,
-    {
-      variables: { marketId },
-    }
-  );
+export const AdvancedChart: React.FC<AdvancedChartProps> = ({ marketData }) => {
+  const chartData = {
+    labels: marketData.tickRanges,
+    datasets: [
+      {
+        label: "Factor (Probability)",
+        data: marketData.binFactors.map((f: string) => parseFloat(f)),
+        backgroundColor: "rgba(54, 162, 235, 0.6)",
+        borderColor: "rgba(54, 162, 235, 1)",
+        borderWidth: 1,
+      },
+      {
+        label: "Volume (SUSD)",
+        data: marketData.binVolumes.map((v: string) => parseFloat(v) / 1e6),
+        backgroundColor: "rgba(255, 99, 132, 0.6)",
+        borderColor: "rgba(255, 99, 132, 1)",
+        borderWidth: 1,
+        yAxisID: "y1",
+      },
+    ],
+  };
 
-  if (loading) return <div>마켓 정보 로딩 중...</div>;
-  if (!data?.market) return <div>마켓을 찾을 수 없습니다.</div>;
-  if (data.market.isSettled) return <div>정산 완료된 마켓입니다.</div>;
+  const options = {
+    responsive: true,
+    interaction: {
+      mode: "index" as const,
+      intersect: false,
+    },
+    plugins: {
+      title: {
+        display: true,
+        text: `Market ${marketData.id} - Real-time Distribution`,
+      },
+      legend: {
+        display: true,
+      },
+      tooltip: {
+        callbacks: {
+          label: function (context: any) {
+            if (context.datasetIndex === 0) {
+              return `Factor: ${context.parsed.y.toFixed(6)}`;
+            } else {
+              return `Volume: $${context.parsed.y.toFixed(2)} SUSD`;
+            }
+          },
+        },
+      },
+    },
+    scales: {
+      x: {
+        title: {
+          display: true,
+          text: "Tick Ranges",
+        },
+      },
+      y: {
+        type: "linear" as const,
+        display: true,
+        position: "left" as const,
+        title: {
+          display: true,
+          text: "Factor Value",
+        },
+      },
+      y1: {
+        type: "linear" as const,
+        display: true,
+        position: "right" as const,
+        title: {
+          display: true,
+          text: "Volume (SUSD)",
+        },
+        grid: {
+          drawOnChartArea: false,
+        },
+      },
+    },
+  };
+
+  return <Bar data={chartData} options={options} />;
+};
+```
+
+### 4. Complete Trading Interface
+
+```tsx
+// components/TradingInterface.tsx
+import React, { useState, useEffect } from "react";
+import { ethers } from "ethers";
+import { useAccount, useContractWrite, useContractRead } from "wagmi";
+
+export const TradingInterface = ({ marketId }: { marketId: number }) => {
+  const { address } = useAccount();
+  const [tradeParams, setTradeParams] = useState({
+    lowerTick: 0,
+    upperTick: 100,
+    quantity: "1000000",
+    maxCost: "0",
+  });
+
+  // Read market information
+  const { data: marketInfo } = useContractRead({
+    address: "0xE480ca1C63B6dd929af1EeA4D3de1073942F3cEf",
+    abi: MARKET_ABI,
+    functionName: "markets",
+    args: [marketId],
+  });
+
+  // Estimate cost
+  const { data: estimatedCost } = useContractRead({
+    address: "0xE480ca1C63B6dd929af1EeA4D3de1073942F3cEf",
+    abi: MARKET_ABI,
+    functionName: "getOpenCost",
+    args: [
+      marketId,
+      tradeParams.lowerTick,
+      tradeParams.upperTick,
+      tradeParams.quantity,
+    ],
+    enabled: !!tradeParams.quantity,
+  });
+
+  // Contract write for buying position
+  const { write: buyPosition, isLoading: isBuying } = useContractWrite({
+    address: "0xE480ca1C63B6dd929af1EeA4D3de1073942F3cEf",
+    abi: MARKET_ABI,
+    functionName: "openPosition",
+    onSuccess: (data) => {
+      console.log("Position opened:", data);
+      alert("Position successfully opened!");
+    },
+    onError: (error) => {
+      console.error("Failed to open position:", error);
+      alert("Failed to open position");
+    },
+  });
+
+  const handleBuy = () => {
+    if (!address) {
+      alert("Please connect wallet");
+      return;
+    }
+
+    buyPosition({
+      args: [
+        address,
+        marketId,
+        tradeParams.lowerTick,
+        tradeParams.upperTick,
+        tradeParams.quantity,
+        estimatedCost,
+        Math.floor(Date.now() / 1000) + 600, // 10 min deadline
+      ],
+    });
+  };
 
   return (
-    <BuyPosition
-      marketId={parseInt(marketId)}
-      minTick={BigInt(data.market.minTick)}
-      maxTick={BigInt(data.market.maxTick)}
-      tickSpacing={BigInt(data.market.tickSpacing)}
-    />
+    <div className="trading-interface">
+      <h3>Trade Position - Market #{marketId}</h3>
+
+      <div className="trade-inputs">
+        <div>
+          <label>Lower Tick:</label>
+          <input
+            type="number"
+            value={tradeParams.lowerTick}
+            onChange={(e) =>
+              setTradeParams({
+                ...tradeParams,
+                lowerTick: Number(e.target.value),
+              })
+            }
+          />
+        </div>
+
+        <div>
+          <label>Upper Tick:</label>
+          <input
+            type="number"
+            value={tradeParams.upperTick}
+            onChange={(e) =>
+              setTradeParams({
+                ...tradeParams,
+                upperTick: Number(e.target.value),
+              })
+            }
+          />
+        </div>
+
+        <div>
+          <label>Quantity:</label>
+          <input
+            type="text"
+            value={tradeParams.quantity}
+            onChange={(e) =>
+              setTradeParams({
+                ...tradeParams,
+                quantity: e.target.value,
+              })
+            }
+          />
+        </div>
+      </div>
+
+      <div className="trade-info">
+        <p>
+          Estimated Cost:{" "}
+          {estimatedCost ? ethers.formatUnits(estimatedCost, 6) : "0"} SUSD
+        </p>
+        <p>
+          Probability Range: {tradeParams.lowerTick} ~ {tradeParams.upperTick}
+        </p>
+      </div>
+
+      <button
+        onClick={handleBuy}
+        disabled={isBuying || !estimatedCost}
+        className="buy-button"
+      >
+        {isBuying ? "Opening Position..." : "Open Position"}
+      </button>
+    </div>
   );
 };
 ```
 
----
+## 🚀 Production Deployment
 
-## 🎨 기본 스타일링
+### 1. Environment Configuration
 
-```css
-/* styles.css */
-.app {
-  display: grid;
-  grid-template-rows: auto 1fr;
-  height: 100vh;
-}
+```typescript
+// config/environment.ts
+export const getConfig = () => {
+  const environment = process.env.NODE_ENV || "development";
 
-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem;
-  background: #f8f9fa;
-  border-bottom: 1px solid #dee2e6;
-}
+  const configs = {
+    development: {
+      SUBGRAPH_URL:
+        "https://api.goldsky.com/api/public/project_cme6kru6aowuy01tb4c9xbdrj/subgraphs/signals-v0-citrea-dev/1.0.0/gn",
+      CONTRACTS: {
+        CLMSRMarketCore: "0x971F9bcE130743BB3eFb37aeAC2050cD44d7579a",
+        SUSD: "0xE32527F8b3f142a69278f22CdA334d70644b9743",
+        CLMSRPosition: "0xe163497F304ad4b7482C84Bc82079d46050c6e93",
+      },
+    },
+    production: {
+      SUBGRAPH_URL:
+        "https://api.goldsky.com/api/public/project_cme6kru6aowuy01tb4c9xbdrj/subgraphs/signals-v0-citrea-prod/1.0.0/gn",
+      CONTRACTS: {
+        CLMSRMarketCore: "0xE480ca1C63B6dd929af1EeA4D3de1073942F3cEf",
+        SUSD: "0xE32527F8b3f142a69278f22CdA334d70644b9743",
+        CLMSRPosition: "0xB4c33Df898F8139D784ADE1aDCa9B5979898fE03",
+      },
+    },
+  };
 
-main {
-  display: grid;
-  grid-template-columns: 300px 1fr 300px;
-  gap: 1rem;
-  padding: 1rem;
-  overflow: hidden;
-}
-
-.market-card,
-.position-card {
-  border: 1px solid #dee2e6;
-  border-radius: 8px;
-  padding: 1rem;
-  margin-bottom: 1rem;
-}
-
-.buy-position {
-  background: white;
-  border: 1px solid #dee2e6;
-  border-radius: 8px;
-  padding: 1rem;
-}
-
-.buy-position label {
-  display: block;
-  margin-bottom: 0.5rem;
-}
-
-.buy-position input {
-  width: 100%;
-  padding: 0.5rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  margin-top: 0.25rem;
-}
-
-button {
-  background: #007bff;
-  color: white;
-  border: none;
-  padding: 0.75rem 1rem;
-  border-radius: 4px;
-  cursor: pointer;
-  width: 100%;
-  margin-top: 1rem;
-}
-
-button:disabled {
-  background: #6c757d;
-  cursor: not-allowed;
-}
-
-button:hover:not(:disabled) {
-  background: #0056b3;
-}
+  return configs[environment];
+};
 ```
 
+### 2. Build & Deploy
+
+```bash
+# Production build
+npm run build
+
+# Deploy to Vercel/Netlify
+npm run deploy
+
+# Environment variables
+NEXT_PUBLIC_ENVIRONMENT=production
+NEXT_PUBLIC_CHAIN_ID=5115
+NEXT_PUBLIC_RPC_URL=https://rpc.testnet.citrea.xyz
+```
+
+## 📋 Development Checklist
+
+1. **Setup**: ✅ Environment configuration, dependencies
+2. **Data**: ✅ GraphQL queries, real-time updates
+3. **UI**: ✅ Chart visualization, responsive design
+4. **Trading**: ✅ Wallet connection, position management
+5. **State**: ✅ Redux/Context, error handling
+6. **Testing**: Automated testing with Jest and Cypress
+
+## 🎯 Architecture Summary
+
+- **Data Query**: Subgraph(Indexer) → GraphQL → Real-time charts
+- **Trade Execution**: React → Ethers.js → Contract → Blockchain
+- **State Management**: Redux Toolkit → Optimistic updates
+- **Real-time**: Polling (3s) + WebSocket for instant notifications
+
 ---
 
-## 🚀 다음 단계
-
-1. **고급 시각화**: Chart.js, D3.js로 더 정교한 가격 분포 차트
-2. **실시간 업데이트**: 서브그래프 폴링 최적화 또는 WebSocket 연동
-3. **거래 UX 개선**: 슬리피지 설정, 가격 임팩트 계산, 거래 시뮬레이션
-4. **에러 핸들링**: Toast 알림, 트랜잭션 상태 추적
-5. **모바일 대응**: 반응형 디자인, PWA 지원
-6. **테스팅**: Jest, Cypress를 통한 자동화 테스트
-
-## 🎯 아키텍처 요약
-
-- **데이터 조회**: 서브그래프(인덱서) → GraphQL → 실시간 차트
-- **거래 실행**: React → Ethers.js → 컨트랙트 → 블록체인
-
-## 📚 추가 리소스
-
-- [전체 API 가이드](./SUBGRAPH_API.md)
-- [컨트랙트 연동 상세 가이드](./CONTRACT_INTEGRATION.md)
-- [메인 README](./README.md)
-
----
-
-**이제 시작하세요!** 🎉
-
-위 코드를 복사-붙여넣기하여 5분 만에 기본적인 CLMSR 앱을 만들 수 있습니다.
+**🚀 Ready to build production-grade CLMSR applications!**

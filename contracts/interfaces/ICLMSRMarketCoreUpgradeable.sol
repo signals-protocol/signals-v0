@@ -21,6 +21,10 @@ interface ICLMSRMarketCoreUpgradeable {
         int256 tickSpacing;             // Spacing between valid ticks
         uint32 numBins;                 // Number of bins in market (calculated)
         uint256 liquidityParameter;    // Alpha parameter (1e18 scale)
+        
+        // Position events emission state
+        uint32 positionEventsCursor;    // Next emission start index
+        bool positionEventsEmitted;     // All events emitted flag
     }
     
 
@@ -49,6 +53,13 @@ interface ICLMSRMarketCoreUpgradeable {
         address indexed trader,
         uint256 payout,
         bool isWin
+    );
+
+    event PositionEventsProgress(
+        uint256 indexed marketId,
+        uint256 from,
+        uint256 to,
+        bool done
     );
 
     event PositionOpened(
@@ -144,6 +155,12 @@ interface ICLMSRMarketCoreUpgradeable {
     /// @param marketId Market identifier
     /// @param settlementTick Exact winning tick value
     function settleMarket(uint256 marketId, int256 settlementTick) external;
+
+    /// @notice Emit position settled events in batches (only callable by Owner)
+    /// @dev Emits PositionSettled events for positions using cursor-based pagination
+    /// @param marketId Market identifier
+    /// @param limit Maximum number of positions to process in this batch
+    function emitPositionSettledBatch(uint256 marketId, uint256 limit) external;
 
     /// @notice Update market timing (only callable by Owner)
     /// @dev Changes market start and end timestamps for a specific market

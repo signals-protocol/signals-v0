@@ -30,7 +30,7 @@ dataSources:
         - UserStats
       abis:
         - name: CLMSRMarketCore
-          file: ./abis/CLMSRMarketCore.json
+          file: ./abis/CLMSRMarketCoreUpgradeable.json
       eventHandlers:
         - event: MarketCreated(indexed uint256,uint64,uint64,int256,int256,int256,uint32,uint256)
           handler: handleMarketCreated
