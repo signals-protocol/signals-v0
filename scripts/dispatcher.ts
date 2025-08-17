@@ -40,6 +40,13 @@ if (!COMMAND) {
   settle-market:citrea:dev  - Settle market on citrea dev
   settle-market:citrea:prod - Settle market on citrea prod
   
+📢 Position Events Commands:
+  emit-position-settled:localhost   - Emit position settled events on localhost
+  emit-position-settled:base:dev    - Emit position settled events on base dev
+  emit-position-settled:base:prod   - Emit position settled events on base prod
+  emit-position-settled:citrea:dev  - Emit position settled events on citrea dev
+  emit-position-settled:citrea:prod - Emit position settled events on citrea prod
+  
 ⏰ Market Timing Commands:
   update-market-timing:localhost   - Update market timing on localhost (hardcoded values)
   update-market-timing:base:dev    - Update market timing on base dev (hardcoded values)
@@ -119,6 +126,13 @@ async function dispatch() {
       case "settle-market":
         const { settleMarketAction } = await import("./actions/settle-market");
         await settleMarketAction(environment as Environment);
+        break;
+
+      case "emit-position-settled":
+        const { emitPositionSettledAction } = await import(
+          "./actions/emit-position-settled"
+        );
+        await emitPositionSettledAction(environment as Environment);
         break;
 
       case "update-market-timing":

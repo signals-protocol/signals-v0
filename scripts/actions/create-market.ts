@@ -33,11 +33,11 @@ export async function createMarketAction(
   const numValidTicks = numBins + 1; // 401개의 유효한 틱 포인트
 
   const startTimestamp = Math.floor(
-    new Date("2025-08-12T00:00:00Z").getTime() / 1000
+    new Date("2025-08-17T00:00:00Z").getTime() / 1000
   );
   // 다음 주 토요일 UTC 0시 (2025년 8월 9일)
   const endTimestamp = Math.floor(
-    new Date("2025-08-13T00:00:00Z").getTime() / 1000
+    new Date("2025-08-18T00:00:00Z").getTime() / 1000
   );
   const liquidityParameter = parseEther("1000"); // 알파값 1000
 

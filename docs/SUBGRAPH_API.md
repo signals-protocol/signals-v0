@@ -1,6 +1,6 @@
 # CLMSR Subgraph API Documentation
 
-> **🚀 v1.1.0**: Major upgrade with Points System, Position Outcomes, PositionSettled events, and Base Mainnet deployment
+> **🚀 v1.2.0**: Major upgrade with Batch Position Event Emission, Points System, Position Outcomes, and Citrea Testnet deployment
 
 ## 🎯 Overview
 
@@ -8,9 +8,10 @@ The CLMSR subgraph tracks all CLMSR market data in real-time, optimized for **di
 
 ## 🔗 Endpoint Information
 
-- **GraphQL Endpoint**: `https://api.studio.thegraph.com/query/116469/signals-v-0/1.1.0`
-- **Subgraph Name**: `signals-v-0`
-- **Studio Link**: `https://thegraph.com/studio/subgraph/signals-v-0`
+- **GraphQL Endpoint (Production)**: `https://api.goldsky.com/api/public/project_cme6kru6aowuy01tb4c9xbdrj/subgraphs/signals-v0-citrea-prod/1.0.0/gn`
+- **GraphQL Endpoint (Development)**: `https://api.goldsky.com/api/public/project_cme6kru6aowuy01tb4c9xbdrj/subgraphs/signals-v0-citrea-dev/1.0.0/gn`
+- **Subgraph Platform**: `Goldsky`
+- **Network**: `Citrea Testnet`
 
 ## 📊 Core Entities
 
@@ -112,7 +113,7 @@ type Trade {
   price: BigInt! # unit price (raw 6 decimals SUSD)
   gasUsed: BigInt! # gas used
   gasPrice: BigInt! # gas price
-  # Points system - NEW in v1.1.0!
+  # Points system
   activityPt: BigInt! # Activity points earned from OPEN/INCREASE (6 decimals)
   performancePt: BigInt! # Performance points from PnL on DECREASE/CLOSE/SETTLE (6 decimals)
   riskBonusPt: BigInt! # Risk bonus points from holding conditions (6 decimals)
@@ -144,7 +145,7 @@ type UserStats {
   totalRealizedPnL: BigInt! # total realized profit and loss (raw 6 decimals, signed)
   totalGasFees: BigInt! # total gas fees (wei units)
   netPnL: BigInt! # net profit and loss after fees (raw 6 decimals, signed)
-  # Points system - NEW in v1.1.0!
+  # Points system
   totalPoints: BigInt! # accumulated points balance (6 decimals)
   # Performance metrics
   activePositionsCount: BigInt! # number of active positions
@@ -181,7 +182,7 @@ type MarketStats {
 }
 ```
 
-### **PositionSettled** - Settlement Event Records (NEW in v1.1.0!)
+### **PositionSettled** - Settlement Event Records
 
 ```graphql
 type PositionSettled {
@@ -197,6 +198,29 @@ type PositionSettled {
 ```
 
 This entity captures automatic settlement events when markets resolve. Unlike manual `CLOSE` trades, settlements determine the final win/loss outcome based on whether the settlement tick falls within the position's range.
+
+### **PositionEventsProgress** - Batch Settlement Progress Tracking
+
+```graphql
+type PositionEventsProgress {
+  id: Bytes! # transactionHash-logIndex
+  marketId: BigInt! # market ID being processed
+  fromIndex: BigInt! # starting position index in batch
+  toIndex: BigInt! # ending position index in batch
+  isComplete: Boolean! # whether all positions have been processed
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+```
+
+This entity tracks the progress of batch position settlement event emission. When markets settle, position events are emitted in batches to avoid gas limit issues. Each batch emits a `PositionEventsProgress` event to track completion status.
+
+**Usage Scenarios:**
+
+- **Frontend Progress Bars**: Monitor batch settlement completion
+- **Backend Automation**: Trigger next batch when `isComplete: false`
+- **Analytics**: Track settlement processing performance
 
 ## 🔧 Scaling Architecture
 
@@ -313,6 +337,48 @@ query GetMarketStats($marketId: String!) {
 }
 ```
 
+### **6. Batch Settlement Progress**
+
+```graphql
+query GetBatchProgress($marketId: BigInt!) {
+  positionEventsProgresses(
+    where: { marketId: $marketId }
+    orderBy: blockTimestamp
+    orderDirection: desc
+    first: 10
+  ) {
+    id
+    marketId
+    fromIndex
+    toIndex
+    isComplete
+    blockTimestamp
+    transactionHash
+  }
+}
+```
+
+### **7. Settlement Event History**
+
+```graphql
+query GetSettlements($trader: Bytes!, $marketId: BigInt) {
+  positionSettleds(
+    where: { trader: $trader, marketId: $marketId }
+    orderBy: blockTimestamp
+    orderDirection: desc
+    first: 50
+  ) {
+    id
+    positionId
+    trader
+    payout # raw 6 decimals SUSD
+    isWin
+    blockTimestamp
+    transactionHash
+  }
+}
+```
+
 ## 🎯 SDK Integration
 
 ### **Perfect Compatibility**
@@ -376,16 +442,16 @@ All entities update in real-time based on contract events:
 - ✅ Accurate winRate and avgTradeSize calculations (B-5 fix)
 - ✅ Overflow protection for bin index calculations (B-6 fix)
 
-## 📊 UserStats Accuracy Improvements (v1.4.0)
+## 📊 UserStats Accuracy
 
 ### **Volume Calculation Enhancement**
 
-**Previous Behavior (v1.3.x)**:
+**Previous Behavior**:
 
 - Volume calculated using `quantity` field
 - Did not reflect actual trading amounts
 
-**New Behavior (v1.4.0)**:
+**Current Behavior**:
 
 - **Buy trades** (OPEN, INCREASE): Volume = `cost` (actual money spent)
 - **Sell trades** (DECREASE, CLOSE): Volume = `proceeds` (actual money received)
@@ -393,12 +459,12 @@ All entities update in real-time based on contract events:
 
 ### **Win/Loss Tracking Enhancement**
 
-**Previous Behavior (v1.3.x)**:
+**Previous Behavior**:
 
 - Incorrectly counted early closes as losses
 - Win/loss determined before market settlement
 
-**New Behavior (v1.4.0)**:
+**Current Behavior**:
 
 - **Only positions held until settlement** are counted for win/loss
 - `CLOSE` operations (early exits) do not affect win rate
@@ -435,7 +501,7 @@ Result: Total volume = $100, winningTrades += 1 (position was in winning range)
 
 ## 🚀 Version History
 
-- **v1.4.0**: Enhanced UserStats accuracy - proper volume calculation (cost/proceeds based), win/loss tracking only for settled positions, trade type clarification
+- **v1.2.0**: Enhanced UserStats accuracy - proper volume calculation (cost/proceeds based), win/loss tracking only for settled positions, trade type clarification, Batch Position Event Emission
 - **v1.3.1**: Unified scaling, comprehensive bug fixes, accuracy improvements
 - **v1.3.0**: Enhanced scaling support, binFactorsWad field
 - **v1.2.x**: Basic functionality implementation

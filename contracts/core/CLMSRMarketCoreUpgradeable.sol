@@ -187,7 +187,9 @@ contract CLMSRMarketCoreUpgradeable is
             maxTick: maxTick,
             tickSpacing: tickSpacing,
             numBins: numBins,
-            liquidityParameter: liquidityParameter
+            liquidityParameter: liquidityParameter,
+            positionEventsCursor: 0,
+            positionEventsEmitted: false
         });
         
         // Initialize segment tree
@@ -215,21 +217,51 @@ contract CLMSRMarketCoreUpgradeable is
         market.settlementTick = settlementTick;
         market.isActive = false;
         
+        // Initialize position events emission state
+        market.positionEventsCursor = 0;
+        market.positionEventsEmitted = false;
+        
         emit MarketSettled(marketId, settlementTick);
-        
-        uint256[] memory positionIds = positionContract.getMarketPositions(marketId);
-        
-        for (uint256 i = 0; i < positionIds.length; i++) {
-            uint256 posId = positionIds[i];
-            ICLMSRPositionUpgradeable.Position memory pos = positionContract.getPosition(posId);
+    }
+
+    /// @inheritdoc ICLMSRMarketCoreUpgradeable
+    function emitPositionSettledBatch(
+        uint256 marketId,
+        uint256 limit
+    ) external override onlyOwner marketExists(marketId) {
+        Market storage m = markets[marketId];
+        if (!m.settled) revert CE.MarketNotSettled(marketId);
+        if (m.positionEventsEmitted) return;
+        require(limit > 0, "limit=0");
+
+        uint256 start = uint256(m.positionEventsCursor);
+
+        uint256[] memory ids = positionContract.getMarketPositions(marketId);
+        uint256 total = ids.length;
+        if (start >= total) {
+            m.positionEventsEmitted = true;
+            emit PositionEventsProgress(marketId, start, start, true);
+            return;
+        }
+
+        uint256 end = start + limit;
+        if (end > total) end = total;
+
+        int256 st = m.settlementTick;
+        for (uint256 i = start; i < end; ++i) {
+            uint256 posId = ids[i];
+            ICLMSRPositionUpgradeable.Position memory p = positionContract.getPosition(posId);
             address owner = positionContract.ownerOf(posId);
-            
-            // Position wins if settlement tick is within position range [lowerTick, upperTick)
-            bool isWin = pos.lowerTick <= settlementTick && pos.upperTick > settlementTick;
-            uint256 payout = isWin ? uint256(pos.quantity) : 0;
-            
+            bool isWin = (p.lowerTick <= st) && (p.upperTick > st);
+            uint256 payout = isWin ? uint256(p.quantity) : 0;
             emit PositionSettled(posId, owner, payout, isWin);
         }
+
+        m.positionEventsCursor = uint32(end);
+        bool done = (end == total);
+        if (done) m.positionEventsEmitted = true;
+
+        emit PositionEventsProgress(marketId, start, end, done);
     }
 
     /// @inheritdoc ICLMSRMarketCoreUpgradeable

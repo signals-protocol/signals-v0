@@ -1,6 +1,6 @@
 # CLMSR Market System Developer Guide
 
-> **🚀 v1.6.2**: Complete development guide for CLMSR (Conditional Liquidity Market Maker) prediction market system
+> **🚀 v1.2.0**: Complete development guide for CLMSR (Conditional Liquidity Market Maker) prediction market system with Batch Position Event Emission
 
 ## 📋 Table of Contents
 
@@ -57,10 +57,52 @@
 ### Network Information
 
 ```
-Network: Base Mainnet
-Chain ID: 8453
-RPC: https://mainnet.base.org
+Network: Citrea Testnet
+Chain ID: 5115
+RPC: https://rpc.testnet.citrea.xyz
+Explorer: https://explorer.testnet.citrea.xyz
 ```
+
+### ⚡ Core Features
+
+#### Batch Position Event Emission
+
+**Problem Solved**: Large markets with thousands of positions caused gas limit issues during settlement due to emitting all `PositionSettled` events in a single transaction.
+
+**Solution**: Separated settlement into two phases:
+
+1. **Market Settlement**: Sets settlement tick, marks market as settled
+2. **Batch Event Emission**: Owner can emit position events in configurable batches
+
+**Key Functions**:
+
+```solidity
+// Phase 1: Settle market (no position events)
+function settleMarket(uint256 marketId, int256 settlementTick) external onlyOwner;
+
+// Phase 2: Emit position events in batches
+function emitPositionSettledBatch(uint256 marketId, uint256 limit) external onlyOwner;
+
+// Track progress
+event PositionEventsProgress(uint256 indexed marketId, uint256 from, uint256 to, bool done);
+```
+
+**Market Structure Updates**:
+
+```solidity
+struct Market {
+    // ... existing fields ...
+    uint32 positionEventsCursor;   // Next emission start index
+    bool positionEventsEmitted;    // All events emitted flag
+}
+```
+
+**Benefits**:
+
+- ✅ No gas limit issues for large markets
+- ✅ Controlled batch processing
+- ✅ Progress tracking with events
+- ✅ Owner-controlled emission timing
 
 ### Latest Deployment Information
 
@@ -70,19 +112,27 @@ RPC: https://mainnet.base.org
 npm install @whworjs7946/clmsr-v0@1.6.2
 ```
 
-**Subgraph**
+**Subgraph (Goldsky)**
 
 ```
-Endpoint: https://api.studio.thegraph.com/query/116469/signals-v-0/1.1.0
-Name: signals-v-0
+Production: https://api.goldsky.com/api/public/project_cme6kru6aowuy01tb4c9xbdrj/subgraphs/signals-v0-citrea-prod/1.0.0/gn
+Development: https://api.goldsky.com/api/public/project_cme6kru6aowuy01tb4c9xbdrj/subgraphs/signals-v0-citrea-dev/1.0.0/gn
 ```
 
-**Contracts**
+**Contracts (Production)**
 
 ```
-CLMSRMarketCore: 0xE3d019db1E1987D05bBC8cc578BB78aa92761dce
-SUSD (Signals):  0x9a0dAb48676D20ed08cd2eE390d869961d4C98Cd
-CLMSRPosition:   0x1Cb2e3ffd25b93a454290FAae4dBcF253c3927e1
+CLMSRMarketCore: 0xE480ca1C63B6dd929af1EeA4D3de1073942F3cEf
+SUSD (Signals):  0xE32527F8b3f142a69278f22CdA334d70644b9743
+CLMSRPosition:   0xB4c33Df898F8139D784ADE1aDCa9B5979898fE03
+```
+
+**Contracts (Development)**
+
+```
+CLMSRMarketCore: 0x971F9bcE130743BB3eFb37aeAC2050cD44d7579a
+SUSD (Signals):  0xE32527F8b3f142a69278f22CdA334d70644b9743
+CLMSRPosition:   0xe163497F304ad4b7482C84Bc82079d46050c6e93
 ```
 
 ---
@@ -115,7 +165,7 @@ const sdk = new CLMSRSDK();
 
 // 2. Query data from subgraph
 const subgraphUrl =
-  "https://api.studio.thegraph.com/query/116469/signals-v-0/1.3.2";
+  "https://api.goldsky.com/api/public/project_cme6kru6aowuy01tb4c9xbdrj/subgraphs/signals-v0-citrea-prod/1.0.0/gn";
 
 async function getOpenCost(marketId: string, quantity: string) {
   // Query raw data from subgraph
@@ -262,8 +312,9 @@ const distribution = mapDistribution(rawDistributionData);
 ### Endpoint Information
 
 ```
-GraphQL: https://api.studio.thegraph.com/query/116469/signals-v-0/1.3.2
-Studio: https://thegraph.com/studio/subgraph/signals-v-0
+GraphQL Production: https://api.goldsky.com/api/public/project_cme6kru6aowuy01tb4c9xbdrj/subgraphs/signals-v0-citrea-prod/1.0.0/gn
+GraphQL Development: https://api.goldsky.com/api/public/project_cme6kru6aowuy01tb4c9xbdrj/subgraphs/signals-v0-citrea-dev/1.0.0/gn
+Platform: Goldsky
 ```
 
 ### Core Schema
@@ -347,7 +398,7 @@ import {
 export class CLMSRIntegration {
   private sdk = new CLMSRSDK();
   private subgraphUrl =
-    "https://api.studio.thegraph.com/query/116469/signals-v-0/1.3.0";
+    "https://api.goldsky.com/api/public/project_cme6kru6aowuy01tb4c9xbdrj/subgraphs/signals-v0-citrea-prod/1.0.0/gn";
 
   async calculateOpenCost(
     marketId: string,
@@ -495,16 +546,31 @@ export const useCLMSR = (marketId: string) => {
 ```typescript
 import { ethers } from "ethers";
 
-const CONTRACT_ADDRESS = "0xE3d019db1E1987D05bBC8cc578BB78aa92761dce";
-const SUSD_ADDRESS = "0x9a0dAb48676D20ed08cd2eE390d869961d4C98Cd";
+// Citrea Production addresses
+const CONTRACTS_PROD = {
+  CLMSRMarketCore: "0xE480ca1C63B6dd929af1EeA4D3de1073942F3cEf",
+  SUSD: "0xE32527F8b3f142a69278f22CdA334d70644b9743",
+  CLMSRPosition: "0xB4c33Df898F8139D784ADE1aDCa9B5979898fE03",
+};
 
-// Create contract instances
+// Citrea Development addresses
+const CONTRACTS_DEV = {
+  CLMSRMarketCore: "0x971F9bcE130743BB3eFb37aeAC2050cD44d7579a",
+  SUSD: "0xE32527F8b3f142a69278f22CdA334d70644b9743",
+  CLMSRPosition: "0xe163497F304ad4b7482C84Bc82079d46050c6e93",
+};
+
+// Create contract instances (using production addresses)
 const provider = new ethers.providers.JsonRpcProvider(
-  "https://mainnet.base.org"
+  "https://rpc.testnet.citrea.xyz"
 );
 const signer = provider.getSigner();
-const market = new ethers.Contract(CONTRACT_ADDRESS, MARKET_ABI, signer);
-const susd = new ethers.Contract(SUSD_ADDRESS, SUSD_ABI, signer);
+const market = new ethers.Contract(
+  CONTRACTS_PROD.CLMSRMarketCore,
+  MARKET_ABI,
+  signer
+);
+const susd = new ethers.Contract(CONTRACTS_PROD.SUSD, SUSD_ABI, signer);
 ```
 
 ### Transaction Execution

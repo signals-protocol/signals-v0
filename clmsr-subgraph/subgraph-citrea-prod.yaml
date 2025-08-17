@@ -10,9 +10,9 @@ dataSources:
     name: CLMSRMarketCore
     network: citrea-testnet-tangerine
     source:
-      address: "TBD"
+      address: "0xE480ca1C63B6dd929af1EeA4D3de1073942F3cEf"
       abi: CLMSRMarketCore
-      startBlock: 1
+      startBlock: 14176879
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.9
@@ -30,7 +30,7 @@ dataSources:
         - UserStats
       abis:
         - name: CLMSRMarketCore
-          file: ./abis/CLMSRMarketCore.json
+          file: ./abis/CLMSRMarketCoreUpgradeable.json
       eventHandlers:
         - event: MarketCreated(indexed uint256,uint64,uint64,int256,int256,int256,uint32,uint256)
           handler: handleMarketCreated
@@ -57,9 +57,9 @@ dataSources:
     name: PointsGranterUpgradeable
     network: citrea-testnet-tangerine
     source:
-      address: "TBD"
+      address: "0x9E1265677B628A22b9C1d6f0FeCEb6241eA5268d"
       abi: PointsGranterUpgradeable
-      startBlock: 1
+      startBlock: 14176879
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.9
