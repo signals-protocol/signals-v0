@@ -1,5 +1,15 @@
 import { BigInt, BigDecimal, Bytes, dataSource } from "@graphprotocol/graph-ts";
 import {
+  checkActivityLimit,
+  calcActivityPoints,
+  calcPerformancePoints,
+  calcRiskBonusPoints,
+  addActivityPoints,
+  addPerformancePoints,
+  addRiskBonusPoints,
+  recordEventHistory,
+} from "./points";
+import {
   PositionOpened as PositionOpenedEvent,
   PositionIncreased as PositionIncreasedEvent,
   PositionDecreased as PositionDecreasedEvent,
@@ -10,6 +20,7 @@ import {
   MarketSettled as MarketSettledEvent,
   RangeFactorApplied as RangeFactorAppliedEvent,
 } from "../generated/CLMSRMarketCore/CLMSRMarketCore";
+import { PointsGranted } from "../generated/PointsGranterUpgradeable/PointsGranterUpgradeable";
 import {
   PositionOpened,
   PositionIncreased,
@@ -108,11 +119,13 @@ export function getOrCreateUserStats(userAddress: Bytes): UserStats {
     userStats.avgTradeSize = BigInt.fromI32(0);
     userStats.firstTradeAt = BigInt.fromI32(0);
     userStats.lastTradeAt = BigInt.fromI32(0);
-    userStats.totalPoints = BigInt.fromI32(0); // 포인트 초기화
-    userStats.activityPoints = BigInt.fromI32(0); // Activity 포인트 초기화
-    userStats.performancePoints = BigInt.fromI32(0); // Performance 포인트 초기화
-    userStats.riskBonusPoints = BigInt.fromI32(0); // Risk Bonus 포인트 초기화
-    userStats.save(); // B-1 fix: save new entity immediately
+    userStats.totalPoints = BigInt.fromI32(0);
+    userStats.activityPoints = BigInt.fromI32(0);
+    userStats.performancePoints = BigInt.fromI32(0);
+    userStats.riskBonusPoints = BigInt.fromI32(0);
+    userStats.activityPointsToday = BigInt.fromI32(0); // 새 필드 초기화
+    userStats.lastActivityDay = BigInt.fromI32(0); // 새 필드 초기화
+    userStats.save();
   }
 
   return userStats;
@@ -123,27 +136,7 @@ function getOrCreateUserStatsWithFlag(userAddress: Bytes): UserStatsResult {
   let isNew = false;
 
   if (userStats == null) {
-    userStats = new UserStats(userAddress);
-    userStats.user = userAddress;
-    userStats.totalTrades = BigInt.fromI32(0);
-    userStats.totalVolume = BigInt.fromI32(0);
-    userStats.totalCosts = BigInt.fromI32(0);
-    userStats.totalProceeds = BigInt.fromI32(0);
-    userStats.totalRealizedPnL = BigInt.fromI32(0);
-    userStats.totalGasFees = BigInt.fromI32(0);
-    userStats.netPnL = BigInt.fromI32(0);
-    userStats.activePositionsCount = BigInt.fromI32(0);
-    userStats.winningTrades = BigInt.fromI32(0);
-    userStats.losingTrades = BigInt.fromI32(0);
-    userStats.winRate = BigDecimal.fromString("0");
-    userStats.avgTradeSize = BigInt.fromI32(0);
-    userStats.firstTradeAt = BigInt.fromI32(0);
-    userStats.lastTradeAt = BigInt.fromI32(0);
-    userStats.totalPoints = BigInt.fromI32(0); // 포인트 초기화
-    userStats.activityPoints = BigInt.fromI32(0); // Activity 포인트 초기화
-    userStats.performancePoints = BigInt.fromI32(0); // Performance 포인트 초기화
-    userStats.riskBonusPoints = BigInt.fromI32(0); // Risk Bonus 포인트 초기화
-    userStats.save(); // B-1 fix: save new entity immediately
+    userStats = getOrCreateUserStats(userAddress);
     isNew = true;
   } else {
     // Update lastTradeAt for existing users
@@ -193,50 +186,6 @@ function calculateDisplayPrice(cost: BigInt, quantity: BigInt): BigDecimal {
     .toBigDecimal()
     .div(BigDecimal.fromString("1000000"));
   return costDecimal.div(quantityDecimal);
-}
-
-function calcActivityPoints(cost: BigInt): BigInt {
-  return cost.div(BigInt.fromI32(10));
-} // A = cost / 10
-
-function calcPerformancePoints(realizedPnL: BigInt): BigInt {
-  return realizedPnL.gt(BigInt.fromI32(0)) ? realizedPnL : BigInt.fromI32(0);
-}
-
-// Risk 보너스 포인트 계산 (보유시간 >= 1시간일 때만) (6 decimals)
-// R = min(A × 0.3 × (1 + (marketRange - userRange)/marketRange), 2A)
-function calcRiskBonusPoints(
-  activityPoints: BigInt,
-  userRange: BigInt,
-  marketRange: BigInt,
-  holdingSeconds: BigInt
-): BigInt {
-  // 1시간(3600초) 미만이면 0 포인트
-  if (holdingSeconds.lt(BigInt.fromI32(3600))) {
-    return BigInt.fromI32(0);
-  }
-
-  // 범위 차이 계산
-  let rangeDiff = marketRange.minus(userRange);
-  if (rangeDiff.lt(BigInt.fromI32(0))) rangeDiff = BigInt.fromI32(0);
-
-  // multiplier = 1 + rangeDiff/marketRange (최대 2.0으로 제한)
-  let multiplier = BigInt.fromI32(1000000).plus(
-    rangeDiff.times(BigInt.fromI32(1000000)).div(marketRange)
-  ); // 10000 = 100%
-  if (multiplier.gt(BigInt.fromI32(2000000)))
-    multiplier = BigInt.fromI32(2000000); // 최대 200%
-
-  // R = A × 0.3 × multiplier = A × 3000 / 10000
-  let risk = activityPoints
-    .times(BigInt.fromI32(300000))
-    .div(BigInt.fromI32(1000000))
-    .times(multiplier)
-    .div(BigInt.fromI32(1000000));
-
-  // min(R, 2A)
-  let maxRisk = activityPoints.times(BigInt.fromI32(2));
-  return risk.gt(maxRisk) ? maxRisk : risk;
 }
 
 // ============= 기존 헬퍼 함수들 =============
@@ -297,62 +246,6 @@ function updateBinVolumes(
     }
     distribution.binVolumes = binVolumes;
     distribution.save();
-  }
-}
-
-// Helper function to check if market is settled
-function isMarketSettled(marketId: string): boolean {
-  let market = Market.load(marketId);
-  return market != null && market.isSettled;
-}
-
-// Helper function to determine if position is in winning range (only for settled markets)
-function isPositionInWinningRange(
-  marketId: string,
-  lowerTick: BigInt,
-  upperTick: BigInt
-): boolean {
-  let market = Market.load(marketId);
-  if (market == null || !market.isSettled) {
-    return false; // Cannot determine win/loss for unsettled markets
-  }
-
-  let settlementTick = market.settlementTick!;
-
-  // Position wins if settlement tick is within position range [lowerTick, upperTick)
-  return lowerTick.le(settlementTick) && upperTick.gt(settlementTick);
-}
-
-// Helper function to update win/loss stats only for settled markets
-function updateWinLossStats(
-  userStats: UserStats,
-  userPosition: UserPosition,
-  realizedPnL: BigInt
-): void {
-  // Only count win/loss for settled markets
-  if (!isMarketSettled(userPosition.market)) {
-    return; // Skip win/loss calculation for active markets
-  }
-
-  // Determine win/loss based on settlement outcome
-  let isWinning = isPositionInWinningRange(
-    userPosition.market,
-    userPosition.lowerTick,
-    userPosition.upperTick
-  );
-
-  if (isWinning) {
-    userStats.winningTrades = userStats.winningTrades.plus(BigInt.fromI32(1));
-  } else {
-    userStats.losingTrades = userStats.losingTrades.plus(BigInt.fromI32(1));
-  }
-
-  // Update win rate
-  let totalPnLTrades = userStats.winningTrades.plus(userStats.losingTrades);
-  if (totalPnLTrades.gt(BigInt.fromI32(0))) {
-    userStats.winRate = userStats.winningTrades
-      .toBigDecimal()
-      .div(totalPnLTrades.toBigDecimal());
   }
 }
 
@@ -496,22 +389,46 @@ export function handlePositionSettled(event: PositionSettledEvent): void {
   );
   let userRange = userPosition.upperTick.minus(userPosition.lowerTick);
 
-  let performancePoints = calcPerformancePoints(calculatedPnL);
-
   let market = Market.load(userPosition.market)!;
   let marketRange = market.maxTick.minus(market.minTick);
-  let riskBonusPoints = calcRiskBonusPoints(
+
+  let userStats = getOrCreateUserStats(event.params.trader);
+
+  // Performance Points 계산 및 적립
+  let performancePt = calcPerformancePoints(calculatedPnL);
+  if (performancePt.gt(BigInt.fromI32(0))) {
+    addPerformancePoints(userStats, performancePt);
+    recordEventHistory(
+      event,
+      userStats.user,
+      performancePt,
+      "PERFORMANCE",
+      event.block.timestamp
+    );
+  }
+
+  // Risk Bonus Points 계산 및 적립
+  let riskBonusPt = calcRiskBonusPoints(
     userPosition.activityRemaining,
     userRange,
     marketRange,
     holdingSeconds
   );
+  if (riskBonusPt.gt(BigInt.fromI32(0))) {
+    addRiskBonusPoints(userStats, riskBonusPt);
+    recordEventHistory(
+      event,
+      userStats.user,
+      riskBonusPt,
+      "RISK_BONUS",
+      event.block.timestamp
+    );
+  }
 
   userPosition.activityRemaining = BigInt.fromI32(0);
   userPosition.weightedEntryTime = BigInt.fromI32(0);
   userPosition.save();
 
-  let userStats = getOrCreateUserStats(event.params.trader);
   userStats.totalRealizedPnL = userStats.totalRealizedPnL.plus(calculatedPnL);
 
   if (event.params.isWin) {
@@ -520,11 +437,6 @@ export function handlePositionSettled(event: PositionSettledEvent): void {
     userStats.losingTrades = userStats.losingTrades.plus(BigInt.fromI32(1));
   }
 
-  let totalSettlementPoints = performancePoints.plus(riskBonusPoints);
-  userStats.totalPoints = userStats.totalPoints.plus(totalSettlementPoints);
-  userStats.performancePoints =
-    userStats.performancePoints.plus(performancePoints);
-  userStats.riskBonusPoints = userStats.riskBonusPoints.plus(riskBonusPoints);
   userStats.save();
 
   let trade = new Trade(
@@ -547,8 +459,8 @@ export function handlePositionSettled(event: PositionSettledEvent): void {
   trade.transactionHash = event.transaction.hash;
 
   trade.activityPt = BigInt.fromI32(0);
-  trade.performancePt = performancePoints;
-  trade.riskBonusPt = riskBonusPoints;
+  trade.performancePt = performancePt;
+  trade.riskBonusPt = riskBonusPt;
   trade.save();
 }
 
@@ -618,6 +530,43 @@ export function handlePositionClosed(event: PositionClosedEvent): void {
     BigInt.fromI32(1)
   );
 
+  // Performance & Risk Bonus Points 처리
+  let userRange = userPosition.upperTick.minus(userPosition.lowerTick);
+  let market = Market.load(userPosition.market)!;
+  let marketRange = market.maxTick.minus(market.minTick);
+  let holdingSeconds = event.block.timestamp.minus(originalWeightedEntryTime);
+
+  // Performance Points 계산 및 적립
+  let performancePt = calcPerformancePoints(tradeRealizedPnL);
+  if (performancePt.gt(BigInt.fromI32(0))) {
+    addPerformancePoints(userStats, performancePt);
+    recordEventHistory(
+      event,
+      userStats.user,
+      performancePt,
+      "PERFORMANCE",
+      event.block.timestamp
+    );
+  }
+
+  // Risk Bonus Points 계산 및 적립
+  let riskBonusPt = calcRiskBonusPoints(
+    originalActivityRemaining,
+    userRange,
+    marketRange,
+    holdingSeconds
+  );
+  if (riskBonusPt.gt(BigInt.fromI32(0))) {
+    addRiskBonusPoints(userStats, riskBonusPt);
+    recordEventHistory(
+      event,
+      userStats.user,
+      riskBonusPt,
+      "RISK_BONUS",
+      event.block.timestamp
+    );
+  }
+
   let trade = new Trade(
     event.transaction.hash.concatI32(event.logIndex.toI32())
   );
@@ -639,22 +588,9 @@ export function handlePositionClosed(event: PositionClosedEvent): void {
   trade.blockNumber = event.block.number;
   trade.transactionHash = event.transaction.hash;
 
-  let performancePoints = calcPerformancePoints(tradeRealizedPnL);
-  let holdingSeconds = event.block.timestamp.minus(originalWeightedEntryTime);
-  let userRange = userPosition.upperTick.minus(userPosition.lowerTick);
-
-  let market = Market.load(userPosition.market)!;
-  let marketRange = market.maxTick.minus(market.minTick);
-  let riskBonusPoints = calcRiskBonusPoints(
-    originalActivityRemaining,
-    userRange,
-    marketRange,
-    holdingSeconds
-  );
-
   trade.activityPt = BigInt.fromI32(0);
-  trade.performancePt = performancePoints;
-  trade.riskBonusPt = riskBonusPoints;
+  trade.performancePt = performancePt;
+  trade.riskBonusPt = riskBonusPt;
   trade.save();
 
   userStats.totalTrades = userStats.totalTrades.plus(BigInt.fromI32(1));
@@ -665,12 +601,6 @@ export function handlePositionClosed(event: PositionClosedEvent): void {
   );
   userStats.lastTradeAt = event.block.timestamp;
   userStats.avgTradeSize = userStats.totalVolume.div(userStats.totalTrades);
-
-  let totalEarnedPoints = performancePoints.plus(riskBonusPoints);
-  userStats.totalPoints = userStats.totalPoints.plus(totalEarnedPoints);
-  userStats.performancePoints =
-    userStats.performancePoints.plus(performancePoints);
-  userStats.riskBonusPoints = userStats.riskBonusPoints.plus(riskBonusPoints);
   userStats.save();
 
   updateBinVolumes(
@@ -755,6 +685,44 @@ export function handlePositionDecreased(event: PositionDecreasedEvent): void {
   userPosition.lastUpdated = event.block.timestamp;
   userPosition.save();
 
+  // Performance & Risk Bonus Points 처리
+  let userStats = getOrCreateUserStats(event.params.trader);
+  let userRange = userPosition.upperTick.minus(userPosition.lowerTick);
+  let market = Market.load(userPosition.market)!;
+  let marketRange = market.maxTick.minus(market.minTick);
+  let holdingSeconds = event.block.timestamp.minus(originalWeightedEntryTime);
+
+  // Performance Points 계산 및 적립
+  let performancePt = calcPerformancePoints(tradeRealizedPnL);
+  if (performancePt.gt(BigInt.fromI32(0))) {
+    addPerformancePoints(userStats, performancePt);
+    recordEventHistory(
+      event,
+      userStats.user,
+      performancePt,
+      "PERFORMANCE",
+      event.block.timestamp
+    );
+  }
+
+  // Risk Bonus Points 계산 및 적립
+  let riskBonusPt = calcRiskBonusPoints(
+    activityPortion,
+    userRange,
+    marketRange,
+    holdingSeconds
+  );
+  if (riskBonusPt.gt(BigInt.fromI32(0))) {
+    addRiskBonusPoints(userStats, riskBonusPt);
+    recordEventHistory(
+      event,
+      userStats.user,
+      riskBonusPt,
+      "RISK_BONUS",
+      event.block.timestamp
+    );
+  }
+
   let trade = new Trade(
     event.transaction.hash.concatI32(event.logIndex.toI32())
   );
@@ -777,23 +745,9 @@ export function handlePositionDecreased(event: PositionDecreasedEvent): void {
   trade.blockNumber = event.block.number;
   trade.transactionHash = event.transaction.hash;
 
-  let performancePoints = calcPerformancePoints(tradeRealizedPnL);
-  let holdingSeconds = event.block.timestamp.minus(originalWeightedEntryTime);
-  let userRange = userPosition.upperTick.minus(userPosition.lowerTick);
-
-  let market = Market.load(userPosition.market)!;
-  let marketRange = market.maxTick.minus(market.minTick);
-  let riskBonusPoints = calcRiskBonusPoints(
-    activityPortion,
-    userRange,
-    marketRange,
-    holdingSeconds
-  );
-
   trade.activityPt = BigInt.fromI32(0);
-  trade.performancePt = performancePoints;
-  trade.riskBonusPt = riskBonusPoints;
-
+  trade.performancePt = performancePt;
+  trade.riskBonusPt = riskBonusPt;
   trade.save();
 
   updateBinVolumes(
@@ -803,17 +757,10 @@ export function handlePositionDecreased(event: PositionDecreasedEvent): void {
     event.params.proceeds
   );
 
-  let userStats = getOrCreateUserStats(event.params.trader);
   userStats.totalTrades = userStats.totalTrades.plus(BigInt.fromI32(1));
   userStats.totalVolume = userStats.totalVolume.plus(event.params.proceeds);
   userStats.totalProceeds = userStats.totalProceeds.plus(event.params.proceeds);
   userStats.lastTradeAt = event.block.timestamp;
-
-  let totalEarnedPoints = performancePoints.plus(riskBonusPoints);
-  userStats.totalPoints = userStats.totalPoints.plus(totalEarnedPoints);
-  userStats.performancePoints =
-    userStats.performancePoints.plus(performancePoints);
-  userStats.riskBonusPoints = userStats.riskBonusPoints.plus(riskBonusPoints);
   userStats.save();
 
   let marketStats = getOrCreateMarketStats(userPosition.market);
@@ -880,6 +827,22 @@ export function handlePositionIncreased(event: PositionIncreasedEvent): void {
   userPosition.lastUpdated = event.block.timestamp;
   userPosition.save();
 
+  // Activity Points 처리 (하루 3번 제한)
+  let userStats = getOrCreateUserStats(event.params.trader);
+  let activityPt = BigInt.fromI32(0);
+
+  if (checkActivityLimit(userStats, event.block.timestamp)) {
+    activityPt = calcActivityPoints(event.params.cost);
+    addActivityPoints(userStats, activityPt);
+    recordEventHistory(
+      event,
+      userStats.user,
+      activityPt,
+      "ACTIVITY",
+      event.block.timestamp
+    );
+  }
+
   let trade = new Trade(
     event.transaction.hash.concatI32(event.logIndex.toI32())
   );
@@ -902,14 +865,13 @@ export function handlePositionIncreased(event: PositionIncreasedEvent): void {
   trade.blockNumber = event.block.number;
   trade.transactionHash = event.transaction.hash;
 
-  let activityPoints = calcActivityPoints(event.params.cost);
-  trade.activityPt = activityPoints;
+  trade.activityPt = activityPt;
   trade.performancePt = BigInt.fromI32(0);
   trade.riskBonusPt = BigInt.fromI32(0);
   trade.save();
 
   userPosition.activityRemaining =
-    userPosition.activityRemaining.plus(activityPoints);
+    userPosition.activityRemaining.plus(activityPt);
   userPosition.save();
 
   updateBinVolumes(
@@ -919,14 +881,10 @@ export function handlePositionIncreased(event: PositionIncreasedEvent): void {
     event.params.cost
   );
 
-  let userStats = getOrCreateUserStats(event.params.trader);
   userStats.totalTrades = userStats.totalTrades.plus(BigInt.fromI32(1));
   userStats.totalVolume = userStats.totalVolume.plus(event.params.cost);
   userStats.totalCosts = userStats.totalCosts.plus(event.params.cost);
   userStats.lastTradeAt = event.block.timestamp;
-
-  userStats.totalPoints = userStats.totalPoints.plus(activityPoints);
-  userStats.activityPoints = userStats.activityPoints.plus(activityPoints);
   userStats.save();
 
   let marketStats = getOrCreateMarketStats(userPosition.market);
@@ -988,6 +946,22 @@ export function handlePositionOpened(event: PositionOpenedEvent): void {
   userPosition.weightedEntryTime = event.block.timestamp;
   userPosition.save();
 
+  // Activity Points 처리 (하루 3번 제한)
+  let userStats = getOrCreateUserStats(event.params.trader);
+  let activityPt = BigInt.fromI32(0);
+
+  if (checkActivityLimit(userStats, event.block.timestamp)) {
+    activityPt = calcActivityPoints(event.params.cost);
+    addActivityPoints(userStats, activityPt);
+    recordEventHistory(
+      event,
+      userStats.user,
+      activityPt,
+      "ACTIVITY",
+      event.block.timestamp
+    );
+  }
+
   let trade = new Trade(
     event.transaction.hash.concatI32(event.logIndex.toI32())
   );
@@ -1007,13 +981,12 @@ export function handlePositionOpened(event: PositionOpenedEvent): void {
   trade.blockNumber = event.block.number;
   trade.transactionHash = event.transaction.hash;
 
-  let activityPoints = calcActivityPoints(event.params.cost);
-  trade.activityPt = activityPoints;
+  trade.activityPt = activityPt;
   trade.performancePt = BigInt.fromI32(0);
   trade.riskBonusPt = BigInt.fromI32(0);
   trade.save();
 
-  userPosition.activityRemaining = activityPoints;
+  userPosition.activityRemaining = activityPt;
   userPosition.save();
 
   updateBinVolumes(
@@ -1023,8 +996,6 @@ export function handlePositionOpened(event: PositionOpenedEvent): void {
     event.params.cost
   );
 
-  let userStatsResult = getOrCreateUserStatsWithFlag(event.params.trader);
-  let userStats = userStatsResult.userStats;
   userStats.activePositionsCount = userStats.activePositionsCount.plus(
     BigInt.fromI32(1)
   );
@@ -1037,8 +1008,6 @@ export function handlePositionOpened(event: PositionOpenedEvent): void {
   }
 
   userStats.avgTradeSize = userStats.totalVolume.div(userStats.totalTrades);
-  userStats.totalPoints = userStats.totalPoints.plus(activityPoints);
-  userStats.activityPoints = userStats.activityPoints.plus(activityPoints);
   userStats.save();
 
   let marketStats = getOrCreateMarketStats(
@@ -1129,4 +1098,36 @@ export function handleRangeFactorApplied(event: RangeFactorAppliedEvent): void {
   distribution.version = distribution.version.plus(BigInt.fromI32(1));
   distribution.lastSnapshotAt = event.block.timestamp;
   distribution.save();
+}
+
+function mapReason(code: i32): string {
+  if (code == 1) return "ACTIVITY";
+  if (code == 2) return "PERFORMANCE";
+  if (code == 3) return "RISK_BONUS";
+  return "MANUAL";
+}
+
+/** Handle manual grant from PointsGranter */
+export function handlePointsGranted(e: PointsGranted): void {
+  const ts = e.params.contextTs.notEqual(BigInt.zero())
+    ? e.params.contextTs
+    : e.block.timestamp;
+
+  const reason = mapReason(e.params.reason as i32);
+  const userStats = getOrCreateUserStats(e.params.user);
+
+  // 포인트 적립
+  userStats.totalPoints = userStats.totalPoints.plus(e.params.amount);
+  if (reason == "ACTIVITY") {
+    userStats.activityPoints = userStats.activityPoints.plus(e.params.amount);
+  } else if (reason == "PERFORMANCE") {
+    userStats.performancePoints = userStats.performancePoints.plus(
+      e.params.amount
+    );
+  } else if (reason == "RISK_BONUS") {
+    userStats.riskBonusPoints = userStats.riskBonusPoints.plus(e.params.amount);
+  }
+  userStats.save();
+
+  recordEventHistory(e, userStats.user, e.params.amount, reason, ts);
 }

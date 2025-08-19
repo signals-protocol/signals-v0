@@ -73,4 +73,4 @@ dataSources:
       eventHandlers:
         - event: PointsGranted(indexed address,uint256,uint8,uint64)
           handler: handlePointsGranted
-      file: ./src/points.ts
+      file: ./src/clmsr-market-core.ts

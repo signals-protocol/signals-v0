@@ -1,5 +1,5 @@
 import { newMockEvent } from "matchstick-as";
-import { ethereum, Address, BigInt } from "@graphprotocol/graph-ts";
+import { ethereum, Address, BigInt, Bytes } from "@graphprotocol/graph-ts";
 import {
   EmergencyPaused,
   EmergencyUnpaused,
@@ -56,6 +56,17 @@ export function createMarketCreatedEvent(
 ): MarketCreated {
   let marketCreatedEvent = changetype<MarketCreated>(newMockEvent());
 
+  // Mock 이벤트 기본값 설정하여 경고 제거
+  marketCreatedEvent.address = Address.fromString(
+    "0xA16081F360e3847006dB660bae1c6d1b2e17eC2A"
+  );
+  marketCreatedEvent.transaction.hash = Bytes.fromHexString(
+    "0x1234567890123456789012345678901234567890123456789012345678901234"
+  );
+  marketCreatedEvent.logIndex = BigInt.fromI32(0);
+  marketCreatedEvent.block.number = BigInt.fromI32(1);
+  marketCreatedEvent.block.timestamp = BigInt.fromI32(1000000);
+
   marketCreatedEvent.parameters = new Array();
 
   marketCreatedEvent.parameters.push(
@@ -110,6 +121,17 @@ export function createMarketSettledEvent(
 ): MarketSettled {
   let marketSettledEvent = changetype<MarketSettled>(newMockEvent());
 
+  // Mock 이벤트 기본값 설정
+  marketSettledEvent.address = Address.fromString(
+    "0xA16081F360e3847006dB660bae1c6d1b2e17eC2A"
+  );
+  marketSettledEvent.transaction.hash = Bytes.fromHexString(
+    "0x123456789012345678901234567890123456789012345678901234567890123B"
+  );
+  marketSettledEvent.logIndex = BigInt.fromI32(0);
+  marketSettledEvent.block.number = BigInt.fromI32(1);
+  marketSettledEvent.block.timestamp = BigInt.fromI32(1000000);
+
   marketSettledEvent.parameters = new Array();
 
   marketSettledEvent.parameters.push(
@@ -160,6 +182,17 @@ export function createPositionClosedEvent(
 ): PositionClosed {
   let positionClosedEvent = changetype<PositionClosed>(newMockEvent());
 
+  // Mock 이벤트 기본값 설정
+  positionClosedEvent.address = Address.fromString(
+    "0xA16081F360e3847006dB660bae1c6d1b2e17eC2A"
+  );
+  positionClosedEvent.transaction.hash = Bytes.fromHexString(
+    "0x1234567890123456789012345678901234567890123456789012345678901238"
+  );
+  positionClosedEvent.logIndex = BigInt.fromI32(0);
+  positionClosedEvent.block.number = BigInt.fromI32(1);
+  positionClosedEvent.block.timestamp = BigInt.fromI32(1000000);
+
   positionClosedEvent.parameters = new Array();
 
   positionClosedEvent.parameters.push(
@@ -189,6 +222,17 @@ export function createPositionDecreasedEvent(
   proceeds: BigInt
 ): PositionDecreased {
   let positionDecreasedEvent = changetype<PositionDecreased>(newMockEvent());
+
+  // Mock 이벤트 기본값 설정
+  positionDecreasedEvent.address = Address.fromString(
+    "0xA16081F360e3847006dB660bae1c6d1b2e17eC2A"
+  );
+  positionDecreasedEvent.transaction.hash = Bytes.fromHexString(
+    "0x1234567890123456789012345678901234567890123456789012345678901237"
+  );
+  positionDecreasedEvent.logIndex = BigInt.fromI32(0);
+  positionDecreasedEvent.block.number = BigInt.fromI32(1);
+  positionDecreasedEvent.block.timestamp = BigInt.fromI32(1000000);
 
   positionDecreasedEvent.parameters = new Array();
 
@@ -232,6 +276,17 @@ export function createPositionIncreasedEvent(
 ): PositionIncreased {
   let positionIncreasedEvent = changetype<PositionIncreased>(newMockEvent());
 
+  // Mock 이벤트 기본값 설정
+  positionIncreasedEvent.address = Address.fromString(
+    "0xA16081F360e3847006dB660bae1c6d1b2e17eC2A"
+  );
+  positionIncreasedEvent.transaction.hash = Bytes.fromHexString(
+    "0x1234567890123456789012345678901234567890123456789012345678901236"
+  );
+  positionIncreasedEvent.logIndex = BigInt.fromI32(0);
+  positionIncreasedEvent.block.number = BigInt.fromI32(1);
+  positionIncreasedEvent.block.timestamp = BigInt.fromI32(1000000);
+
   positionIncreasedEvent.parameters = new Array();
 
   positionIncreasedEvent.parameters.push(
@@ -272,6 +327,17 @@ export function createPositionOpenedEvent(
   cost: BigInt
 ): PositionOpened {
   let positionOpenedEvent = changetype<PositionOpened>(newMockEvent());
+
+  // Mock 이벤트 기본값 설정
+  positionOpenedEvent.address = Address.fromString(
+    "0xA16081F360e3847006dB660bae1c6d1b2e17eC2A"
+  );
+  positionOpenedEvent.transaction.hash = Bytes.fromHexString(
+    "0x1234567890123456789012345678901234567890123456789012345678901235"
+  );
+  positionOpenedEvent.logIndex = BigInt.fromI32(0);
+  positionOpenedEvent.block.number = BigInt.fromI32(1);
+  positionOpenedEvent.block.timestamp = BigInt.fromI32(1000000);
 
   positionOpenedEvent.parameters = new Array();
 
@@ -323,6 +389,17 @@ export function createRangeFactorAppliedEvent(
 ): RangeFactorApplied {
   let rangeFactorAppliedEvent = changetype<RangeFactorApplied>(newMockEvent());
 
+  // Mock 이벤트 기본값 설정
+  rangeFactorAppliedEvent.address = Address.fromString(
+    "0xA16081F360e3847006dB660bae1c6d1b2e17eC2A"
+  );
+  rangeFactorAppliedEvent.transaction.hash = Bytes.fromHexString(
+    "0x1234567890123456789012345678901234567890123456789012345678901239"
+  );
+  rangeFactorAppliedEvent.logIndex = BigInt.fromI32(0);
+  rangeFactorAppliedEvent.block.number = BigInt.fromI32(1);
+  rangeFactorAppliedEvent.block.timestamp = BigInt.fromI32(1000000);
+
   rangeFactorAppliedEvent.parameters = new Array();
 
   rangeFactorAppliedEvent.parameters.push(
@@ -351,6 +428,17 @@ export function createPositionSettledEvent(
   isWin: boolean
 ): PositionSettled {
   let positionSettledEvent = changetype<PositionSettled>(newMockEvent());
+
+  // Mock 이벤트 기본값 설정
+  positionSettledEvent.address = Address.fromString(
+    "0xA16081F360e3847006dB660bae1c6d1b2e17eC2A"
+  );
+  positionSettledEvent.transaction.hash = Bytes.fromHexString(
+    "0x123456789012345678901234567890123456789012345678901234567890123A"
+  );
+  positionSettledEvent.logIndex = BigInt.fromI32(0);
+  positionSettledEvent.block.number = BigInt.fromI32(1);
+  positionSettledEvent.block.timestamp = BigInt.fromI32(1000000);
 
   positionSettledEvent.parameters = new Array();
 
