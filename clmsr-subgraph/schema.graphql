@@ -246,6 +246,8 @@ type UserStats @entity(immutable: false) {
   activityPoints: BigInt! # 누적 Activity 포인트 (OPEN, INCREASE에서 발생) (6 decimals)
   performancePoints: BigInt! # 누적 Performance 포인트 (DECREASE, CLOSE, SETTLE에서 PnL 기반) (6 decimals)
   riskBonusPoints: BigInt! # 누적 Risk Bonus 포인트 (DECREASE, CLOSE, SETTLE에서 조건 충족 시) (6 decimals)
+  activityPointsToday: BigInt! # 오늘 획득한 Activity 포인트 횟수 (0-3, UTC 기준)
+  lastActivityDay: BigInt! # 마지막 Activity 포인트 획득 일자 (UTC 기준 timestamp를 일 단위로 floor)
   positions: [UserPosition!]! @derivedFrom(field: "stats")
 }
 
