@@ -30,7 +30,7 @@ dataSources:
         - UserStats
       abis:
         - name: CLMSRMarketCore
-          file: ./abis/CLMSRMarketCoreUpgradeable.json
+          file: ./abis/CLMSRMarketCore.json
       eventHandlers:
         - event: MarketCreated(indexed uint256,uint64,uint64,int256,int256,int256,uint32,uint256)
           handler: handleMarketCreated
@@ -54,11 +54,11 @@ dataSources:
 
   # ===== PointsGranter 컨트랙트 =====
   - kind: ethereum
-    name: PointsGranterUpgradeable
+    name: PointsGranter
     network: citrea-testnet-tangerine
     source:
       address: "0x59eb810fa5e7c0646902C29D9e8bfdaDf25Ce274"
-      abi: PointsGranterUpgradeable
+      abi: PointsGranter
       startBlock: 14044300
     mapping:
       kind: ethereum/events
@@ -68,8 +68,8 @@ dataSources:
         - PointsEventHistory
         - UserStats
       abis:
-        - name: PointsGranterUpgradeable
-          file: ./abis/PointsGranterUpgradeable.json
+        - name: PointsGranter
+          file: ./abis/PointsGranter.json
       eventHandlers:
         - event: PointsGranted(indexed address,uint256,uint8,uint64)
           handler: handlePointsGranted

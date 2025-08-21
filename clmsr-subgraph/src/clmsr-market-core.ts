@@ -20,7 +20,7 @@ import {
   MarketSettled as MarketSettledEvent,
   RangeFactorApplied as RangeFactorAppliedEvent,
 } from "../generated/CLMSRMarketCore/CLMSRMarketCore";
-import { PointsGranted } from "../generated/PointsGranterUpgradeable/PointsGranterUpgradeable";
+import { PointsGranted } from "../generated/PointsGranter/PointsGranter";
 import {
   PositionOpened,
   PositionIncreased,
