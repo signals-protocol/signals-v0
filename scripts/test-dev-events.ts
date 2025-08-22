@@ -12,10 +12,7 @@ async function main() {
   if (!granter) throw new Error("PointsGranter not deployed in dev");
   if (!core) throw new Error("Core not deployed in dev");
 
-  const points = await ethers.getContractAt(
-    "PointsGranterUpgradeable",
-    granter
-  );
+  const points = await ethers.getContractAt("PointsGranter", granter);
 
   console.log("📊 Emitting various point events...");
 

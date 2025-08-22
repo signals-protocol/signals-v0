@@ -1,0 +1,74 @@
+name: Docs
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      NODE_ENV: production
+      # Docusaurus가 리포 루트가 아닌 /website에 있을 때:
+      WORKDIR: website
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+          cache-dependency-path: |
+            contracts/package-lock.json
+            clmsr-sdk/package-lock.json
+            website/package-lock.json
+
+      # 1) 컨트랙트 레퍼런스 생성
+      - name: Build Solidity docs
+        working-directory: contracts
+        run: |
+          npm ci
+          npx hardhat docgen
+
+      # 2) TS SDK 레퍼런스(빌드 시 플러그인이 실행되지만,
+      #    필요시 사전 타입체크/빌드)
+      - name: Prepare SDK
+        working-directory: clmsr-sdk
+        run: |
+          npm ci
+          npm run build --if-present
+
+      # 3) OpenAPI → MDX 생성 (추후 설정 시 사용)
+      # - name: Generate OpenAPI MDX
+      #   working-directory: website
+      #   run: |
+      #     npm ci
+      #     npx docusaurus gen-api-docs all
+
+      # 4) Docusaurus 빌드
+      - name: Build site
+        working-directory: website
+        run: npm ci && npm run build
+
+      # 5) Pages 아티팩트 업로드
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: website/build
+
+  deploy:
+    needs: build
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+

@@ -24,7 +24,7 @@ export async function settleMarketAction(
 
   // Core 컨트랙트 연결
   const coreContract = await ethers.getContractAt(
-    "CLMSRMarketCoreUpgradeable",
+    "CLMSRMarketCore",
     addresses.CLMSRMarketCoreProxy
   );
 

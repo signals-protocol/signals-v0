@@ -2,15 +2,24 @@
 pragma solidity ^0.8.24;
 
 import "../interfaces/ICLMSRPosition.sol";
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/utils/Base64.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
 /// @title CLMSRPosition
-/// @notice Production-grade ERC721 implementation for CLMSR position management
-/// @dev Gas-optimized position tokens with immutable core authorization
-contract CLMSRPosition is ICLMSRPosition, ERC721 {
+/// @notice ERC721 implementation for CLMSR position management
+/// @dev 가스 최적화된 포지션 토큰과 코어 인증
+contract CLMSRPosition is 
+    Initializable,
+    ICLMSRPosition, 
+    ERC721Upgradeable,
+    OwnableUpgradeable,
+    UUPSUpgradeable
+{
     using EnumerableSet for EnumerableSet.UintSet;
     using Strings for uint256;
 
@@ -18,20 +27,23 @@ contract CLMSRPosition is ICLMSRPosition, ERC721 {
     // STORAGE LAYOUT (Gas Optimized)
     // ========================================
     
-    /// @notice Immutable core contract address for authorization
-    address public immutable core;
+    /// @notice Core contract address for authorization
+    address public core;
     
     /// @notice Next position ID to mint (starts at 1)
-    uint256 private _nextId = 1;
+    uint256 private _nextId;
     
     /// @notice Current total supply (excluding burned tokens)
     uint256 private _totalSupply;
     
     /// @notice Position data mapping
-    mapping(uint256 => Position) private _positions;
+    mapping(uint256 => ICLMSRPosition.Position) private _positions;
     
     /// @notice Owner to position IDs mapping (gas-optimized with EnumerableSet)
     mapping(address => EnumerableSet.UintSet) private _ownedTokens;
+    
+    /// @dev Gap for future storage variables
+    uint256[50] private __gap;
 
     // ========================================
     // MODIFIERS
@@ -44,14 +56,30 @@ contract CLMSRPosition is ICLMSRPosition, ERC721 {
     }
 
     // ========================================
-    // CONSTRUCTOR
+    // INITIALIZER
     // ========================================
     
-    /// @notice Initialize position contract with core authorization
-    /// @param _core Core contract address (immutable)
-    constructor(address _core) ERC721("CLMSR Position", "CLMSR-POS") {
-        if (_core == address(0)) revert ZeroAddress();
+    /// @notice Initialize the upgradeable position contract
+    /// @param _core Core contract address
+    function initialize(address _core) external initializer {
+        // Allow ZeroAddress temporarily for deployment, will be updated later
+        
+        __ERC721_init("CLMSR Position", "CLMSR-POS");
+        __Ownable_init(msg.sender);
+        __UUPSUpgradeable_init();
+        
         core = _core;
+        _nextId = 1;
+    }
+    
+    /// @notice Authorize upgrade (only owner)
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+    
+    /// @notice Update core contract address (only owner)
+    /// @param _newCore New core contract address
+    function updateCore(address _newCore) external onlyOwner {
+        if (_newCore == address(0)) revert ZeroAddress();
+        core = _newCore;
     }
 
     // ========================================
@@ -61,10 +89,10 @@ contract CLMSRPosition is ICLMSRPosition, ERC721 {
     /// @notice Override tokenURI to provide dynamic metadata
     /// @param tokenId Position token ID
     /// @return URI string with base64-encoded JSON metadata
-    function tokenURI(uint256 tokenId) public view override(ERC721, ICLMSRPosition) returns (string memory) {
+    function tokenURI(uint256 tokenId) public view override(ERC721Upgradeable) returns (string memory) {
         if (!_exists(tokenId)) revert PositionNotFound(tokenId);
         
-        Position memory position = _positions[tokenId];
+        ICLMSRPosition.Position memory position = _positions[tokenId];
         
         // Generate dynamic JSON metadata
         string memory json = string(abi.encodePacked(
@@ -90,9 +118,9 @@ contract CLMSRPosition is ICLMSRPosition, ERC721 {
     /// @param tokenId Token ID being transferred
     /// @param auth Authorized address
     /// @return Previous owner
-    function _update(address to, uint256 tokenId, address auth) 
+        function _update(address to, uint256 tokenId, address auth) 
         internal 
-        override(ERC721) 
+        override(ERC721Upgradeable) 
         returns (address) 
     {
         address from = _ownerOf(tokenId);
@@ -129,7 +157,7 @@ contract CLMSRPosition is ICLMSRPosition, ERC721 {
         positionId = _nextId++;
         
         // Store position data with gas-optimized packing
-        _positions[positionId] = Position({
+        _positions[positionId] = ICLMSRPosition.Position({
             marketId: marketId,
             lowerTick: lowerTick,
             upperTick: upperTick,
@@ -147,7 +175,7 @@ contract CLMSRPosition is ICLMSRPosition, ERC721 {
     }
 
     /// @inheritdoc ICLMSRPosition
-    function setPositionQuantity(uint256 positionId, uint128 newQuantity) external onlyCore {
+    function updateQuantity(uint256 positionId, uint128 newQuantity) external onlyCore {
         if (!_exists(positionId)) revert PositionNotFound(positionId);
         if (newQuantity == 0) revert InvalidQuantity(newQuantity);
         
@@ -158,7 +186,7 @@ contract CLMSRPosition is ICLMSRPosition, ERC721 {
     }
 
     /// @inheritdoc ICLMSRPosition
-    function burnPosition(uint256 positionId) external onlyCore {
+    function burn(uint256 positionId) external onlyCore {
         if (!_exists(positionId)) revert PositionNotFound(positionId);
         
         address owner = ownerOf(positionId);
@@ -175,18 +203,20 @@ contract CLMSRPosition is ICLMSRPosition, ERC721 {
         emit PositionBurned(positionId, owner);
     }
 
+
+
     // ========================================
     // POSITION QUERIES
     // ========================================
     
     /// @inheritdoc ICLMSRPosition
-    function getPosition(uint256 positionId) external view returns (Position memory data) {
+    function getPosition(uint256 positionId) external view returns (ICLMSRPosition.Position memory data) {
         if (!_exists(positionId)) revert PositionNotFound(positionId);
         return _positions[positionId];
     }
 
     /// @inheritdoc ICLMSRPosition
-    function getPositionsByOwner(address owner) external view returns (uint256[] memory positionIds) {
+    function getOwnerPositions(address owner) external view returns (uint256[] memory positionIds) {
         return _ownedTokens[owner].values();
     }
 
@@ -269,27 +299,16 @@ contract CLMSRPosition is ICLMSRPosition, ERC721 {
     function supportsInterface(bytes4 interfaceId) 
         public 
         view 
-        override(ERC721, IERC165) 
+        override(ERC721Upgradeable, IERC165) 
         returns (bool) 
     {
         return interfaceId == type(ICLMSRPosition).interfaceId || 
                super.supportsInterface(interfaceId);
     }
 
-    // ========================================
-    // METADATA & URI FUNCTIONS
-    // ========================================
-    
 
 
-    /// @inheritdoc ICLMSRPosition
-    function contractURI() external pure returns (string memory) {
-        string memory json = '{"name": "CLMSR Positions", "description": "Position tokens for CLMSR prediction markets"}';
-        return string(abi.encodePacked(
-            "data:application/json;base64,",
-            Base64.encode(bytes(json))
-        ));
-    }
+
 
     // ========================================
     // INTERNAL HELPERS
@@ -346,7 +365,7 @@ contract CLMSRPosition is ICLMSRPosition, ERC721 {
     /// @notice Get total number of positions owned by address
     /// @param owner Address to query
     /// @return count Number of positions owned
-    function balanceOf(address owner) public view override(ERC721, IERC721) returns (uint256 count) {
+    function balanceOf(address owner) public view override(ERC721Upgradeable, IERC721) returns (uint256 count) {
         if (owner == address(0)) revert ERC721InvalidOwner(address(0));
         return _ownedTokens[owner].length();
     }
@@ -354,7 +373,7 @@ contract CLMSRPosition is ICLMSRPosition, ERC721 {
     /// @notice Find the owner of a token
     /// @param tokenId The identifier for a token
     /// @return The address of the owner of the token
-    function ownerOf(uint256 tokenId) public view override(ERC721, IERC721) returns (address) {
+    function ownerOf(uint256 tokenId) public view override(ERC721Upgradeable, IERC721) returns (address) {
         return super.ownerOf(tokenId);
     }
 
@@ -369,4 +388,7 @@ contract CLMSRPosition is ICLMSRPosition, ERC721 {
     function getCoreContract() external view returns (address) {
         return core;
     }
+
+
+
 } 

@@ -32,7 +32,7 @@ export async function positionFixture() {
   const position = await MockPositionFactory.deploy();
   await position.waitForDeployment();
 
-  // Deploy core with position address
+  // Deploy core with position address (upgradeable)
   const CLMSRMarketCoreFactory = await ethers.getContractFactory(
     "CLMSRMarketCore",
     {
@@ -43,12 +43,14 @@ export async function positionFixture() {
     }
   );
 
-  const core = await CLMSRMarketCoreFactory.deploy(
-    await paymentToken.getAddress(),
-    await position.getAddress(),
-    keeper.address
-  );
+  const core = await CLMSRMarketCoreFactory.deploy();
   await core.waitForDeployment();
+
+  // Initialize upgradeable contract
+  await core.initialize(
+    await paymentToken.getAddress(),
+    await position.getAddress()
+  );
 
   // Set core in position contract
   await position.setCore(await core.getAddress());

@@ -15,7 +15,7 @@
     }
   ],
   "impls": {
-    "3a3c6d96b47cdefd7e4cb80b3efe3a6c7a6d9fb184b3e2f954ac26b13a7b0dcc": {
+    "302f46445f2244b0b048e631541fc6c5254a7803330f9ebe164adf7f7e33939a": {
       "address": "0xcD6dB5d6bD30db1c2Ce58BAdEfA62810CfD20abA",
       "layout": {
         "solcVersion": "0.8.24",
@@ -368,7 +368,7 @@
       }
     },
     "c4b8cdce7ba7cd779f66587f4dd0d112d233936865438b59f935a3787a5856f5": {
-      "address": "0x6178e97FE629C7BE10c67CDc060E109AF229B68c",
+      "address": "0x77CF00acf6310BAcf3123fA23cE997F86824c3b5",
       "layout": {
         "solcVersion": "0.8.24",
         "storage": [
@@ -711,8 +711,8 @@
         }
       },
       "allAddresses": [
-        "0x6178e97FE629C7BE10c67CDc060E109AF229B68c",
-        "0xFad9b208E3f7b64cdD2a9361Eb63c8b8C8Eb8BdD"
+        "0x77CF00acf6310BAcf3123fA23cE997F86824c3b5",
+        "0xC51E41A9aC52A9CdC4A0c8476B9DFE69E731Dbe1"
       ]
     },
     "ab4fe899fe5da5cd8958c055b128e501b311c9421732f47f62593d7781d2a1c4": {

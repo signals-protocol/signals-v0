@@ -11,7 +11,7 @@ interface ManifestManager {
 }
 
 class OpenZeppelinManifestManager implements ManifestManager {
-  private manifestDir = ".openzeppelin";
+  private manifestDir = process.env.MANIFEST_DEFAULT_DIR || ".openzeppelin";
   private backupDir = ".openzeppelin/backups";
 
   async ensureBackupDir(): Promise<void> {
@@ -29,16 +29,17 @@ class OpenZeppelinManifestManager implements ManifestManager {
     switch (environment) {
       case "localhost":
         return "localhost.json";
-      case "dev":
-        return "base-dev.json"; // dev 환경 전용
-      case "prod":
-        return "base-prod.json"; // prod 환경 전용
+      case "citrea-dev":
+      case "citrea-prod":
+        return "unknown-5115.json"; // citrea 환경들은 모두 chainId 5115 사용
       default:
         return `${environment}.json`;
     }
   }
 
   /**
+   *
+   *
    * 매니페스트 백업
    */
   async backup(environment: string): Promise<void> {
@@ -136,15 +137,42 @@ class OpenZeppelinManifestManager implements ManifestManager {
     console.log("🔄 Syncing all manifests...");
 
     try {
-      const files = await fs.readdir(this.manifestDir);
-      const manifestFiles = files.filter(
-        (f) => f.endsWith(".json") && f !== "package.json"
-      );
+      // 환경별 디렉토리와 매니페스트 파일 매핑
+      const envMappings = [
+        {
+          env: "citrea-dev",
+          dir: ".openzeppelin/dev",
+          file: "unknown-5115.json",
+        },
+        {
+          env: "citrea-prod",
+          dir: ".openzeppelin/prod",
+          file: "unknown-5115.json",
+        },
+        { env: "localhost", dir: ".openzeppelin", file: "localhost.json" },
+      ];
 
-      for (const file of manifestFiles) {
-        const env = file.replace(".json", "");
-        await this.backup(env);
-        console.log(`📋 ${env}: manifest synced`);
+      for (const mapping of envMappings) {
+        const manifestPath = `${mapping.dir}/${mapping.file}`;
+        try {
+          await fs.access(manifestPath);
+
+          // 임시로 MANIFEST_DEFAULT_DIR를 설정하여 백업
+          const originalDir = process.env.MANIFEST_DEFAULT_DIR;
+          process.env.MANIFEST_DEFAULT_DIR = mapping.dir;
+
+          await this.backup(mapping.env);
+          console.log(`📋 ${mapping.env}: manifest synced`);
+
+          // 원래 설정 복원
+          if (originalDir) {
+            process.env.MANIFEST_DEFAULT_DIR = originalDir;
+          } else {
+            delete process.env.MANIFEST_DEFAULT_DIR;
+          }
+        } catch (error) {
+          console.log(`⚠️  No manifest found for ${mapping.env}`);
+        }
       }
 
       console.log("✅ All manifests synced");

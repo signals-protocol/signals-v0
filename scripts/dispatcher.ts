@@ -79,6 +79,7 @@ if (!COMMAND) {
   manifest-commit:ENV       - Commit manifest changes for environment
   manifest-sync:all         - Sync all environment manifests
   manifest-validate:ENV     - Validate manifest for environment
+  repair-manifest:ENV       - Clean ghost implementations from manifest
 
 Usage:
   COMMAND=deploy:localhost npx hardhat run scripts/dispatcher.ts --network localhost
@@ -166,10 +167,7 @@ async function dispatch() {
           LazyMulSegmentTree: addresses.LazyMulSegmentTree!,
         };
 
-        await checker.runAllSafetyChecks(
-          "CLMSRMarketCoreUpgradeable",
-          libraries
-        );
+        await checker.runAllSafetyChecks("CLMSRMarketCore", libraries);
         break;
 
       case "manifest-backup":
@@ -199,6 +197,11 @@ async function dispatch() {
           await import("./manage-manifest");
         const managerValidate = new ManifestManagerValidate();
         await managerValidate.validate(environment);
+        break;
+
+      case "repair-manifest":
+        const { repairManifestAction } = await import("./repair-manifest");
+        await repairManifestAction(environment as Environment);
         break;
 
       default:
