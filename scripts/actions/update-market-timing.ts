@@ -24,7 +24,7 @@ export async function updateMarketTimingAction(
 
   // 컨트랙트 연결
   const core = await ethers.getContractAt(
-    "CLMSRMarketCoreUpgradeable",
+    "CLMSRMarketCore",
     addresses.CLMSRMarketCoreProxy
   );
 

@@ -101,6 +101,94 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
       const payout = await core.calculateCloseProceeds(positionId);
       expect(payout).to.be.gt(0);
     });
+
+    it("Should calculate quantity from cost correctly (inverse function)", async function () {
+      const { core, marketId } = await loadFixture(createActiveMarketFixture);
+
+      const targetCost = ethers.parseUnits("1", 6); // 1 USDC
+      const lowerTick = 100450;
+      const upperTick = 100550;
+
+      const quantity = await core.calculateQuantityFromCost(
+        marketId,
+        lowerTick,
+        upperTick,
+        targetCost
+      );
+
+      expect(quantity).to.be.gt(0);
+      expect(quantity).to.be.lt(ethers.parseUnits("1000", 6)); // Reasonable upper bound
+    });
+
+    it("Should maintain inverse function accuracy", async function () {
+      const { core, marketId } = await loadFixture(createActiveMarketFixture);
+
+      const lowerTick = 100450;
+      const upperTick = 100550;
+      const targetCost = ethers.parseUnits("0.5", 6); // 0.5 USDC
+
+      // Calculate quantity from cost (inverse)
+      const calculatedQuantity = await core.calculateQuantityFromCost(
+        marketId,
+        lowerTick,
+        upperTick,
+        targetCost
+      );
+
+      // Calculate cost from that quantity (forward)
+      const recalculatedCost = await core.calculateOpenCost(
+        marketId,
+        lowerTick,
+        upperTick,
+        calculatedQuantity
+      );
+
+      // The costs should be close (within 10% due to CLMSR approximation)
+      const difference =
+        recalculatedCost > targetCost
+          ? recalculatedCost - targetCost
+          : targetCost - recalculatedCost;
+      const percentError = (difference * 100n) / targetCost;
+
+      expect(percentError).to.be.lte(10n); // Within 10% accuracy
+    });
+
+    it("Should handle zero cost edge case for inverse function", async function () {
+      const { core, marketId } = await loadFixture(createActiveMarketFixture);
+
+      const quantity = await core.calculateQuantityFromCost(
+        marketId,
+        100450,
+        100550,
+        0 // Zero cost
+      );
+
+      expect(quantity).to.equal(0);
+    });
+
+    it("Should maintain quantity proportionality in inverse function", async function () {
+      const { core, marketId } = await loadFixture(createActiveMarketFixture);
+
+      const smallCost = ethers.parseUnits("0.1", 6); // 0.1 USDC
+      const largeCost = ethers.parseUnits("0.5", 6); // 0.5 USDC
+
+      const smallQuantity = await core.calculateQuantityFromCost(
+        marketId,
+        100450,
+        100550,
+        smallCost
+      );
+
+      const largeQuantity = await core.calculateQuantityFromCost(
+        marketId,
+        100450,
+        100550,
+        largeCost
+      );
+
+      // Larger cost should yield larger quantity
+      expect(largeQuantity).to.be.gt(smallQuantity);
+    });
   });
 
   describe("Market Math Consistency", function () {

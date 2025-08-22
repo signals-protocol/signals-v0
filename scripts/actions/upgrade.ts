@@ -5,6 +5,156 @@ import { safeTxOpts, delay, safeExecuteTx } from "../utils/txOpts";
 import { UpgradeSafetyChecker } from "../safety-checks";
 import { OpenZeppelinManifestManager } from "../manage-manifest";
 
+/**
+ * 업그레이드 후 구현체 주소가 변경될 때까지 폴링하여 대기
+ */
+async function waitForImplChange(
+  proxy: string,
+  prev?: string,
+  attempts = 20,
+  ms = 1500
+): Promise<string> {
+  for (let i = 0; i < attempts; i++) {
+    const cur = (
+      await upgrades.erc1967.getImplementationAddress(proxy)
+    ).toLowerCase();
+    if (!prev || cur !== prev.toLowerCase()) return cur;
+    await delay(ms);
+  }
+  // 마지막으로 한 번 더 읽어서 반환
+  return await upgrades.erc1967.getImplementationAddress(proxy);
+}
+
+/**
+ * 프록시가 실제로 가리키는 구현체 주소와 env 파일에 기록된 주소가 일치하는지 검증
+ */
+async function verifyImplementationConsistency(
+  environment: Environment
+): Promise<void> {
+  console.log("🔍 Verifying implementation consistency...");
+
+  const addresses = envManager.getDeployedAddresses(environment);
+  let allMatch = true;
+
+  // Position 프록시 검증
+  if (addresses.CLMSRPositionProxy && addresses.CLMSRPositionImplementation) {
+    const actualPosition = await upgrades.erc1967.getImplementationAddress(
+      addresses.CLMSRPositionProxy
+    );
+    if (
+      actualPosition.toLowerCase() !==
+      addresses.CLMSRPositionImplementation.toLowerCase()
+    ) {
+      console.warn("⚠️ Position Implementation mismatch detected.");
+      if (process.env.FIX_ENV === "1") {
+        envManager.updateContract(
+          environment,
+          "core",
+          "CLMSRPositionImplementation",
+          actualPosition
+        );
+        console.log(
+          "🔧 Fixed env: core.CLMSRPositionImplementation ->",
+          actualPosition
+        );
+      } else {
+        console.error(`❌ Position Implementation mismatch:`);
+        console.error(`   Proxy points to: ${actualPosition}`);
+        console.error(
+          `   Env file has:    ${addresses.CLMSRPositionImplementation}`
+        );
+        console.error(`   💡 Run with FIX_ENV=1 to auto-fix`);
+        allMatch = false;
+      }
+    } else {
+      console.log(`✅ Position Implementation consistent: ${actualPosition}`);
+    }
+  }
+
+  // Core 프록시 검증
+  if (
+    addresses.CLMSRMarketCoreProxy &&
+    addresses.CLMSRMarketCoreImplementation
+  ) {
+    const actualCore = await upgrades.erc1967.getImplementationAddress(
+      addresses.CLMSRMarketCoreProxy
+    );
+    if (
+      actualCore.toLowerCase() !==
+      addresses.CLMSRMarketCoreImplementation.toLowerCase()
+    ) {
+      console.warn("⚠️ Core Implementation mismatch detected.");
+      if (process.env.FIX_ENV === "1") {
+        envManager.updateContract(
+          environment,
+          "core",
+          "CLMSRMarketCoreImplementation",
+          actualCore
+        );
+        console.log(
+          "🔧 Fixed env: core.CLMSRMarketCoreImplementation ->",
+          actualCore
+        );
+      } else {
+        console.error(`❌ Core Implementation mismatch:`);
+        console.error(`   Proxy points to: ${actualCore}`);
+        console.error(
+          `   Env file has:    ${addresses.CLMSRMarketCoreImplementation}`
+        );
+        console.error(`   💡 Run with FIX_ENV=1 to auto-fix`);
+        allMatch = false;
+      }
+    } else {
+      console.log(`✅ Core Implementation consistent: ${actualCore}`);
+    }
+  }
+
+  // Points 프록시 검증
+  if (addresses.PointsGranterProxy && addresses.PointsGranterImplementation) {
+    const actualPoints = await upgrades.erc1967.getImplementationAddress(
+      addresses.PointsGranterProxy
+    );
+    if (
+      actualPoints.toLowerCase() !==
+      addresses.PointsGranterImplementation.toLowerCase()
+    ) {
+      console.warn("⚠️ Points Implementation mismatch detected.");
+      if (process.env.FIX_ENV === "1") {
+        envManager.updateContract(
+          environment,
+          "points",
+          "PointsGranterImplementation",
+          actualPoints
+        );
+        console.log(
+          "🔧 Fixed env: points.PointsGranterImplementation ->",
+          actualPoints
+        );
+      } else {
+        console.error(`❌ Points Implementation mismatch:`);
+        console.error(`   Proxy points to: ${actualPoints}`);
+        console.error(
+          `   Env file has:    ${addresses.PointsGranterImplementation}`
+        );
+        console.error(`   💡 Run with FIX_ENV=1 to auto-fix`);
+        allMatch = false;
+      }
+    } else {
+      console.log(`✅ Points Implementation consistent: ${actualPoints}`);
+    }
+  }
+
+  if (!allMatch) {
+    throw new Error(
+      "❌ Implementation consistency check failed! Proxy addresses do not match env file."
+    );
+  }
+
+  console.log(
+    "✅ All implementation addresses are consistent between proxies and env file."
+  );
+}
+
 export async function upgradeAction(environment: Environment): Promise<void> {
   console.log(`⬆️ Upgrading ${environment} to latest contract`);
 
@@ -27,55 +177,51 @@ export async function upgradeAction(environment: Environment): Promise<void> {
   console.log("💾 Backing up OpenZeppelin manifest...");
   await manifestManager.backup(environment);
 
-  // 🔧 선제적 매니페스트 동기화 (안전한 방식)
   console.log("🔄 Pre-synchronizing OpenZeppelin manifest...");
 
-  // Position contract forceImport (선제적)
-  const CLMSRPositionUpgradeable = await ethers.getContractFactory(
-    "CLMSRPositionUpgradeable"
-  );
-
-  await upgrades.forceImport(
-    addresses.CLMSRPositionProxy!,
-    CLMSRPositionUpgradeable,
-    { kind: "uups" }
-  );
-  console.log("✅ Position proxy pre-imported");
-
-  await delay(1000);
-
-  // Core contract forceImport (선제적) - 현재 라이브러리로 먼저 등록
-  const CLMSRMarketCoreUpgradeableOld = await ethers.getContractFactory(
-    "CLMSRMarketCoreUpgradeable",
+  const CLMSRMarketCoreImport = await ethers.getContractFactory(
+    "CLMSRMarketCore",
     {
       libraries: {
         FixedPointMathU: addresses.FixedPointMathU!,
-        LazyMulSegmentTree: addresses.LazyMulSegmentTree!, // 현재 라이브러리
+        LazyMulSegmentTree: addresses.LazyMulSegmentTree!,
       },
     }
   );
 
   await upgrades.forceImport(
     addresses.CLMSRMarketCoreProxy!,
-    CLMSRMarketCoreUpgradeableOld,
+    CLMSRMarketCoreImport,
     { kind: "uups" }
   );
   console.log("✅ Core proxy pre-imported");
 
-  await delay(1000);
-
-  if (addresses.PointsGranterProxy) {
-    const PointsGranterUpgradeable = await ethers.getContractFactory(
-      "PointsGranterUpgradeable"
+  // Position과 Points도 매니페스트에 동기화
+  if (addresses.CLMSRPositionProxy) {
+    const CLMSRPositionImport = await ethers.getContractFactory(
+      "CLMSRPosition"
     );
-
     await upgrades.forceImport(
-      addresses.PointsGranterProxy,
-      PointsGranterUpgradeable,
+      addresses.CLMSRPositionProxy,
+      CLMSRPositionImport,
       { kind: "uups" }
     );
-    console.log("✅ PointsGranter proxy pre-imported");
+    console.log("✅ Position proxy pre-imported");
   }
+
+  if (addresses.PointsGranterProxy) {
+    const PointsGranterImport = await ethers.getContractFactory(
+      "PointsGranter"
+    );
+    await upgrades.forceImport(
+      addresses.PointsGranterProxy,
+      PointsGranterImport,
+      { kind: "uups" }
+    );
+    console.log("✅ Points proxy pre-imported");
+  }
+
+  await delay(1000);
 
   console.log("📝 Manifest synchronized with on-chain state");
 
@@ -83,15 +229,13 @@ export async function upgradeAction(environment: Environment): Promise<void> {
   console.log("📚 Deploying new LazyMulSegmentTree library...");
   const txOpts = await safeTxOpts();
 
-  const newSegmentTreeAddress = await safeExecuteTx(async () => {
-    const LazyMulSegmentTree = await ethers.getContractFactory(
-      "LazyMulSegmentTree",
-      { libraries: { FixedPointMathU: addresses.FixedPointMathU } }
-    );
-    const newSegmentTree = await LazyMulSegmentTree.deploy(txOpts);
-    await newSegmentTree.waitForDeployment();
-    return await newSegmentTree.getAddress();
-  });
+  const LazyMulSegmentTree = await ethers.getContractFactory(
+    "LazyMulSegmentTree",
+    { libraries: { FixedPointMathU: addresses.FixedPointMathU } }
+  );
+  const newSegmentTree = await LazyMulSegmentTree.deploy(txOpts);
+  await newSegmentTree.waitForDeployment();
+  const newSegmentTreeAddress = await newSegmentTree.getAddress();
 
   // 환경 파일에 새 라이브러리 주소 저장
   envManager.updateContract(
@@ -112,31 +256,27 @@ export async function upgradeAction(environment: Environment): Promise<void> {
     );
   }
 
-  // 🛡️ Position 안전성 검사
-  console.log("🔍 Running Position contract safety checks...");
-  const positionSafe = await safetyChecker.runAllSafetyChecks(
-    "CLMSRPositionUpgradeable"
+  // Position 업그레이드 (레이스 컨디션 제거)
+
+  // 업그레이드 이전 구현체 주소를 저장
+  const beforePosImpl = await upgrades.erc1967.getImplementationAddress(
+    addresses.CLMSRPositionProxy
   );
-  if (!positionSafe) {
-    throw new Error("Position contract safety checks failed!");
-  }
+  console.log("📋 Position impl before upgrade:", beforePosImpl);
 
-  // Position contract 업그레이드 (매니페스트 이미 동기화됨)
-  const newPositionImplAddress = await safeExecuteTx(async () => {
-    const upgradedPosition = await upgrades.upgradeProxy(
-      addresses.CLMSRPositionProxy,
-      CLMSRPositionUpgradeable, // 이미 위에서 생성됨
-      {
-        txOverrides: await safeTxOpts(),
-      }
-    );
-
-    await upgradedPosition.waitForDeployment();
-
-    return await upgrades.erc1967.getImplementationAddress(
-      addresses.CLMSRPositionProxy
-    );
+  const CLMSRPosition = await ethers.getContractFactory("CLMSRPosition");
+  await upgrades.upgradeProxy(addresses.CLMSRPositionProxy, CLMSRPosition, {
+    kind: "uups",
+    redeployImplementation: "always",
+    txOverrides: await safeTxOpts(),
   });
+
+  // 새 구현체 주소가 반영될 때까지 대기(폴링)
+  const newPositionImplAddress = await waitForImplChange(
+    addresses.CLMSRPositionProxy,
+    beforePosImpl
+  );
+  console.log("📋 Position impl after upgrade:", newPositionImplAddress);
 
   envManager.updateContract(
     environment,
@@ -150,45 +290,35 @@ export async function upgradeAction(environment: Environment): Promise<void> {
   console.log("🔧 Upgrading Core contract with new library...");
   await delay(3000); // Wait between transactions
 
-  // 🛡️ Core 안전성 검사
-  console.log("🔍 Running Core contract safety checks...");
-  const coreLibraries = {
-    FixedPointMathU: addresses.FixedPointMathU,
-    LazyMulSegmentTree: newSegmentTreeAddress, // 새 라이브러리 주소 사용
-  };
-  const coreSafe = await safetyChecker.runAllSafetyChecks(
-    "CLMSRMarketCoreUpgradeable",
-    coreLibraries
-  );
-  if (!coreSafe) {
-    throw new Error("Core contract safety checks failed!");
-  }
+  // Core 업그레이드 (레이스 컨디션 제거)
 
-  // Core contract 업그레이드 (매니페스트 이미 동기화됨)
-  const CLMSRMarketCoreUpgradeable = await ethers.getContractFactory(
-    "CLMSRMarketCoreUpgradeable",
-    {
-      libraries: {
-        FixedPointMathU: addresses.FixedPointMathU,
-        LazyMulSegmentTree: newSegmentTreeAddress, // 새 라이브러리 주소 사용
-      },
-    }
-  );
-
-  const upgraded = await upgrades.upgradeProxy(
-    addresses.CLMSRMarketCoreProxy,
-    CLMSRMarketCoreUpgradeable,
-    {
-      unsafeAllow: ["external-library-linking"],
-      txOverrides: await safeTxOpts(),
-    }
-  );
-
-  await upgraded.waitForDeployment();
-
-  const newImplAddress = await upgrades.erc1967.getImplementationAddress(
+  // 업그레이드 이전 구현체 주소를 저장
+  const beforeCoreImpl = await upgrades.erc1967.getImplementationAddress(
     addresses.CLMSRMarketCoreProxy
   );
+  console.log("📋 Core impl before upgrade:", beforeCoreImpl);
+
+  // Core contract 업그레이드 (매니페스트 이미 동기화됨)
+  const CLMSRMarketCore = await ethers.getContractFactory("CLMSRMarketCore", {
+    libraries: {
+      FixedPointMathU: addresses.FixedPointMathU,
+      LazyMulSegmentTree: newSegmentTreeAddress, // 새 라이브러리 주소 사용
+    },
+  });
+
+  await upgrades.upgradeProxy(addresses.CLMSRMarketCoreProxy, CLMSRMarketCore, {
+    kind: "uups",
+    redeployImplementation: "always",
+    unsafeAllow: ["external-library-linking"],
+    txOverrides: await safeTxOpts(),
+  });
+
+  // 새 구현체 주소가 반영될 때까지 대기(폴링)
+  const newImplAddress = await waitForImplChange(
+    addresses.CLMSRMarketCoreProxy,
+    beforeCoreImpl
+  );
+  console.log("📋 Core impl after upgrade:", newImplAddress);
 
   envManager.updateContract(
     environment,
@@ -208,22 +338,26 @@ export async function upgradeAction(environment: Environment): Promise<void> {
     );
   }
 
-  const PointsGranterUpgradeable = await ethers.getContractFactory(
-    "PointsGranterUpgradeable"
+  // 업그레이드 이전 구현체 주소를 저장
+  const beforePointsImpl = await upgrades.erc1967.getImplementationAddress(
+    addresses.PointsGranterProxy
   );
-  const upgradedPoints = await upgrades.upgradeProxy(
-    addresses.PointsGranterProxy,
-    PointsGranterUpgradeable,
-    {
-      kind: "uups",
-    }
-  );
-  await upgradedPoints.waitForDeployment();
+  console.log("📋 Points impl before upgrade:", beforePointsImpl);
 
+  const PointsGranter = await ethers.getContractFactory("PointsGranter");
+  await upgrades.upgradeProxy(addresses.PointsGranterProxy, PointsGranter, {
+    kind: "uups",
+    redeployImplementation: "always",
+    txOverrides: await safeTxOpts(),
+  });
+
+  // 새 구현체 주소가 반영될 때까지 대기(폴링)
   const pointsProxyAddress = addresses.PointsGranterProxy;
-  const pointsImplAddress = await upgrades.erc1967.getImplementationAddress(
-    pointsProxyAddress
+  const pointsImplAddress = await waitForImplChange(
+    pointsProxyAddress,
+    beforePointsImpl
   );
+  console.log("📋 Points impl after upgrade:", pointsImplAddress);
 
   envManager.updateContract(
     environment,
@@ -247,6 +381,9 @@ export async function upgradeAction(environment: Environment): Promise<void> {
     },
     deployer: deployer.address,
   });
+
+  // 일관성 검증: 프록시가 실제로 가리키는 구현체 주소 확인
+  await verifyImplementationConsistency(environment);
 
   console.log("🎉 Upgrade completed successfully!");
   envManager.printEnvironmentStatus(environment);

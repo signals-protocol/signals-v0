@@ -6,7 +6,7 @@ export async function emitPositionSettledAction(
   environment: Environment
 ): Promise<void> {
   // 🎯 기본 설정값 (필요시 환경변수로 오버라이드 가능)
-  const marketId = parseInt(process.env.MARKET_ID || "3");
+  const marketId = parseInt(process.env.MARKET_ID || "8");
   const batchLimit = parseInt(process.env.BATCH_LIMIT || "100");
 
   console.log(
@@ -27,7 +27,7 @@ export async function emitPositionSettledAction(
 
   // Core 컨트랙트 연결
   const coreContract = await ethers.getContractAt(
-    "CLMSRMarketCoreUpgradeable",
+    "CLMSRMarketCore",
     addresses.CLMSRMarketCoreProxy
   );
 

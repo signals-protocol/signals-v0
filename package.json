@@ -13,7 +13,12 @@
     "deploy:citrea:dev": "MANIFEST_DEFAULT_DIR=.openzeppelin/dev COMMAND=deploy:citrea:dev npx hardhat run scripts/dispatcher.ts --network citrea-dev",
     "deploy:citrea:prod": "MANIFEST_DEFAULT_DIR=.openzeppelin/prod COMMAND=deploy:citrea:prod npx hardhat run scripts/dispatcher.ts --network citrea-prod",
     "upgrade:localhost": "COMMAND=upgrade:localhost npx hardhat run scripts/dispatcher.ts --network localhost",
-    "upgrade:citrea:dev": "MANIFEST_DEFAULT_DIR=.openzeppelin/dev COMMAND=upgrade:citrea:dev npx hardhat run scripts/dispatcher.ts --network citrea-dev",
+    "upgrade:citrea:dev": "MANIFEST_DEFAULT_DIR=.openzeppelin/dev
+    
+    
+    
+    
+    COMMAND=upgrade:citrea:dev npx hardhat run scripts/dispatcher.ts --network citrea-dev",
     "upgrade:citrea:prod": "MANIFEST_DEFAULT_DIR=.openzeppelin/prod COMMAND=upgrade:citrea:prod npx hardhat run scripts/dispatcher.ts --network citrea-prod",
     "market:localhost": "COMMAND=create-market:localhost npx hardhat run scripts/dispatcher.ts --network localhost",
     "market:citrea:dev": "COMMAND=create-market:citrea:dev npx hardhat run scripts/dispatcher.ts --network citrea-dev",
@@ -31,8 +36,10 @@
     "status:citrea:prod": "COMMAND=status:citrea:prod npx hardhat run scripts/dispatcher.ts --network citrea-prod",
     "deploy-susd:citrea": "COMMAND=deploy-susd:citrea:dev npx hardhat run scripts/dispatcher.ts --network citrea-dev",
     "safety:localhost": "COMMAND=safety-check:localhost npx hardhat run scripts/dispatcher.ts --network localhost",
-    "safety:citrea:dev": "COMMAND=safety-check:citrea:dev npx hardhat run scripts/dispatcher.ts --network citrea-dev",
-    "safety:citrea:prod": "COMMAND=safety-check:citrea:prod npx hardhat run scripts/dispatcher.ts --network citrea-prod",
+    "safety:citrea:dev": "MANIFEST_DEFAULT_DIR=.openzeppelin/dev COMMAND=safety-check:citrea:dev npx hardhat run scripts/dispatcher.ts --network citrea-dev",
+    "safety:citrea:prod": "MANIFEST_DEFAULT_DIR=.openzeppelin/prod COMMAND=safety-check:citrea:prod npx hardhat run scripts/dispatcher.ts --network citrea-prod",
+    "verify:citrea:dev": "bash scripts/verify-all.sh citrea-dev",
+    "verify:citrea:prod": "bash scripts/verify-all.sh citrea-prod",
     "manifest:backup:localhost": "COMMAND=manifest-backup:localhost npx hardhat run scripts/dispatcher.ts",
     "manifest:backup:dev": "COMMAND=manifest-backup:dev npx hardhat run scripts/dispatcher.ts",
     "manifest:backup:prod": "COMMAND=manifest-backup:prod npx hardhat run scripts/dispatcher.ts",
@@ -43,6 +50,9 @@
     "manifest:validate:localhost": "COMMAND=manifest-validate:localhost npx hardhat run scripts/dispatcher.ts",
     "manifest:validate:dev": "COMMAND=manifest-validate:dev npx hardhat run scripts/dispatcher.ts",
     "manifest:validate:prod": "COMMAND=manifest-validate:prod npx hardhat run scripts/dispatcher.ts",
+    "repair:localhost": "COMMAND=repair-manifest:localhost npx hardhat run scripts/dispatcher.ts --network localhost",
+    "repair:citrea:dev": "MANIFEST_DEFAULT_DIR=.openzeppelin/dev COMMAND=repair-manifest:citrea:dev npx hardhat run scripts/dispatcher.ts --network citrea-dev",
+    "repair:citrea:prod": "MANIFEST_DEFAULT_DIR=.openzeppelin/prod COMMAND=repair-manifest:citrea:prod npx hardhat run scripts/dispatcher.ts --network citrea-prod",
     "test:full:localhost": "npx hardhat run scripts/full-test-localhost.ts --network localhost",
     "beta": "npx hardhat run scripts/beta-distribution.ts --network citrea-prod"
   },
@@ -65,6 +75,7 @@
     "hardhat-gas-reporter": "^2.3.0",
     "hardhat-tracer": "^3.2.1",
     "solidity-coverage": "^0.8.16",
+    "solidity-docgen": "^0.6.0-beta.36",
     "ts-node": "^10.9.2",
     "typechain": "^8.3.2",
     "typescript": "^5.8.3"

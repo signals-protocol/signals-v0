@@ -3,17 +3,28 @@ pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "../interfaces/ICLMSRMarketCore.sol";
 import "../interfaces/ICLMSRPosition.sol";
 import {LazyMulSegmentTree} from "../libraries/LazyMulSegmentTree.sol";
 import {FixedPointMathU} from "../libraries/FixedPointMath.sol";
 import {CLMSRErrors as CE} from "../errors/CLMSRErrors.sol";
 
-/// @title CLMSRMarketCore
+/// @title CLMSRMarketCore  
 /// @notice Core implementation for CLMSR Daily-Market System
-/// @dev Immutable contract handling core trading logic and market state
-contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
+/// @dev UUPS upgradeable contract handling core trading logic and market state
+contract CLMSRMarketCore is 
+    Initializable,
+    ICLMSRMarketCore, 
+    OwnableUpgradeable,
+    UUPSUpgradeable,
+    PausableUpgradeable,
+    ReentrancyGuardUpgradeable
+{
     using SafeERC20 for IERC20;
     using {
         FixedPointMathU.toWad,
@@ -35,14 +46,14 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     uint32 public constant MAX_TICK_COUNT = 1_000_000;
     
     /// @notice Minimum liquidity parameter (alpha)
-    uint256 public constant MIN_LIQUIDITY_PARAMETER = 1e15; // 0.001 ETH
+    uint256 public constant MIN_LIQUIDITY_PARAMETER = 1e15; // 0.001 
     
     /// @notice Maximum liquidity parameter (alpha)
-    uint256 public constant MAX_LIQUIDITY_PARAMETER = 1e21; // 1000 ETH
+    uint256 public constant MAX_LIQUIDITY_PARAMETER = 1e23; // 100000 
     
     
     /// @notice Maximum safe input for PRB-Math exp() function
-    uint256 private constant MAX_EXP_INPUT_WAD = 130_000_000_000_000_000; // 0.13 * 1e18
+    uint256 private constant MAX_EXP_INPUT_WAD = 1_000_000_000_000_000_000; // 1.0 * 1e18
     
     /// @notice Maximum number of chunks allowed per transaction to prevent gas DoS
     /// Increased to handle larger institutional trades while maintaining safety
@@ -54,16 +65,12 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     // ========================================
     
     /// @notice Payment token (USDC - 6 decimals)
-    IERC20 public immutable paymentToken;
+    IERC20 public paymentToken;
     
     /// @notice Position NFT contract
-    ICLMSRPosition public immutable positionContract;
+    ICLMSRPosition public positionContract;
     
-    /// @notice Manager contract address
-    address public immutable managerContract;
-    
-    /// @notice Contract pause state
-    bool public paused;
+
     
     /// @notice Market data storage
     mapping(uint256 => Market) public markets;
@@ -74,6 +81,9 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     /// @notice Next market ID counter for auto-increment
     uint256 public _nextMarketId;
     
+    /// @dev Gap for future storage variables
+    uint256[49] private __gap;
+    
 
     
 
@@ -82,23 +92,11 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     // MODIFIERS
     // ========================================
     
-    /// @notice Only manager can call
-    modifier onlyManager() {
-        if (msg.sender != managerContract) {
-            revert CE.UnauthorizedCaller(msg.sender);
-        }
-        _;
-    }
+
     
 
     
-    /// @notice Contract must not be paused
-    modifier whenNotPaused() {
-        if (paused) {
-            revert CE.ContractPaused();
-        }
-        _;
-    }
+
     
     /// @notice Market must exist
     modifier marketExists(uint256 marketId) {
@@ -109,33 +107,37 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     }
 
     // ========================================
-    // CONSTRUCTOR
+    // INITIALIZER
     // ========================================
     
-    /// @notice Initialize the core contract
+    /// @notice Initialize the upgradeable contract
     /// @param _paymentToken ERC20 token for payments
     /// @param _positionContract Position NFT contract
-    /// @param _managerContract Manager contract
-    constructor(
+    function initialize(
         address _paymentToken,
-        address _positionContract,
-        address _managerContract
-    ) {
+        address _positionContract
+    ) external initializer {
         if (_paymentToken == address(0) || 
-            _positionContract == address(0) || 
-            _managerContract == address(0)) {
+            _positionContract == address(0)) {
             revert CE.ZeroAddress();
         }
         
+        __Ownable_init(msg.sender);
+        __UUPSUpgradeable_init();
+        __Pausable_init();
+        __ReentrancyGuard_init();
+        
         paymentToken = IERC20(_paymentToken);
-        positionContract = ICLMSRPosition(_positionContract);
-        managerContract = _managerContract;
+        positionContract = ICLMSRPosition(_positionContract);    
         
         // Initialize market ID counter
         _nextMarketId = 1;
         
         // Note: 6 decimals assumed for payment token (USDC)
     }
+    
+    /// @notice Authorize upgrade (only owner)
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     // ========================================
     // MARKET MANAGEMENT FUNCTIONS
@@ -149,7 +151,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         uint64 startTimestamp,
         uint64 endTimestamp,
         uint256 liquidityParameter
-    ) external override onlyManager whenNotPaused returns (uint256 marketId) {
+    ) external override onlyOwner whenNotPaused returns (uint256 marketId) {
         // Auto-generate market ID
         marketId = _nextMarketId;
         _nextMarketId++;
@@ -184,7 +186,9 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             maxTick: maxTick,
             tickSpacing: tickSpacing,
             numBins: numBins,
-            liquidityParameter: liquidityParameter
+            liquidityParameter: liquidityParameter,
+            positionEventsCursor: 0,
+            positionEventsEmitted: false
         });
         
         // Initialize segment tree
@@ -195,7 +199,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     
     /// @inheritdoc ICLMSRMarketCore
     function settleMarket(uint256 marketId, int256 settlementTick) 
-        external override onlyManager marketExists(marketId) {
+        external override onlyOwner marketExists(marketId) {
         Market storage market = markets[marketId];
         
         if (market.settled) {
@@ -212,21 +216,83 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         market.settlementTick = settlementTick;
         market.isActive = false;
         
+        // Initialize position events emission state
+        market.positionEventsCursor = 0;
+        market.positionEventsEmitted = false;
+        
         emit MarketSettled(marketId, settlementTick);
-        
-        uint256[] memory positionIds = positionContract.getMarketPositions(marketId);
-        
-        for (uint256 i = 0; i < positionIds.length; i++) {
-            uint256 posId = positionIds[i];
-            ICLMSRPosition.Position memory pos = positionContract.getPosition(posId);
-            address owner = positionContract.ownerOf(posId);
-            
-            // Position wins if settlement tick is within position range [lowerTick, upperTick)
-            bool isWin = pos.lowerTick <= settlementTick && pos.upperTick > settlementTick;
-            uint256 payout = isWin ? uint256(pos.quantity) : 0;
-            
-            emit PositionSettled(posId, owner, payout, isWin);
+    }
+
+    /// @inheritdoc ICLMSRMarketCore
+    function emitPositionSettledBatch(
+        uint256 marketId,
+        uint256 scanLimit
+    ) external override onlyOwner marketExists(marketId) {
+        Market storage m = markets[marketId];
+        if (!m.settled) revert CE.MarketNotSettled(marketId);
+        if (m.positionEventsEmitted) return;
+        require(scanLimit > 0, "scanLimit=0");
+
+        // 커서가 0이면 1번 position부터 시작
+        uint256 fromId = m.positionEventsCursor == 0 ? 1 : uint256(m.positionEventsCursor);
+        uint256 maxIdExclusive = positionContract.getNextId(); // nextId는 Exclusive 상한
+        if (fromId >= maxIdExclusive) {
+            m.positionEventsEmitted = true;
+            emit PositionEventsProgress(marketId, fromId, fromId, true);
+            return;
         }
+
+        uint256 toIdExclusive = fromId + scanLimit;
+        if (toIdExclusive > maxIdExclusive) toIdExclusive = maxIdExclusive;
+
+        // 스캔 범위 내에서 해당 마켓 포지션만 이벤트 emit
+        for (uint256 pid = fromId; pid < toIdExclusive; ++pid) {
+            // 존재하지 않거나 다른 마켓이면 건너뜀
+            if (!positionContract.exists(pid)) continue;
+            ICLMSRPosition.Position memory p = positionContract.getPosition(pid);
+            if (p.marketId != marketId) continue;
+
+            // 승/패 및 페이아웃 계산
+            uint256 payout = _calculateClaimAmount(pid);
+            bool isWin = payout > 0;
+
+            // 소유자 (존재 확인 후 ownerOf 사용)
+            address trader = positionContract.ownerOf(pid);
+            emit PositionSettled(pid, trader, payout, isWin);
+        }
+
+        // 커서를 다음 스캔 시작점으로 이동
+        m.positionEventsCursor = uint32(toIdExclusive);
+        bool done = (toIdExclusive == maxIdExclusive);
+        if (done) m.positionEventsEmitted = true;
+
+        // 진행 이벤트: 이제 'positionId' 범위를 의미 (배열 인덱스 아님)
+        emit PositionEventsProgress(marketId, fromId, toIdExclusive - 1, done);
+    }
+
+    /// @inheritdoc ICLMSRMarketCore
+    function updateMarketTiming(
+        uint256 marketId,
+        uint64 newStartTimestamp,
+        uint64 newEndTimestamp
+    ) external override onlyOwner marketExists(marketId) {
+        Market storage market = markets[marketId];
+        
+        // Market must not be settled
+        if (market.settled) {
+            revert CE.MarketAlreadySettled(marketId);
+        }
+        
+        // Validate new time range
+        if (newStartTimestamp >= newEndTimestamp) {
+            revert CE.InvalidTimeRange();
+        }
+        
+        // Update timing
+        market.startTimestamp = newStartTimestamp;
+        market.endTimestamp = newEndTimestamp;
+        
+        emit MarketTimingUpdated(marketId, newStartTimestamp, newEndTimestamp);
     }
 
     // ========================================
@@ -385,7 +451,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     // STATE QUERY FUNCTIONS
     // ========================================
     
-    /// @inheritdoc ICLMSRMarketCore
+        /// @inheritdoc ICLMSRMarketCore
     function getMarket(uint256 marketId) 
         external view override returns (Market memory market) {
         if (!_marketExists(marketId)) {
@@ -394,9 +460,9 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         return markets[marketId];
     }
     
-    /// @inheritdoc ICLMSRMarketCore
+        /// @inheritdoc ICLMSRMarketCore
     function getTickValue(uint256 marketId, int256 tick) 
-        external view override marketExists(marketId) returns (uint256 value) {
+    external view override marketExists(marketId) returns (uint256 value) {
         Market memory market = markets[marketId];
         _validateTick(tick, market);
         
@@ -438,7 +504,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     function propagateLazy(uint256 marketId, int256 lo, int256 hi)
         external
         override
-        onlyManager
+        onlyOwner
         marketExists(marketId)
         returns (uint256 sum)
     {
@@ -463,7 +529,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     function applyRangeFactor(uint256 marketId, int256 lo, int256 hi, uint256 factor)
         external
         override
-        onlyManager
+        onlyOwner
         marketExists(marketId)
     {
         Market memory market = markets[marketId];
@@ -480,53 +546,44 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         emit RangeFactorApplied(marketId, lo, hi, factor);
     }
     
-    /// @inheritdoc ICLMSRMarketCore
+        /// @inheritdoc ICLMSRMarketCore
     function getPositionContract() external view override returns (address) {
         return address(positionContract);
     }
     
-    /// @inheritdoc ICLMSRMarketCore
+        /// @inheritdoc ICLMSRMarketCore
     function getPaymentToken() external view override returns (address) {
         return address(paymentToken);
     }
     
 
     
-    /// @notice Get manager contract address
-    /// @return Manager contract address
-    function getManagerContract() external view returns (address) {
-        return managerContract;
-    }
+
     
     // ========================================
     // EMERGENCY FUNCTIONS
     // ========================================
     
-    /// @inheritdoc ICLMSRMarketCore
-    function pause(string calldata reason) external override onlyManager {
-        _pause(reason);
+        /// @inheritdoc ICLMSRMarketCore
+    function pause(string calldata reason) external override onlyOwner {
+        _pauseWithReason(reason);
     }
     
-    /// @inheritdoc ICLMSRMarketCore
-    function unpause() external override onlyManager {
-        _unpause();
+        /// @inheritdoc ICLMSRMarketCore
+    function unpause() external override onlyOwner {
+        super._unpause();
+        emit EmergencyUnpaused(msg.sender);
     }
     
     /// @notice Internal pause implementation
-    function _pause(string memory reason) internal {
-        paused = true;
+    function _pauseWithReason(string memory reason) internal {
+        super._pause();
         emit EmergencyPaused(msg.sender, reason);
-    }
-    
-    /// @notice Internal unpause implementation
-    function _unpause() internal {
-        paused = false;
-        emit EmergencyUnpaused(msg.sender);
     }
     
     /// @inheritdoc ICLMSRMarketCore
     function isPaused() external view override returns (bool) {
-        return paused;
+        return paused();
     }
 
     // ========================================
@@ -663,7 +720,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         
         // Update position quantity
         newQuantity = position.quantity + additionalQuantity;
-        positionContract.setPositionQuantity(positionId, newQuantity);
+        positionContract.updateQuantity(positionId, newQuantity);
         
         emit PositionIncreased(positionId, msg.sender, additionalQuantity, newQuantity, cost6);
     }
@@ -717,9 +774,9 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         newQuantity = position.quantity - sellQuantity;
         if (newQuantity == 0) {
             // Burn position if quantity becomes zero
-            positionContract.burnPosition(positionId);
+            positionContract.burn(positionId);
         } else {
-            positionContract.setPositionQuantity(positionId, newQuantity);
+            positionContract.updateQuantity(positionId, newQuantity);
         }
         
         emit PositionDecreased(positionId, msg.sender, sellQuantity, newQuantity, proceeds);
@@ -752,7 +809,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         _pushUSDC(msg.sender, payout);
         
         // Burn position NFT (position is claimed)
-        positionContract.burnPosition(positionId);
+        positionContract.burn(positionId);
         
         emit PositionClaimed(positionId, msg.sender, payout);
     }
@@ -830,7 +887,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         return proceedsWad.fromWadRoundUp();
     }
     
-    /// @inheritdoc ICLMSRMarketCore
+        /// @inheritdoc ICLMSRMarketCore
     function calculateCloseProceeds(
         uint256 positionId
     ) external view override returns (uint256 proceeds) {
@@ -851,6 +908,51 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
     ) external view override returns (uint256 amount) {
         return _calculateClaimAmount(positionId);
     }
+    
+    /// @inheritdoc ICLMSRMarketCore
+    function calculateQuantityFromCost(
+        uint256 marketId,
+        int256 lowerTick,
+        int256 upperTick,
+        uint256 cost
+    ) external view override marketExists(marketId) returns (uint128 quantity) {
+        if (cost == 0) {
+            return 0;
+        }
+        
+        Market memory market = markets[marketId];
+        _validateTick(lowerTick, market);
+        _validateTick(upperTick, market);
+        
+        if (lowerTick > upperTick) {
+            revert CE.InvalidTickRange(lowerTick, upperTick);
+        }
+        
+        // 🚨 NO POINT BETTING: Reject same tick betting
+        if (lowerTick == upperTick) {
+            revert CE.InvalidTickRange(lowerTick, upperTick);
+        }
+        
+        // ✅ RANGE BETTING: Allow any valid range (single or multiple intervals)
+        // Must be aligned to tick spacing
+        if ((upperTick - lowerTick) % market.tickSpacing != 0) {
+            revert CE.InvalidTickRange(lowerTick, upperTick);
+        }
+        
+        // Convert cost to WAD for internal calculation
+        uint256 costWad = uint256(cost).toWad();
+        uint256 quantityWad = _calculateQuantityFromCostInternal(marketId, lowerTick, upperTick, costWad);
+        
+        // Convert quantity back to 6-decimal for external interface
+        uint256 quantityValue = quantityWad.fromWad();
+        
+        // Ensure result fits in uint128
+        if (quantityValue > type(uint128).max) {
+            revert CE.InvalidQuantity(type(uint128).max);
+        }
+        
+        return uint128(quantityValue);
+    }
 
     // ========================================
     // INTERNAL CALCULATION FUNCTIONS
@@ -870,6 +972,55 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             res = res.wMul(factor);
             q -= chunk;
         }
+    }
+    
+    /// @notice Calculate quantity that can be bought with given cost (inverse function)
+    /// @dev Implements inverse of CLMSR formula: from C = α * ln(Σ_after / Σ_before), solve for q
+    /// @param marketId Market identifier
+    /// @param lowerTick Lower tick bound
+    /// @param upperTick Upper tick bound
+    /// @param costWad Target cost in WAD format
+    /// @return quantityWad Purchasable quantity in WAD format
+    function _calculateQuantityFromCostInternal(
+        uint256 marketId,
+        int256 lowerTick,
+        int256 upperTick,
+        uint256 costWad
+    ) internal view returns (uint256 quantityWad) {
+        Market memory market = markets[marketId];
+        uint256 alpha = market.liquidityParameter;
+        
+        // Convert range to bins
+        (uint32 lowerBin, uint32 upperBin) = _rangeToBins(lowerTick, upperTick, market);
+        
+        // Get current state with proper lazy propagation
+        // Use getRangeSum for entire tree to get accurate total with lazy values
+        uint256 sumBefore = LazyMulSegmentTree.getRangeSum(marketTrees[marketId], 0, market.numBins - 1);
+        uint256 affectedSum = LazyMulSegmentTree.getRangeSum(marketTrees[marketId], lowerBin, upperBin);
+        
+        // Ensure tree is properly initialized
+        if (sumBefore == 0) revert CE.TreeNotInitialized();
+        
+        if (affectedSum == 0) {
+            revert CE.TreeNotInitialized(); // Cannot calculate quantity from cost: affected sum is zero
+        }
+        
+        // Direct mathematical inverse:
+        // From: C = α * ln(sumAfter / sumBefore)
+        // Calculate: q = α * ln(factor)
+        
+        // Calculate target sum after: sumAfter = sumBefore * exp(C/α) - use safe chunking
+        uint256 expValue = _safeExp(costWad, alpha);
+        uint256 targetSumAfter = sumBefore.wMul(expValue);
+        
+        // Calculate required affected sum after trade
+        uint256 requiredAffectedSum = targetSumAfter - (sumBefore - affectedSum);
+        
+        // Calculate factor: newAffectedSum / affectedSum
+        uint256 factor = requiredAffectedSum.wDiv(affectedSum);
+        
+        // Calculate quantity: q = α * ln(factor)
+        quantityWad = alpha.wMul(factor.wLn());
     }
     
     /// @notice Calculate cost of a trade using CLMSR formula with chunk-split logic
@@ -894,7 +1045,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             return _calculateSingleTradeCost(marketId, lowerTick, upperTick, totalQuantity, alpha);
         } else {
             // Split into chunks with proper cumulative calculation
-            uint256 sumBefore = LazyMulSegmentTree.getTotalSum(marketTrees[marketId]);
+            uint256 sumBefore = LazyMulSegmentTree.getRangeSum(marketTrees[marketId], 0, market.numBins - 1);
             uint256 affectedSum = LazyMulSegmentTree.getRangeSum(marketTrees[marketId], lowerBin, upperBin);
             
             // Ensure tree is properly initialized
@@ -987,15 +1138,15 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         uint256 quantity,
         uint256 alpha
     ) internal view returns (uint256 cost) {
-        // Get current sum before trade using cached total sum
-        uint256 sumBefore = LazyMulSegmentTree.getTotalSum(marketTrees[marketId]);
+        // Get current sum before trade with proper lazy propagation
+        Market memory market = markets[marketId];
+        uint256 sumBefore = LazyMulSegmentTree.getRangeSum(marketTrees[marketId], 0, market.numBins - 1);
         
         // Calculate multiplicative factor: exp(quantity / α)
         uint256 quantityScaled = quantity.wDiv(alpha);
         uint256 factor = quantityScaled.wExp();
         
         // Calculate sum after trade - convert range to bins
-        Market memory market = markets[marketId];
         (uint32 lowerBin, uint32 upperBin) = _rangeToBins(lowerTick, upperTick, market);
         uint256 affectedSum = LazyMulSegmentTree.getRangeSum(marketTrees[marketId], lowerBin, upperBin);
         
@@ -1042,7 +1193,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
             return _calculateSingleSellProceeds(marketId, lowerTick, upperTick, totalQuantity, alpha);
         } else {
             // Split into chunks with proper cumulative calculation
-            uint256 sumBefore = LazyMulSegmentTree.getTotalSum(marketTrees[marketId]);
+            uint256 sumBefore = LazyMulSegmentTree.getRangeSum(marketTrees[marketId], 0, market.numBins - 1);
             uint256 affectedSum = LazyMulSegmentTree.getRangeSum(marketTrees[marketId], lowerBin, upperBin);
             
             // Ensure tree is properly initialized
@@ -1133,6 +1284,9 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         }
     }
     
+    /// @notice Debug event for sell proceeds calculation
+    event DebugSellProceeds(uint256 step, uint256 value1, uint256 value2, string message);
+
     /// @notice Calculate proceeds for a single chunk (small quantity)
     function _calculateSingleSellProceeds(
         uint256 marketId,
@@ -1141,8 +1295,9 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         uint256 quantity,
         uint256 alpha
     ) internal view returns (uint256 proceeds) {
-        // Get current sum before sell using cached total sum
-        uint256 sumBefore = LazyMulSegmentTree.getTotalSum(marketTrees[marketId]);
+        // Get current sum before sell with proper lazy propagation
+        Market memory market = markets[marketId];
+        uint256 sumBefore = LazyMulSegmentTree.getRangeSum(marketTrees[marketId], 0, market.numBins - 1);
         
         // Calculate multiplicative factor: exp(-quantity / α) = 1 / exp(quantity / α)
         uint256 quantityScaled = quantity.wDiv(alpha);
@@ -1150,7 +1305,6 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         uint256 inverseFactor = FixedPointMathU.WAD.wDiv(factor);
         
         // Calculate sum after sell - convert range to indices
-        Market memory market = markets[marketId];
         (uint32 lowerBin, uint32 upperBin) = _rangeToBins(lowerTick, upperTick, market);
         uint256 affectedSum = LazyMulSegmentTree.getRangeSum(marketTrees[marketId], lowerBin, upperBin);
         
@@ -1164,9 +1318,6 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         
         // Safety check: ensure sumAfter > 0 to prevent division by zero
         if (sumAfter == 0) revert CE.TreeNotInitialized(); // Reusing existing error
-        
-        // Ensure tree is properly initialized
-        if (sumBefore == 0) revert CE.TreeNotInitialized();
         
         // CLMSR proceeds formula: α * ln(sumBefore / sumAfter)
         if (sumBefore <= sumAfter) {
@@ -1378,7 +1529,7 @@ contract CLMSRMarketCore is ICLMSRMarketCore, ReentrancyGuard {
         _pushUSDC(msg.sender, proceeds);
         
         // Burn position NFT
-        positionContract.burnPosition(positionId);
+        positionContract.burn(positionId);
         
         emit PositionClosed(positionId, msg.sender, proceeds);
     }

@@ -85,11 +85,9 @@ export async function deployAction(environment: Environment): Promise<void> {
   // Position 컨트랙트 배포
   console.log("🎭 Deploying Position contract...");
 
-  const CLMSRPositionUpgradeable = await ethers.getContractFactory(
-    "CLMSRPositionUpgradeable"
-  );
+  const CLMSRPosition = await ethers.getContractFactory("CLMSRPosition");
   const positionProxy = await upgrades.deployProxy(
-    CLMSRPositionUpgradeable,
+    CLMSRPosition,
     [ethers.ZeroAddress], // Temporary
     {
       kind: "uups",
@@ -121,18 +119,15 @@ export async function deployAction(environment: Environment): Promise<void> {
   // Core 컨트랙트 배포
   console.log("🏗️ Deploying Core contract...");
 
-  const CLMSRMarketCoreUpgradeable = await ethers.getContractFactory(
-    "CLMSRMarketCoreUpgradeable",
-    {
-      libraries: {
-        FixedPointMathU: fixedPointMathAddress,
-        LazyMulSegmentTree: segmentTreeAddress,
-      },
-    }
-  );
+  const CLMSRMarketCore = await ethers.getContractFactory("CLMSRMarketCore", {
+    libraries: {
+      FixedPointMathU: fixedPointMathAddress,
+      LazyMulSegmentTree: segmentTreeAddress,
+    },
+  });
 
   const coreProxy = await upgrades.deployProxy(
-    CLMSRMarketCoreUpgradeable,
+    CLMSRMarketCore,
     [susdAddress, positionProxyAddress],
     {
       kind: "uups",
@@ -169,11 +164,9 @@ export async function deployAction(environment: Environment): Promise<void> {
 
   // PointsGranter 배포 (항상 배포)
   console.log("🎯 Deploying PointsGranter (UUPS)...");
-  const PointsGranterUpgradeable = await ethers.getContractFactory(
-    "PointsGranterUpgradeable"
-  );
+  const PointsGranter = await ethers.getContractFactory("PointsGranter");
   const pointsProxy = await upgrades.deployProxy(
-    PointsGranterUpgradeable,
+    PointsGranter,
     [deployer.address],
     {
       kind: "uups",

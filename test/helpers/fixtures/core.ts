@@ -81,7 +81,7 @@ export async function coreFixture() {
   const mockPosition = await MockPositionFactory.deploy();
   await mockPosition.waitForDeployment();
 
-  // Deploy core contract
+  // Deploy core contract (upgradeable)
   const CLMSRMarketCoreFactory = await ethers.getContractFactory(
     "CLMSRMarketCore",
     {
@@ -92,12 +92,14 @@ export async function coreFixture() {
     }
   );
 
-  const core = await CLMSRMarketCoreFactory.deploy(
-    await paymentToken.getAddress(),
-    await mockPosition.getAddress(),
-    keeper.address
-  );
+  const core = await CLMSRMarketCoreFactory.deploy();
   await core.waitForDeployment();
+
+  // Initialize upgradeable contract
+  await core.initialize(
+    await paymentToken.getAddress(),
+    await mockPosition.getAddress()
+  );
 
   // Setup contracts
   await paymentToken.mint(await core.getAddress(), INITIAL_SUPPLY);
@@ -170,17 +172,11 @@ export async function createActiveMarket(
   const maxTick = minTick + (TICK_COUNT - 1) * 10;
   const tickSpacing = 10;
 
+  // createMarket은 marketId를 자동 생성하므로 매개변수에서 제외
+  // 업그레이더블 컨트랙트에서는 deployer가 owner이므로 keeper 대신 deployer 사용
   await contracts.core
-    .connect(contracts.keeper)
-    .createMarket(
-      marketId,
-      minTick,
-      maxTick,
-      tickSpacing,
-      startTime,
-      endTime,
-      ALPHA
-    );
+    .connect(contracts.deployer)
+    .createMarket(minTick, maxTick, tickSpacing, startTime, endTime, ALPHA);
 
   // Move to market start time
   await time.increaseTo(startTime + 1);

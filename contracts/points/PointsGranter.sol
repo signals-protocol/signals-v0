@@ -6,10 +6,10 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 /**
- * @title PointsGranterUpgradeable
- * @notice UUPS 업그레이더블. 온체인 스토리지는 없고 이벤트만 발생시켜 인덱싱용으로 사용.
+ * @title PointsGranter
+ * @notice UUPS 패턴. 온체인 스토리지는 없고 이벤트만 발생시켜 인덱싱용으로 사용.
  */
-contract PointsGranterUpgradeable is Initializable, OwnableUpgradeable, UUPSUpgradeable {
+contract PointsGranter is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     /// reason: 1=ACTIVITY, 2=PERFORMANCE, 3=RISK_BONUS, 100+=MANUAL
     /// contextTs: 0이면 인덱서에서 block.timestamp 사용
     event PointsGranted(address indexed user, uint256 amount, uint8 reason, uint64 contextTs);
@@ -20,6 +20,8 @@ contract PointsGranterUpgradeable is Initializable, OwnableUpgradeable, UUPSUpgr
     }
 
     function _authorizeUpgrade(address) internal override onlyOwner {}
+
+
 
     function grantPoints(
         address user,

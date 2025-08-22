@@ -3,6 +3,7 @@ import "@nomicfoundation/hardhat-toolbox";
 import "@openzeppelin/hardhat-upgrades";
 import "hardhat-gas-reporter";
 import "hardhat-tracer";
+import "solidity-docgen";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -14,7 +15,10 @@ const config: HardhatUserConfig = {
       viaIR: true,
       optimizer: {
         enabled: true,
-        runs: 200,
+        runs: 50, // Lowered from 200 to reduce contract size for EIP-170 compliance
+      },
+      metadata: {
+        bytecodeHash: "none", // Remove metadata hash to save additional bytes
       },
     },
   },
@@ -113,6 +117,12 @@ const config: HardhatUserConfig = {
         },
       },
     ],
+  },
+  docgen: {
+    outputDir: "../website/docs/contracts",
+    pages: "items",
+    exclude: ["mocks/**", "test/**"],
+    templates: "default",
   },
 };
 

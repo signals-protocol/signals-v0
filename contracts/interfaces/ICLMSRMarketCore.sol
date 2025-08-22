@@ -2,8 +2,8 @@
 pragma solidity ^0.8.24;
 
 /// @title ICLMSRMarketCore
-/// @notice Core interface for CLMSR Daily-Market System
-/// @dev Immutable contract handling core trading logic and market state
+/// @notice Upgradeable core interface for CLMSR Daily-Market System
+/// @dev UUPS upgradeable contract handling core trading logic and market state
 interface ICLMSRMarketCore {
     // ========================================
     // STRUCTS
@@ -21,9 +21,12 @@ interface ICLMSRMarketCore {
         int256 tickSpacing;             // Spacing between valid ticks
         uint32 numBins;                 // Number of bins in market (calculated)
         uint256 liquidityParameter;    // Alpha parameter (1e18 scale)
+        
+        // Position events emission state
+        uint32 positionEventsCursor;    // Next emission start index
+        bool positionEventsEmitted;     // All events emitted flag
     }
     
-
 
     // ========================================
     // EVENTS
@@ -50,6 +53,13 @@ interface ICLMSRMarketCore {
         address indexed trader,
         uint256 payout,
         bool isWin
+    );
+
+    event PositionEventsProgress(
+        uint256 indexed marketId,
+        uint256 from,
+        uint256 to,
+        bool done
     );
 
     event PositionOpened(
@@ -99,6 +109,12 @@ interface ICLMSRMarketCore {
         address indexed by
     );
 
+    event MarketTimingUpdated(
+        uint256 indexed marketId,
+        uint64 newStartTimestamp,
+        uint64 newEndTimestamp
+    );
+
     /// @notice Emitted when range multiplication factor is applied
     /// @param marketId Market identifier
     /// @param lo Left boundary (inclusive)
@@ -115,7 +131,7 @@ interface ICLMSRMarketCore {
     // MARKET MANAGEMENT FUNCTIONS
     // ========================================
     
-    /// @notice Create a new market (only callable by Manager)
+    /// @notice Create a new market (only callable by Owner)
     /// @dev Stores market data and initializes all tick values to WAD (1e18)
     /// @param marketId Market identifier
     /// @param minTick Minimum allowed tick value
@@ -134,11 +150,28 @@ interface ICLMSRMarketCore {
         uint256 liquidityParameter
     ) external returns (uint256 marketId);
     
-    /// @notice Settle a market (only callable by Manager)
+    /// @notice Settle a market (only callable by Owner)
     /// @dev Sets exact winning tick value and enables position claiming
     /// @param marketId Market identifier
     /// @param settlementTick Exact winning tick value
     function settleMarket(uint256 marketId, int256 settlementTick) external;
+
+    /// @notice Emit position settled events in batches (only callable by Owner)
+    /// @dev Emits PositionSettled events for positions using cursor-based pagination
+    /// @param marketId Market identifier
+    /// @param limit Maximum number of positions to process in this batch
+    function emitPositionSettledBatch(uint256 marketId, uint256 limit) external;
+
+    /// @notice Update market timing (only callable by Owner)
+    /// @dev Changes market start and end timestamps for a specific market
+    /// @param marketId Market identifier
+    /// @param newStartTimestamp New market start time
+    /// @param newEndTimestamp New market end time
+    function updateMarketTiming(
+        uint256 marketId,
+        uint64 newStartTimestamp,
+        uint64 newEndTimestamp
+    ) external;
 
     // ========================================
     // EXECUTION FUNCTIONS
@@ -246,6 +279,19 @@ interface ICLMSRMarketCore {
     function calculateClaimAmount(
         uint256 positionId
     ) external view returns (uint256 amount);
+    
+    /// @notice Calculate quantity that can be bought with given cost (inverse function)
+    /// @param marketId Market identifier
+    /// @param lowerTick Lower tick bound
+    /// @param upperTick Upper tick bound
+    /// @param cost Target cost to spend (6 decimals)
+    /// @return quantity Purchasable quantity
+    function calculateQuantityFromCost(
+        uint256 marketId,
+        int256 lowerTick,
+        int256 upperTick,
+        uint256 cost
+    ) external view returns (uint128 quantity);
 
     // ========================================
     // STATE QUERY FUNCTIONS
@@ -270,9 +316,6 @@ interface ICLMSRMarketCore {
     /// @return Payment token address
     function getPaymentToken() external view returns (address);
     
-    
-
-    
     // ========================================
     // SEGMENT TREE FUNCTIONS
     // ========================================
@@ -287,7 +330,7 @@ interface ICLMSRMarketCore {
         external view returns (uint256 sum);
     
     /// @notice Propagate lazy values and return range sum (state-changing function)
-    /// @dev For Keeper/Manager - actually pushes lazy values down the tree
+    /// @dev For Keeper/Owner - actually pushes lazy values down the tree
     /// @param marketId Market identifier
     /// @param lo Left boundary (inclusive, actual tick value)
     /// @param hi Right boundary (inclusive, actual tick value)
@@ -296,7 +339,7 @@ interface ICLMSRMarketCore {
         external returns (uint256 sum);
     
     /// @notice Apply multiplication factor to range (state-changing function)
-    /// @dev For Keeper/Manager - updates market state by applying factor
+    /// @dev For Keeper/Owner - updates market state by applying factor
     /// @param marketId Market identifier
     /// @param lo Left boundary (inclusive, actual tick value)
     /// @param hi Right boundary (inclusive, actual tick value)
@@ -318,4 +361,4 @@ interface ICLMSRMarketCore {
     /// @notice Check if contract is paused
     /// @return True if paused
     function isPaused() external view returns (bool);
-} 
+}
