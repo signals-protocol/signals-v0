@@ -1,0 +1,10 @@
+{
+  "label": "Security",
+  "position": 8,
+  "link": {
+    "type": "generated-index",
+    "description": "Security audits, bug bounties, and risk assessments"
+  }
+}
+
+
