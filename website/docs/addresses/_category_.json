@@ -1,0 +1,10 @@
+{
+  "label": "Addresses",
+  "position": 7,
+  "link": {
+    "type": "generated-index",
+    "description": "Contract addresses and deployment information"
+  }
+}
+
+

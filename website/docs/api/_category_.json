@@ -1,0 +1,10 @@
+{
+  "label": "API",
+  "position": 5,
+  "link": {
+    "type": "generated-index",
+    "description": "API documentation and GraphQL endpoints"
+  }
+}
+
+

@@ -1,0 +1,10 @@
+{
+  "label": "Governance",
+  "position": 10,
+  "link": {
+    "type": "generated-index",
+    "description": "Protocol parameters and upgrade processes"
+  }
+}
+
+
