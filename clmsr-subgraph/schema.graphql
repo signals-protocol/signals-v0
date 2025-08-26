@@ -291,4 +291,6 @@ type PositionSettled @entity(immutable: true) {
   isWin: Boolean!
   blockNumber: BigInt!
   blockTimestamp: BigInt!
-  transactionHash: Bytes
+  transactionHash: Bytes!
+}
+

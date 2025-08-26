@@ -47,6 +47,13 @@ if (!COMMAND) {
   emit-position-settled:citrea:dev  - Emit position settled events on citrea dev
   emit-position-settled:citrea:prod - Emit position settled events on citrea prod
   
+🔍 Position Status Commands:
+  check-position-status:localhost   - Check position emission status on localhost
+  check-position-status:base:dev    - Check position emission status on base dev
+  check-position-status:base:prod   - Check position emission status on base prod
+  check-position-status:citrea:dev  - Check position emission status on citrea dev
+  check-position-status:citrea:prod - Check position emission status on citrea prod
+  
 ⏰ Market Timing Commands:
   update-market-timing:localhost   - Update market timing on localhost (hardcoded values)
   update-market-timing:base:dev    - Update market timing on base dev (hardcoded values)
@@ -134,6 +141,13 @@ async function dispatch() {
           "./actions/emit-position-settled"
         );
         await emitPositionSettledAction(environment as Environment);
+        break;
+
+      case "check-position-status":
+        const { checkMarketPositionStatusCLI } = await import(
+          "./actions/check-market-position-status"
+        );
+        await checkMarketPositionStatusCLI(environment as Environment);
         break;
 
       case "update-market-timing":

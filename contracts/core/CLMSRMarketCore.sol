@@ -53,12 +53,12 @@ contract CLMSRMarketCore is
     
     
     /// @notice Maximum safe input for PRB-Math exp() function
-    uint256 private constant MAX_EXP_INPUT_WAD = 1_000_000_000_000_000_000; // 1.0 * 1e18
+    uint256 private constant MAX_EXP_INPUT_WAD = 4_000_000_000_000_000_000; // 1.0 * 1e18
     
     /// @notice Maximum number of chunks allowed per transaction to prevent gas DoS
     /// Increased to handle larger institutional trades while maintaining safety
     /// This allows for trades up to 500 * maxSafeQuantityPerChunk in size
-    uint256 private constant MAX_CHUNKS_PER_TX = 1000;
+    uint256 private constant MAX_CHUNKS_PER_TX = 2000;
 
     // ========================================
     // STATE VARIABLES
@@ -85,18 +85,10 @@ contract CLMSRMarketCore is
     uint256[49] private __gap;
     
 
-    
-
 
     // ========================================
     // MODIFIERS
     // ========================================
-    
-
-    
-
-    
-
     
     /// @notice Market must exist
     modifier marketExists(uint256 marketId) {

@@ -75,3 +75,5 @@ beta-addresses.json
 combine_all_files.sh
 complete_codebase.md
 coverage.json
+
+verification/

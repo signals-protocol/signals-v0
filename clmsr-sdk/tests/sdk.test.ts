@@ -26,19 +26,15 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
 
     // 400개 bin (100000부터 140000까지, 100씩 증가)
     const binFactors = [];
-    const binFactorsWad = [];
     for (let i = 0; i < 400; i++) {
       // LMSR 초기 분포: 모든 bin이 동일한 확률 (exp(0) = 1.0)
-      binFactors.push("1.0"); // 문자열 배열 (표시용)
-      binFactorsWad.push("1000000000000000000"); // WAD 문자열 배열
+      binFactors.push("1000000000000000000"); // WAD 문자열 배열
     }
 
     // Raw 데이터를 생성한 후 어댑터를 통해 변환
     const rawDistribution: MarketDistributionRaw = {
-      totalSum: "400", // 표시용 decimal 값
-      totalSumWad: "400000000000000000000", // 계산용 WAD 값 (400 * 1e18)
+      totalSum: "400000000000000000000", // 계산용 WAD 값 (400 * 1e18)
       binFactors,
-      binFactorsWad,
     };
 
     distribution = mapDistribution(rawDistribution);
@@ -52,7 +48,7 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
       const small = sdk.calculateOpenCost(
         range.lower,
         range.upper,
-        toUSDC("20"), // 20달러 베팅
+        toMicroUSDC("20"), // 20달러 베팅
         distribution,
         market
       );
@@ -60,7 +56,7 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
       const large = sdk.calculateOpenCost(
         range.lower,
         range.upper,
-        toUSDC("100"), // 100달러 베팅 (5배 증가)
+        toMicroUSDC("100"), // 100달러 베팅 (5배 증가)
         distribution,
         market
       );
@@ -83,21 +79,21 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
       const cost1x = sdk.calculateOpenCost(
         range.lower,
         range.upper,
-        toUSDC("1"),
+        toMicroUSDC("1"),
         distribution,
         market
       );
       const cost2x = sdk.calculateOpenCost(
         range.lower,
         range.upper,
-        toUSDC("2"),
+        toMicroUSDC("2"),
         distribution,
         market
       );
       const cost4x = sdk.calculateOpenCost(
         range.lower,
         range.upper,
-        toUSDC("4"),
+        toMicroUSDC("4"),
         distribution,
         market
       );
@@ -112,7 +108,7 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
 
   describe("🎯 LMSR 핵심 특성 - 범위 효과 (Range Effect)", () => {
     test("넓은 범위일수록 더 비싸다", () => {
-      const quantity = toUSDC("10");
+      const quantity = toMicroUSDC("10");
 
       const narrow = sdk.calculateOpenCost(
         119000,
@@ -143,7 +139,7 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
     });
 
     test("같은 확률이라면 범위가 넓어도 비슷한 가격", () => {
-      const quantity = toUSDC("1");
+      const quantity = toMicroUSDC("1");
 
       // 같은 확률이지만 다른 크기의 범위
       const small = sdk.calculateOpenCost(
@@ -176,7 +172,7 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
   describe("🎯 LMSR 핵심 특성 - 수학적 일관성", () => {
     test("동일한 입력에 대해 항상 같은 결과를 반환한다 (순수 함수)", () => {
       const range = { lower: 115000, upper: 125000 };
-      const quantity = toUSDC("50");
+      const quantity = toMicroUSDC("50");
 
       // 같은 파라미터로 여러 번 호출
       const result1 = sdk.calculateOpenCost(
@@ -204,7 +200,7 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
 
     test("매수 비용은 항상 양수이다", () => {
       const range = { lower: 115000, upper: 125000 };
-      const quantity = toUSDC("1");
+      const quantity = toMicroUSDC("1");
 
       const result = sdk.calculateOpenCost(
         range.lower,
@@ -221,7 +217,7 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
 
   describe("🎯 LMSR 핵심 특성 - 확률과 가격의 관계", () => {
     test("같은 확률이면 비슷한 가격이다 (균등분포)", () => {
-      const quantity = toUSDC("5");
+      const quantity = toMicroUSDC("5");
 
       // 균등분포에서는 모든 영역이 같은 확률
       const range1 = sdk.calculateOpenCost(
@@ -251,7 +247,7 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
     });
 
     test("전체 범위 베팅은 최대 비용", () => {
-      const quantity = toUSDC("1");
+      const quantity = toMicroUSDC("1");
 
       // 전체 범위
       const fullRange = sdk.calculateOpenCost(
@@ -288,8 +284,8 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
   describe("🎯 포지션 관리 일관성", () => {
     test("증가 vs 처음부터 큰 포지션 - 수수료 차이", () => {
       const range = { lower: 115000, upper: 125000 };
-      const smallQuantity = toUSDC("5");
-      const additionalQuantity = toUSDC("5");
+      const smallQuantity = toMicroUSDC("5");
+      const additionalQuantity = toMicroUSDC("5");
 
       // 처음부터 큰 포지션
       const bigPosition = sdk.calculateOpenCost(
@@ -338,8 +334,8 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
 
     test("전체 포지션 닫기 vs 부분 닫기의 일관성", () => {
       const range = { lower: 115000, upper: 125000 };
-      const totalQuantity = toUSDC("10");
-      const partialQuantity = toUSDC("5");
+      const totalQuantity = toMicroUSDC("10");
+      const partialQuantity = toMicroUSDC("5");
 
       const position = {
         lowerTick: range.lower,
@@ -389,8 +385,8 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
       const range = { lower: 115000, upper: 125000 }; // $1150-$1250 범위
 
       // 더 작은 비용으로 테스트 (오버플로우 방지)
-      const smallCost = toUSDC("0.1");
-      const largeCost = toUSDC("1");
+      const smallCost = toMicroUSDC("0.1");
+      const largeCost = toMicroUSDC("1");
 
       const smallQuantity = sdk.calculateQuantityFromCost(
         range.lower,
@@ -417,7 +413,7 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
 
     test("역함수 근사 정확도", () => {
       const range = { lower: 115000, upper: 125000 }; // $1150-$1250 범위
-      const targetCost = toUSDC("20"); // 적당한 베팅 비용으로 테스트 (오버플로우 방지)
+      const targetCost = toMicroUSDC("20"); // 적당한 베팅 비용으로 테스트 (오버플로우 방지)
 
       // 역함수로 수량 계산
       const inverseResult = sdk.calculateQuantityFromCost(
@@ -448,8 +444,8 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
   describe("🎯 클레임 로직 검증", () => {
     test("승리 포지션은 전액 클레임", () => {
       const winningPositions = [
-        { lowerTick: 100000, upperTick: 110000, quantity: toUSDC("100") }, // 정산가 포함
-        { lowerTick: 100500, upperTick: 110000, quantity: toUSDC("50") }, // 정산가 포함
+        { lowerTick: 100000, upperTick: 110000, quantity: toMicroUSDC("100") }, // 정산가 포함
+        { lowerTick: 100500, upperTick: 110000, quantity: toMicroUSDC("50") }, // 정산가 포함
       ];
 
       // Settlement range: [100500, 100510) - one tick spacing
@@ -477,8 +473,8 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
 
     test("패배 포지션은 클레임 없음", () => {
       const losingPositions = [
-        { lowerTick: 130000, upperTick: 140000, quantity: toUSDC("100") }, // 정산가 미포함
-        { lowerTick: 90000, upperTick: 100000, quantity: toUSDC("50") }, // 정산가 미포함 (정확히 범위 밖)
+        { lowerTick: 130000, upperTick: 140000, quantity: toMicroUSDC("100") }, // 정산가 미포함
+        { lowerTick: 90000, upperTick: 100000, quantity: toMicroUSDC("50") }, // 정산가 미포함 (정확히 범위 밖)
       ];
 
       // Settlement range: [100500, 100510) - one tick spacing
@@ -501,7 +497,7 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
         sdk.calculateOpenCost(
           125000,
           115000, // upper < lower
-          toUSDC("1"),
+          toMicroUSDC("1"),
           distribution,
           market
         );
@@ -511,7 +507,7 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
         sdk.calculateOpenCost(
           115000,
           125000,
-          toUSDC("-1"), // 음수 수량
+          toMicroUSDC("-1"), // 음수 수량
           distribution,
           market
         );
@@ -522,13 +518,13 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
       const position = {
         lowerTick: 115000,
         upperTick: 125000,
-        quantity: toUSDC("5"),
+        quantity: toMicroUSDC("5"),
       };
 
       expect(() => {
         sdk.calculateDecreaseProceeds(
           position,
-          toUSDC("10"), // 보유량보다 많이 매도
+          toMicroUSDC("10"), // 보유량보다 많이 매도
           distribution,
           market
         );
@@ -539,8 +535,8 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
   describe("🎯 수학적 일관성", () => {
     test("증분 계산의 일관성 (additivity)", () => {
       const range = { lower: 115000, upper: 125000 };
-      const quantity1 = toUSDC("2");
-      const quantity2 = toUSDC("3");
+      const quantity1 = toMicroUSDC("2");
+      const quantity2 = toMicroUSDC("3");
 
       // 직접 계산
       const directResult = sdk.calculateOpenCost(
@@ -584,7 +580,7 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
     });
 
     test("균등 분포에서 같은 크기 범위는 비슷한 가격", () => {
-      const quantity = toUSDC("1");
+      const quantity = toMicroUSDC("1");
 
       // 균등 분포에서 같은 크기의 범위
       const range1 = sdk.calculateOpenCost(
@@ -623,7 +619,7 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
       // - exp(x)가 안전하게 계산 가능한 최대값 x = 0.13
       // - α = 1000일 때, 임계점: quantity/α = 0.13 → quantity = 130 USDC
       // - 150 USDC > 130 USDC이므로 safeExp chunking 필요
-      const largeQuantity = toUSDC("150"); // 150 USDC (> 0.13 * 1000)
+      const largeQuantity = toMicroUSDC("150"); // 150 USDC (> 0.13 * 1000)
 
       const result = sdk.calculateOpenCost(
         range.lower,
@@ -635,13 +631,13 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
 
       // 결과가 유효한 범위 안에 있어야 함
       expect(result.cost.gt(0)).toBe(true);
-      expect(result.cost.lt(toUSDC("1000"))).toBe(true); // 비용이 너무 크지 않아야 함
+      expect(result.cost.lt(toMicroUSDC("1000"))).toBe(true); // 비용이 너무 크지 않아야 함
       expect(result.averagePrice.gt(0)).toBe(true);
     });
 
     test("WAD 스케일링이 정확히 동작한다", () => {
       const range = { lower: 115000, upper: 125000 };
-      const quantity = toUSDC("1"); // 작은 수량으로 테스트 (스케일링 검증용)
+      const quantity = toMicroUSDC("1"); // 작은 수량으로 테스트 (스케일링 검증용)
 
       const result = sdk.calculateOpenCost(
         range.lower,
@@ -677,18 +673,15 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
       expect(result.cost.toString()).toBe(result2.cost.toString());
     });
 
-    test("binFactorsWad 배열이 올바르게 처리된다", () => {
+    test("binFactors 배열이 올바르게 처리된다", () => {
       // 분포를 수정해서 특정 bin만 다른 값을 가지도록 함
       const modifiedRaw: MarketDistributionRaw = {
-        totalSum: "402", // 2.0이 추가된 상태
-        totalSumWad: "402000000000000000000", // 402 * 1e18
-        binFactors: [...Array(400).fill("1.0")],
-        binFactorsWad: [...Array(400).fill("1000000000000000000")],
+        totalSum: "402000000000000000000", // 402 * 1e18
+        binFactors: [...Array(400).fill("1000000000000000000")],
       };
 
       // 특정 bin의 factor를 2.0으로 변경
-      modifiedRaw.binFactors[50] = "2.0";
-      modifiedRaw.binFactorsWad[50] = "2000000000000000000"; // 2.0 * 1e18
+      modifiedRaw.binFactors[50] = "2000000000000000000"; // 2.0 * 1e18
 
       const modifiedDist = mapDistribution(modifiedRaw);
 
@@ -699,7 +692,7 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
       const cost1 = sdk.calculateOpenCost(
         range1.lower,
         range1.upper,
-        toUSDC("10"),
+        toMicroUSDC("10"),
         modifiedDist,
         market
       );
@@ -707,7 +700,7 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
       const cost2 = sdk.calculateOpenCost(
         range2.lower,
         range2.upper,
-        toUSDC("10"),
+        toMicroUSDC("10"),
         modifiedDist,
         market
       );
@@ -730,7 +723,7 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
       const range = { lower: 115000, upper: 125000 }; // $1150-$1250 범위
 
       // 26 USDC (임계값)는 성공해야 함
-      const quantity26 = toUSDC("26"); // 26 USDC = 0.13 * α
+      const quantity26 = toMicroUSDC("26"); // 26 USDC = 0.13 * α
       const result26 = sdk.calculateOpenCost(
         range.lower,
         range.upper,
@@ -741,7 +734,7 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
       expect(result26.cost.gt(0)).toBe(true);
 
       // 26.3 USDC (임계값 초과)도 chunk-split으로 처리되어야 함
-      const quantity263 = toUSDC("26.2987691303341730"); // 임계값 초과
+      const quantity263 = toMicroUSDC("26.2987691303341730"); // 임계값 초과
       const result263 = sdk.calculateOpenCost(
         range.lower,
         range.upper,
@@ -752,7 +745,7 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
       expect(result263.cost.gt(0)).toBe(true);
 
       // 더 큰 수량도 처리되어야 함 (1000 USDC)
-      const quantity1000 = toUSDC("1000");
+      const quantity1000 = toMicroUSDC("1000");
       const result1000 = sdk.calculateOpenCost(
         range.lower,
         range.upper,
@@ -768,7 +761,7 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
         upperTick: range.upper,
         quantity: quantity1000,
       };
-      const sellQuantity = toUSDC("500");
+      const sellQuantity = toMicroUSDC("500");
       const sellResult = sdk.calculateSellProceeds(
         position,
         sellQuantity,

@@ -190,6 +190,14 @@ function calculateDisplayPrice(cost: BigInt, quantity: BigInt): BigDecimal {
 
 // ============= 기존 헬퍼 함수들 =============
 
+// Constants for WAD calculations
+const WAD = BigInt.fromString("1000000000000000000");
+
+// Helper function: safe WAD multiplication with floor division
+function wMulDown(a: BigInt, b: BigInt): BigInt {
+  return a.times(b).div(WAD);
+}
+
 // Helper function to update bin volumes for given tick range
 function updateBinVolumes(
   marketId: BigInt,
@@ -250,6 +258,8 @@ function updateBinVolumes(
 }
 
 export function handleMarketCreated(event: MarketCreatedEvent): void {
+  // TEMPORARY DEBUG: Comment out MarketCreated entity save to isolate the issue
+  /*
   let entity = new MarketCreated(
     event.transaction.hash.concatI32(event.logIndex.toI32())
   );
@@ -267,6 +277,8 @@ export function handleMarketCreated(event: MarketCreatedEvent): void {
   entity.transactionHash = event.transaction.hash;
 
   entity.save();
+  */
+ 
 
   let marketIdStr = buildMarketId(event.params.marketId);
   let market = new Market(marketIdStr);
@@ -1046,6 +1058,9 @@ export function handleRangeFactorApplied(event: RangeFactorAppliedEvent): void {
   market.lastUpdated = event.block.timestamp;
   market.save();
 
+  let distribution = MarketDistribution.load(market.id)!;
+
+  // Convert tick range to bin indices (upper exclusive)
   let lowerBinIndex = event.params.lo
     .minus(market.minTick)
     .div(market.tickSpacing)
@@ -1053,19 +1068,65 @@ export function handleRangeFactorApplied(event: RangeFactorAppliedEvent): void {
   let upperBinIndex =
     event.params.hi.minus(market.minTick).div(market.tickSpacing).toI32() - 1;
 
+  // Safety checks: clamp bin indices to valid range
+  let maxBinIndex = market.numBins.toI32() - 1;
+  if (lowerBinIndex < 0) lowerBinIndex = 0;
+  if (lowerBinIndex > maxBinIndex) lowerBinIndex = maxBinIndex;
+  if (upperBinIndex < 0) upperBinIndex = 0;
+  if (upperBinIndex > maxBinIndex) upperBinIndex = maxBinIndex;
+
+  // (A) Calculate affected sum BEFORE update
+  let affectedSum = BigInt.fromI32(0);
   for (let binIndex = lowerBinIndex; binIndex <= upperBinIndex; binIndex++) {
     let binState = BinState.load(
       buildBinStateId(event.params.marketId, binIndex)
     )!;
-    binState.currentFactor = binState.currentFactor
-      .times(event.params.factor)
-      .div(BigInt.fromString("1000000000000000000"));
+    affectedSum = affectedSum.plus(binState.currentFactor);
+  }
+
+  // (B) Calculate target affected sum (contract formula)
+  let targetAffectedSum = wMulDown(affectedSum, event.params.factor);
+
+  // (C) Update each bin with leaf rounding + calculate temporary sum
+  let leafUpdatedSum = BigInt.fromI32(0);
+  for (let binIndex = lowerBinIndex; binIndex <= upperBinIndex; binIndex++) {
+    let binState = BinState.load(
+      buildBinStateId(event.params.marketId, binIndex)
+    )!;
+    let updated = wMulDown(binState.currentFactor, event.params.factor);
+    binState.currentFactor = updated;
     binState.lastUpdated = event.block.timestamp;
     binState.updateCount = binState.updateCount.plus(BigInt.fromI32(1));
     binState.save();
+    leafUpdatedSum = leafUpdatedSum.plus(updated);
   }
 
-  let distribution = MarketDistribution.load(market.id)!;
+  // (D) Distribute remainder to achieve exact target sum
+  let remainder = targetAffectedSum.minus(leafUpdatedSum);
+  if (remainder.gt(BigInt.fromI32(0))) {
+    // Deterministic distribution: use block number as starting point to avoid bias
+    let span = upperBinIndex - lowerBinIndex + 1;
+    let start = (event.block.number.toI32() % span) + lowerBinIndex;
+    let r = remainder;
+    let idx = start;
+    while (r.gt(BigInt.fromI32(0))) {
+      let binState = BinState.load(
+        buildBinStateId(event.params.marketId, idx)
+      )!;
+      binState.currentFactor = binState.currentFactor.plus(BigInt.fromI32(1)); // +1 wei
+      binState.save();
+      r = r.minus(BigInt.fromI32(1));
+      idx++;
+      if (idx > upperBinIndex) idx = lowerBinIndex; // Wrap around
+    }
+  }
+
+  // (E) Set totalSum using contract formula (not leaf recomputation)
+  let newTotal = distribution.totalSum
+    .minus(affectedSum)
+    .plus(targetAffectedSum);
+
+  // (F) Recompute statistics and arrays (full bin traversal once)
   let totalSumWad = BigInt.fromI32(0);
   let minFactorWad = BigInt.fromString("999999999999999999999999999999");
   let maxFactorWad = BigInt.fromI32(0);
@@ -1087,17 +1148,25 @@ export function handleRangeFactorApplied(event: RangeFactorAppliedEvent): void {
     binVolumes.push(binState.totalVolume.toString());
   }
 
-  let avgFactorWad = totalSumWad.div(market.numBins);
-
-  distribution.totalSum = totalSumWad;
+  // (G) Safety check: after remainder distribution, totalSumWad should equal newTotal
+  // Use newTotal as source of truth (contract formula)
+  distribution.totalSum = newTotal;
   distribution.minFactor = minFactorWad;
   distribution.maxFactor = maxFactorWad;
-  distribution.avgFactor = avgFactorWad;
+  distribution.avgFactor = distribution.totalSum.div(market.numBins);
   distribution.binFactors = binFactorsWad;
   distribution.binVolumes = binVolumes;
   distribution.version = distribution.version.plus(BigInt.fromI32(1));
   distribution.lastSnapshotAt = event.block.timestamp;
   distribution.save();
+
+
+
+
+
+
+
+  
 }
 
 function mapReason(code: i32): string {
