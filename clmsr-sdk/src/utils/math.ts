@@ -19,8 +19,8 @@ export const SCALE_DIFF = new Big("1e12");
 /** USDC precision constant: 1e6 */
 export const USDC_PRECISION = new Big("1000000");
 
-/** Maximum safe input for exp() function: 0.13 * 1e18 */
-export const MAX_EXP_INPUT_WAD = new Big("130000000000000000"); // 0.13 * 1e18
+/** Maximum safe input for exp() function: 1.0 * 1e18 */
+export const MAX_EXP_INPUT_WAD = new Big("1000000000000000000"); // 1.0 * 1e18
 
 /** Maximum number of chunks per transaction */
 export const MAX_CHUNKS_PER_TX = 1000;

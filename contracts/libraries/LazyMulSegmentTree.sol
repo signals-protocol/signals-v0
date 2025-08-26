@@ -54,7 +54,7 @@ library LazyMulSegmentTree {
     uint256 public constant ONE_WAD = 1e18;
     uint256 public constant MIN_FACTOR = 0.01e18;  // 0.01% minimum - allow wide range for CLMSR
     uint256 public constant MAX_FACTOR = 100e18;   // 100x maximum - allow wide range for CLMSR
-    uint256 public constant FLUSH_THRESHOLD = 1e30; // 1,000,000,000,000 WAD - auto-flush when pendingFactor exceeds this
+    uint256 public constant FLUSH_THRESHOLD = 1e21; // 1,000,000,000,000 WAD - auto-flush when pendingFactor exceeds this
 
     // ========================================
     // HELPER FUNCTIONS
@@ -461,15 +461,15 @@ library LazyMulSegmentTree {
         if (r < lo || l > hi) return 0;
         
         Node storage node = tree.nodes[nodeIndex];
-        
-        // Apply current node's lazy to accumulated lazy
-        uint256 newAccFactor = accFactor.wMul(node.pendingFactor);
-        
+
         // Complete overlap
         if (l >= lo && r <= hi) {
             // node.sum already contains pendingFactor, so only apply ancestor accumulated factor
             return node.sum.wMul(accFactor);
         }
+        
+        // Apply current node's lazy to accumulated lazy
+        uint256 newAccFactor = accFactor.wMul(node.pendingFactor);
         
         // Partial overlap - recurse with accumulated lazy
         uint32 mid = l + (r - l) / 2;

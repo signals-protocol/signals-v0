@@ -110,6 +110,7 @@ export function addRiskBonusPoints(userStats: UserStats, amount: BigInt): void {
 /** Append a single history row from an event */
 export function recordEventHistory(
   e: ethereum.Event,
+  
   user: Bytes,
   amount: BigInt,
   reason: string,
