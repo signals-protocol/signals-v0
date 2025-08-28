@@ -7,7 +7,7 @@ NEW="${3:?Usage: $0 <net> <stage> <newVersion> [prevVersion]}"  # 예: 1.0.1
 PREV="${4:-}"               # 옵션: 이전 버전에서 graft
 
 # 서브그래프 이름/매니페스트 경로 규칙  
-SUBGRAPH="signals-v0-${NET}-new"
+SUBGRAPH="signals-v0-${NET}-${STAGE}"
 YAML="subgraph-${NET}-${STAGE}.yaml"
 
 # clmsr-subgraph 루트로 이동

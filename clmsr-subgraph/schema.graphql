@@ -15,6 +15,21 @@ type EmergencyUnpaused @entity(immutable: true) {
   transactionHash: Bytes!
 }
 
+type MarketCreated @entity(immutable: true) {
+  id: Bytes!
+  marketId: BigInt! # uint256
+  minTick: BigInt! # int256
+  maxTick: BigInt! # int256
+  tickSpacing: BigInt! # int256
+  startTimestamp: BigInt! # uint64
+  endTimestamp: BigInt! # uint64
+  numBins: BigInt! # uint32 (calculated bin count from tick range)
+  liquidityParameter: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
 type MarketSettled @entity(immutable: true) {
   id: Bytes!
   marketId: BigInt! # uint256

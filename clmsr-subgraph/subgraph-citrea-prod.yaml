@@ -18,9 +18,9 @@ dataSources:
       apiVersion: 0.0.9
       language: wasm/assemblyscript
       entities:
-        - EmergencyPaused
-        - EmergencyUnpaused
+        - MarketCreated
         - MarketSettled
+        - MarketSettlementValueSubmitted
         - PositionClaimed
         - PositionClosed
         - PositionDecreased
@@ -28,15 +28,13 @@ dataSources:
         - PositionOpened
         - RangeFactorApplied
         - Market
-        - BinState
         - MarketDistribution
+        - BinState
         - UserPosition
         - Trade
-        - UserStats
         - MarketStats
         - EventHistory
-        - PositionSettled
-        - MarketSettlementValueSubmitted
+        - UserStats
       abis:
         - name: CLMSRMarketCore
           file: ./abis/CLMSRMarketCore.json
