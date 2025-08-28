@@ -21,6 +21,7 @@ import {
   MarketSettlementValueSubmitted as MarketSettlementValueSubmittedEvent,
   RangeFactorApplied as RangeFactorAppliedEvent,
 } from "../generated/CLMSRMarketCore/CLMSRMarketCore";
+
 import {
   PositionOpened,
   PositionIncreased,
@@ -28,6 +29,7 @@ import {
   PositionClosed,
   PositionClaimed,
   PositionSettled,
+  MarketCreated,
   MarketSettled,
   MarketSettlementValueSubmitted,
   RangeFactorApplied,
@@ -190,14 +192,6 @@ function calculateDisplayPrice(cost: BigInt, quantity: BigInt): BigDecimal {
 
 // ============= 기존 헬퍼 함수들 =============
 
-// Constants for WAD calculations
-const WAD = BigInt.fromString("1000000000000000000");
-
-// Helper function: safe WAD multiplication with floor division
-function wMulDown(a: BigInt, b: BigInt): BigInt {
-  return a.times(b).div(WAD);
-}
-
 // Helper function to update bin volumes for given tick range
 function updateBinVolumes(
   marketId: BigInt,
@@ -258,6 +252,24 @@ function updateBinVolumes(
 }
 
 export function handleMarketCreated(event: MarketCreatedEvent): void {
+  let entity = new MarketCreated(
+    event.transaction.hash.concatI32(event.logIndex.toI32())
+  );
+  entity.marketId = event.params.marketId;
+  entity.minTick = event.params.minTick;
+  entity.maxTick = event.params.maxTick;
+  entity.tickSpacing = event.params.tickSpacing;
+  entity.startTimestamp = event.params.startTimestamp;
+  entity.endTimestamp = event.params.endTimestamp;
+  entity.numBins = event.params.numBins;
+  entity.liquidityParameter = event.params.liquidityParameter;
+
+  entity.blockNumber = event.block.number;
+  entity.blockTimestamp = event.block.timestamp;
+  entity.transactionHash = event.transaction.hash;
+
+  entity.save();
+
   let marketIdStr = buildMarketId(event.params.marketId);
   let market = new Market(marketIdStr);
   market.marketId = event.params.marketId;
@@ -344,9 +356,9 @@ export function handleMarketSettled(event: MarketSettledEvent): void {
   let market = Market.load(buildMarketId(event.params.marketId))!;
   market.isSettled = true;
   market.settlementTick = event.params.settlementTick;
-  // Convert settlementTick to 6 decimal format for consistency
+  // Calculate settlementValue by appending 6 zeros (multiply by 1,000,000)
   market.settlementValue = event.params.settlementTick.times(
-    BigInt.fromI32(1_000_000)
+    BigInt.fromI32(1000000)
   );
   market.lastUpdated = event.block.timestamp;
   market.save();
@@ -367,7 +379,6 @@ export function handleMarketSettlementValueSubmitted(
 
   entity.save();
 
-  // Update market with settlement value (6 decimals)
   let market = Market.load(buildMarketId(event.params.marketId))!;
   market.settlementValue = event.params.settlementValue;
   market.lastUpdated = event.block.timestamp;
@@ -1060,21 +1071,10 @@ export function handleRangeFactorApplied(event: RangeFactorAppliedEvent): void {
 
   entity.save();
 
-  let market = Market.load(buildMarketId(event.params.marketId));
-  if (market == null) {
-    // Market not found - skip this event
-    return;
-  }
+  let market = Market.load(buildMarketId(event.params.marketId))!;
   market.lastUpdated = event.block.timestamp;
   market.save();
 
-  let distribution = MarketDistribution.load(market.id);
-  if (distribution == null) {
-    // Distribution not found - skip this event
-    return;
-  }
-
-  // Convert tick range to bin indices (upper exclusive)
   let lowerBinIndex = event.params.lo
     .minus(market.minTick)
     .div(market.tickSpacing)
@@ -1082,22 +1082,19 @@ export function handleRangeFactorApplied(event: RangeFactorAppliedEvent): void {
   let upperBinIndex =
     event.params.hi.minus(market.minTick).div(market.tickSpacing).toI32() - 1;
 
-  // Contract ensures valid ranges - no silent clamping needed
-  // Invalid ranges would have been reverted before event emission
-
-  // (C) Apply factor to each bin (leaf model - contract equivalent)
   for (let binIndex = lowerBinIndex; binIndex <= upperBinIndex; binIndex++) {
     let binState = BinState.load(
       buildBinStateId(event.params.marketId, binIndex)
     )!;
-    let updated = wMulDown(binState.currentFactor, event.params.factor);
-    binState.currentFactor = updated;
+    binState.currentFactor = binState.currentFactor
+      .times(event.params.factor)
+      .div(BigInt.fromString("1000000000000000000"));
     binState.lastUpdated = event.block.timestamp;
     binState.updateCount = binState.updateCount.plus(BigInt.fromI32(1));
     binState.save();
   }
 
-  // (F) Recompute statistics and arrays (full bin traversal once)
+  let distribution = MarketDistribution.load(market.id)!;
   let totalSumWad = BigInt.fromI32(0);
   let minFactorWad = BigInt.fromString("999999999999999999999999999999");
   let maxFactorWad = BigInt.fromI32(0);
@@ -1119,11 +1116,12 @@ export function handleRangeFactorApplied(event: RangeFactorAppliedEvent): void {
     binVolumes.push(binState.totalVolume.toString());
   }
 
-  // (G) Use actual leaf sum as truth (contract leaf model equivalent)
+  let avgFactorWad = totalSumWad.div(market.numBins);
+
   distribution.totalSum = totalSumWad;
   distribution.minFactor = minFactorWad;
   distribution.maxFactor = maxFactorWad;
-  distribution.avgFactor = distribution.totalSum.div(market.numBins);
+  distribution.avgFactor = avgFactorWad;
   distribution.binFactors = binFactorsWad;
   distribution.binVolumes = binVolumes;
   distribution.version = distribution.version.plus(BigInt.fromI32(1));
