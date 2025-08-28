@@ -21,6 +21,13 @@ function mapMarket(raw) {
         minTick: raw.minTick,
         maxTick: raw.maxTick,
         tickSpacing: raw.tickSpacing,
+        ...(raw.isSettled !== undefined && { isSettled: raw.isSettled }),
+        ...(raw.settlementValue !== undefined && {
+            settlementValue: new big_js_1.default(raw.settlementValue),
+        }),
+        ...(raw.settlementTick !== undefined && {
+            settlementTick: raw.settlementTick,
+        }),
     };
 }
 /**

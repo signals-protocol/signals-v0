@@ -6,8 +6,8 @@ export async function emitPositionSettledAction(
   environment: Environment
 ): Promise<void> {
   // 🎯 기본 설정값 (필요시 환경변수로 오버라이드 가능)
-  const marketId = parseInt(process.env.MARKET_ID || "11");
-  const batchLimit = parseInt(process.env.BATCH_LIMIT || "200");
+  const marketId = parseInt(process.env.MARKET_ID || "14");
+  const batchLimit = parseInt(process.env.BATCH_LIMIT || "300");
 
   console.log(
     `📢 Emitting PositionSettled events for market ${marketId} on ${environment}`
@@ -145,4 +145,3 @@ export async function emitPositionSettledCLI(
 ): Promise<void> {
   await emitPositionSettledAction(environment);
 }
-

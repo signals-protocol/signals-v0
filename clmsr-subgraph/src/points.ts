@@ -6,6 +6,8 @@ import {
   crypto,
 } from "@graphprotocol/graph-ts";
 import { EventHistory, UserStats } from "../generated/schema";
+import { PointsGranted } from "../generated/PointsGranter/PointsGranter";
+import { getOrCreateUserStats } from "./clmsr-market-core";
 
 // ============= 유틸리티 함수들 =============
 
@@ -110,7 +112,7 @@ export function addRiskBonusPoints(userStats: UserStats, amount: BigInt): void {
 /** Append a single history row from an event */
 export function recordEventHistory(
   e: ethereum.Event,
-  
+
   user: Bytes,
   amount: BigInt,
   reason: string,
@@ -133,4 +135,39 @@ export function recordEventHistory(
   h.reason = reason;
   h.timestamp = timestamp;
   h.save();
+}
+
+// ============= Points 이벤트 핸들러 =============
+
+/** Map reason code to string */
+function mapReason(code: i32): string {
+  if (code == 1) return "ACTIVITY";
+  if (code == 2) return "PERFORMANCE";
+  if (code == 3) return "RISK_BONUS";
+  return "MANUAL";
+}
+
+/** Handle manual grant from PointsGranter */
+export function handlePointsGranted(e: PointsGranted): void {
+  const ts = e.params.contextTs.notEqual(BigInt.zero())
+    ? e.params.contextTs
+    : e.block.timestamp;
+
+  const reason = mapReason(e.params.reason as i32);
+  const userStats = getOrCreateUserStats(e.params.user);
+
+  // 포인트 적립
+  userStats.totalPoints = userStats.totalPoints.plus(e.params.amount);
+  if (reason == "ACTIVITY") {
+    userStats.activityPoints = userStats.activityPoints.plus(e.params.amount);
+  } else if (reason == "PERFORMANCE") {
+    userStats.performancePoints = userStats.performancePoints.plus(
+      e.params.amount
+    );
+  } else if (reason == "RISK_BONUS") {
+    userStats.riskBonusPoints = userStats.riskBonusPoints.plus(e.params.amount);
+  }
+  userStats.save();
+
+  recordEventHistory(e, userStats.user, e.params.amount, reason, ts);
 }

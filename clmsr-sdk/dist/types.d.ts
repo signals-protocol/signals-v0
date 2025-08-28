@@ -24,6 +24,9 @@ export interface MarketRaw {
     minTick: number;
     maxTick: number;
     tickSpacing: number;
+    isSettled?: boolean;
+    settlementValue?: string;
+    settlementTick?: number;
 }
 /** Market data for SDK calculations (숫자 객체만) */
 export interface Market {
@@ -31,6 +34,9 @@ export interface Market {
     minTick: Tick;
     maxTick: Tick;
     tickSpacing: Tick;
+    isSettled?: boolean;
+    settlementValue?: USDCAmount;
+    settlementTick?: Tick;
 }
 /** Market distribution data for SDK calculations (WAD 기반) */
 export interface MarketDistribution {

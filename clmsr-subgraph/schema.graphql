@@ -15,25 +15,19 @@ type EmergencyUnpaused @entity(immutable: true) {
   transactionHash: Bytes!
 }
 
-type MarketCreated @entity(immutable: true) {
+type MarketSettled @entity(immutable: true) {
   id: Bytes!
   marketId: BigInt! # uint256
-  minTick: BigInt! # int256
-  maxTick: BigInt! # int256
-  tickSpacing: BigInt! # int256
-  startTimestamp: BigInt! # uint64
-  endTimestamp: BigInt! # uint64
-  numBins: BigInt! # uint32 (calculated bin count from tick range)
-  liquidityParameter: BigInt! # uint256
+  settlementTick: BigInt! # int256
   blockNumber: BigInt!
   blockTimestamp: BigInt!
   transactionHash: Bytes!
 }
 
-type MarketSettled @entity(immutable: true) {
+type MarketSettlementValueSubmitted @entity(immutable: true) {
   id: Bytes!
   marketId: BigInt! # uint256
-  settlementTick: BigInt! # int256
+  settlementValue: BigInt! # int256 (6 decimals)
   blockNumber: BigInt!
   blockTimestamp: BigInt!
   transactionHash: Bytes!
@@ -120,7 +114,8 @@ type Market @entity(immutable: false) {
   numBins: BigInt! # uint32 - 계산된 빈 개수
   liquidityParameter: BigInt!
   isSettled: Boolean!
-  settlementTick: BigInt # int256
+  settlementValue: BigInt # int256 (6 decimals, original value)
+  settlementTick: BigInt # int256 (calculated from settlementValue)
   lastUpdated: BigInt!
   # 관계 필드들
   bins: [BinState!]! @derivedFrom(field: "market")
@@ -293,4 +288,3 @@ type PositionSettled @entity(immutable: true) {
   blockTimestamp: BigInt!
   transactionHash: Bytes!
 }
-

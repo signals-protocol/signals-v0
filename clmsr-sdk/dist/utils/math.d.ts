@@ -6,7 +6,7 @@ export declare const WAD: Big.Big;
 export declare const SCALE_DIFF: Big.Big;
 /** USDC precision constant: 1e6 */
 export declare const USDC_PRECISION: Big.Big;
-/** Maximum safe input for exp() function: 0.13 * 1e18 */
+/** Maximum safe input for exp() function: 1.0 * 1e18 */
 export declare const MAX_EXP_INPUT_WAD: Big.Big;
 /** Maximum number of chunks per transaction */
 export declare const MAX_CHUNKS_PER_TX = 1000;

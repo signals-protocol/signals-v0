@@ -39,6 +39,9 @@ export interface MarketRaw {
   minTick: number;
   maxTick: number;
   tickSpacing: number;
+  isSettled?: boolean; // 마켓 정산 여부
+  settlementValue?: string; // 정산값 (6 decimal) - "115500000"
+  settlementTick?: number; // 정산 틱 (정수) - 115
 }
 
 // ============================================================================
@@ -51,6 +54,9 @@ export interface Market {
   minTick: Tick;
   maxTick: Tick;
   tickSpacing: Tick;
+  isSettled?: boolean; // 마켓 정산 여부
+  settlementValue?: USDCAmount; // 정산값 (6 decimal)
+  settlementTick?: Tick; // 정산 틱 (정수)
 }
 
 /** Market distribution data for SDK calculations (WAD 기반) */
@@ -88,6 +94,13 @@ export function mapMarket(raw: MarketRaw): Market {
     minTick: raw.minTick,
     maxTick: raw.maxTick,
     tickSpacing: raw.tickSpacing,
+    ...(raw.isSettled !== undefined && { isSettled: raw.isSettled }),
+    ...(raw.settlementValue !== undefined && {
+      settlementValue: new Big(raw.settlementValue),
+    }),
+    ...(raw.settlementTick !== undefined && {
+      settlementTick: raw.settlementTick,
+    }),
   };
 }
 

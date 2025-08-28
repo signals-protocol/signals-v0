@@ -3,12 +3,12 @@
   "chains": ["citrea-testnet-tangerine"],
   "subgraphs": {
     "signals-v0-citrea-dev": {
-      "path": "./subgraph-citrea-dev.yaml",
+      "path": "./build/subgraph.yaml",
       "chain": "citrea-testnet-tangerine",
       "version": "1.0.0"
     },
     "signals-v0-citrea-prod": {
-      "path": "./subgraph-citrea-prod.yaml",
+      "path": "./build/subgraph.yaml",
       "chain": "citrea-testnet-tangerine",
       "version": "1.0.0"
     }

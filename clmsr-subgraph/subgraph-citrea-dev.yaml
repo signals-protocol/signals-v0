@@ -20,6 +20,7 @@ dataSources:
       entities:
         - MarketCreated
         - MarketSettled
+        - MarketSettlementValueSubmitted
         - PositionClaimed
         - PositionClosed
         - PositionDecreased
@@ -50,6 +51,8 @@ dataSources:
           handler: handlePositionSettled
         - event: RangeFactorApplied(indexed uint256,indexed int256,indexed int256,uint256)
           handler: handleRangeFactorApplied
+        - event: MarketSettlementValueSubmitted(indexed uint256,int256)
+          handler: handleMarketSettlementValueSubmitted
       file: ./src/clmsr-market-core.ts
 
   # ===== PointsGranter 컨트랙트 =====
@@ -65,7 +68,7 @@ dataSources:
       apiVersion: 0.0.9
       language: wasm/assemblyscript
       entities:
-        - PointsEventHistory
+        - EventHistory
         - UserStats
       abis:
         - name: PointsGranter

@@ -12,6 +12,7 @@ import { MarketDistribution } from "../generated/schema";
 import {
   handleMarketCreated,
   handleMarketSettled,
+  handleMarketSettlementValueSubmitted,
   handleRangeFactorApplied,
   handlePositionOpened,
   handlePositionDecreased,
@@ -22,6 +23,7 @@ import {
 import {
   createMarketCreatedEvent,
   createMarketSettledEvent,
+  createMarketSettlementValueSubmittedEvent,
   createRangeFactorAppliedEvent,
   createPositionOpenedEvent,
   createPositionDecreasedEvent,
@@ -951,13 +953,21 @@ describe("CLMSR Market Core Tests", () => {
     // 2. Verify market is initially active and not settled
     assert.fieldEquals("Market", "1", "isSettled", "false");
 
-    // 3. Settle market with tick 115 (within range 100-200)
+    // 3. Settle market with tick 115 (basic settlement)
     let settlementTick = BigInt.fromI32(115);
     let marketSettledEvent = createMarketSettledEvent(marketId, settlementTick);
     handleMarketSettled(marketSettledEvent);
 
-    // 4. Verify market settlement
+    // 4. Submit settlement value (6 decimals = 115_500_000 = 115.5)
+    let settlementValue = BigInt.fromI32(115_500_000); // 115.5 * 10^6
+    let marketSettlementValueSubmittedEvent =
+      createMarketSettlementValueSubmittedEvent(marketId, settlementValue);
+    handleMarketSettlementValueSubmitted(marketSettlementValueSubmittedEvent);
+
+    // 5. Verify both events
     assert.entityCount("MarketSettled", 1);
+    assert.entityCount("MarketSettlementValueSubmitted", 1);
+
     assert.fieldEquals(
       "MarketSettled",
       marketSettledEvent.transaction.hash
@@ -975,8 +985,30 @@ describe("CLMSR Market Core Tests", () => {
       "115"
     );
 
-    // 5. Verify market state updated
+    assert.fieldEquals(
+      "MarketSettlementValueSubmitted",
+      marketSettlementValueSubmittedEvent.transaction.hash
+        .concatI32(marketSettlementValueSubmittedEvent.logIndex.toI32())
+        .toHexString(),
+      "marketId",
+      "1"
+    );
+    assert.fieldEquals(
+      "MarketSettlementValueSubmitted",
+      marketSettlementValueSubmittedEvent.transaction.hash
+        .concatI32(marketSettlementValueSubmittedEvent.logIndex.toI32())
+        .toHexString(),
+      "settlementValue",
+      "115500000"
+    );
+
+    // 6. Verify market state updated with both values
     assert.fieldEquals("Market", "1", "isSettled", "true");
+    assert.fieldEquals("Market", "1", "settlementTick", "115");
+    // settlementValue should be updated by both events:
+    // First by MarketSettled: 115 * 1_000_000 = 115_000_000
+    // Then by MarketSettlementValueSubmitted: 115_500_000 (overwrites)
+    assert.fieldEquals("Market", "1", "settlementValue", "115500000");
   });
 
   test("PositionSettled - WIN scenario with detailed PnL and points calculation", () => {

@@ -6,8 +6,12 @@ export async function settleMarketAction(
   environment: Environment
 ): Promise<void> {
   // 🎯 기본 설정값 (필요시 환경변수로 오버라이드 가능)
-  const marketId = parseInt(process.env.MARKET_ID || "3");
-  const settlementTick = parseInt(process.env.SETTLEMENT_TICK || "117491");
+  const marketId = parseInt(process.env.MARKET_ID || "13");
+  // settlementValue는 6 decimal 형태 (예: 117.491000 = 117491000)
+  const settlementValue = parseInt(
+    process.env.SETTLEMENT_VALUE || "111802660000"
+  );
+  const settlementTick = Math.floor(settlementValue / 1_000_000); // 표시용
 
   console.log(`⚖️ Settling market ${marketId} on ${environment}`);
 
@@ -30,7 +34,8 @@ export async function settleMarketAction(
 
   console.log("📊 Settlement parameters:");
   console.log(`  Market ID: ${marketId}`);
-  console.log(`  Settlement Tick: ${settlementTick}`);
+  console.log(`  Settlement Value: ${settlementValue} (6 decimals)`);
+  console.log(`  Settlement Tick: ${settlementTick} (calculated)`);
 
   // 마켓 상태 확인
   try {
@@ -43,8 +48,8 @@ export async function settleMarketAction(
     throw new Error(`Market validation failed: ${(error as Error).message}`);
   }
 
-  // 마켓 세틀 (정수 틱 값 사용)
-  const tx = await coreContract.settleMarket(marketId, settlementTick);
+  // 마켓 세틀 (6 decimal settlementValue 사용)
+  const tx = await coreContract.settleMarket(marketId, settlementValue);
 
   const receipt = await tx.wait();
   console.log("✅ Market settled successfully!");
