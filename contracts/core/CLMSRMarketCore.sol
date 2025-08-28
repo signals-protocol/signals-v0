@@ -53,12 +53,12 @@ contract CLMSRMarketCore is
     
     
     /// @notice Maximum safe input for PRB-Math exp() function
-    uint256 private constant MAX_EXP_INPUT_WAD = 4_000_000_000_000_000_000; // 1.0 * 1e18
+    uint256 private constant MAX_EXP_INPUT_WAD = 1_000_000_000_000_000_000; // 1.0 * 1e18
     
     /// @notice Maximum number of chunks allowed per transaction to prevent gas DoS
     /// Increased to handle larger institutional trades while maintaining safety
     /// This allows for trades up to 500 * maxSafeQuantityPerChunk in size
-    uint256 private constant MAX_CHUNKS_PER_TX = 2000;
+    uint256 private constant MAX_CHUNKS_PER_TX = 1000;
 
     // ========================================
     // STATE VARIABLES
@@ -180,7 +180,8 @@ contract CLMSRMarketCore is
             numBins: numBins,
             liquidityParameter: liquidityParameter,
             positionEventsCursor: 0,
-            positionEventsEmitted: false
+            positionEventsEmitted: false,
+            settlementValue: 0
         });
         
         // Initialize segment tree
@@ -190,7 +191,7 @@ contract CLMSRMarketCore is
     }
     
     /// @inheritdoc ICLMSRMarketCore
-    function settleMarket(uint256 marketId, int256 settlementTick) 
+    function settleMarket(uint256 marketId, int256 settlementValue) 
         external override onlyOwner marketExists(marketId) {
         Market storage market = markets[marketId];
         
@@ -198,13 +199,17 @@ contract CLMSRMarketCore is
             revert CE.MarketAlreadySettled(marketId);
         }
         
+        // Convert 6-decimal settlementValue to integer tick (floor division)
+        int256 settlementTick = settlementValue / 1_000_000;
+        
         // Validate settlement tick is within market bounds
         if (settlementTick < market.minTick || settlementTick > market.maxTick) {
             revert CE.InvalidTick(settlementTick, market.minTick, market.maxTick);
         }
         
-        // Settle market with exact tick value
+        // Settle market with both original value and calculated tick
         market.settled = true;
+        market.settlementValue = settlementValue;
         market.settlementTick = settlementTick;
         market.isActive = false;
         
@@ -213,6 +218,7 @@ contract CLMSRMarketCore is
         market.positionEventsEmitted = false;
         
         emit MarketSettled(marketId, settlementTick);
+        emit MarketSettlementValueSubmitted(marketId, settlementValue);
     }
 
     /// @inheritdoc ICLMSRMarketCore

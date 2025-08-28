@@ -15,7 +15,7 @@ interface ICLMSRMarketCore {
         bool settled;                   // Market is settled
         uint64 startTimestamp;          // Market start time
         uint64 endTimestamp;            // Market end time
-        int256 settlementTick;          // Winning tick value (only if settled)
+        int256 settlementTick;          // Winning tick value (only if settled) - floored from settlementValue
         int256 minTick;                 // Minimum allowed tick value
         int256 maxTick;                 // Maximum allowed tick value
         int256 tickSpacing;             // Spacing between valid ticks
@@ -25,6 +25,9 @@ interface ICLMSRMarketCore {
         // Position events emission state
         uint32 positionEventsCursor;    // Next emission start index
         bool positionEventsEmitted;     // All events emitted flag
+        
+        // ⚠️ UPGRADE SAFE: New fields must be added at the end
+        int256 settlementValue;         // Original settlement value with 6 decimals (only if settled)
     }
     
 
@@ -46,6 +49,11 @@ interface ICLMSRMarketCore {
     event MarketSettled(
         uint256 indexed marketId,
         int256 settlementTick
+    );
+
+    event MarketSettlementValueSubmitted(
+        uint256 indexed marketId,
+        int256 settlementValue
     );
 
     event PositionSettled(
@@ -151,10 +159,10 @@ interface ICLMSRMarketCore {
     ) external returns (uint256 marketId);
     
     /// @notice Settle a market (only callable by Owner)
-    /// @dev Sets exact winning tick value and enables position claiming
+    /// @dev Sets exact winning settlement value (6 decimals) and calculates corresponding tick value
     /// @param marketId Market identifier
-    /// @param settlementTick Exact winning tick value
-    function settleMarket(uint256 marketId, int256 settlementTick) external;
+    /// @param settlementValue Exact winning settlement value with 6 decimals
+    function settleMarket(uint256 marketId, int256 settlementValue) external;
 
     /// @notice Emit position settled events in batches (only callable by Owner)
     /// @dev Emits PositionSettled events for positions using cursor-based pagination

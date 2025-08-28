@@ -5,6 +5,7 @@ import {
   EmergencyUnpaused,
   MarketCreated,
   MarketSettled,
+  MarketSettlementValueSubmitted,
   PositionClaimed,
   PositionClosed,
   PositionDecreased,
@@ -148,6 +149,42 @@ export function createMarketSettledEvent(
   );
 
   return marketSettledEvent;
+}
+
+export function createMarketSettlementValueSubmittedEvent(
+  marketId: BigInt,
+  settlementValue: BigInt
+): MarketSettlementValueSubmitted {
+  let marketSettlementValueSubmittedEvent =
+    changetype<MarketSettlementValueSubmitted>(newMockEvent());
+
+  // Mock 이벤트 기본값 설정
+  marketSettlementValueSubmittedEvent.address = Address.fromString(
+    "0xA16081F360e3847006dB660bae1c6d1b2e17eC2A"
+  );
+  marketSettlementValueSubmittedEvent.transaction.hash = Bytes.fromHexString(
+    "0x123456789012345678901234567890123456789012345678901234567890123C"
+  );
+  marketSettlementValueSubmittedEvent.logIndex = BigInt.fromI32(1);
+  marketSettlementValueSubmittedEvent.block.number = BigInt.fromI32(1);
+  marketSettlementValueSubmittedEvent.block.timestamp = BigInt.fromI32(1000000);
+
+  marketSettlementValueSubmittedEvent.parameters = new Array();
+
+  marketSettlementValueSubmittedEvent.parameters.push(
+    new ethereum.EventParam(
+      "marketId",
+      ethereum.Value.fromUnsignedBigInt(marketId)
+    )
+  );
+  marketSettlementValueSubmittedEvent.parameters.push(
+    new ethereum.EventParam(
+      "settlementValue",
+      ethereum.Value.fromSignedBigInt(settlementValue)
+    )
+  );
+
+  return marketSettlementValueSubmittedEvent;
 }
 
 export function createPositionClaimedEvent(

@@ -18,9 +18,9 @@ import {
   PositionSettled as PositionSettledEvent,
   MarketCreated as MarketCreatedEvent,
   MarketSettled as MarketSettledEvent,
+  MarketSettlementValueSubmitted as MarketSettlementValueSubmittedEvent,
   RangeFactorApplied as RangeFactorAppliedEvent,
 } from "../generated/CLMSRMarketCore/CLMSRMarketCore";
-import { PointsGranted } from "../generated/PointsGranter/PointsGranter";
 import {
   PositionOpened,
   PositionIncreased,
@@ -28,8 +28,8 @@ import {
   PositionClosed,
   PositionClaimed,
   PositionSettled,
-  MarketCreated,
   MarketSettled,
+  MarketSettlementValueSubmitted,
   RangeFactorApplied,
   Market,
   UserPosition,
@@ -258,28 +258,6 @@ function updateBinVolumes(
 }
 
 export function handleMarketCreated(event: MarketCreatedEvent): void {
-  // TEMPORARY DEBUG: Comment out MarketCreated entity save to isolate the issue
-  /*
-  let entity = new MarketCreated(
-    event.transaction.hash.concatI32(event.logIndex.toI32())
-  );
-  entity.marketId = event.params.marketId;
-  entity.minTick = event.params.minTick;
-  entity.maxTick = event.params.maxTick;
-  entity.tickSpacing = event.params.tickSpacing;
-  entity.startTimestamp = event.params.startTimestamp;
-  entity.endTimestamp = event.params.endTimestamp;
-  entity.numBins = event.params.numBins;
-  entity.liquidityParameter = event.params.liquidityParameter;
-
-  entity.blockNumber = event.block.number;
-  entity.blockTimestamp = event.block.timestamp;
-  entity.transactionHash = event.transaction.hash;
-
-  entity.save();
-  */
- 
-
   let marketIdStr = buildMarketId(event.params.marketId);
   let market = new Market(marketIdStr);
   market.marketId = event.params.marketId;
@@ -291,6 +269,8 @@ export function handleMarketCreated(event: MarketCreatedEvent): void {
   market.numBins = event.params.numBins;
   market.liquidityParameter = event.params.liquidityParameter;
   market.isSettled = false;
+  market.settlementValue = null;
+  market.settlementTick = null;
   market.lastUpdated = event.block.timestamp;
   market.save();
 
@@ -364,6 +344,32 @@ export function handleMarketSettled(event: MarketSettledEvent): void {
   let market = Market.load(buildMarketId(event.params.marketId))!;
   market.isSettled = true;
   market.settlementTick = event.params.settlementTick;
+  // Convert settlementTick to 6 decimal format for consistency
+  market.settlementValue = event.params.settlementTick.times(
+    BigInt.fromI32(1_000_000)
+  );
+  market.lastUpdated = event.block.timestamp;
+  market.save();
+}
+
+export function handleMarketSettlementValueSubmitted(
+  event: MarketSettlementValueSubmittedEvent
+): void {
+  let entity = new MarketSettlementValueSubmitted(
+    event.transaction.hash.concatI32(event.logIndex.toI32())
+  );
+  entity.marketId = event.params.marketId;
+  entity.settlementValue = event.params.settlementValue;
+
+  entity.blockNumber = event.block.number;
+  entity.blockTimestamp = event.block.timestamp;
+  entity.transactionHash = event.transaction.hash;
+
+  entity.save();
+
+  // Update market with settlement value (6 decimals)
+  let market = Market.load(buildMarketId(event.params.marketId))!;
+  market.settlementValue = event.params.settlementValue;
   market.lastUpdated = event.block.timestamp;
   market.save();
 }
@@ -1054,11 +1060,19 @@ export function handleRangeFactorApplied(event: RangeFactorAppliedEvent): void {
 
   entity.save();
 
-  let market = Market.load(buildMarketId(event.params.marketId))!;
+  let market = Market.load(buildMarketId(event.params.marketId));
+  if (market == null) {
+    // Market not found - skip this event
+    return;
+  }
   market.lastUpdated = event.block.timestamp;
   market.save();
 
-  let distribution = MarketDistribution.load(market.id)!;
+  let distribution = MarketDistribution.load(market.id);
+  if (distribution == null) {
+    // Distribution not found - skip this event
+    return;
+  }
 
   // Convert tick range to bin indices (upper exclusive)
   let lowerBinIndex = event.params.lo
@@ -1068,27 +1082,10 @@ export function handleRangeFactorApplied(event: RangeFactorAppliedEvent): void {
   let upperBinIndex =
     event.params.hi.minus(market.minTick).div(market.tickSpacing).toI32() - 1;
 
-  // Safety checks: clamp bin indices to valid range
-  let maxBinIndex = market.numBins.toI32() - 1;
-  if (lowerBinIndex < 0) lowerBinIndex = 0;
-  if (lowerBinIndex > maxBinIndex) lowerBinIndex = maxBinIndex;
-  if (upperBinIndex < 0) upperBinIndex = 0;
-  if (upperBinIndex > maxBinIndex) upperBinIndex = maxBinIndex;
+  // Contract ensures valid ranges - no silent clamping needed
+  // Invalid ranges would have been reverted before event emission
 
-  // (A) Calculate affected sum BEFORE update
-  let affectedSum = BigInt.fromI32(0);
-  for (let binIndex = lowerBinIndex; binIndex <= upperBinIndex; binIndex++) {
-    let binState = BinState.load(
-      buildBinStateId(event.params.marketId, binIndex)
-    )!;
-    affectedSum = affectedSum.plus(binState.currentFactor);
-  }
-
-  // (B) Calculate target affected sum (contract formula)
-  let targetAffectedSum = wMulDown(affectedSum, event.params.factor);
-
-  // (C) Update each bin with leaf rounding + calculate temporary sum
-  let leafUpdatedSum = BigInt.fromI32(0);
+  // (C) Apply factor to each bin (leaf model - contract equivalent)
   for (let binIndex = lowerBinIndex; binIndex <= upperBinIndex; binIndex++) {
     let binState = BinState.load(
       buildBinStateId(event.params.marketId, binIndex)
@@ -1098,33 +1095,7 @@ export function handleRangeFactorApplied(event: RangeFactorAppliedEvent): void {
     binState.lastUpdated = event.block.timestamp;
     binState.updateCount = binState.updateCount.plus(BigInt.fromI32(1));
     binState.save();
-    leafUpdatedSum = leafUpdatedSum.plus(updated);
   }
-
-  // (D) Distribute remainder to achieve exact target sum
-  let remainder = targetAffectedSum.minus(leafUpdatedSum);
-  if (remainder.gt(BigInt.fromI32(0))) {
-    // Deterministic distribution: use block number as starting point to avoid bias
-    let span = upperBinIndex - lowerBinIndex + 1;
-    let start = (event.block.number.toI32() % span) + lowerBinIndex;
-    let r = remainder;
-    let idx = start;
-    while (r.gt(BigInt.fromI32(0))) {
-      let binState = BinState.load(
-        buildBinStateId(event.params.marketId, idx)
-      )!;
-      binState.currentFactor = binState.currentFactor.plus(BigInt.fromI32(1)); // +1 wei
-      binState.save();
-      r = r.minus(BigInt.fromI32(1));
-      idx++;
-      if (idx > upperBinIndex) idx = lowerBinIndex; // Wrap around
-    }
-  }
-
-  // (E) Set totalSum using contract formula (not leaf recomputation)
-  let newTotal = distribution.totalSum
-    .minus(affectedSum)
-    .plus(targetAffectedSum);
 
   // (F) Recompute statistics and arrays (full bin traversal once)
   let totalSumWad = BigInt.fromI32(0);
@@ -1148,9 +1119,8 @@ export function handleRangeFactorApplied(event: RangeFactorAppliedEvent): void {
     binVolumes.push(binState.totalVolume.toString());
   }
 
-  // (G) Safety check: after remainder distribution, totalSumWad should equal newTotal
-  // Use newTotal as source of truth (contract formula)
-  distribution.totalSum = newTotal;
+  // (G) Use actual leaf sum as truth (contract leaf model equivalent)
+  distribution.totalSum = totalSumWad;
   distribution.minFactor = minFactorWad;
   distribution.maxFactor = maxFactorWad;
   distribution.avgFactor = distribution.totalSum.div(market.numBins);
@@ -1159,44 +1129,4 @@ export function handleRangeFactorApplied(event: RangeFactorAppliedEvent): void {
   distribution.version = distribution.version.plus(BigInt.fromI32(1));
   distribution.lastSnapshotAt = event.block.timestamp;
   distribution.save();
-
-
-
-
-
-
-
-  
-}
-
-function mapReason(code: i32): string {
-  if (code == 1) return "ACTIVITY";
-  if (code == 2) return "PERFORMANCE";
-  if (code == 3) return "RISK_BONUS";
-  return "MANUAL";
-}
-
-/** Handle manual grant from PointsGranter */
-export function handlePointsGranted(e: PointsGranted): void {
-  const ts = e.params.contextTs.notEqual(BigInt.zero())
-    ? e.params.contextTs
-    : e.block.timestamp;
-
-  const reason = mapReason(e.params.reason as i32);
-  const userStats = getOrCreateUserStats(e.params.user);
-
-  // 포인트 적립
-  userStats.totalPoints = userStats.totalPoints.plus(e.params.amount);
-  if (reason == "ACTIVITY") {
-    userStats.activityPoints = userStats.activityPoints.plus(e.params.amount);
-  } else if (reason == "PERFORMANCE") {
-    userStats.performancePoints = userStats.performancePoints.plus(
-      e.params.amount
-    );
-  } else if (reason == "RISK_BONUS") {
-    userStats.riskBonusPoints = userStats.riskBonusPoints.plus(e.params.amount);
-  }
-  userStats.save();
-
-  recordEventHistory(e, userStats.user, e.params.amount, reason, ts);
 }

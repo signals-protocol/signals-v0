@@ -12,7 +12,7 @@ dataSources:
     source:
       address: "0xE480ca1C63B6dd929af1EeA4D3de1073942F3cEf"
       abi: CLMSRMarketCore
-      startBlock: 14176879
+      startBlock: 14176880
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.9
@@ -20,7 +20,6 @@ dataSources:
       entities:
         - EmergencyPaused
         - EmergencyUnpaused
-        - MarketCreated
         - MarketSettled
         - PositionClaimed
         - PositionClosed
@@ -37,6 +36,7 @@ dataSources:
         - MarketStats
         - EventHistory
         - PositionSettled
+        - MarketSettlementValueSubmitted
       abis:
         - name: CLMSRMarketCore
           file: ./abis/CLMSRMarketCore.json
@@ -59,6 +59,8 @@ dataSources:
           handler: handlePositionSettled
         - event: RangeFactorApplied(indexed uint256,indexed int256,indexed int256,uint256)
           handler: handleRangeFactorApplied
+        - event: MarketSettlementValueSubmitted(indexed uint256,int256)
+          handler: handleMarketSettlementValueSubmitted
       file: ./src/clmsr-market-core.ts
 
   # ===== PointsGranter 컨트랙트 =====
@@ -74,7 +76,7 @@ dataSources:
       apiVersion: 0.0.9
       language: wasm/assemblyscript
       entities:
-        - PointsEventHistory
+        - EventHistory
         - UserStats
       abis:
         - name: PointsGranter
@@ -82,4 +84,4 @@ dataSources:
       eventHandlers:
         - event: PointsGranted(indexed address,uint256,uint8,uint64)
           handler: handlePointsGranted
-      file: ./src/clmsr-market-core.ts
+      file: ./src/points.ts

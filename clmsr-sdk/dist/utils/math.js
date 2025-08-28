@@ -35,8 +35,8 @@ exports.WAD = new big_js_1.default("1e18");
 exports.SCALE_DIFF = new big_js_1.default("1e12");
 /** USDC precision constant: 1e6 */
 exports.USDC_PRECISION = new big_js_1.default("1000000");
-/** Maximum safe input for exp() function: 0.13 * 1e18 */
-exports.MAX_EXP_INPUT_WAD = new big_js_1.default("130000000000000000"); // 0.13 * 1e18
+/** Maximum safe input for exp() function: 1.0 * 1e18 */
+exports.MAX_EXP_INPUT_WAD = new big_js_1.default("1000000000000000000"); // 1.0 * 1e18
 /** Maximum number of chunks per transaction */
 exports.MAX_CHUNKS_PER_TX = 1000;
 /** Minimum and maximum factor bounds for segment tree operations */
