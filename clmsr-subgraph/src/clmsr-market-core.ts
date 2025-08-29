@@ -31,18 +31,13 @@ import {
   MarketDistribution,
 } from "../generated/schema";
 
-// ============= PREFIX HELPER FUNCTIONS =============
+// ============= ID HELPER FUNCTIONS =============
 
 /**
  * 공통 ID 생성 헬퍼 함수
- * dataSource 주소로 prefix 결정
- * - Legacy 컨트랙트: "L-42"
- * - 신규 컨트랙트: "42"
  */
 export function buildId(raw: BigInt): string {
-  let address = dataSource.address().toHexString();
-  let isLegacy = address == "0x4424687a25302db5d1d3a9f7504e4710b0ab17e9";
-  return isLegacy ? "L-" + raw.toString() : raw.toString();
+  return raw.toString();
 }
 
 /**
@@ -68,15 +63,10 @@ export function buildBinStateId(marketId: BigInt, binIndex: i32): string {
 }
 
 /**
- * Market ID 문자열에서 raw BigInt 추출 (prefix 제거)
- * "L-42" → BigInt(42), "42" → BigInt(42)
+ * Market ID 문자열에서 raw BigInt 추출
  */
 export function extractRawMarketId(marketIdStr: string): BigInt {
-  let rawIdStr = marketIdStr;
-  if (rawIdStr.startsWith("L-")) {
-    rawIdStr = rawIdStr.substring(2); // Remove "L-" prefix
-  }
-  return BigInt.fromString(rawIdStr);
+  return BigInt.fromString(marketIdStr);
 }
 
 export function getOrCreateUserStats(userAddress: Bytes): UserStats {

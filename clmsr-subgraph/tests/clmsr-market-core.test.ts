@@ -7,6 +7,7 @@ import {
   afterAll,
   log,
   newMockEvent,
+  dataSourceMock,
 } from "matchstick-as/assembly/index";
 import { Address, BigInt, ethereum, Bytes } from "@graphprotocol/graph-ts";
 import { MarketDistribution } from "../generated/schema";
@@ -43,6 +44,9 @@ import {
 describe("CLMSR Market Core Tests", () => {
   beforeAll(() => {
     clearStore();
+    // Mock dataSource address to prevent "No mocked Eth address" warnings
+    dataSourceMock.resetValues();
+    dataSourceMock.setAddress("0x971F9bcE130743BB3eFb37aeAC2050cD44d7579a");
   });
 
   afterAll(() => {
