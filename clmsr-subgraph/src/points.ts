@@ -1,11 +1,5 @@
-import {
-  BigInt,
-  BigDecimal,
-  Bytes,
-  ethereum,
-  crypto,
-} from "@graphprotocol/graph-ts";
-import { EventHistory, UserStats } from "../generated/schema";
+import { BigInt, BigDecimal, Bytes } from "@graphprotocol/graph-ts";
+import { UserStats } from "../generated/schema";
 import { PointsGranted } from "../generated/PointsGranter/PointsGranter";
 import { getOrCreateUserStats } from "./clmsr-market-core";
 
@@ -107,36 +101,6 @@ export function addRiskBonusPoints(userStats: UserStats, amount: BigInt): void {
   userStats.riskBonusPoints = userStats.riskBonusPoints.plus(amount);
 }
 
-// ============= 히스토리 기록 =============
-
-/** Append a single history row from an event */
-export function recordEventHistory(
-  e: ethereum.Event,
-
-  user: Bytes,
-  amount: BigInt,
-  reason: string,
-  timestamp: BigInt
-): void {
-  // Unique id: keccak256(txHash || logIndex || reasonCode)
-  let code = 100; // default: MANUAL
-  if (reason == "ACTIVITY") code = 1;
-  else if (reason == "PERFORMANCE") code = 2;
-  else if (reason == "RISK_BONUS") code = 3;
-
-  const preimage = e.transaction.hash
-    .concatI32(e.logIndex.toI32())
-    .concatI32(code);
-  const id = Bytes.fromByteArray(crypto.keccak256(preimage));
-
-  let h = new EventHistory(id);
-  h.user = user;
-  h.amount = amount;
-  h.reason = reason;
-  h.timestamp = timestamp;
-  h.save();
-}
-
 // ============= Points 이벤트 핸들러 =============
 
 /** Map reason code to string */
@@ -168,6 +132,4 @@ export function handlePointsGranted(e: PointsGranted): void {
     userStats.riskBonusPoints = userStats.riskBonusPoints.plus(e.params.amount);
   }
   userStats.save();
-
-  recordEventHistory(e, userStats.user, e.params.amount, reason, ts);
 }

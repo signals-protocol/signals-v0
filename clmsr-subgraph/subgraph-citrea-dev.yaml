@@ -18,16 +18,12 @@ dataSources:
       apiVersion: 0.0.9
       language: wasm/assemblyscript
       entities:
-        - MarketCreated
-        - MarketSettled
-        - MarketSettlementValueSubmitted
-        - PositionClaimed
-        - PositionClosed
-        - PositionDecreased
-        - PositionIncreased
-        - PositionOpened
-        - RangeFactorApplied
-        - EventHistory
+        - Market
+        - MarketDistribution
+        - BinState
+        - UserPosition
+        - Trade
+        - MarketStats
         - UserStats
       abis:
         - name: CLMSRMarketCore
@@ -68,7 +64,6 @@ dataSources:
       apiVersion: 0.0.9
       language: wasm/assemblyscript
       entities:
-        - EventHistory
         - UserStats
       abis:
         - name: PointsGranter

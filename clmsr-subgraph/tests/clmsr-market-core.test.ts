@@ -6,9 +6,11 @@ import {
   beforeAll,
   afterAll,
   log,
+  newMockEvent,
 } from "matchstick-as/assembly/index";
 import { Address, BigInt, ethereum, Bytes } from "@graphprotocol/graph-ts";
 import { MarketDistribution } from "../generated/schema";
+import { PointsGranted } from "../generated/PointsGranter/PointsGranter";
 import {
   handleMarketCreated,
   handleMarketSettled,
@@ -18,8 +20,10 @@ import {
   handlePositionDecreased,
   handlePositionIncreased,
   handlePositionClosed,
+  handlePositionClaimed,
   handlePositionSettled,
 } from "../src/clmsr-market-core";
+import { handlePointsGranted } from "../src/points";
 import {
   createMarketCreatedEvent,
   createMarketSettledEvent,
@@ -29,6 +33,7 @@ import {
   createPositionDecreasedEvent,
   createPositionIncreasedEvent,
   createPositionClosedEvent,
+  createPositionClaimedEvent,
   createPositionSettledEvent,
 } from "./clmsr-market-core-utils";
 
@@ -964,45 +969,7 @@ describe("CLMSR Market Core Tests", () => {
       createMarketSettlementValueSubmittedEvent(marketId, settlementValue);
     handleMarketSettlementValueSubmitted(marketSettlementValueSubmittedEvent);
 
-    // 5. Verify both events
-    assert.entityCount("MarketSettled", 1);
-    assert.entityCount("MarketSettlementValueSubmitted", 1);
-
-    assert.fieldEquals(
-      "MarketSettled",
-      marketSettledEvent.transaction.hash
-        .concatI32(marketSettledEvent.logIndex.toI32())
-        .toHexString(),
-      "marketId",
-      "1"
-    );
-    assert.fieldEquals(
-      "MarketSettled",
-      marketSettledEvent.transaction.hash
-        .concatI32(marketSettledEvent.logIndex.toI32())
-        .toHexString(),
-      "settlementTick",
-      "115"
-    );
-
-    assert.fieldEquals(
-      "MarketSettlementValueSubmitted",
-      marketSettlementValueSubmittedEvent.transaction.hash
-        .concatI32(marketSettlementValueSubmittedEvent.logIndex.toI32())
-        .toHexString(),
-      "marketId",
-      "1"
-    );
-    assert.fieldEquals(
-      "MarketSettlementValueSubmitted",
-      marketSettlementValueSubmittedEvent.transaction.hash
-        .concatI32(marketSettlementValueSubmittedEvent.logIndex.toI32())
-        .toHexString(),
-      "settlementValue",
-      "115500000"
-    );
-
-    // 6. Verify market state updated with both values
+    // 5. Verify Market state updated (no event entities stored anymore)
     assert.fieldEquals("Market", "1", "isSettled", "true");
     assert.fieldEquals("Market", "1", "settlementTick", "115");
     // settlementValue should be updated by both events:
@@ -1063,25 +1030,15 @@ describe("CLMSR Market Core Tests", () => {
     );
     handlePositionSettled(positionSettledEvent);
 
-    // 4. PositionSettled 엔티티 검증
-    assert.entityCount("PositionSettled", 1);
-    let settledEntityId = positionSettledEvent.transaction.hash
+    // 4. Trade SETTLE 엔티티 검증 (이벤트 엔티티 대신 Trade로 정산 이력 추적)
+    assert.entityCount("Trade", 2); // OPEN + SETTLE
+    let settleTradeId = positionSettledEvent.transaction.hash
       .concatI32(positionSettledEvent.logIndex.toI32())
       .toHexString();
-    assert.fieldEquals("PositionSettled", settledEntityId, "positionId", "1");
-    assert.fieldEquals(
-      "PositionSettled",
-      settledEntityId,
-      "trader",
-      trader.toHexString()
-    );
-    assert.fieldEquals(
-      "PositionSettled",
-      settledEntityId,
-      "payout",
-      "10000000"
-    );
-    assert.fieldEquals("PositionSettled", settledEntityId, "isWin", "true");
+    assert.fieldEquals("Trade", settleTradeId, "type", "SETTLE");
+    assert.fieldEquals("Trade", settleTradeId, "positionId", "1");
+    assert.fieldEquals("Trade", settleTradeId, "user", trader.toHexString());
+    assert.fieldEquals("Trade", settleTradeId, "costOrProceeds", "10000000");
 
     // 5. UserPosition 상태 및 PnL 검증
     assert.fieldEquals("UserPosition", "1", "outcome", "WIN");
@@ -1106,24 +1063,218 @@ describe("CLMSR Market Core Tests", () => {
     // Risk Bonus Points: 복잡한 계산이므로 0이 아닌지 확인
     // totalPoints가 업데이트되었는지 확인 (Performance + Risk Bonus)
 
-    // 7. Trade 엔티티 검증 - SETTLE 타입
-    assert.entityCount("Trade", 2); // OPEN + SETTLE
-    let settleTradeId = positionSettledEvent.transaction.hash
-      .concatI32(positionSettledEvent.logIndex.toI32())
-      .toHexString();
-    assert.fieldEquals("Trade", settleTradeId, "type", "SETTLE");
+    // 7. Trade 엔티티 추가 검증 - SETTLE 타입
     assert.fieldEquals("Trade", settleTradeId, "userPosition", "1");
-    assert.fieldEquals("Trade", settleTradeId, "user", trader.toHexString());
     assert.fieldEquals("Trade", settleTradeId, "market", "1");
-    assert.fieldEquals("Trade", settleTradeId, "positionId", "1");
     assert.fieldEquals("Trade", settleTradeId, "quantity", "0"); // Settlement doesn't change quantity
-    assert.fieldEquals("Trade", settleTradeId, "costOrProceeds", "10000000");
     assert.fieldEquals("Trade", settleTradeId, "price", "0"); // No price for settlement
     assert.fieldEquals("Trade", settleTradeId, "activityPt", "0"); // No activity points for settlement
     assert.fieldEquals("Trade", settleTradeId, "performancePt", "0"); // Negative PnL = 0 performance points
 
     // Risk bonus points는 0이 아니어야 함 (holdingSeconds > 0, userRange > 0 등)
     // 정확한 계산은 복잡하므로 존재하는지만 확인
+  });
+
+  test("PositionClaimed - User claims winning position payout", () => {
+    clearStore();
+
+    // 1. Setup market
+    let marketCreatedEvent = createMarketCreatedEvent(
+      BigInt.fromI32(1), // marketId
+      BigInt.fromI32(1000000), // startTimestamp
+      BigInt.fromI32(2000000), // endTimestamp
+      BigInt.fromI32(100), // minTick
+      BigInt.fromI32(200), // maxTick
+      BigInt.fromI32(10), // tickSpacing
+      BigInt.fromI32(10), // numBins
+      BigInt.fromString("1000000000000000000") // liquidityParameter
+    );
+    handleMarketCreated(marketCreatedEvent);
+
+    // 2. Open position
+    let trader = Address.fromString(
+      "0x1234567890123456789012345678901234567890"
+    );
+    let positionOpenedEvent = createPositionOpenedEvent(
+      BigInt.fromI32(1), // positionId
+      trader,
+      BigInt.fromI32(1), // marketId
+      BigInt.fromI32(110), // lowerTick
+      BigInt.fromI32(120), // upperTick
+      BigInt.fromString("10000000"), // quantity (10.0)
+      BigInt.fromString("50000000") // cost (50.0 USDC)
+    );
+    positionOpenedEvent.logIndex = BigInt.fromI32(0);
+    positionOpenedEvent.transaction.hash = Bytes.fromHexString(
+      "0x0000000000000000000000000000000000000000000000000000000000000001"
+    );
+    handlePositionOpened(positionOpenedEvent);
+
+    // 3. Position settles as WIN
+    let positionSettledEvent = createPositionSettledEvent(
+      BigInt.fromI32(1), // positionId
+      trader,
+      BigInt.fromString("60000000"), // payout (60.0 USDC - winning scenario)
+      true // isWin
+    );
+    positionSettledEvent.logIndex = BigInt.fromI32(1);
+    positionSettledEvent.transaction.hash = Bytes.fromHexString(
+      "0x0000000000000000000000000000000000000000000000000000000000000002"
+    );
+    handlePositionSettled(positionSettledEvent);
+
+    // 4. User claims the payout
+    let positionClaimedEvent = createPositionClaimedEvent(
+      BigInt.fromI32(1), // positionId
+      trader,
+      BigInt.fromString("60000000") // payout amount
+    );
+    positionClaimedEvent.logIndex = BigInt.fromI32(2);
+    positionClaimedEvent.transaction.hash = Bytes.fromHexString(
+      "0x0000000000000000000000000000000000000000000000000000000000000003"
+    );
+    handlePositionClaimed(positionClaimedEvent);
+
+    // 5. Verify claim status updated
+    assert.fieldEquals("UserPosition", "1", "isClaimed", "true");
+    assert.fieldEquals("UserPosition", "1", "outcome", "WIN");
+    assert.fieldEquals("UserPosition", "1", "totalProceeds", "60000000");
+  });
+
+  test("Activity Points - Daily limit (3 times per day)", () => {
+    clearStore();
+
+    // Setup market
+    let marketCreatedEvent = createMarketCreatedEvent(
+      BigInt.fromI32(1), // marketId
+      BigInt.fromI32(1000000), // startTimestamp
+      BigInt.fromI32(2000000), // endTimestamp
+      BigInt.fromI32(100), // minTick
+      BigInt.fromI32(200), // maxTick
+      BigInt.fromI32(10), // tickSpacing
+      BigInt.fromI32(10), // numBins
+      BigInt.fromString("1000000000000000000") // liquidityParameter
+    );
+    handleMarketCreated(marketCreatedEvent);
+
+    let trader = Address.fromString(
+      "0x1234567890123456789012345678901234567890"
+    );
+    let baseTime = BigInt.fromI32(86400 * 100); // Day 100 in seconds
+
+    // 1st activity point (should get points)
+    let positionOpenedEvent1 = createPositionOpenedEvent(
+      BigInt.fromI32(1), // positionId
+      trader,
+      BigInt.fromI32(1), // marketId
+      BigInt.fromI32(110), // lowerTick
+      BigInt.fromI32(120), // upperTick
+      BigInt.fromString("1000000"), // quantity (1.0)
+      BigInt.fromString("100000000") // cost (100.0 USDC → 10 activity points)
+    );
+    positionOpenedEvent1.block.timestamp = baseTime;
+    positionOpenedEvent1.logIndex = BigInt.fromI32(0);
+    positionOpenedEvent1.transaction.hash = Bytes.fromHexString(
+      "0x0000000000000000000000000000000000000000000000000000000000000001"
+    );
+    handlePositionOpened(positionOpenedEvent1);
+
+    // 2nd activity (same day, should get points)
+    let positionIncreasedEvent1 = createPositionIncreasedEvent(
+      BigInt.fromI32(1), // positionId
+      trader,
+      BigInt.fromString("1000000"), // additionalQuantity
+      BigInt.fromString("2000000"), // newQuantity
+      BigInt.fromString("100000000") // cost (100.0 USDC → 10 activity points)
+    );
+    positionIncreasedEvent1.block.timestamp = baseTime.plus(
+      BigInt.fromI32(3600)
+    ); // +1 hour
+    positionIncreasedEvent1.logIndex = BigInt.fromI32(1);
+    positionIncreasedEvent1.transaction.hash = Bytes.fromHexString(
+      "0x0000000000000000000000000000000000000000000000000000000000000002"
+    );
+    handlePositionIncreased(positionIncreasedEvent1);
+
+    // 3rd activity (same day, should get points)
+    let positionOpenedEvent2 = createPositionOpenedEvent(
+      BigInt.fromI32(2), // positionId
+      trader,
+      BigInt.fromI32(1), // marketId
+      BigInt.fromI32(120), // lowerTick
+      BigInt.fromI32(130), // upperTick
+      BigInt.fromString("1000000"), // quantity
+      BigInt.fromString("100000000") // cost (100.0 USDC → 10 activity points)
+    );
+    positionOpenedEvent2.block.timestamp = baseTime.plus(BigInt.fromI32(7200)); // +2 hours
+    positionOpenedEvent2.logIndex = BigInt.fromI32(0);
+    positionOpenedEvent2.transaction.hash = Bytes.fromHexString(
+      "0x0000000000000000000000000000000000000000000000000000000000000003"
+    );
+    handlePositionOpened(positionOpenedEvent2);
+
+    // 4th activity (same day, should NOT get points - limit exceeded)
+    let positionIncreasedEvent2 = createPositionIncreasedEvent(
+      BigInt.fromI32(2), // positionId
+      trader,
+      BigInt.fromString("1000000"), // additionalQuantity
+      BigInt.fromString("2000000"), // newQuantity
+      BigInt.fromString("100000000") // cost (100.0 USDC but no activity points due to limit)
+    );
+    positionIncreasedEvent2.block.timestamp = baseTime.plus(
+      BigInt.fromI32(10800)
+    ); // +3 hours
+    positionIncreasedEvent2.logIndex = BigInt.fromI32(1);
+    positionIncreasedEvent2.transaction.hash = Bytes.fromHexString(
+      "0x0000000000000000000000000000000000000000000000000000000000000004"
+    );
+    handlePositionIncreased(positionIncreasedEvent2);
+
+    // Verify activity points counter
+    assert.fieldEquals(
+      "UserStats",
+      trader.toHexString(),
+      "activityPointsToday",
+      "3"
+    );
+    assert.fieldEquals(
+      "UserStats",
+      trader.toHexString(),
+      "activityPoints",
+      "30000000"
+    ); // Only 3 times got points
+
+    // Test next day reset
+    let nextDayTime = baseTime.plus(BigInt.fromI32(86400)); // +24 hours (next day)
+    let positionOpenedEvent3 = createPositionOpenedEvent(
+      BigInt.fromI32(3), // positionId
+      trader,
+      BigInt.fromI32(1), // marketId
+      BigInt.fromI32(130), // lowerTick
+      BigInt.fromI32(140), // upperTick
+      BigInt.fromString("1000000"), // quantity
+      BigInt.fromString("100000000") // cost (should get points again - new day)
+    );
+    positionOpenedEvent3.block.timestamp = nextDayTime;
+    positionOpenedEvent3.logIndex = BigInt.fromI32(0);
+    positionOpenedEvent3.transaction.hash = Bytes.fromHexString(
+      "0x0000000000000000000000000000000000000000000000000000000000000005"
+    );
+    handlePositionOpened(positionOpenedEvent3);
+
+    // Verify counter reset for new day
+    assert.fieldEquals(
+      "UserStats",
+      trader.toHexString(),
+      "activityPointsToday",
+      "1"
+    ); // Reset to 1
+    assert.fieldEquals(
+      "UserStats",
+      trader.toHexString(),
+      "activityPoints",
+      "40000000"
+    ); // +10 more points
   });
 
   test("PositionSettled - LOSS scenario with comprehensive stats verification", () => {
@@ -1178,20 +1329,15 @@ describe("CLMSR Market Core Tests", () => {
     );
     handlePositionSettled(positionSettledEvent);
 
-    // 4. PositionSettled 엔티티 검증
-    assert.entityCount("PositionSettled", 1);
-    let settledEntityId = positionSettledEvent.transaction.hash
+    // 4. Trade SETTLE 엔티티 검증 (이벤트 엔티티 대신 Trade로 정산 이력 추적)
+    assert.entityCount("Trade", 2); // OPEN + SETTLE
+    let settleTradeId = positionSettledEvent.transaction.hash
       .concatI32(positionSettledEvent.logIndex.toI32())
       .toHexString();
-    assert.fieldEquals("PositionSettled", settledEntityId, "positionId", "2");
-    assert.fieldEquals(
-      "PositionSettled",
-      settledEntityId,
-      "trader",
-      trader.toHexString()
-    );
-    assert.fieldEquals("PositionSettled", settledEntityId, "payout", "0");
-    assert.fieldEquals("PositionSettled", settledEntityId, "isWin", "false");
+    assert.fieldEquals("Trade", settleTradeId, "type", "SETTLE");
+    assert.fieldEquals("Trade", settleTradeId, "positionId", "2");
+    assert.fieldEquals("Trade", settleTradeId, "user", trader.toHexString());
+    assert.fieldEquals("Trade", settleTradeId, "costOrProceeds", "0"); // LOSS case: 0 payout
 
     // 5. UserPosition 상태 및 PnL 검증
     assert.fieldEquals("UserPosition", "2", "outcome", "LOSS");
@@ -1214,18 +1360,10 @@ describe("CLMSR Market Core Tests", () => {
     // totalPoints가 업데이트되었는지 확인 (Performance Points = 0 + Risk Bonus Points)
     // 손실 거래이지만 Risk Bonus Points는 받을 수 있음
 
-    // 7. Trade 엔티티 상세 검증
-    assert.entityCount("Trade", 2); // OPEN + SETTLE
-    let settleTradeId = positionSettledEvent.transaction.hash
-      .concatI32(positionSettledEvent.logIndex.toI32())
-      .toHexString();
-    assert.fieldEquals("Trade", settleTradeId, "type", "SETTLE");
+    // 7. Trade 엔티티 추가 검증
     assert.fieldEquals("Trade", settleTradeId, "userPosition", "2");
-    assert.fieldEquals("Trade", settleTradeId, "user", trader.toHexString());
     assert.fieldEquals("Trade", settleTradeId, "market", "1");
-    assert.fieldEquals("Trade", settleTradeId, "positionId", "2");
     assert.fieldEquals("Trade", settleTradeId, "quantity", "0"); // Settlement doesn't change quantity
-    assert.fieldEquals("Trade", settleTradeId, "costOrProceeds", "0");
     assert.fieldEquals("Trade", settleTradeId, "price", "0");
     assert.fieldEquals("Trade", settleTradeId, "activityPt", "0");
     assert.fieldEquals("Trade", settleTradeId, "performancePt", "0"); // Loss = 0 performance points
@@ -1234,5 +1372,165 @@ describe("CLMSR Market Core Tests", () => {
 
     // 8. BinState는 settlement에서 변화 없음 (이미 OPEN에서 업데이트됨)
     assert.fieldEquals("BinState", "1-5", "totalVolume", "25000000"); // bin 5 (150-160 range)
+  });
+
+  test("🚨 Edge Case - Zero quantity position handling", () => {
+    clearStore();
+
+    // Setup market
+    let marketCreatedEvent = createMarketCreatedEvent(
+      BigInt.fromI32(1), // marketId
+      BigInt.fromI32(1000000), // startTimestamp
+      BigInt.fromI32(2000000), // endTimestamp
+      BigInt.fromI32(100), // minTick
+      BigInt.fromI32(200), // maxTick
+      BigInt.fromI32(10), // tickSpacing
+      BigInt.fromI32(10), // numBins
+      BigInt.fromString("1000000000000000000") // liquidityParameter
+    );
+    handleMarketCreated(marketCreatedEvent);
+
+    // Try to open position with zero quantity
+    let trader = Address.fromString(
+      "0x1234567890123456789012345678901234567890"
+    );
+    let positionOpenedEvent = createPositionOpenedEvent(
+      BigInt.fromI32(1), // positionId
+      trader,
+      BigInt.fromI32(1), // marketId
+      BigInt.fromI32(110), // lowerTick
+      BigInt.fromI32(120), // upperTick
+      BigInt.fromString("0"), // quantity = 0 (edge case)
+      BigInt.fromString("1000000") // cost (1.0 USDC)
+    );
+    positionOpenedEvent.logIndex = BigInt.fromI32(0);
+    positionOpenedEvent.transaction.hash = Bytes.fromHexString(
+      "0x0000000000000000000000000000000000000000000000000000000000000001"
+    );
+    handlePositionOpened(positionOpenedEvent);
+
+    // Verify position created with zero quantity
+    assert.fieldEquals("UserPosition", "1", "currentQuantity", "0");
+    assert.fieldEquals("UserPosition", "1", "totalCostBasis", "1000000");
+    assert.fieldEquals("UserPosition", "1", "averageEntryPrice", "0"); // Should handle division by zero
+
+    // Verify UserStats still updated
+    assert.fieldEquals("UserStats", trader.toHexString(), "totalTrades", "1");
+    assert.fieldEquals(
+      "UserStats",
+      trader.toHexString(),
+      "totalVolume",
+      "1000000"
+    );
+  });
+
+  test("🔥 Edge Case - Maximum values handling", () => {
+    clearStore();
+
+    // Setup market
+    let marketCreatedEvent = createMarketCreatedEvent(
+      BigInt.fromI32(1), // marketId
+      BigInt.fromI32(1000000), // startTimestamp
+      BigInt.fromI32(2000000), // endTimestamp
+      BigInt.fromI32(100), // minTick
+      BigInt.fromI32(200), // maxTick
+      BigInt.fromI32(10), // tickSpacing
+      BigInt.fromI32(10), // numBins
+      BigInt.fromString("1000000000000000000") // liquidityParameter
+    );
+    handleMarketCreated(marketCreatedEvent);
+
+    // Open position with very large values
+    let trader = Address.fromString(
+      "0x1234567890123456789012345678901234567890"
+    );
+    let maxValue = BigInt.fromString("999999999999999999"); // Near max uint256
+    let positionOpenedEvent = createPositionOpenedEvent(
+      BigInt.fromI32(1), // positionId
+      trader,
+      BigInt.fromI32(1), // marketId
+      BigInt.fromI32(110), // lowerTick
+      BigInt.fromI32(120), // upperTick
+      maxValue, // quantity = max value
+      maxValue // cost = max value
+    );
+    positionOpenedEvent.logIndex = BigInt.fromI32(0);
+    positionOpenedEvent.transaction.hash = Bytes.fromHexString(
+      "0x0000000000000000000000000000000000000000000000000000000000000001"
+    );
+    handlePositionOpened(positionOpenedEvent);
+
+    // Verify large values handled correctly
+    assert.fieldEquals(
+      "UserPosition",
+      "1",
+      "currentQuantity",
+      maxValue.toString()
+    );
+    assert.fieldEquals(
+      "UserPosition",
+      "1",
+      "totalCostBasis",
+      maxValue.toString()
+    );
+
+    // Activity points should be calculated correctly even with large values
+    let expectedActivityPt = maxValue.div(BigInt.fromI32(10));
+    assert.fieldEquals(
+      "UserPosition",
+      "1",
+      "activityRemaining",
+      expectedActivityPt.toString()
+    );
+  });
+
+  test("⚠️  Edge Case - Position with invalid ticks", () => {
+    clearStore();
+
+    // Setup market
+    let marketCreatedEvent = createMarketCreatedEvent(
+      BigInt.fromI32(1), // marketId
+      BigInt.fromI32(1000000), // startTimestamp
+      BigInt.fromI32(2000000), // endTimestamp
+      BigInt.fromI32(100), // minTick
+      BigInt.fromI32(200), // maxTick
+      BigInt.fromI32(10), // tickSpacing
+      BigInt.fromI32(10), // numBins
+      BigInt.fromString("1000000000000000000") // liquidityParameter
+    );
+    handleMarketCreated(marketCreatedEvent);
+
+    // Try to open position with lowerTick >= upperTick (edge case)
+    let trader = Address.fromString(
+      "0x1234567890123456789012345678901234567890"
+    );
+    let positionOpenedEvent = createPositionOpenedEvent(
+      BigInt.fromI32(1), // positionId
+      trader,
+      BigInt.fromI32(1), // marketId
+      BigInt.fromI32(120), // lowerTick
+      BigInt.fromI32(110), // upperTick (invalid: lower than lowerTick)
+      BigInt.fromString("1000000"), // quantity (1.0)
+      BigInt.fromString("1000000") // cost (1.0 USDC)
+    );
+    positionOpenedEvent.logIndex = BigInt.fromI32(0);
+    positionOpenedEvent.transaction.hash = Bytes.fromHexString(
+      "0x0000000000000000000000000000000000000000000000000000000000000001"
+    );
+    handlePositionOpened(positionOpenedEvent);
+
+    // Position should still be created but with range calculations
+    assert.fieldEquals("UserPosition", "1", "currentQuantity", "1000000");
+    assert.fieldEquals("UserPosition", "1", "lowerTick", "120");
+    assert.fieldEquals("UserPosition", "1", "upperTick", "110");
+
+    // UserStats should still be updated properly
+    assert.fieldEquals("UserStats", trader.toHexString(), "totalTrades", "1");
+    assert.fieldEquals(
+      "UserStats",
+      trader.toHexString(),
+      "totalVolume",
+      "1000000"
+    );
   });
 });
