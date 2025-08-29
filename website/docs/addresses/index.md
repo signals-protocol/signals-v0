@@ -1,8 +1,10 @@
 # Contract Addresses
 
-All contracts are deployed on Citrea using the OpenZeppelin Proxy pattern for upgradeability.
+All contracts are deployed on **Citrea Testnet** using the OpenZeppelin Proxy pattern for upgradeability.
 
-## Citrea Production
+> ⚠️ **Testnet Notice**: These are testnet addresses and may change. Contracts have no real asset value.
+
+## Citrea Testnet (Tangerine)
 
 | Contract Type | Contract Name   | Proxy Address                                | Implementation                               | Explorer                                                                                                  |
 | ------------- | --------------- | -------------------------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
@@ -20,9 +22,11 @@ All contracts are deployed on Citrea using the OpenZeppelin Proxy pattern for up
 
 ## Deployment Information
 
-- **Current Version**: 1.1.0
+- **Current Version**: 1.1.0 (Testnet)
 - **Last Updated**: August 21, 2025
+- **Network**: Citrea Testnet (Chain ID 5115)
 - **Deployer**: `0xe0785a8cDc92bAe49Ae7aA6C99B602e3CC43F7eD`
+- **Status**: ⚠️ Test Environment - Addresses may change
 
 ## Subgraph Endpoint
 
@@ -40,4 +44,6 @@ Contract ABIs are available in the [GitHub repository](https://github.com/signal
 
 ## Verification
 
-All contracts are verified on Citrea Explorer. You can verify the source code matches the deployed bytecode.
+All contracts are verified on Citrea Testnet Explorer. You can verify the source code matches the deployed bytecode.
+
+> **Disclaimer**: This is a testnet deployment for testing purposes only. Do not use real assets.

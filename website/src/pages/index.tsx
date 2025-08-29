@@ -24,6 +24,13 @@ function HomepageHeader() {
           >
             Quick Start Guide - 5min ⏱️
           </Link>
+          <Link
+            className="button button--primary button--lg"
+            href="https://signals.wtf"
+            style={{ marginLeft: "1rem" }}
+          >
+            Use the App 🚀
+          </Link>
         </div>
       </div>
     </header>

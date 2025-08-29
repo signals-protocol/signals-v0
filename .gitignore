@@ -73,7 +73,9 @@ beta-addresses.json
 
 # Development utility files
 combine_all_files.sh
+combine_website_docs.sh
 complete_codebase.md
+website_docs_codebase.md
 coverage.json
 
 verification/

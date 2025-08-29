@@ -1,70 +1,40 @@
-# signals-v0
+# Signals: Range-Based Bitcoin Prediction
 
-Welcome to **signals-v0**, a revolutionary prediction market platform for continuous outcomes.
+Signals enables prediction markets on continuous outcomes rather than simple binary questions. Instead of betting whether Bitcoin will be above or below a specific price, you can express precise predictions by purchasing range securities that cover specific price intervals.
 
-## What is signals-v0?
+## The Range Security Innovation
 
-signals-v0 enables prediction markets on **continuous outcomes** like asset prices, market indices, and any numerical value. Instead of simple yes/no questions, you can bet on specific **price ranges** with mathematical precision.
+Traditional prediction markets limit you to yes-or-no questions such as "Will BTC exceed $50,000 by January 31st?" This binary approach fragments liquidity across many separate markets and fails to capture the nuanced nature of price movements. Signals solves this problem through range securities that allow you to bet on specific price intervals.
 
-### Key Innovation: Range Securities
+When you purchase range securities for the interval $52,000 to $54,000, you are expressing your belief that Bitcoin will settle within that exact range. Each range security pays out 1 SUSD if the final settlement value falls within your chosen interval. The price you pay for these securities directly represents the market's estimated probability of that outcome occurring.
 
-- **Traditional**: "Will ETH be above $3000?" (Binary)
-- **signals-v0**: "ETH will be between $3200-$3400" (Range)
+## How Price Discovery Works
 
-Each range security pays **1 USDC** if the outcome falls within your chosen range.
+The protocol implements a Continuous Logarithmic Market Scoring Rule that maintains a single unified liquidity pool across all possible outcome ranges. This design eliminates the liquidity fragmentation that plagues traditional binary prediction markets. When you purchase range securities, the cost is calculated using the formula `α × ln(sum_after / sum_before)`, where alpha represents the liquidity parameter and the sums represent the total exponential weights before and after your trade.
 
-## Why signals-v0?
+The mathematical foundation ensures that prices always sum to 1 SUSD across all possible outcomes, creating an internally consistent probability distribution. If a range currently costs 0.25 SUSD, the market collectively estimates a 25% probability that the final outcome will fall within that range.
 
-### 🎯 Express Precise Predictions
+## Market Settlement and Payout
 
-Buy specific price ranges instead of binary outcomes. Perfect for expressing nuanced market views.
+Markets operate with predefined settlement criteria and timing. When a market reaches its settlement date, an authorized operator posts the final outcome value using 6-decimal precision. The protocol then determines winning ranges by checking which intervals contain the settlement tick, calculated as `floor(settlement_value / 1e6)`.
 
-### 💰 Earn from Correct Predictions
+Position holders whose ranges include the settlement tick can claim 1 SUSD per share they own. The claiming process is permissionless once settlement occurs, allowing position holders to retrieve their winnings at any time within the 90-day claim period.
 
-Win 1 USDC per share when your prediction range is correct. Clear risk/reward structure.
+## Bitcoin Markets on Citrea
 
-### 🔄 Trade Anytime
+Signals currently operates Bitcoin prediction markets on the Citrea testnet, providing a secure zkRollup environment that inherits Bitcoin's security guarantees while offering EVM compatibility. Transaction fees are paid in cBTC, Citrea's native token, while all trading and settlement occurs in SUSD, a 6-decimal token that follows USDC formatting conventions.
 
-Enter and exit positions before market settlement. Prices update continuously based on market sentiment.
+The protocol's gas-efficient design uses a lazy multiplicative segment tree to handle range operations in O(log n) complexity, making it economical to support markets with hundreds of distinct price ranges. Safety mechanisms limit individual transactions to 1000 computational chunks and enforce bounds on multiplicative factors to prevent overflow conditions.
 
-### 🧮 Mathematical Fairness
+## Getting Started
 
-Powered by CLMSR (Continuous Logarithmic Market Scoring Rule) - ensuring fair, efficient price discovery.
+To begin using Signals, you need a Web3 wallet configured for the Citrea testnet, some cBTC for transaction fees, and SUSD tokens for trading. The Quick Start guide provides detailed instructions for wallet setup and executing your first trade.
 
-## How It Works
-
-1. **Choose a Market**: Active prediction markets on various outcomes
-2. **Select Price Ranges**: Pick the ranges you think are most likely
-3. **Buy Range Securities**: Each share costs based on market probability
-4. **Earn Rewards**: Get 1 USDC per share if your range is correct
-
-## Example
-
-**Market**: "ETH Price in 30 Days"
-
-- Current ETH: $3,100
-- You think it'll reach $3,300
-- **Buy**: 10 shares of [$3,200-$3,400) range
-- **Cost**: ~2.5 USDC (market probability: 25%)
-- **If Correct**: Earn 10 USDC (7.5 USDC profit)
-
-## Get Started
-
-Ready to make your first prediction?
-
-**[🚀 Quick Start Guide →](/docs/quickstart)**
+The protocol documentation covers mathematical foundations, security considerations, and data access through GraphQL endpoints. Whether you are a trader seeking to express nuanced market views, a researcher analyzing prediction accuracy, or a developer building on top of the protocol, the documentation provides the context and technical details needed to engage effectively with Signals.
 
 ---
 
-### Technical Information
-
-- **Network**: Citrea Testnet
-- **Settlement Currency**: SUSD (pegged to USD)
-- **Transaction Fees**: Paid in cBTC
-- **Contract Addresses**: [View all addresses →](/docs/addresses)
-
-### Learn More
-
-- **[How CLMSR Works →](/docs/concepts/architecture)** - Technical explanation
-- **[Network Setup →](/docs/networks/supported-networks)** - Configure your wallet
-- **[Security →](/docs/security/audits)** - Protocol security measures
+**Network**: Citrea Testnet (Chain ID 5115)  
+**Settlement Token**: SUSD (6 decimals, USDC-style)  
+**Transaction Fees**: cBTC  
+**Contract Addresses**: [View deployment details →](/docs/addresses)

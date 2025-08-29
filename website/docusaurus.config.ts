@@ -5,8 +5,8 @@ import type * as Preset from "@docusaurus/preset-classic";
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
 const config: Config = {
-  title: "signals-v0",
-  tagline: "Decentralized Prediction Market Protocol Documentation",
+  title: "Signals",
+  tagline: "Range-Based Bitcoin Prediction on Citrea",
   favicon: "img/favicon.ico",
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
@@ -43,20 +43,7 @@ const config: Config = {
           editUrl:
             "https://github.com/signals-protocol/signals-v0/edit/main/website/",
         },
-        blog: {
-          showReadingTime: true,
-          feedOptions: {
-            type: ["rss", "atom"],
-            xslt: true,
-          },
-          // Edit URL for GitHub integration
-          editUrl:
-            "https://github.com/signals-protocol/signals-v0/edit/main/website/",
-          // Useful options to enforce blogging best practices
-          onInlineTags: "warn",
-          onInlineAuthors: "warn",
-          onUntruncatedBlogPosts: "warn",
-        },
+        blog: false,
         theme: {
           customCss: "./src/css/custom.css",
         },
@@ -87,9 +74,9 @@ const config: Config = {
     // Replace with your project's social card
     image: "img/docusaurus-social-card.jpg",
     navbar: {
-      title: "signals-v0",
+      title: "Signals",
       logo: {
-        alt: "signals-v0 Logo",
+        alt: "Signals Logo",
         src: "img/logo.svg",
       },
       items: [
@@ -99,7 +86,21 @@ const config: Config = {
           position: "left",
           label: "Docs",
         },
-        { to: "/blog", label: "Blog", position: "left" },
+        {
+          href: "https://signals.wtf",
+          label: "Use the App",
+          position: "left",
+        },
+        {
+          href: "https://explorer.testnet.citrea.xyz/",
+          label: "Explorer",
+          position: "left",
+        },
+        {
+          href: "https://api.goldsky.com/api/public/project_cme6kru6aowuy01tb4c9xbdrj/subgraphs/signals-v0-citrea-prod/latest/gn",
+          label: "Subgraph",
+          position: "left",
+        },
         {
           href: "https://github.com/signals-protocol/signals-v0",
           label: "GitHub",
@@ -144,8 +145,8 @@ const config: Config = {
           title: "More",
           items: [
             {
-              label: "Blog",
-              to: "/blog",
+              label: "Use the App",
+              href: "https://signals.wtf",
             },
             {
               label: "Changelog",
@@ -154,7 +155,7 @@ const config: Config = {
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} signals-protocol. Built with Docusaurus.`,
+      copyright: `Copyright © ${new Date().getFullYear()} Signals Protocol. Running on Citrea Testnet.`,
     },
     prism: {
       theme: prismThemes.github,
