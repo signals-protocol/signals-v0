@@ -1,6 +1,6 @@
 # Protocol Parameters
 
-Configuration parameters that govern the signals-v0 protocol behavior.
+Configuration parameters that govern the Signals protocol behavior.
 
 ## Market Parameters
 
@@ -25,12 +25,12 @@ Configuration parameters that govern the signals-v0 protocol behavior.
 
 ### Gas & Performance
 
-| Parameter             | Value | Description                             |
-| --------------------- | ----- | --------------------------------------- |
-| **Max Chunks Per TX** | 10    | Limit on exponential computation chunks |
-| **Flush Threshold**   | 2^32  | Auto-flush limit for lazy segment tree  |
-| **Max Factor**        | 2^64  | Maximum multiplicative factor           |
-| **Min Factor**        | 2^-64 | Minimum multiplicative factor           |
+| Parameter             | Value   | Description                             |
+| --------------------- | ------- | --------------------------------------- |
+| **Max Chunks Per TX** | 1000    | Limit on exponential computation chunks |
+| **Flush Threshold**   | 1e21    | Auto-flush limit for lazy segment tree  |
+| **Max Factor**        | 100e18  | Maximum multiplicative factor           |
+| **Min Factor**        | 0.01e18 | Minimum multiplicative factor           |
 
 ### Position Management
 
@@ -47,7 +47,7 @@ Configuration parameters that govern the signals-v0 protocol behavior.
 | Parameter              | Value                             | Description                        |
 | ---------------------- | --------------------------------- | ---------------------------------- |
 | **Internal Precision** | 18 decimals (WAD)                 | All calculations use WAD precision |
-| **External Precision** | 6 decimals (USDC)                 | User-facing amounts in USDC        |
+| **External Precision** | 6 decimals (SUSD)                 | User-facing amounts in SUSD        |
 | **Rounding Policy**    | Ceil for costs, Floor for payouts | Prevents rounding arbitrage        |
 
 ## Security Parameters
@@ -72,7 +72,7 @@ Configuration parameters that govern the signals-v0 protocol behavior.
 
 ### Settlement Currency
 
-- **Primary Token**: SUSD (Synthetic USD)
+- **Primary Token**: SUSD (6 decimals, USDC-style format)
 - **Payout Ratio**: 1 SUSD per winning share
 - **Transaction Fees**: Paid in cBTC (network native token)
 

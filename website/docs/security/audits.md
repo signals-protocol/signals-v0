@@ -1,6 +1,6 @@
-# Security
+# Security & Testing
 
-signals-v0 prioritizes the security of user funds and smart contract integrity.
+Signals prioritizes the security of user funds and smart contract integrity.
 
 ## Smart Contract Security
 
@@ -44,7 +44,7 @@ signals-v0 prioritizes the security of user funds and smart contract integrity.
 
 If you discover a security vulnerability, please report it responsibly:
 
-- **Contact**: security@signals.xyz
+- **Contact**: security@signals-protocol.com
 - **Response Time**: We aim to respond within 24 hours
 - **Disclosure**: Coordinated disclosure after fixes are deployed
 
@@ -64,6 +64,8 @@ If you discover a security vulnerability, please report it responsibly:
 - **Settlement Risk**: Markets are settled by operators (trusted third party)
 - **Liquidity Risk**: Position exit depends on market liquidity
 - **Smart Contract Risk**: While tested, smart contracts may contain unknown bugs
+- **Testnet Risk**: Currently running on testnet - addresses and parameters may change
+- **MEV Risk**: Despite cost function path-independence, on-chain execution may face front-running/sandwich attacks
 
 ### Best Practices
 

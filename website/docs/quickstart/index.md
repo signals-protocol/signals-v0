@@ -1,10 +1,10 @@
 # Quick Start: Join Prediction Markets
 
-Learn how to participate in signals-v0 prediction markets in 5 minutes.
+Learn how to participate in Signals prediction markets in 5 minutes.
 
 ## What You Can Do
 
-On signals-v0, you can:
+On Signals, you can:
 
 - **Trade range securities** on continuous outcomes (asset prices, indices, etc.)
 - **Express precise predictions** by buying specific price ranges
@@ -26,7 +26,7 @@ You'll need:
 Add Citrea to your wallet:
 
 ```
-Network Name: Citrea
+Network Name: Citrea Testnet
 RPC URL: https://rpc.testnet.citrea.xyz
 Chain ID: 5115
 Currency Symbol: cBTC
@@ -45,33 +45,33 @@ Block Explorer: https://explorer.testnet.citrea.xyz/
 
 Instead of betting "yes" or "no", you buy **ranges**:
 
-**Example: ETH Price Market**
+**Example: BTC Price Market**
 
-- Current price: $3,100
-- Available ranges: $2,800-$3,000, $3,000-$3,200, $3,200-$3,400, etc.
-- Each range pays **1 USDC** if ETH settles in that range
+- Current price: $51,000
+- Available ranges: $48,000-$50,000, $50,000-$52,000, $52,000-$54,000, etc.
+- Each range pays **1 SUSD** if BTC settles in that range
 
 ### Price = Probability
 
-If a range costs 0.25 USDC, the market thinks there's a 25% chance of that outcome.
+If a range costs 0.25 SUSD, the market thinks there's a 25% chance of that outcome.
 
 ### Multiple Ranges
 
 You can buy multiple ranges to express complex predictions:
 
-- Bullish: Buy $3,200-$3,400 + $3,400-$3,600
-- Bearish: Buy $2,600-$2,800 + $2,800-$3,000
-- Neutral: Buy $3,000-$3,200
+- Bullish: Buy $52,000-$54,000 + $54,000-$56,000
+- Bearish: Buy $46,000-$48,000 + $48,000-$50,000
+- Neutral: Buy $50,000-$52,000
 
 ## Example Trade
 
-**Market**: "ETH Price in 30 Days"
-**Your Prediction**: ETH will be between $3,200-$3,400
+**Market**: "BTC Price in 30 Days"
+**Your Prediction**: BTC will be between $52,000-$54,000
 
-**Action**: Buy 10 shares of [$3,200-$3,400) range
-**Cost**: ~2.5 USDC (price depends on current market probability)
-**Potential Payout**: 10 USDC if ETH settles between $3,200-$3,400
-**Profit**: 7.5 USDC if correct
+**Action**: Buy 10 shares of [$52,000-$54,000) range
+**Cost**: ~2.5 SUSD (price depends on current market probability)
+**Potential Payout**: 10 SUSD if BTC settles between $52,000-$54,000
+**Profit**: 7.5 SUSD if correct
 
 ## Next Steps
 

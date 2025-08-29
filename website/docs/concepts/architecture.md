@@ -8,13 +8,13 @@ Traditional prediction markets are limited to binary yes/no questions. CLMSR ena
 
 ### Key Innovation: Range Securities
 
-Instead of betting "Will ETH be above $3000?", you can bet:
+Instead of betting "Will BTC be above $50000?", you can bet:
 
-- "ETH will be between $2800-$3200"
-- "ETH will be between $3000-$3500"
-- "ETH will be above $3500"
+- "BTC will be between $48000-$52000"
+- "BTC will be between $50000-$55000"
+- "BTC will be above $55000"
 
-Each range security pays out **1 USDC** if the final outcome falls within your chosen range.
+Each range security pays out **1 SUSD** if the final outcome falls within your chosen range.
 
 ## How CLMSR Works
 
@@ -22,8 +22,8 @@ Each range security pays out **1 USDC** if the final outcome falls within your c
 
 The outcome space is divided into uniform **ticks** (price levels):
 
-- **Example**: ETH price from $2000 to $5000 with $10 spacing
-- Creates 300 discrete bins: [2000-2010), [2010-2020), ..., [4990-5000)
+- **Example**: BTC price from $40000 to $70000 with $100 spacing
+- Creates 300 discrete bins: [40000-40100), [40100-40200), ..., [69900-70000)
 - You can buy ranges covering multiple consecutive bins
 
 ### 2. Single Liquidity Pool
@@ -51,8 +51,8 @@ Where:
 
 The price of any range directly represents the market's estimated probability:
 
-- If a range costs 0.30 USDC, the market thinks there's a 30% chance of that outcome
-- Prices across all possible outcomes always sum to 1.00 USDC
+- If a range costs 0.30 SUSD, the market thinks there's a 30% chance of that outcome
+- Prices across all possible outcomes always sum to 1.00 SUSD
 
 ## Key Benefits
 
@@ -99,18 +99,18 @@ When you buy `δ` shares of range `[L,U)`:
 
 ### Example
 
-Market: ETH price, 5 bins, α = 50 USDC
+Market: BTC price, 5 bins, α = 50 SUSD
 
 - Initial state: All bins have weight = 1, total = 5
-- Buy 10 shares of range [2800-3000): costs ~4 USDC
-- If ETH settles at $2850: your 10 shares pay 10 USDC profit = 6 USDC
+- Buy 10 shares of range [48000-50000): costs ~4 SUSD
+- If BTC settles at $48500: your 10 shares pay 10 SUSD profit = 6 SUSD
 
 ## Technical Implementation
 
 ### Numerical Precision
 
 - **Internal**: 18-decimal precision for all calculations
-- **External**: 6-decimal USDC for user transactions
+- **External**: 6-decimal SUSD for user transactions
 - **Rounding**: Ceiling for costs, floor for payouts (prevents arbitrage)
 
 ### Gas Efficiency
@@ -130,6 +130,6 @@ Market: ETH price, 5 bins, α = 50 USDC
 1. **Creation**: Operator creates market with outcome range and parameters
 2. **Trading**: Users buy/sell range securities based on their predictions
 3. **Settlement**: Operator posts final outcome value
-4. **Payout**: Winning ranges automatically receive 1 USDC per share
+4. **Payout**: Winning ranges automatically receive 1 SUSD per share
 
 This mechanism enables sophisticated continuous-outcome prediction markets while maintaining the simplicity and efficiency needed for on-chain operation.
