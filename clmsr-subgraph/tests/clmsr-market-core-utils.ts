@@ -1,8 +1,21 @@
 import { newMockEvent } from "matchstick-as";
 import { ethereum, Address, BigInt, Bytes } from "@graphprotocol/graph-ts";
+
+// 공통 Mock 설정 헬퍼
+function setupMockEvent(event: ethereum.Event): void {
+  event.address = Address.fromString(
+    "0xA16081F360e3847006dB660bae1c6d1b2e17eC2A"
+  );
+  event.transaction.from = Address.fromString(
+    "0x1234567890123456789012345678901234567890"
+  );
+  event.transaction.to = Address.fromString(
+    "0xA16081F360e3847006dB660bae1c6d1b2e17eC2A"
+  );
+  event.block.number = BigInt.fromI32(1);
+  event.block.timestamp = BigInt.fromI32(1000000);
+}
 import {
-  EmergencyPaused,
-  EmergencyUnpaused,
   MarketCreated,
   MarketSettled,
   MarketSettlementValueSubmitted,
@@ -14,36 +27,6 @@ import {
   PositionSettled,
   RangeFactorApplied,
 } from "../generated/CLMSRMarketCore/CLMSRMarketCore";
-
-export function createEmergencyPausedEvent(
-  by: Address,
-  reason: string
-): EmergencyPaused {
-  let emergencyPausedEvent = changetype<EmergencyPaused>(newMockEvent());
-
-  emergencyPausedEvent.parameters = new Array();
-
-  emergencyPausedEvent.parameters.push(
-    new ethereum.EventParam("by", ethereum.Value.fromAddress(by))
-  );
-  emergencyPausedEvent.parameters.push(
-    new ethereum.EventParam("reason", ethereum.Value.fromString(reason))
-  );
-
-  return emergencyPausedEvent;
-}
-
-export function createEmergencyUnpausedEvent(by: Address): EmergencyUnpaused {
-  let emergencyUnpausedEvent = changetype<EmergencyUnpaused>(newMockEvent());
-
-  emergencyUnpausedEvent.parameters = new Array();
-
-  emergencyUnpausedEvent.parameters.push(
-    new ethereum.EventParam("by", ethereum.Value.fromAddress(by))
-  );
-
-  return emergencyUnpausedEvent;
-}
 
 export function createMarketCreatedEvent(
   marketId: BigInt,
@@ -57,16 +40,12 @@ export function createMarketCreatedEvent(
 ): MarketCreated {
   let marketCreatedEvent = changetype<MarketCreated>(newMockEvent());
 
-  // Mock 이벤트 기본값 설정하여 경고 제거
-  marketCreatedEvent.address = Address.fromString(
-    "0xA16081F360e3847006dB660bae1c6d1b2e17eC2A"
-  );
+  // 공통 Mock 설정 적용
+  setupMockEvent(marketCreatedEvent);
   marketCreatedEvent.transaction.hash = Bytes.fromHexString(
     "0x1234567890123456789012345678901234567890123456789012345678901234"
   );
   marketCreatedEvent.logIndex = BigInt.fromI32(0);
-  marketCreatedEvent.block.number = BigInt.fromI32(1);
-  marketCreatedEvent.block.timestamp = BigInt.fromI32(1000000);
 
   marketCreatedEvent.parameters = new Array();
 
@@ -122,16 +101,12 @@ export function createMarketSettledEvent(
 ): MarketSettled {
   let marketSettledEvent = changetype<MarketSettled>(newMockEvent());
 
-  // Mock 이벤트 기본값 설정
-  marketSettledEvent.address = Address.fromString(
-    "0xA16081F360e3847006dB660bae1c6d1b2e17eC2A"
-  );
+  // 공통 Mock 설정 적용
+  setupMockEvent(marketSettledEvent);
   marketSettledEvent.transaction.hash = Bytes.fromHexString(
     "0x123456789012345678901234567890123456789012345678901234567890123B"
   );
   marketSettledEvent.logIndex = BigInt.fromI32(0);
-  marketSettledEvent.block.number = BigInt.fromI32(1);
-  marketSettledEvent.block.timestamp = BigInt.fromI32(1000000);
 
   marketSettledEvent.parameters = new Array();
 

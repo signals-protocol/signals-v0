@@ -7,7 +7,6 @@ import {
   addActivityPoints,
   addPerformancePoints,
   addRiskBonusPoints,
-  recordEventHistory,
 } from "./points";
 import {
   PositionOpened as PositionOpenedEvent,
@@ -23,16 +22,6 @@ import {
 } from "../generated/CLMSRMarketCore/CLMSRMarketCore";
 
 import {
-  PositionOpened,
-  PositionIncreased,
-  PositionDecreased,
-  PositionClosed,
-  PositionClaimed,
-  PositionSettled,
-  MarketCreated,
-  MarketSettled,
-  MarketSettlementValueSubmitted,
-  RangeFactorApplied,
   Market,
   UserPosition,
   Trade,
@@ -90,17 +79,6 @@ export function extractRawMarketId(marketIdStr: string): BigInt {
   return BigInt.fromString(rawIdStr);
 }
 
-// Helper types
-class UserStatsResult {
-  userStats: UserStats;
-  isNew: boolean;
-
-  constructor(userStats: UserStats, isNew: boolean) {
-    this.userStats = userStats;
-    this.isNew = isNew;
-  }
-}
-
 export function getOrCreateUserStats(userAddress: Bytes): UserStats {
   let userStats = UserStats.load(userAddress);
 
@@ -131,21 +109,6 @@ export function getOrCreateUserStats(userAddress: Bytes): UserStats {
   }
 
   return userStats;
-}
-
-function getOrCreateUserStatsWithFlag(userAddress: Bytes): UserStatsResult {
-  let userStats = UserStats.load(userAddress);
-  let isNew = false;
-
-  if (userStats == null) {
-    userStats = getOrCreateUserStats(userAddress);
-    isNew = true;
-  } else {
-    // Update lastTradeAt for existing users
-    userStats.lastTradeAt = BigInt.fromI32(0); // Will be set by caller
-  }
-
-  return new UserStatsResult(userStats, isNew);
 }
 
 function getOrCreateMarketStats(marketId: string): MarketStats {
@@ -252,24 +215,6 @@ function updateBinVolumes(
 }
 
 export function handleMarketCreated(event: MarketCreatedEvent): void {
-  let entity = new MarketCreated(
-    event.transaction.hash.concatI32(event.logIndex.toI32())
-  );
-  entity.marketId = event.params.marketId;
-  entity.minTick = event.params.minTick;
-  entity.maxTick = event.params.maxTick;
-  entity.tickSpacing = event.params.tickSpacing;
-  entity.startTimestamp = event.params.startTimestamp;
-  entity.endTimestamp = event.params.endTimestamp;
-  entity.numBins = event.params.numBins;
-  entity.liquidityParameter = event.params.liquidityParameter;
-
-  entity.blockNumber = event.block.number;
-  entity.blockTimestamp = event.block.timestamp;
-  entity.transactionHash = event.transaction.hash;
-
-  entity.save();
-
   let marketIdStr = buildMarketId(event.params.marketId);
   let market = new Market(marketIdStr);
   market.marketId = event.params.marketId;
@@ -341,18 +286,6 @@ export function handleMarketCreated(event: MarketCreatedEvent): void {
 }
 
 export function handleMarketSettled(event: MarketSettledEvent): void {
-  let entity = new MarketSettled(
-    event.transaction.hash.concatI32(event.logIndex.toI32())
-  );
-  entity.marketId = event.params.marketId;
-  entity.settlementTick = event.params.settlementTick;
-
-  entity.blockNumber = event.block.number;
-  entity.blockTimestamp = event.block.timestamp;
-  entity.transactionHash = event.transaction.hash;
-
-  entity.save();
-
   let market = Market.load(buildMarketId(event.params.marketId))!;
   market.isSettled = true;
   market.settlementTick = event.params.settlementTick;
@@ -367,18 +300,6 @@ export function handleMarketSettled(event: MarketSettledEvent): void {
 export function handleMarketSettlementValueSubmitted(
   event: MarketSettlementValueSubmittedEvent
 ): void {
-  let entity = new MarketSettlementValueSubmitted(
-    event.transaction.hash.concatI32(event.logIndex.toI32())
-  );
-  entity.marketId = event.params.marketId;
-  entity.settlementValue = event.params.settlementValue;
-
-  entity.blockNumber = event.block.number;
-  entity.blockTimestamp = event.block.timestamp;
-  entity.transactionHash = event.transaction.hash;
-
-  entity.save();
-
   let market = Market.load(buildMarketId(event.params.marketId))!;
   market.settlementValue = event.params.settlementValue;
   market.lastUpdated = event.block.timestamp;
@@ -386,20 +307,6 @@ export function handleMarketSettlementValueSubmitted(
 }
 
 export function handlePositionSettled(event: PositionSettledEvent): void {
-  let entity = new PositionSettled(
-    event.transaction.hash.concatI32(event.logIndex.toI32())
-  );
-  entity.positionId = event.params.positionId;
-  entity.trader = event.params.trader;
-  entity.payout = event.params.payout;
-  entity.isWin = event.params.isWin;
-
-  entity.blockNumber = event.block.number;
-  entity.blockTimestamp = event.block.timestamp;
-  entity.transactionHash = event.transaction.hash;
-
-  entity.save();
-
   let userPosition = UserPosition.load(
     buildPositionId(event.params.positionId)
   )!;
@@ -427,13 +334,6 @@ export function handlePositionSettled(event: PositionSettledEvent): void {
   let performancePt = calcPerformancePoints(calculatedPnL);
   if (performancePt.gt(BigInt.fromI32(0))) {
     addPerformancePoints(userStats, performancePt);
-    recordEventHistory(
-      event,
-      userStats.user,
-      performancePt,
-      "PERFORMANCE",
-      event.block.timestamp
-    );
   }
 
   // Risk Bonus Points 계산 및 적립
@@ -445,13 +345,6 @@ export function handlePositionSettled(event: PositionSettledEvent): void {
   );
   if (riskBonusPt.gt(BigInt.fromI32(0))) {
     addRiskBonusPoints(userStats, riskBonusPt);
-    recordEventHistory(
-      event,
-      userStats.user,
-      riskBonusPt,
-      "RISK_BONUS",
-      event.block.timestamp
-    );
   }
 
   userPosition.activityRemaining = BigInt.fromI32(0);
@@ -494,19 +387,6 @@ export function handlePositionSettled(event: PositionSettledEvent): void {
 }
 
 export function handlePositionClaimed(event: PositionClaimedEvent): void {
-  let entity = new PositionClaimed(
-    event.transaction.hash.concatI32(event.logIndex.toI32())
-  );
-  entity.positionId = event.params.positionId;
-  entity.trader = event.params.trader;
-  entity.payout = event.params.payout;
-
-  entity.blockNumber = event.block.number;
-  entity.blockTimestamp = event.block.timestamp;
-  entity.transactionHash = event.transaction.hash;
-
-  entity.save();
-
   let userPosition = UserPosition.load(
     buildPositionId(event.params.positionId)
   )!;
@@ -516,19 +396,6 @@ export function handlePositionClaimed(event: PositionClaimedEvent): void {
 }
 
 export function handlePositionClosed(event: PositionClosedEvent): void {
-  let entity = new PositionClosed(
-    event.transaction.hash.concatI32(event.logIndex.toI32())
-  );
-  entity.positionId = event.params.positionId;
-  entity.trader = event.params.trader;
-  entity.proceeds = event.params.proceeds;
-
-  entity.blockNumber = event.block.number;
-  entity.blockTimestamp = event.block.timestamp;
-  entity.transactionHash = event.transaction.hash;
-
-  entity.save();
-
   let userPosition = UserPosition.load(
     buildPositionId(event.params.positionId)
   )!;
@@ -569,13 +436,6 @@ export function handlePositionClosed(event: PositionClosedEvent): void {
   let performancePt = calcPerformancePoints(tradeRealizedPnL);
   if (performancePt.gt(BigInt.fromI32(0))) {
     addPerformancePoints(userStats, performancePt);
-    recordEventHistory(
-      event,
-      userStats.user,
-      performancePt,
-      "PERFORMANCE",
-      event.block.timestamp
-    );
   }
 
   // Risk Bonus Points 계산 및 적립
@@ -587,13 +447,6 @@ export function handlePositionClosed(event: PositionClosedEvent): void {
   );
   if (riskBonusPt.gt(BigInt.fromI32(0))) {
     addRiskBonusPoints(userStats, riskBonusPt);
-    recordEventHistory(
-      event,
-      userStats.user,
-      riskBonusPt,
-      "RISK_BONUS",
-      event.block.timestamp
-    );
   }
 
   let trade = new Trade(
@@ -655,21 +508,6 @@ export function handlePositionClosed(event: PositionClosedEvent): void {
 }
 
 export function handlePositionDecreased(event: PositionDecreasedEvent): void {
-  let entity = new PositionDecreased(
-    event.transaction.hash.concatI32(event.logIndex.toI32())
-  );
-  entity.positionId = event.params.positionId;
-  entity.trader = event.params.trader;
-  entity.sellQuantity = event.params.sellQuantity;
-  entity.newQuantity = event.params.newQuantity;
-  entity.proceeds = event.params.proceeds;
-
-  entity.blockNumber = event.block.number;
-  entity.blockTimestamp = event.block.timestamp;
-  entity.transactionHash = event.transaction.hash;
-
-  entity.save();
-
   let userPosition = UserPosition.load(
     buildPositionId(event.params.positionId)
   )!;
@@ -725,13 +563,6 @@ export function handlePositionDecreased(event: PositionDecreasedEvent): void {
   let performancePt = calcPerformancePoints(tradeRealizedPnL);
   if (performancePt.gt(BigInt.fromI32(0))) {
     addPerformancePoints(userStats, performancePt);
-    recordEventHistory(
-      event,
-      userStats.user,
-      performancePt,
-      "PERFORMANCE",
-      event.block.timestamp
-    );
   }
 
   // Risk Bonus Points 계산 및 적립
@@ -743,13 +574,6 @@ export function handlePositionDecreased(event: PositionDecreasedEvent): void {
   );
   if (riskBonusPt.gt(BigInt.fromI32(0))) {
     addRiskBonusPoints(userStats, riskBonusPt);
-    recordEventHistory(
-      event,
-      userStats.user,
-      riskBonusPt,
-      "RISK_BONUS",
-      event.block.timestamp
-    );
   }
 
   let trade = new Trade(
@@ -808,21 +632,6 @@ export function handlePositionDecreased(event: PositionDecreasedEvent): void {
 }
 
 export function handlePositionIncreased(event: PositionIncreasedEvent): void {
-  let entity = new PositionIncreased(
-    event.transaction.hash.concatI32(event.logIndex.toI32())
-  );
-  entity.positionId = event.params.positionId;
-  entity.trader = event.params.trader;
-  entity.additionalQuantity = event.params.additionalQuantity;
-  entity.newQuantity = event.params.newQuantity;
-  entity.cost = event.params.cost;
-
-  entity.blockNumber = event.block.number;
-  entity.blockTimestamp = event.block.timestamp;
-  entity.transactionHash = event.transaction.hash;
-
-  entity.save();
-
   // ========================================
   // PnL TRACKING: UPDATE USER POSITION & CREATE TRADE
   // ========================================
@@ -863,13 +672,6 @@ export function handlePositionIncreased(event: PositionIncreasedEvent): void {
   if (checkActivityLimit(userStats, event.block.timestamp)) {
     activityPt = calcActivityPoints(event.params.cost);
     addActivityPoints(userStats, activityPt);
-    recordEventHistory(
-      event,
-      userStats.user,
-      activityPt,
-      "ACTIVITY",
-      event.block.timestamp
-    );
   }
 
   let trade = new Trade(
@@ -932,23 +734,6 @@ export function handlePositionIncreased(event: PositionIncreasedEvent): void {
 }
 
 export function handlePositionOpened(event: PositionOpenedEvent): void {
-  let entity = new PositionOpened(
-    event.transaction.hash.concatI32(event.logIndex.toI32())
-  );
-  entity.positionId = event.params.positionId;
-  entity.trader = event.params.trader;
-  entity.marketId = event.params.marketId;
-  entity.lowerTick = event.params.lowerTick;
-  entity.upperTick = event.params.upperTick;
-  entity.quantity = event.params.quantity;
-  entity.cost = event.params.cost;
-
-  entity.blockNumber = event.block.number;
-  entity.blockTimestamp = event.block.timestamp;
-  entity.transactionHash = event.transaction.hash;
-
-  entity.save();
-
   let userPosition = new UserPosition(buildPositionId(event.params.positionId));
   userPosition.positionId = event.params.positionId;
   userPosition.user = event.params.trader;
@@ -982,13 +767,6 @@ export function handlePositionOpened(event: PositionOpenedEvent): void {
   if (checkActivityLimit(userStats, event.block.timestamp)) {
     activityPt = calcActivityPoints(event.params.cost);
     addActivityPoints(userStats, activityPt);
-    recordEventHistory(
-      event,
-      userStats.user,
-      activityPt,
-      "ACTIVITY",
-      event.block.timestamp
-    );
   }
 
   let trade = new Trade(
@@ -1057,20 +835,6 @@ export function handlePositionOpened(event: PositionOpenedEvent): void {
 }
 
 export function handleRangeFactorApplied(event: RangeFactorAppliedEvent): void {
-  let entity = new RangeFactorApplied(
-    event.transaction.hash.concatI32(event.logIndex.toI32())
-  );
-  entity.marketId = event.params.marketId;
-  entity.lo = event.params.lo;
-  entity.hi = event.params.hi;
-  entity.factor = event.params.factor;
-
-  entity.blockNumber = event.block.number;
-  entity.blockTimestamp = event.block.timestamp;
-  entity.transactionHash = event.transaction.hash;
-
-  entity.save();
-
   let market = Market.load(buildMarketId(event.params.marketId))!;
   market.lastUpdated = event.block.timestamp;
   market.save();
