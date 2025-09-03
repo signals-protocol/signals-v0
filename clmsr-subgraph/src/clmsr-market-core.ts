@@ -1,4 +1,16 @@
-import { BigInt, BigDecimal, Bytes, dataSource } from "@graphprotocol/graph-ts";
+import {
+  BigInt,
+  BigDecimal,
+  Bytes,
+  dataSource,
+  log,
+} from "@graphprotocol/graph-ts";
+import {
+  loadMarketOrSkip,
+  loadPosOrSkip,
+  loadDistOrSkip,
+  loadBinOrSkip,
+} from "./_safeload";
 import {
   checkActivityLimit,
   calcActivityPoints,
@@ -116,6 +128,17 @@ function getOrCreateMarketStats(marketId: string): MarketStats {
     marketStats.priceChange24h = BigDecimal.fromString("0");
     marketStats.volume24h = BigInt.fromI32(0);
     marketStats.lastUpdated = BigInt.fromI32(0);
+
+    // PnL 필드 초기화
+    marketStats.totalBetReceived = BigInt.fromI32(0);
+    marketStats.totalBetPaidOut = BigInt.fromI32(0);
+    marketStats.bettingNetIncome = BigInt.fromI32(0);
+    marketStats.totalSettlementPayout = BigInt.fromI32(0);
+    marketStats.totalClaimedPayout = BigInt.fromI32(0);
+    marketStats.unclaimedPayout = BigInt.fromI32(0);
+    marketStats.totalMarketPnL = BigInt.fromI32(0);
+    marketStats.realizedMarketPnL = BigInt.fromI32(0);
+
     marketStats.save(); // B-1 fix: save new entity immediately
   }
 
@@ -129,6 +152,29 @@ function calculateRawPrice(cost: BigInt, quantity: BigInt): BigInt {
   }
   // Calculate price as (cost * 1e6) / quantity to maintain 6 decimal precision
   return cost.times(BigInt.fromString("1000000")).div(quantity);
+}
+
+// Helper function to update market PnL calculations
+function updateMarketPnL(marketStats: MarketStats): void {
+  // 베팅 단계 순수익 = 받은 금액 - 지급한 금액
+  marketStats.bettingNetIncome = marketStats.totalBetReceived.minus(
+    marketStats.totalBetPaidOut
+  );
+
+  // 아직 청구되지 않은 금액 = 정산 예정 금액 - 실제 청구된 금액
+  marketStats.unclaimedPayout = marketStats.totalSettlementPayout.minus(
+    marketStats.totalClaimedPayout
+  );
+
+  // 전체 마켓 손익 = 베팅 순수익 - 정산 예정 금액 (최종 예상 손익)
+  marketStats.totalMarketPnL = marketStats.bettingNetIncome.minus(
+    marketStats.totalSettlementPayout
+  );
+
+  // 실현된 마켓 손익 = 베팅 순수익 - 실제 청구된 금액 (현재까지 실현된 손익)
+  marketStats.realizedMarketPnL = marketStats.bettingNetIncome.minus(
+    marketStats.totalClaimedPayout
+  );
 }
 
 // Helper function to calculate BigDecimal price for display
@@ -152,7 +198,7 @@ function updateBinVolumes(
   upperTick: BigInt,
   volume: BigInt
 ): void {
-  let market = Market.load(marketId.toString());
+  let market = loadMarketOrSkip(buildMarketId(marketId), "updateBinVolumes");
   if (market == null) return;
 
   // B-6 fix: Convert tick range to bin indices with overflow protection
@@ -182,7 +228,7 @@ function updateBinVolumes(
   // Update each affected bin's volume
   for (let binIndex = lowerBinIndex; binIndex <= upperBinIndex; binIndex++) {
     let binStateId = buildBinStateId(marketId, binIndex);
-    let binState = BinState.load(binStateId);
+    let binState = loadBinOrSkip(binStateId, "updateBinVolumes");
     if (binState != null) {
       binState.totalVolume = binState.totalVolume.plus(volume);
       binState.save();
@@ -190,7 +236,10 @@ function updateBinVolumes(
   }
 
   // Update MarketDistribution's binVolumes array
-  let distribution = MarketDistribution.load(buildMarketId(marketId));
+  let distribution = loadDistOrSkip(
+    buildMarketId(marketId),
+    "updateBinVolumes"
+  );
   if (distribution != null) {
     let binVolumes = distribution.binVolumes;
     for (let binIndex = lowerBinIndex; binIndex <= upperBinIndex; binIndex++) {
@@ -276,7 +325,9 @@ export function handleMarketCreated(event: MarketCreatedEvent): void {
 }
 
 export function handleMarketSettled(event: MarketSettledEvent): void {
-  let market = Market.load(buildMarketId(event.params.marketId))!;
+  const marketId = buildMarketId(event.params.marketId);
+  const market = loadMarketOrSkip(marketId, "handleMarketSettled");
+  if (market == null) return;
   market.isSettled = true;
   market.settlementTick = event.params.settlementTick;
   // Calculate settlementValue by appending 6 zeros (multiply by 1,000,000)
@@ -290,16 +341,22 @@ export function handleMarketSettled(event: MarketSettledEvent): void {
 export function handleMarketSettlementValueSubmitted(
   event: MarketSettlementValueSubmittedEvent
 ): void {
-  let market = Market.load(buildMarketId(event.params.marketId))!;
+  const market = loadMarketOrSkip(
+    buildMarketId(event.params.marketId),
+    "handleMarketSettlementValueSubmitted"
+  );
+  if (market == null) return;
   market.settlementValue = event.params.settlementValue;
   market.lastUpdated = event.block.timestamp;
   market.save();
 }
 
 export function handlePositionSettled(event: PositionSettledEvent): void {
-  let userPosition = UserPosition.load(
-    buildPositionId(event.params.positionId)
-  )!;
+  const userPosition = loadPosOrSkip(
+    buildPositionId(event.params.positionId),
+    "handlePositionSettled"
+  );
+  if (userPosition == null) return;
   userPosition.outcome = event.params.isWin ? "WIN" : "LOSS";
 
   let calculatedPnL = event.params.payout.minus(userPosition.totalCostBasis);
@@ -315,7 +372,8 @@ export function handlePositionSettled(event: PositionSettledEvent): void {
   );
   let userRange = userPosition.upperTick.minus(userPosition.lowerTick);
 
-  let market = Market.load(userPosition.market)!;
+  let market = loadMarketOrSkip(userPosition.market, "handlePositionSettled");
+  if (market == null) return;
   let marketRange = market.maxTick.minus(market.minTick);
 
   let userStats = getOrCreateUserStats(event.params.trader);
@@ -374,21 +432,43 @@ export function handlePositionSettled(event: PositionSettledEvent): void {
   trade.performancePt = performancePt;
   trade.riskBonusPt = riskBonusPt;
   trade.save();
+
+  // 마켓 PnL 업데이트 - PositionSettled에서 모든 정산 후 지급 예정 금액 추가
+  let marketStats = getOrCreateMarketStats(userPosition.market);
+  marketStats.totalSettlementPayout = marketStats.totalSettlementPayout.plus(
+    event.params.payout
+  );
+  updateMarketPnL(marketStats);
+  marketStats.lastUpdated = event.block.timestamp;
+  marketStats.save();
 }
 
 export function handlePositionClaimed(event: PositionClaimedEvent): void {
-  let userPosition = UserPosition.load(
-    buildPositionId(event.params.positionId)
-  )!;
+  const userPosition = loadPosOrSkip(
+    buildPositionId(event.params.positionId),
+    "handlePositionClaimed"
+  );
+  if (userPosition == null) return;
   userPosition.isClaimed = true;
   userPosition.lastUpdated = event.block.timestamp;
   userPosition.save();
+
+  // 마켓 PnL 업데이트 - PositionClaimed에서 실제 청구된 금액 추가
+  let marketStats = getOrCreateMarketStats(userPosition.market);
+  marketStats.totalClaimedPayout = marketStats.totalClaimedPayout.plus(
+    event.params.payout
+  );
+  updateMarketPnL(marketStats);
+  marketStats.lastUpdated = event.block.timestamp;
+  marketStats.save();
 }
 
 export function handlePositionClosed(event: PositionClosedEvent): void {
-  let userPosition = UserPosition.load(
-    buildPositionId(event.params.positionId)
-  )!;
+  const userPosition = loadPosOrSkip(
+    buildPositionId(event.params.positionId),
+    "handlePositionClosed"
+  );
+  if (userPosition == null) return;
   let closedQuantity = userPosition.currentQuantity;
   let tradeRealizedPnL = event.params.proceeds.minus(
     userPosition.totalCostBasis
@@ -418,7 +498,8 @@ export function handlePositionClosed(event: PositionClosedEvent): void {
 
   // Performance & Risk Bonus Points 처리
   let userRange = userPosition.upperTick.minus(userPosition.lowerTick);
-  let market = Market.load(userPosition.market)!;
+  let market = loadMarketOrSkip(userPosition.market, "handlePositionClosed");
+  if (market == null) return;
   let marketRange = market.maxTick.minus(market.minTick);
   let holdingSeconds = event.block.timestamp.minus(originalWeightedEntryTime);
 
@@ -451,9 +532,19 @@ export function handlePositionClosed(event: PositionClosedEvent): void {
   trade.upperTick = userPosition.upperTick;
   trade.quantity = closedQuantity.times(BigInt.fromI32(-1));
   trade.costOrProceeds = event.params.proceeds;
-  trade.price = event.params.proceeds
-    .times(BigInt.fromString("1000000"))
-    .div(closedQuantity);
+  // 분모 0 가드
+  let price = BigInt.fromI32(0);
+  if (!closedQuantity.equals(BigInt.fromI32(0))) {
+    price = event.params.proceeds
+      .times(BigInt.fromString("1000000"))
+      .div(closedQuantity);
+  } else {
+    log.warning(
+      "[handlePositionClosed] closedQuantity is 0, skip price calc",
+      []
+    );
+  }
+  trade.price = price;
   trade.gasUsed = event.receipt ? event.receipt!.gasUsed : BigInt.fromI32(0);
   trade.gasPrice = event.transaction.gasPrice;
   trade.timestamp = event.block.timestamp;
@@ -483,6 +574,13 @@ export function handlePositionClosed(event: PositionClosedEvent): void {
   );
 
   let marketStats = getOrCreateMarketStats(userPosition.market);
+
+  // PnL 업데이트 - CLOSE에서 마켓이 proceeds를 지급
+  marketStats.totalBetPaidOut = marketStats.totalBetPaidOut.plus(
+    event.params.proceeds
+  );
+  updateMarketPnL(marketStats);
+
   marketStats.totalVolume = marketStats.totalVolume.plus(event.params.proceeds);
   marketStats.totalTrades = marketStats.totalTrades.plus(BigInt.fromI32(1));
   marketStats.currentPrice = trade.price;
@@ -498,10 +596,20 @@ export function handlePositionClosed(event: PositionClosedEvent): void {
 }
 
 export function handlePositionDecreased(event: PositionDecreasedEvent): void {
-  let userPosition = UserPosition.load(
-    buildPositionId(event.params.positionId)
-  )!;
+  const userPosition = loadPosOrSkip(
+    buildPositionId(event.params.positionId),
+    "handlePositionDecreased"
+  );
+  if (userPosition == null) return;
   let oldQuantity = userPosition.currentQuantity;
+  // 분모 0 가드
+  if (oldQuantity.equals(BigInt.fromI32(0))) {
+    log.warning(
+      "[handlePositionDecreased] oldQuantity is 0, skip portions",
+      []
+    );
+    return;
+  }
   let costPortion = userPosition.totalCostBasis
     .times(event.params.sellQuantity)
     .div(oldQuantity);
@@ -545,7 +653,8 @@ export function handlePositionDecreased(event: PositionDecreasedEvent): void {
   // Performance & Risk Bonus Points 처리
   let userStats = getOrCreateUserStats(event.params.trader);
   let userRange = userPosition.upperTick.minus(userPosition.lowerTick);
-  let market = Market.load(userPosition.market)!;
+  let market = loadMarketOrSkip(userPosition.market, "handlePositionDecreased");
+  if (market == null) return;
   let marketRange = market.maxTick.minus(market.minTick);
   let holdingSeconds = event.block.timestamp.minus(originalWeightedEntryTime);
 
@@ -607,6 +716,13 @@ export function handlePositionDecreased(event: PositionDecreasedEvent): void {
   userStats.save();
 
   let marketStats = getOrCreateMarketStats(userPosition.market);
+
+  // PnL 업데이트 - DECREASE에서 마켓이 proceeds를 지급
+  marketStats.totalBetPaidOut = marketStats.totalBetPaidOut.plus(
+    event.params.proceeds
+  );
+  updateMarketPnL(marketStats);
+
   marketStats.totalVolume = marketStats.totalVolume.plus(event.params.proceeds);
   marketStats.totalTrades = marketStats.totalTrades.plus(BigInt.fromI32(1));
   marketStats.currentPrice = trade.price;
@@ -627,9 +743,11 @@ export function handlePositionIncreased(event: PositionIncreasedEvent): void {
   // ========================================
 
   // Update UserPosition
-  let userPosition = UserPosition.load(
-    buildPositionId(event.params.positionId)
-  )!;
+  const userPosition = loadPosOrSkip(
+    buildPositionId(event.params.positionId),
+    "handlePositionIncreased"
+  );
+  if (userPosition == null) return;
 
   userPosition.totalCostBasis = userPosition.totalCostBasis.plus(
     event.params.cost
@@ -709,6 +827,13 @@ export function handlePositionIncreased(event: PositionIncreasedEvent): void {
   userStats.save();
 
   let marketStats = getOrCreateMarketStats(userPosition.market);
+
+  // PnL 업데이트 - INCREASE에서 마켓이 cost를 받음
+  marketStats.totalBetReceived = marketStats.totalBetReceived.plus(
+    event.params.cost
+  );
+  updateMarketPnL(marketStats);
+
   marketStats.totalVolume = marketStats.totalVolume.plus(event.params.cost);
   marketStats.totalTrades = marketStats.totalTrades.plus(BigInt.fromI32(1));
   marketStats.currentPrice = trade.price;
@@ -810,6 +935,13 @@ export function handlePositionOpened(event: PositionOpenedEvent): void {
   let marketStats = getOrCreateMarketStats(
     buildMarketId(event.params.marketId)
   );
+
+  // PnL 업데이트 - OPEN에서 마켓이 cost를 받음
+  marketStats.totalBetReceived = marketStats.totalBetReceived.plus(
+    event.params.cost
+  );
+  updateMarketPnL(marketStats);
+
   marketStats.totalVolume = marketStats.totalVolume.plus(event.params.cost);
   marketStats.totalTrades = marketStats.totalTrades.plus(BigInt.fromI32(1));
   marketStats.currentPrice = userPosition.averageEntryPrice;
@@ -825,60 +957,76 @@ export function handlePositionOpened(event: PositionOpenedEvent): void {
 }
 
 export function handleRangeFactorApplied(event: RangeFactorAppliedEvent): void {
-  let market = Market.load(buildMarketId(event.params.marketId))!;
-  market.lastUpdated = event.block.timestamp;
-  market.save();
+  const market = loadMarketOrSkip(
+    buildMarketId(event.params.marketId),
+    "handleRangeFactorApplied"
+  );
+  if (market == null) return;
 
-  let lowerBinIndex = event.params.lo
+  // 인덱스 계산 + 범위 클램프
+  let lo = event.params.lo
     .minus(market.minTick)
     .div(market.tickSpacing)
     .toI32();
-  let upperBinIndex =
+  let hi =
     event.params.hi.minus(market.minTick).div(market.tickSpacing).toI32() - 1;
+  const maxIdx = market.numBins.toI32() - 1;
+  if (lo < 0) lo = 0;
+  if (hi < 0) hi = 0;
+  if (lo > maxIdx) lo = maxIdx;
+  if (hi > maxIdx) hi = maxIdx;
 
-  for (let binIndex = lowerBinIndex; binIndex <= upperBinIndex; binIndex++) {
-    let binState = BinState.load(
-      buildBinStateId(event.params.marketId, binIndex)
-    )!;
-    binState.currentFactor = binState.currentFactor
+  for (let i = lo; i <= hi; i++) {
+    const bin = loadBinOrSkip(
+      buildBinStateId(event.params.marketId, i),
+      "handleRangeFactorApplied"
+    );
+    if (bin == null) continue;
+    bin.currentFactor = bin.currentFactor
       .times(event.params.factor)
       .div(BigInt.fromString("1000000000000000000"));
-    binState.lastUpdated = event.block.timestamp;
-    binState.updateCount = binState.updateCount.plus(BigInt.fromI32(1));
-    binState.save();
+    bin.lastUpdated = event.block.timestamp;
+    bin.updateCount = bin.updateCount.plus(BigInt.fromI32(1));
+    bin.save();
   }
 
-  let distribution = MarketDistribution.load(market.id)!;
-  let totalSumWad = BigInt.fromI32(0);
-  let minFactorWad = BigInt.fromString("999999999999999999999999999999");
-  let maxFactorWad = BigInt.fromI32(0);
-  let binFactorsWad: Array<string> = [];
-  let binVolumes: Array<string> = [];
+  const dist = loadDistOrSkip(market.id, "handleRangeFactorApplied");
+  if (dist == null) return;
+
+  // dist 재계산 루프에서 BinState가 null일 수 있으니 또 한번 체크
+  let total = BigInt.fromI32(0);
+  let min = BigInt.fromString("999999999999999999999999999999");
+  let max = BigInt.fromI32(0);
+  let factors: Array<string> = [];
+  let vols: Array<string> = [];
 
   for (let i = 0; i < market.numBins.toI32(); i++) {
-    let binState = BinState.load(buildBinStateId(event.params.marketId, i))!;
-    totalSumWad = totalSumWad.plus(binState.currentFactor);
-
-    if (binState.currentFactor.lt(minFactorWad)) {
-      minFactorWad = binState.currentFactor;
+    const bin = loadBinOrSkip(
+      buildBinStateId(event.params.marketId, i),
+      "handleRangeFactorApplied"
+    );
+    if (bin == null) {
+      factors.push("0");
+      vols.push("0");
+      continue;
     }
-    if (binState.currentFactor.gt(maxFactorWad)) {
-      maxFactorWad = binState.currentFactor;
-    }
-
-    binFactorsWad.push(binState.currentFactor.toString());
-    binVolumes.push(binState.totalVolume.toString());
+    total = total.plus(bin.currentFactor);
+    if (bin.currentFactor.lt(min)) min = bin.currentFactor;
+    if (bin.currentFactor.gt(max)) max = bin.currentFactor;
+    factors.push(bin.currentFactor.toString());
+    vols.push(bin.totalVolume.toString());
   }
 
-  let avgFactorWad = totalSumWad.div(market.numBins);
+  dist.totalSum = total;
+  dist.minFactor = min;
+  dist.maxFactor = max;
+  dist.avgFactor = total.div(market.numBins);
+  dist.binFactors = factors;
+  dist.binVolumes = vols;
+  dist.version = dist.version.plus(BigInt.fromI32(1));
+  dist.lastSnapshotAt = event.block.timestamp;
+  dist.save();
 
-  distribution.totalSum = totalSumWad;
-  distribution.minFactor = minFactorWad;
-  distribution.maxFactor = maxFactorWad;
-  distribution.avgFactor = avgFactorWad;
-  distribution.binFactors = binFactorsWad;
-  distribution.binVolumes = binVolumes;
-  distribution.version = distribution.version.plus(BigInt.fromI32(1));
-  distribution.lastSnapshotAt = event.block.timestamp;
-  distribution.save();
+  market.lastUpdated = event.block.timestamp;
+  market.save();
 }

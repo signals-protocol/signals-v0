@@ -8,6 +8,7 @@
     "remove-local": "graph remove --node http://localhost:8020/ clmsr-subgraph",
     "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 clmsr-subgraph",
     "test": "graph test",
+    "test:trace": "cross-env WASMTIME_BACKTRACE_DETAILS=1 RUST_BACKTRACE=1 graph test",
     "deploy": "npm run deploy:prod",
     "check-indexing": "node scripts/check-indexing.js",
     "check-indexing:dev": "node scripts/check-indexing.js dev",
@@ -33,6 +34,7 @@
     "web3": "^4.16.0"
   },
   "devDependencies": {
+    "cross-env": "^10.0.0",
     "matchstick-as": "0.6.0"
   }
 }

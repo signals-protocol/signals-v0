@@ -1,6 +1,17 @@
 import { newMockEvent } from "matchstick-as";
 import { ethereum, Address, BigInt, Bytes } from "@graphprotocol/graph-ts";
 
+// Trade ID 중복 방지
+let __seq = 0;
+export function stamp<T extends ethereum.Event>(evt: T): T {
+  __seq += 1;
+  evt.logIndex = BigInt.fromI32(__seq as i32);
+  // 64자리 hex 생성
+  let hex = "0x" + __seq.toString(16).padStart(64, "0");
+  evt.transaction.hash = Bytes.fromHexString(hex) as Bytes;
+  return evt;
+}
+
 // 공통 Mock 설정 헬퍼
 function setupMockEvent(event: ethereum.Event): void {
   event.address = Address.fromString(
@@ -92,7 +103,7 @@ export function createMarketCreatedEvent(
     )
   );
 
-  return marketCreatedEvent;
+  return stamp(marketCreatedEvent);
 }
 
 export function createMarketSettledEvent(
@@ -123,7 +134,7 @@ export function createMarketSettledEvent(
     )
   );
 
-  return marketSettledEvent;
+  return stamp(marketSettledEvent);
 }
 
 export function createMarketSettlementValueSubmittedEvent(

@@ -155,4 +155,17 @@ type MarketStats @entity(immutable: false) {
   priceChange24h: BigDecimal! # 24시간 가격 변화율 (퍼센트)
   volume24h: BigInt! # 24시간 거래량 (6 decimals, raw USDC)
   lastUpdated: BigInt!
+
+  # === 마켓 PnL & 리스크 관리 ===
+  # 베팅 단계 수익/비용
+  totalBetReceived: BigInt! # 마켓이 받은 총 베팅 금액 (OPEN + INCREASE cost) (6 decimals, raw USDC)
+  totalBetPaidOut: BigInt! # 마켓이 지급한 총 베팅 수익 (DECREASE + CLOSE proceeds) (6 decimals, raw USDC)
+  bettingNetIncome: BigInt! # 베팅 단계 순수익 (받은 금액 - 지급 금액) (6 decimals, raw USDC, signed)
+  # 정산 단계 손실 (Claim 예상 손실)
+  totalSettlementPayout: BigInt! # 정산 후 총 지급 예정 금액 (PositionSettled에서 WIN 시 payout 합계) (6 decimals, raw USDC)
+  totalClaimedPayout: BigInt! # 실제 청구된 총 금액 (PositionClaimed payout 합계) (6 decimals, raw USDC)
+  unclaimedPayout: BigInt! # 아직 청구되지 않은 금액 (settlementPayout - claimedPayout) (6 decimals, raw USDC)
+  # 전체 마켓 손익
+  totalMarketPnL: BigInt! # 전체 마켓 순손익 (bettingNetIncome - totalSettlementPayout) (6 decimals, raw USDC, signed)
+  realizedMarketPnL: BigInt! # 실현된 마켓 손익 (bettingNetIncome - totalClaimedPayout) (6 decimals, raw USDC, signed)
 }

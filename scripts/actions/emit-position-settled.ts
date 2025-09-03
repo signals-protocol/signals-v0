@@ -6,11 +6,12 @@ export async function emitPositionSettledAction(
   environment: Environment
 ): Promise<void> {
   // 🎯 기본 설정값 (필요시 환경변수로 오버라이드 가능)
-  const marketId = parseInt(process.env.MARKET_ID || "14");
-  const batchLimit = parseInt(process.env.BATCH_LIMIT || "300");
+  const startMarketId = parseInt(process.env.START_MARKET_ID || "17");
+  const endMarketId = parseInt(process.env.END_MARKET_ID || "20");
+  const batchLimit = parseInt(process.env.BATCH_LIMIT || "500");
 
   console.log(
-    `📢 Emitting PositionSettled events for market ${marketId} on ${environment}`
+    `📢 Emitting PositionSettled events for markets ${startMarketId}-${endMarketId} on ${environment}`
   );
   console.log(`📦 Batch limit: ${batchLimit} positions per transaction`);
 
@@ -32,109 +33,164 @@ export async function emitPositionSettledAction(
   );
 
   console.log("📊 Batch emission parameters:");
-  console.log(`  Market ID: ${marketId}`);
+  console.log(`  Market Range: ${startMarketId} - ${endMarketId}`);
   console.log(`  Batch Limit: ${batchLimit}`);
 
-  // 마켓 상태 확인
-  try {
-    const market = await coreContract.getMarket(marketId);
-    if (!market.settled) {
-      throw new Error(
-        `Market ${marketId} is not settled yet. Please settle the market first.`
-      );
-    }
-    if (market.positionEventsEmitted) {
-      console.log(
-        `✅ All position events for market ${marketId} have already been emitted`
-      );
-      return;
-    }
-    console.log(
-      `✅ Market ${marketId} is settled and ready for batch emission`
-    );
-    console.log(`📊 Current cursor: ${market.positionEventsCursor}`);
-  } catch (error) {
-    throw new Error(`Market validation failed: ${(error as Error).message}`);
-  }
-
-  // 배치 이벤트 emit
-  let batchCount = 0;
+  // 전체 처리 상태 추적
+  let totalMarketsProcessed = 0;
+  let totalMarketsSkipped = 0;
+  let totalBatchesProcessed = 0;
   let totalGasUsed = BigInt(0);
 
-  console.log("\n🚀 Starting batch emission...");
+  console.log("\n🚀 Starting multi-market emission...");
 
-  while (true) {
-    batchCount++;
-    console.log(`\n📦 Processing batch ${batchCount}...`);
+  // 각 마켓을 순차적으로 처리
+  for (let marketId = startMarketId; marketId <= endMarketId; marketId++) {
+    console.log(
+      `\n📊 Processing Market ${marketId} (${marketId - startMarketId + 1}/${
+        endMarketId - startMarketId + 1
+      })`
+    );
 
+    // 마켓 상태 확인
     try {
-      const tx = await coreContract.emitPositionSettledBatch(
-        marketId,
-        batchLimit
-      );
-      const receipt = await tx.wait();
-
-      if (!receipt) {
-        throw new Error("Transaction receipt is null");
+      const market = await coreContract.getMarket(marketId);
+      if (!market.settled) {
+        console.log(`⚠️  Market ${marketId} is not settled yet. Skipping...`);
+        totalMarketsSkipped++;
+        continue;
       }
+      if (market.positionEventsEmitted) {
+        console.log(
+          `✅ Market ${marketId} events already emitted. Skipping...`
+        );
+        totalMarketsSkipped++;
+        continue;
+      }
+      console.log(
+        `✅ Market ${marketId} is settled and ready for batch emission`
+      );
+      console.log(`📊 Current cursor: ${market.positionEventsCursor}`);
+    } catch (error) {
+      console.error(
+        `❌ Market ${marketId} validation failed: ${
+          (error as Error).message
+        }. Skipping...`
+      );
+      totalMarketsSkipped++;
+      continue;
+    }
 
-      console.log(`✅ Batch ${batchCount} completed`);
-      console.log(`📊 Transaction hash: ${receipt.hash}`);
-      console.log(`⛽ Gas used: ${receipt.gasUsed.toString()}`);
+    // 현재 마켓에 대한 배치 이벤트 emit
+    let marketBatchCount = 0;
+    let marketGasUsed = BigInt(0);
 
-      totalGasUsed += receipt.gasUsed;
+    console.log(`🚀 Starting batch emission for market ${marketId}...`);
 
-      // 이벤트 로그에서 진행 상황 확인
-      const positionEventsProgressLogs = receipt.logs.filter((log) => {
-        try {
-          const parsed = coreContract.interface.parseLog({
-            topics: log.topics,
-            data: log.data,
-          });
-          return parsed?.name === "PositionEventsProgress";
-        } catch {
-          return false;
+    while (true) {
+      marketBatchCount++;
+      console.log(
+        `📦 Market ${marketId} - Processing batch ${marketBatchCount}...`
+      );
+
+      try {
+        const tx = await coreContract.emitPositionSettledBatch(
+          marketId,
+          batchLimit
+        );
+        const receipt = await tx.wait();
+
+        if (!receipt) {
+          throw new Error("Transaction receipt is null");
         }
-      });
 
-      if (positionEventsProgressLogs.length > 0) {
-        const progressLog = positionEventsProgressLogs[0];
-        const parsed = coreContract.interface.parseLog({
-          topics: progressLog.topics,
-          data: progressLog.data,
+        console.log(
+          `✅ Market ${marketId} - Batch ${marketBatchCount} completed`
+        );
+        console.log(`📊 Transaction hash: ${receipt.hash}`);
+        console.log(`⛽ Gas used: ${receipt.gasUsed.toString()}`);
+
+        marketGasUsed += receipt.gasUsed;
+        totalGasUsed += receipt.gasUsed;
+
+        // 이벤트 로그에서 진행 상황 확인
+        const positionEventsProgressLogs = receipt.logs.filter((log) => {
+          try {
+            const parsed = coreContract.interface.parseLog({
+              topics: log.topics,
+              data: log.data,
+            });
+            return parsed?.name === "PositionEventsProgress";
+          } catch {
+            return false;
+          }
         });
 
-        if (parsed) {
-          const { from, to, done } = parsed.args;
-          console.log(`📈 Progress: ${from} → ${to} (done: ${done})`);
+        if (positionEventsProgressLogs.length > 0) {
+          const progressLog = positionEventsProgressLogs[0];
+          const parsed = coreContract.interface.parseLog({
+            topics: progressLog.topics,
+            data: progressLog.data,
+          });
 
-          if (done) {
+          if (parsed) {
+            const { from, to, done } = parsed.args;
             console.log(
-              "\n🎉 All position events have been emitted successfully!"
+              `📈 Market ${marketId} - Progress: ${from} → ${to} (done: ${done})`
             );
-            break;
+
+            if (done) {
+              console.log(
+                `🎉 Market ${marketId} - All position events emitted successfully!`
+              );
+              break;
+            }
           }
         }
-      }
 
-      // 마켓 상태 재확인
-      const market = await coreContract.getMarket(marketId);
-      if (market.positionEventsEmitted) {
-        console.log("\n🎉 All position events have been emitted successfully!");
+        // 마켓 상태 재확인
+        const market = await coreContract.getMarket(marketId);
+        if (market.positionEventsEmitted) {
+          console.log(
+            `🎉 Market ${marketId} - All position events emitted successfully!`
+          );
+          break;
+        }
+      } catch (error) {
+        console.error(
+          `❌ Market ${marketId} - Batch ${marketBatchCount} failed:`,
+          (error as Error).message
+        );
+        console.error(`❌ Skipping market ${marketId} due to error`);
+        totalMarketsSkipped++;
         break;
       }
-    } catch (error) {
-      console.error(`❌ Batch ${batchCount} failed:`, (error as Error).message);
-      throw error;
+    }
+
+    // 마켓 처리 완료 후 통계 업데이트
+    if (marketBatchCount > 0) {
+      totalMarketsProcessed++;
+      totalBatchesProcessed += marketBatchCount;
+      console.log(`📊 Market ${marketId} Summary:`);
+      console.log(`  Batches processed: ${marketBatchCount}`);
+      console.log(`  Gas used: ${marketGasUsed.toString()}`);
     }
   }
 
-  console.log("\n📊 Emission Summary:");
-  console.log(`  Total batches processed: ${batchCount}`);
+  console.log("\n📊 Final Emission Summary:");
+  console.log(
+    `  Markets processed: ${totalMarketsProcessed}/${
+      endMarketId - startMarketId + 1
+    }`
+  );
+  console.log(`  Markets skipped: ${totalMarketsSkipped}`);
+  console.log(`  Total batches processed: ${totalBatchesProcessed}`);
   console.log(`  Total gas used: ${totalGasUsed.toString()}`);
   console.log(
     `  Average gas per batch: ${
-      batchCount > 0 ? (totalGasUsed / BigInt(batchCount)).toString() : "0"
+      totalBatchesProcessed > 0
+        ? (totalGasUsed / BigInt(totalBatchesProcessed)).toString()
+        : "0"
     }`
   );
 }
