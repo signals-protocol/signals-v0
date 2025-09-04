@@ -33,14 +33,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
     // Single tick position
     const tx1 = await core
       .connect(alice)
-      .openPosition(
-        alice.address,
-        marketId,
-        100500,
-        100500,
-        MEDIUM_QUANTITY,
-        EXTREME_COST
-      );
+      .openPosition(marketId, 100500, 100500, MEDIUM_QUANTITY, EXTREME_COST);
     const receipt1 = await tx1.wait();
     const event1 = receipt1!.logs.find(
       (log) => (log as any).fragment?.name === "PositionOpened"
@@ -50,14 +43,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
     // Small range position
     const tx2 = await core
       .connect(alice)
-      .openPosition(
-        alice.address,
-        marketId,
-        100200,
-        100300,
-        MEDIUM_QUANTITY,
-        EXTREME_COST
-      );
+      .openPosition(marketId, 100200, 100300, MEDIUM_QUANTITY, EXTREME_COST);
     const receipt2 = await tx2.wait();
     const event2 = receipt2!.logs.find(
       (log) => (log as any).fragment?.name === "PositionOpened"
@@ -67,14 +53,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
     // Large range position
     const tx3 = await core
       .connect(alice)
-      .openPosition(
-        alice.address,
-        marketId,
-        100100,
-        100800,
-        MEDIUM_QUANTITY,
-        EXTREME_COST
-      );
+      .openPosition(marketId, 100100, 100800, MEDIUM_QUANTITY, EXTREME_COST);
     const receipt3 = await tx3.wait();
     const event3 = receipt3!.logs.find(
       (log) => (log as any).fragment?.name === "PositionOpened"
@@ -85,7 +64,6 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
     const tx4 = await core
       .connect(alice)
       .openPosition(
-        alice.address,
         marketId,
         MIN_TICK,
         MAX_TICK,
@@ -199,7 +177,6 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
         const openTx = await core
           .connect(alice)
           .openPosition(
-            alice.address,
             marketId,
             lowerTick,
             upperTick,
@@ -208,7 +185,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
           );
         await openTx.wait();
         // Get position ID from MockPosition
-        const positions = await mockPosition.getPositionsByOwner(alice.address);
+        const positions = await mockPosition.getOwnerPositions(alice.address);
         const positionId = Number(positions[positions.length - 1]); // Get latest position
 
         // Close position
@@ -277,7 +254,6 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
         const tx = await core
           .connect(alice)
           .openPosition(
-            alice.address,
             marketId,
             lowerTick,
             upperTick,
@@ -286,7 +262,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
           );
         await tx.wait();
         // Get position ID from MockPosition
-        const userPositions = await mockPosition.getPositionsByOwner(
+        const userPositions = await mockPosition.getOwnerPositions(
           alice.address
         );
         positions.push(Number(userPositions[userPositions.length - 1]));
@@ -348,7 +324,6 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
         const tx = await core
           .connect(alice)
           .openPosition(
-            user.address,
             marketId,
             lowerTick,
             upperTick,
@@ -357,7 +332,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
           );
         await tx.wait();
         // Get position ID from MockPosition
-        const userPositions = await mockPosition.getPositionsByOwner(
+        const userPositions = await mockPosition.getOwnerPositions(
           user.address
         );
         positions.push({
@@ -410,17 +385,10 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
       // Open large position
       const tx = await core
         .connect(alice)
-        .openPosition(
-          alice.address,
-          marketId,
-          MIN_TICK + 20 * TICK_SPACING,
-          MIN_TICK + 80 * TICK_SPACING,
-          LARGE_QUANTITY,
-          EXTREME_COST
-        );
+        .openPosition(marketId, 100300, 100400, MEDIUM_QUANTITY, EXTREME_COST);
       await tx.wait();
       // Get position ID from MockPosition
-      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positions = await mockPosition.getOwnerPositions(alice.address);
       const positionId = Number(positions[positions.length - 1]);
 
       // Perform partial decreases
@@ -482,7 +450,6 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
         const openTx = await core
           .connect(alice)
           .openPosition(
-            alice.address,
             marketId,
             100450,
             100550,
@@ -491,7 +458,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
           );
         await openTx.wait();
         // Get position ID from MockPosition
-        const positions = await mockPosition.getPositionsByOwner(alice.address);
+        const positions = await mockPosition.getOwnerPositions(alice.address);
         const positionId = Number(positions[positions.length - 1]);
 
         // Close position

@@ -405,7 +405,7 @@ describe(`${INVARIANT_TAG} LazyMulSegmentTree - Sum Invariants`, function () {
             ethers.parseUnits("100", USDC_DECIMALS)
           );
         // Get position ID from MockPosition
-        const userPositions = await mockPosition.getPositionsByOwner(
+        const userPositions = await mockPosition.getOwnerPositions(
           alice.address
         );
         positions.push(Number(userPositions[userPositions.length - 1]));
@@ -442,7 +442,7 @@ describe(`${INVARIANT_TAG} LazyMulSegmentTree - Sum Invariants`, function () {
         );
       await tx.wait();
       // Get position ID from MockPosition
-      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positions = await mockPosition.getOwnerPositions(alice.address);
       const positionId = Number(positions[positions.length - 1]);
 
       const sumAfterOpen = await core.getTickValue(marketId, 100500);

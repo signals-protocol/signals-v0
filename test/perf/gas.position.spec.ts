@@ -21,14 +21,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Operations`, function () {
 
       const tx = await core
         .connect(alice)
-        .openPosition(
-          alice.address,
-          marketId,
-          100450,
-          100550,
-          MEDIUM_QUANTITY,
-          MEDIUM_COST
-        );
+        .openPosition(marketId, 100450, 100550, SMALL_QUANTITY, MEDIUM_COST);
 
       const receipt = await tx.wait();
       const gasUsed = receipt!.gasUsed;
@@ -83,16 +76,9 @@ describe(`${PERF_TAG} Gas Optimization - Position Operations`, function () {
       // Create initial position
       await core
         .connect(alice)
-        .openPosition(
-          alice.address,
-          marketId,
-          100450,
-          100550,
-          MEDIUM_QUANTITY,
-          MEDIUM_COST
-        );
+        .openPosition(marketId, 100450, 100550, MEDIUM_QUANTITY, MEDIUM_COST);
 
-      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positions = await mockPosition.getOwnerPositions(alice.address);
       const positionId = positions[0];
 
       const tx = await core
@@ -114,16 +100,9 @@ describe(`${PERF_TAG} Gas Optimization - Position Operations`, function () {
       // Create initial position
       await core
         .connect(alice)
-        .openPosition(
-          alice.address,
-          marketId,
-          100450,
-          100550,
-          LARGE_QUANTITY,
-          LARGE_COST
-        );
+        .openPosition(marketId, 100450, 100550, LARGE_QUANTITY, LARGE_COST);
 
-      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positions = await mockPosition.getOwnerPositions(alice.address);
       const positionId = positions[0];
 
       const tx = await core
@@ -147,16 +126,9 @@ describe(`${PERF_TAG} Gas Optimization - Position Operations`, function () {
       // Create initial position
       await core
         .connect(alice)
-        .openPosition(
-          alice.address,
-          marketId,
-          100450,
-          100550,
-          MEDIUM_QUANTITY,
-          MEDIUM_COST
-        );
+        .openPosition(marketId, 100450, 100550, MEDIUM_QUANTITY, MEDIUM_COST);
 
-      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positions = await mockPosition.getOwnerPositions(alice.address);
       const positionId = positions[0];
 
       const tx = await core.connect(alice).closePosition(positionId, 0);
@@ -180,16 +152,9 @@ describe(`${PERF_TAG} Gas Optimization - Position Operations`, function () {
         // Create position
         await core
           .connect(alice)
-          .openPosition(
-            alice.address,
-            marketId,
-            100450,
-            100550,
-            quantity,
-            LARGE_COST
-          );
+          .openPosition(marketId, 100450, 100550, quantity, LARGE_COST);
 
-        const positions = await mockPosition.getPositionsByOwner(alice.address);
+        const positions = await mockPosition.getOwnerPositions(alice.address);
         const positionId = positions[positions.length - 1];
 
         // Close position and measure gas
@@ -222,7 +187,6 @@ describe(`${PERF_TAG} Gas Optimization - Position Operations`, function () {
         const tx = await core
           .connect(alice)
           .openPosition(
-            alice.address,
             marketId,
             100400 + i * 50,
             100600 + i * 50,
@@ -234,7 +198,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Operations`, function () {
         operations.push({ type: "create", gas: receipt!.gasUsed });
       }
 
-      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positions = await mockPosition.getOwnerPositions(alice.address);
 
       // Update positions
       for (const positionId of positions) {

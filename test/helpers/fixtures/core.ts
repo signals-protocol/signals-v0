@@ -116,7 +116,8 @@ export async function coreFixture() {
     ...baseFixture,
     core,
     paymentToken,
-    mockPosition,
+    // Cast to any to allow calling helper methods defined only in MockPosition artifact
+    mockPosition: mockPosition as any,
   };
 }
 
@@ -129,8 +130,6 @@ export async function marketFixture() {
 
   const startTime = await time.latest();
   const endTime = startTime + MARKET_DURATION;
-  const marketId = 1;
-
   // 새로운 틱 시스템: 100000부터 시작, 10 간격으로 TICK_COUNT개
   const minTick = 100000;
   const maxTick = minTick + (TICK_COUNT - 1) * 10;
@@ -138,15 +137,11 @@ export async function marketFixture() {
 
   await core
     .connect(keeper)
-    .createMarket(
-      marketId,
-      minTick,
-      maxTick,
-      tickSpacing,
-      startTime,
-      endTime,
-      ALPHA
-    );
+    .createMarket(minTick, maxTick, tickSpacing, startTime, endTime, ALPHA);
+
+  // Retrieve the last created marketId (auto-incremented in core)
+  const nextId = await core._nextMarketId();
+  const marketId = Number(nextId - 1n);
 
   return {
     ...contracts,
@@ -159,10 +154,7 @@ export async function marketFixture() {
 /**
  * Create active market helper
  */
-export async function createActiveMarket(
-  contracts: any,
-  marketId: number = Math.floor(Math.random() * 1000000) + 1
-) {
+export async function createActiveMarket(contracts: any) {
   const currentTime = await time.latest();
   const startTime = currentTime + 200; // Add larger buffer to avoid timestamp conflicts
   const endTime = startTime + MARKET_DURATION;
@@ -177,6 +169,10 @@ export async function createActiveMarket(
   await contracts.core
     .connect(contracts.deployer)
     .createMarket(minTick, maxTick, tickSpacing, startTime, endTime, ALPHA);
+
+  // Compute actual marketId
+  const nextId = await contracts.core._nextMarketId();
+  const marketId = Number(nextId - 1n);
 
   // Move to market start time
   await time.increaseTo(startTime + 1);
@@ -203,7 +199,6 @@ export async function createActiveMarketFixture() {
   const currentTime = await time.latest();
   const startTime = currentTime + 300; // Larger buffer for fixture tests
   const endTime = startTime + MARKET_DURATION;
-  const marketId = 1;
 
   // 새로운 틱 시스템: 100000부터 시작, 10 간격으로 TICK_COUNT개
   const minTick = 100000;
@@ -212,15 +207,11 @@ export async function createActiveMarketFixture() {
 
   await core
     .connect(keeper)
-    .createMarket(
-      marketId,
-      minTick,
-      maxTick,
-      tickSpacing,
-      startTime,
-      endTime,
-      ALPHA
-    );
+    .createMarket(minTick, maxTick, tickSpacing, startTime, endTime, ALPHA);
+
+  // Retrieve the last created marketId
+  const nextId = await core._nextMarketId();
+  const marketId = Number(nextId - 1n);
 
   // Move to market start time
   await time.increaseTo(startTime + 1);
@@ -252,7 +243,6 @@ export async function createExtremeMarket(
   await contracts.core
     .connect(contracts.keeper)
     .createMarket(
-      marketId,
       minTick,
       maxTick,
       tickSpacing,
@@ -260,6 +250,10 @@ export async function createExtremeMarket(
       endTime,
       extremeAlpha
     );
+
+  // Retrieve the last created marketId
+  const nextId = await contracts.core._nextMarketId();
+  marketId = Number(nextId - 1n);
 
   return { marketId, startTime, endTime, alpha: extremeAlpha };
 }
@@ -279,11 +273,8 @@ export function tickToIndex(tick: number): number {
 /**
  * 표준 활성 마켓 설정 - 대부분의 테스트에서 사용
  */
-export async function setupActiveMarket(
-  contracts: any,
-  marketId: number = Math.floor(Math.random() * 1000000) + 1
-) {
-  return await createActiveMarket(contracts, marketId);
+export async function setupActiveMarket(contracts: any) {
+  return await createActiveMarket(contracts);
 }
 
 /**
@@ -292,7 +283,7 @@ export async function setupActiveMarket(
 export async function setupMultipleMarkets(contracts: any, count: number = 3) {
   const markets = [];
   for (let i = 1; i <= count; i++) {
-    const market = await createActiveMarket(contracts, i);
+    const market = await createActiveMarket(contracts);
     markets.push(market);
   }
   return markets;
@@ -328,15 +319,10 @@ export async function setupCustomMarket(
 
   await contracts.core
     .connect(contracts.keeper)
-    .createMarket(
-      marketId,
-      minTick,
-      maxTick,
-      tickSpacing,
-      startTime,
-      endTime,
-      alpha
-    );
+    .createMarket(minTick, maxTick, tickSpacing, startTime, endTime, alpha);
+
+  const nextId = await contracts.core._nextMarketId();
+  marketId = Number(nextId - 1n);
 
   await time.increaseTo(startTime + 1);
 
@@ -350,10 +336,11 @@ export async function setupHighLiquidityMarket(
   contracts: any,
   marketId: number = 1
 ) {
-  return await setupCustomMarket(contracts, {
+  const result = await setupCustomMarket(contracts, {
     marketId,
     alpha: ethers.parseEther("10"),
   });
+  return result;
 }
 
 /**

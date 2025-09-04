@@ -40,8 +40,8 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
       expect(await position.balanceOf(bob.address)).to.equal(1);
 
       // Verify position tracking updates
-      const alicePositions = await position.getPositionsByOwner(alice.address);
-      const bobPositions = await position.getPositionsByOwner(bob.address);
+      const alicePositions = await position.getOwnerPositions(alice.address);
+      const bobPositions = await position.getOwnerPositions(bob.address);
 
       expect(alicePositions.length).to.equal(0);
       expect(bobPositions.length).to.equal(1);
@@ -117,11 +117,9 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
         .connect(alice)
         .transferFrom(alice.address, bob.address, positionId);
 
-      let alicePositions = await position.getPositionsByOwner(alice.address);
-      let bobPositions = await position.getPositionsByOwner(bob.address);
-      let charliePositions = await position.getPositionsByOwner(
-        charlie.address
-      );
+      let alicePositions = await position.getOwnerPositions(alice.address);
+      let bobPositions = await position.getOwnerPositions(bob.address);
+      let charliePositions = await position.getOwnerPositions(charlie.address);
 
       expect(alicePositions.length).to.equal(0);
       expect(bobPositions.length).to.equal(1);
@@ -132,9 +130,9 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
         .connect(bob)
         .transferFrom(bob.address, charlie.address, positionId);
 
-      alicePositions = await position.getPositionsByOwner(alice.address);
-      bobPositions = await position.getPositionsByOwner(bob.address);
-      charliePositions = await position.getPositionsByOwner(charlie.address);
+      alicePositions = await position.getOwnerPositions(alice.address);
+      bobPositions = await position.getOwnerPositions(bob.address);
+      charliePositions = await position.getOwnerPositions(charlie.address);
 
       expect(alicePositions.length).to.equal(0);
       expect(bobPositions.length).to.equal(0);
@@ -146,9 +144,9 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
         .connect(charlie)
         .transferFrom(charlie.address, alice.address, positionId);
 
-      alicePositions = await position.getPositionsByOwner(alice.address);
-      bobPositions = await position.getPositionsByOwner(bob.address);
-      charliePositions = await position.getPositionsByOwner(charlie.address);
+      alicePositions = await position.getOwnerPositions(alice.address);
+      bobPositions = await position.getOwnerPositions(bob.address);
+      charliePositions = await position.getOwnerPositions(charlie.address);
 
       expect(alicePositions.length).to.equal(1);
       expect(alicePositions[0]).to.equal(positionId);
@@ -175,7 +173,6 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
         const positionId = await core
           .connect(alice)
           .openPosition.staticCall(
-            alice.address,
             params.marketId,
             params.lowerTick,
             params.upperTick,
@@ -185,7 +182,6 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
         await core
           .connect(alice)
           .openPosition(
-            alice.address,
             params.marketId,
             params.lowerTick,
             params.upperTick,
@@ -211,8 +207,8 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
       expect(await position.balanceOf(bob.address)).to.equal(2);
 
       // Verify position tracking
-      const alicePositions = await position.getPositionsByOwner(alice.address);
-      const bobPositions = await position.getPositionsByOwner(bob.address);
+      const alicePositions = await position.getOwnerPositions(alice.address);
+      const bobPositions = await position.getOwnerPositions(bob.address);
 
       expect(alicePositions.length).to.equal(1);
       expect(alicePositions[0]).to.equal(positionIds[2]);
@@ -500,7 +496,7 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
       expect(await position.balanceOf(charlie.address)).to.equal(0);
 
       // Verify position tracking is correct
-      const bobPositions = await position.getPositionsByOwner(bob.address);
+      const bobPositions = await position.getOwnerPositions(bob.address);
       expect(bobPositions.length).to.equal(1);
       expect(bobPositions[0]).to.equal(positionId);
     });
@@ -524,7 +520,6 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
       const positionId = await core
         .connect(alice)
         .openPosition.staticCall(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -534,7 +529,6 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -590,7 +584,6 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
       const positionId = await core
         .connect(alice)
         .openPosition.staticCall(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -600,7 +593,6 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -643,7 +635,6 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
       const positionId = await core
         .connect(alice)
         .openPosition.staticCall(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -653,7 +644,6 @@ describe(`${COMPONENT_TAG} Position NFT Transfers`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
