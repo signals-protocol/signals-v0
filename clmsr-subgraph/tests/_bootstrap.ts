@@ -1,5 +1,10 @@
 // tests/_bootstrap.ts (AssemblyScript)
-import { beforeAll, beforeEach, dataSourceMock, clearStore } from "matchstick-as/assembly/index";
+import {
+  beforeAll,
+  beforeEach,
+  dataSourceMock,
+  clearStore,
+} from "matchstick-as/assembly/index";
 
 beforeAll((): void => {
   dataSourceMock.resetValues();
@@ -13,5 +18,3 @@ beforeEach((): void => {
   // 테스트 간 상태 간섭 방지
   clearStore();
 });
-
-

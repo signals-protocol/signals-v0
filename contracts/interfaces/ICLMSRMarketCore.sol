@@ -188,7 +188,7 @@ interface ICLMSRMarketCore {
     /// @notice Open a new position by buying a range
     /// @param marketId Market identifier
     /// @param lowerTick Lower tick bound (inclusive)
-    /// @param upperTick Upper tick bound (inclusive)
+    /// @param upperTick Upper tick bound (exclusive)
     /// @param quantity Position quantity (always positive, Long-Only)
     /// @param maxCost Maximum cost willing to pay
     /// @return positionId Newly created position ID
@@ -245,8 +245,8 @@ interface ICLMSRMarketCore {
     
     /// @notice Calculate cost of opening a new position
     /// @param marketId Market identifier
-    /// @param lowerTick Lower tick bound
-    /// @param upperTick Upper tick bound
+    /// @param lowerTick Lower tick bound (inclusive)
+    /// @param upperTick Upper tick bound (exclusive)
     /// @param quantity Position quantity
     /// @return cost Estimated cost
     function calculateOpenCost(

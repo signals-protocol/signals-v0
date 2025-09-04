@@ -351,110 +351,129 @@ export function handleMarketSettlementValueSubmitted(
   market.save();
 }
 
-export function handlePositionSettled(event: PositionSettledEvent): void {
+function applySettlementOnce(
+  positionId: BigInt,
+  trader: Bytes,
+  payout: BigInt,
+  ts: BigInt,
+  txHash: Bytes,
+  logIndex: BigInt
+): void {
   const userPosition = loadPosOrSkip(
-    buildPositionId(event.params.positionId),
-    "handlePositionSettled"
+    buildPositionId(positionId),
+    "applySettlementOnce"
   );
   if (userPosition == null) return;
-  userPosition.outcome = event.params.isWin ? "WIN" : "LOSS";
+  if (userPosition.outcome != "OPEN") return;
 
-  let calculatedPnL = event.params.payout.minus(userPosition.totalCostBasis);
+  userPosition.outcome = payout.gt(BigInt.fromI32(0)) ? "WIN" : "LOSS";
+  let calculatedPnL = payout.minus(userPosition.totalCostBasis);
   userPosition.realizedPnL = calculatedPnL;
-  userPosition.totalProceeds = userPosition.totalProceeds.plus(
-    event.params.payout
-  );
+  userPosition.totalProceeds = userPosition.totalProceeds.plus(payout);
   userPosition.isClaimed = false;
-  userPosition.lastUpdated = event.block.timestamp;
+  userPosition.lastUpdated = ts;
 
-  let holdingSeconds = event.block.timestamp.minus(
-    userPosition.weightedEntryTime
-  );
+  let holdingSeconds = ts.minus(userPosition.weightedEntryTime);
   let userRange = userPosition.upperTick.minus(userPosition.lowerTick);
-
-  let market = loadMarketOrSkip(userPosition.market, "handlePositionSettled");
+  let market = loadMarketOrSkip(userPosition.market, "applySettlementOnce");
   if (market == null) return;
   let marketRange = market.maxTick.minus(market.minTick);
 
-  let userStats = getOrCreateUserStats(event.params.trader);
-
-  // Performance Points 계산 및 적립
+  let userStats = getOrCreateUserStats(trader);
   let performancePt = calcPerformancePoints(calculatedPnL);
-  if (performancePt.gt(BigInt.fromI32(0))) {
+  if (performancePt.gt(BigInt.fromI32(0)))
     addPerformancePoints(userStats, performancePt);
-  }
 
-  // Risk Bonus Points 계산 및 적립
   let riskBonusPt = calcRiskBonusPoints(
     userPosition.activityRemaining,
     userRange,
     marketRange,
     holdingSeconds
   );
-  if (riskBonusPt.gt(BigInt.fromI32(0))) {
+  if (riskBonusPt.gt(BigInt.fromI32(0)))
     addRiskBonusPoints(userStats, riskBonusPt);
-  }
 
   userPosition.activityRemaining = BigInt.fromI32(0);
   userPosition.weightedEntryTime = BigInt.fromI32(0);
   userPosition.save();
 
   userStats.totalRealizedPnL = userStats.totalRealizedPnL.plus(calculatedPnL);
-
-  if (event.params.isWin) {
+  if (payout.gt(BigInt.fromI32(0))) {
     userStats.winningTrades = userStats.winningTrades.plus(BigInt.fromI32(1));
   } else {
     userStats.losingTrades = userStats.losingTrades.plus(BigInt.fromI32(1));
   }
-
   userStats.save();
 
-  let trade = new Trade(
-    event.transaction.hash.concatI32(event.logIndex.toI32())
-  );
+  let trade = new Trade(txHash.concatI32(logIndex.toI32()));
   trade.userPosition = userPosition.id;
-  trade.user = event.params.trader;
+  trade.user = trader;
   trade.market = userPosition.market;
-  trade.positionId = event.params.positionId;
+  trade.positionId = positionId;
   trade.type = "SETTLE";
   trade.lowerTick = userPosition.lowerTick;
   trade.upperTick = userPosition.upperTick;
   trade.quantity = BigInt.fromI32(0);
-  trade.costOrProceeds = event.params.payout;
+  trade.costOrProceeds = payout;
   trade.price = BigInt.fromI32(0);
-  trade.gasUsed = event.receipt ? event.receipt!.gasUsed : BigInt.fromI32(0);
-  trade.gasPrice = event.transaction.gasPrice;
-  trade.timestamp = event.block.timestamp;
-  trade.blockNumber = event.block.number;
-  trade.transactionHash = event.transaction.hash;
-
+  trade.gasUsed = BigInt.fromI32(0);
+  trade.gasPrice = BigInt.fromI32(0);
+  trade.timestamp = ts;
+  trade.blockNumber = BigInt.fromI32(0);
+  trade.transactionHash = txHash;
   trade.activityPt = BigInt.fromI32(0);
   trade.performancePt = performancePt;
   trade.riskBonusPt = riskBonusPt;
   trade.save();
 
-  // 마켓 PnL 업데이트 - PositionSettled에서 모든 정산 후 지급 예정 금액 추가
   let marketStats = getOrCreateMarketStats(userPosition.market);
-  marketStats.totalSettlementPayout = marketStats.totalSettlementPayout.plus(
-    event.params.payout
-  );
+  marketStats.totalSettlementPayout =
+    marketStats.totalSettlementPayout.plus(payout);
   updateMarketPnL(marketStats);
-  marketStats.lastUpdated = event.block.timestamp;
+  marketStats.lastUpdated = ts;
   marketStats.save();
 }
 
+export function handlePositionSettled(event: PositionSettledEvent): void {
+  applySettlementOnce(
+    event.params.positionId,
+    event.params.trader,
+    event.params.payout,
+    event.block.timestamp,
+    event.transaction.hash,
+    event.logIndex
+  );
+}
+
 export function handlePositionClaimed(event: PositionClaimedEvent): void {
-  const userPosition = loadPosOrSkip(
+  // 보강: 과거 "클레임만 있고 정산 이벤트가 없던" 케이스도 복구
+  const current = loadPosOrSkip(
     buildPositionId(event.params.positionId),
     "handlePositionClaimed"
   );
-  if (userPosition == null) return;
-  userPosition.isClaimed = true;
-  userPosition.lastUpdated = event.block.timestamp;
-  userPosition.save();
+  if (current == null) return;
+  if (current.outcome == "OPEN") {
+    applySettlementOnce(
+      event.params.positionId,
+      event.params.trader,
+      event.params.payout,
+      event.block.timestamp,
+      event.transaction.hash,
+      event.logIndex
+    );
+  }
+  // Reload to avoid overwriting settlement fields updated above
+  const updated = loadPosOrSkip(
+    buildPositionId(event.params.positionId),
+    "handlePositionClaimed:reload"
+  );
+  if (updated == null) return;
+  updated.isClaimed = true;
+  updated.lastUpdated = event.block.timestamp;
+  updated.save();
 
   // 마켓 PnL 업데이트 - PositionClaimed에서 실제 청구된 금액 추가
-  let marketStats = getOrCreateMarketStats(userPosition.market);
+  let marketStats = getOrCreateMarketStats(updated.market);
   marketStats.totalClaimedPayout = marketStats.totalClaimedPayout.plus(
     event.params.payout
   );

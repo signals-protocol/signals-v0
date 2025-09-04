@@ -82,7 +82,9 @@ contract CLMSRMarketCore is
     uint256 public _nextMarketId;
     
     /// @dev Gap for future storage variables
-    uint256[49] private __gap;
+    // NEW: guard to ensure PositionSettled is emitted once per position
+    mapping(uint256 => bool) public positionSettledEmitted;
+    uint256[48] private __gap;
     
 
 
@@ -224,48 +226,44 @@ contract CLMSRMarketCore is
     /// @inheritdoc ICLMSRMarketCore
     function emitPositionSettledBatch(
         uint256 marketId,
-        uint256 scanLimit
+        uint256 limit
     ) external override onlyOwner marketExists(marketId) {
         Market storage m = markets[marketId];
         if (!m.settled) revert CE.MarketNotSettled(marketId);
         if (m.positionEventsEmitted) return;
-        require(scanLimit > 0, "scanLimit=0");
+        require(limit > 0, "limit=0");
 
-        // 커서가 0이면 1번 position부터 시작
-        uint256 fromId = m.positionEventsCursor == 0 ? 1 : uint256(m.positionEventsCursor);
-        uint256 maxIdExclusive = positionContract.getNextId(); // nextId는 Exclusive 상한
-        if (fromId >= maxIdExclusive) {
+        uint256 len = positionContract.getMarketTokenLength(marketId);
+        uint256 cursor = uint256(m.positionEventsCursor);
+        if (cursor >= len) {
             m.positionEventsEmitted = true;
-            emit PositionEventsProgress(marketId, fromId, fromId, true);
+            emit PositionEventsProgress(marketId, cursor, cursor, true);
             return;
         }
 
-        uint256 toIdExclusive = fromId + scanLimit;
-        if (toIdExclusive > maxIdExclusive) toIdExclusive = maxIdExclusive;
+        uint256 toExclusive = cursor + limit;
+        if (toExclusive > len) toExclusive = len;
 
-        // 스캔 범위 내에서 해당 마켓 포지션만 이벤트 emit
-        for (uint256 pid = fromId; pid < toIdExclusive; ++pid) {
-            // 존재하지 않거나 다른 마켓이면 건너뜀
-            if (!positionContract.exists(pid)) continue;
+        for (uint256 i = cursor; i < toExclusive; ++i) {
+            uint256 pid = positionContract.getMarketTokenAt(marketId, i);
+            if (pid == 0) continue; // burned hole
+            if (positionSettledEmitted[pid]) continue; // already emitted
+            if (!positionContract.exists(pid)) continue; // safety
+
             ICLMSRPosition.Position memory p = positionContract.getPosition(pid);
-            if (p.marketId != marketId) continue;
+            if (p.marketId != marketId) continue; // safety
 
-            // 승/패 및 페이아웃 계산
             uint256 payout = _calculateClaimAmount(pid);
             bool isWin = payout > 0;
-
-            // 소유자 (존재 확인 후 ownerOf 사용)
             address trader = positionContract.ownerOf(pid);
             emit PositionSettled(pid, trader, payout, isWin);
+            positionSettledEmitted[pid] = true;
         }
 
-        // 커서를 다음 스캔 시작점으로 이동
-        m.positionEventsCursor = uint32(toIdExclusive);
-        bool done = (toIdExclusive == maxIdExclusive);
+        m.positionEventsCursor = uint32(toExclusive);
+        bool done = (toExclusive == len);
         if (done) m.positionEventsEmitted = true;
-
-        // 진행 이벤트: 이제 'positionId' 범위를 의미 (배열 인덱스 아님)
-        emit PositionEventsProgress(marketId, fromId, toIdExclusive - 1, done);
+        emit PositionEventsProgress(marketId, cursor, toExclusive == 0 ? 0 : (toExclusive - 1), done);
     }
 
     /// @inheritdoc ICLMSRMarketCore
@@ -800,15 +798,20 @@ contract CLMSRMarketCore is
             revert CE.MarketNotSettled(position.marketId);
         }
         
-        // Calculate payout
+        // Calculate payout and emit PositionSettled once if not already
         payout = _calculateClaimAmount(positionId);
-        
+        bool isWin = payout > 0;
+        if (!positionSettledEmitted[positionId]) {
+            emit PositionSettled(positionId, trader, payout, isWin);
+            positionSettledEmitted[positionId] = true;
+        }
+
         // Transfer payout to caller
         _pushUSDC(msg.sender, payout);
-        
+
         // Burn position NFT (position is claimed)
         positionContract.burn(positionId);
-        
+
         emit PositionClaimed(positionId, msg.sender, payout);
     }
 

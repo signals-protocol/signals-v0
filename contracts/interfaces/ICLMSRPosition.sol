@@ -16,7 +16,7 @@ interface ICLMSRPosition is IERC721 {
     struct Position {
         uint256 marketId;               // Market identifier
         int256 lowerTick;               // Lower tick bound (inclusive)
-        int256 upperTick;               // Upper tick bound (inclusive)
+        int256 upperTick;               // Upper tick bound (exclusive)
         uint128 quantity;               // Position quantity (always positive, Long-Only)
         uint64 createdAt;               // Creation timestamp
     }
@@ -134,4 +134,20 @@ interface ICLMSRPosition is IERC721 {
     /// @notice Get core contract address
     /// @return core Core contract address
     function core() external view returns (address core);
+
+    // ========================================
+    // MARKET-LOCAL TOKEN INDEXING (NEW)
+    // ========================================
+
+    /// @notice Get number of tokens indexed for a market (includes burned holes)
+    /// @param marketId Market identifier
+    /// @return length Length of market-local token list
+    function getMarketTokenLength(uint256 marketId) external view returns (uint256 length);
+
+    /// @notice Get tokenId at market-local index (O(1))
+    /// @dev Returns 0 for burned positions (hole markers)
+    /// @param marketId Market identifier
+    /// @param index 0-based index
+    /// @return tokenId Position token id or 0 if burned
+    function getMarketTokenAt(uint256 marketId, uint256 index) external view returns (uint256 tokenId);
 }
