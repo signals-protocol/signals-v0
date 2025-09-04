@@ -44,7 +44,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       await buyTx.wait();
 
       // Get position ID
-      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positions = await mockPosition.getOwnerPositions(alice.address);
       const positionId = positions[0];
 
       // Check balance after buy
@@ -161,7 +161,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
           EXTREME_COST
         );
 
-      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positions = await mockPosition.getOwnerPositions(alice.address);
       const positionId = positions[0];
 
       let position = await mockPosition.getPosition(positionId);
@@ -196,7 +196,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
           EXTREME_COST
         );
 
-      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positions = await mockPosition.getOwnerPositions(alice.address);
       const positionId = positions[0];
 
       // Record balance after opening
@@ -449,10 +449,10 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
         );
 
       // Get positions
-      const alicePositions = await mockPosition.getPositionsByOwner(
+      const alicePositions = await mockPosition.getOwnerPositions(
         alice.address
       );
-      const bobPositions = await mockPosition.getPositionsByOwner(bob.address);
+      const bobPositions = await mockPosition.getOwnerPositions(bob.address);
 
       // Both should be able to close independently
       await core.connect(alice).closePosition(alicePositions[0], 0);
@@ -512,7 +512,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
             ethers.parseUnits("1000", 6)
           );
 
-        const positions = await mockPosition.getPositionsByOwner(alice.address);
+        const positions = await mockPosition.getOwnerPositions(alice.address);
         const positionId = positions[0];
 
         // Calculate sell proceeds (should also be rounded up now)
@@ -576,7 +576,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
             ethers.parseUnits("1000", 6)
           );
 
-        const positions = await mockPosition.getPositionsByOwner(alice.address);
+        const positions = await mockPosition.getOwnerPositions(alice.address);
         const positionId = positions[0];
 
         // Close position immediately

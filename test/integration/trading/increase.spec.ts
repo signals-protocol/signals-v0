@@ -23,7 +23,7 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
         MEDIUM_QUANTITY,
         MEDIUM_COST
       );
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positions = await mockPosition.getOwnerPositions(alice.address);
     const positionId = positions[0];
 
     const balanceBefore = await paymentToken.balanceOf(alice.address);
@@ -73,7 +73,7 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
         MEDIUM_COST
       );
 
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positions = await mockPosition.getOwnerPositions(alice.address);
     const positionId = positions[0];
 
     await expect(
@@ -98,7 +98,7 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
         MEDIUM_COST
       );
 
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positions = await mockPosition.getOwnerPositions(alice.address);
     const positionId = positions[0];
 
     await expect(
@@ -130,7 +130,7 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
         MEDIUM_COST
       );
 
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positions = await mockPosition.getOwnerPositions(alice.address);
     const positionId = positions[0];
 
     // Pause the contract
@@ -158,7 +158,7 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
       ethers.parseUnits("10", 6) // Large cost
     );
 
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positions = await mockPosition.getOwnerPositions(alice.address);
     const positionId = positions[0];
 
     // Small increase
@@ -191,7 +191,7 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
         tradeParams.quantity,
         tradeParams.maxCost
       );
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positions = await mockPosition.getOwnerPositions(alice.address);
     const positionId = positions[0];
 
     const cost = await core.calculateIncreaseCost(positionId, SMALL_QUANTITY);

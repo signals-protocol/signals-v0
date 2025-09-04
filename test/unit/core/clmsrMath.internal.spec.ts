@@ -35,16 +35,9 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
       // Create initial position
       await core
         .connect(alice)
-        .openPosition(
-          alice.address,
-          marketId,
-          100450,
-          100550,
-          MEDIUM_QUANTITY,
-          MEDIUM_COST
-        );
+        .openPosition(marketId, 100450, 100550, MEDIUM_QUANTITY, MEDIUM_COST);
 
-      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positions = await mockPosition.getOwnerPositions(alice.address);
       const positionId = positions[0];
 
       const cost = await core.calculateIncreaseCost(positionId, SMALL_QUANTITY);
@@ -59,16 +52,9 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
       // Create initial position
       await core
         .connect(alice)
-        .openPosition(
-          alice.address,
-          marketId,
-          100450,
-          100550,
-          MEDIUM_QUANTITY,
-          MEDIUM_COST
-        );
+        .openPosition(marketId, 100450, 100550, MEDIUM_QUANTITY, MEDIUM_COST);
 
-      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positions = await mockPosition.getOwnerPositions(alice.address);
       const positionId = positions[0];
 
       const payout = await core.calculateDecreaseProceeds(
@@ -86,16 +72,9 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
       // Create initial position
       await core
         .connect(alice)
-        .openPosition(
-          alice.address,
-          marketId,
-          100450,
-          100550,
-          MEDIUM_QUANTITY,
-          MEDIUM_COST
-        );
+        .openPosition(marketId, 100450, 100550, MEDIUM_QUANTITY, MEDIUM_COST);
 
-      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positions = await mockPosition.getOwnerPositions(alice.address);
       const positionId = positions[0];
 
       const payout = await core.calculateCloseProceeds(positionId);
@@ -354,16 +333,9 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
       // Create position
       await core
         .connect(alice)
-        .openPosition(
-          alice.address,
-          marketId,
-          100450,
-          100550,
-          MEDIUM_QUANTITY,
-          MEDIUM_COST
-        );
+        .openPosition(marketId, 100450, 100550, MEDIUM_QUANTITY, MEDIUM_COST);
 
-      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positions = await mockPosition.getOwnerPositions(alice.address);
       const positionId = positions[0];
 
       // Check that increase + decrease should be approximately neutral

@@ -15,7 +15,7 @@ const config: HardhatUserConfig = {
       viaIR: true,
       optimizer: {
         enabled: true,
-        runs: 50, // Lowered from 200 to reduce contract size for EIP-170 compliance
+        runs: 40, // Lowered from 200 to reduce contract size for EIP-170 compliance
       },
       metadata: {
         bytecodeHash: "none", // Remove metadata hash to save additional bytes

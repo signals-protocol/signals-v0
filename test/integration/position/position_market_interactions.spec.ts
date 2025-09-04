@@ -386,7 +386,7 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       }
 
       // Batch transfers - Alice transfers all her positions to Bob
-      const alicePositions = await position.getPositionsByOwner(alice.address);
+      const alicePositions = await position.getOwnerPositions(alice.address);
       for (const posId of alicePositions) {
         await position
           .connect(alice)
@@ -805,8 +805,8 @@ describe(`${INTEGRATION_TAG} Position-Market Interactions`, function () {
       }
 
       // Verify final balances
-      const alicePositions = await position.getPositionsByOwner(alice.address);
-      const bobPositions = await position.getPositionsByOwner(bob.address);
+      const alicePositions = await position.getOwnerPositions(alice.address);
+      const bobPositions = await position.getOwnerPositions(bob.address);
 
       const aliceCount = expectedStates.filter(
         (s) => s.owner === alice.address

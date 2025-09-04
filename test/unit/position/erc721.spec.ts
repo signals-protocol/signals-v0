@@ -141,8 +141,8 @@ describe(`${UNIT_TAG} Position ERC721 Standard`, function () {
       );
 
       // Check initial state
-      let aliceTokens = await position.getPositionsByOwner(alice.address);
-      let bobTokens = await position.getPositionsByOwner(bob.address);
+      let aliceTokens = await position.getOwnerPositions(alice.address);
+      let bobTokens = await position.getOwnerPositions(bob.address);
       expect(aliceTokens.length).to.equal(1);
       expect(aliceTokens[0]).to.equal(positionId);
       expect(bobTokens.length).to.equal(0);
@@ -153,8 +153,8 @@ describe(`${UNIT_TAG} Position ERC721 Standard`, function () {
         .transferFrom(alice.address, bob.address, positionId);
 
       // Check updated state
-      aliceTokens = await position.getPositionsByOwner(alice.address);
-      bobTokens = await position.getPositionsByOwner(bob.address);
+      aliceTokens = await position.getOwnerPositions(alice.address);
+      bobTokens = await position.getOwnerPositions(bob.address);
       expect(aliceTokens.length).to.equal(0);
       expect(bobTokens.length).to.equal(1);
       expect(bobTokens[0]).to.equal(positionId);

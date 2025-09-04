@@ -29,7 +29,6 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
       core
         .connect(alice)
         .openPosition(
-          alice.address,
           tradeParams.marketId,
           tradeParams.lowerTick,
           tradeParams.upperTick,
@@ -61,7 +60,6 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
       core
         .connect(alice)
         .openPosition(
-          alice.address,
           tradeParams.marketId,
           tradeParams.lowerTick,
           tradeParams.upperTick,
@@ -88,7 +86,6 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
       core
         .connect(alice)
         .openPosition(
-          alice.address,
           tradeParams.marketId,
           tradeParams.lowerTick,
           tradeParams.upperTick,
@@ -104,9 +101,7 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
     );
 
     await expect(
-      core
-        .connect(alice)
-        .openPosition(alice.address, marketId, 100450, 100550, 0, MEDIUM_COST)
+      core.connect(alice).openPosition(marketId, 100450, 100550, 0, MEDIUM_COST)
     ).to.be.revertedWithCustomError(core, "InvalidQuantity");
   });
 
@@ -117,7 +112,6 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
 
     await expect(
       core.connect(alice).openPosition(
-        alice.address,
         marketId,
         101000, // 범위를 벗어난 틱값
         101100, // 범위를 벗어난 틱값
@@ -134,7 +128,6 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
 
     await expect(
       core.connect(alice).openPosition(
-        alice.address,
         marketId,
         100500, // 실제 틱값
         100500, // 동일한 틱값 (single tick)
@@ -152,7 +145,6 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
     // First tick
     await expect(
       core.connect(alice).openPosition(
-        alice.address,
         marketId,
         100000, // 첫 번째 틱
         100000,
@@ -164,7 +156,6 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
     // Last tick
     await expect(
       core.connect(alice).openPosition(
-        alice.address,
         marketId,
         100990, // 마지막 틱
         100990,
@@ -188,14 +179,7 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
     await expect(
       core
         .connect(alice)
-        .openPosition(
-          alice.address,
-          marketId,
-          100450,
-          100550,
-          MEDIUM_QUANTITY,
-          MEDIUM_COST
-        )
+        .openPosition(marketId, 100450, 100550, MEDIUM_QUANTITY, MEDIUM_COST)
     ).to.be.revertedWithCustomError(core, "ContractPaused");
   });
 
@@ -205,7 +189,7 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
     await expect(
       core
         .connect(alice)
-        .openPosition(alice.address, 999, 45, 55, MEDIUM_QUANTITY, MEDIUM_COST)
+        .openPosition(999, 45, 55, MEDIUM_QUANTITY, MEDIUM_COST)
     ).to.be.revertedWithCustomError(core, "MarketNotFound");
   });
 
@@ -227,14 +211,7 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
     await expect(
       core
         .connect(alice)
-        .openPosition(
-          alice.address,
-          marketId,
-          100450,
-          100550,
-          SMALL_QUANTITY,
-          exactCost - 1n
-        )
+        .openPosition(marketId, 100450, 100550, SMALL_QUANTITY, exactCost - 1n)
     ).to.be.revertedWithCustomError(core, "CostExceedsMaximum");
 
     // Test with exact cost should succeed
@@ -242,14 +219,7 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
     await expect(
       core
         .connect(alice)
-        .openPosition(
-          alice.address,
-          marketId,
-          100450,
-          100550,
-          SMALL_QUANTITY,
-          exactCost
-        )
+        .openPosition(marketId, 100450, 100550, SMALL_QUANTITY, exactCost)
     ).to.not.be.reverted;
   });
 
@@ -264,14 +234,7 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
 
     const tx = await core
       .connect(alice)
-      .openPosition(
-        alice.address,
-        marketId,
-        100000,
-        100990,
-        largeQuantity,
-        largeCost
-      );
+      .openPosition(marketId, 100000, 100990, largeQuantity, largeCost);
 
     await expect(tx).to.emit(core, "PositionOpened");
   });
@@ -288,7 +251,6 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
       core
         .connect(alice)
         .openPosition(
-          alice.address,
           marketId,
           100450,
           100550,

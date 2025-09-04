@@ -136,50 +136,8 @@ interface ICLMSRMarketCore {
     );
 
     // ========================================
-    // MARKET MANAGEMENT FUNCTIONS
+    // MARKET MANAGEMENT FUNCTIONS (slimmed: removed admin externals)
     // ========================================
-    
-    /// @notice Create a new market (only callable by Owner)
-    /// @dev Stores market data and initializes all tick values to WAD (1e18)
-    /// @param marketId Market identifier
-    /// @param minTick Minimum allowed tick value
-    /// @param maxTick Maximum allowed tick value
-    /// @param tickSpacing Spacing between valid ticks
-    /// @param startTimestamp Market start time
-    /// @param endTimestamp Market end time
-    /// @param liquidityParameter Alpha parameter (1e18 scale)
-    /// @return marketId Auto-generated market identifier
-    function createMarket(
-        int256 minTick,
-        int256 maxTick,
-        int256 tickSpacing,
-        uint64 startTimestamp,
-        uint64 endTimestamp,
-        uint256 liquidityParameter
-    ) external returns (uint256 marketId);
-    
-    /// @notice Settle a market (only callable by Owner)
-    /// @dev Sets exact winning settlement value (6 decimals) and calculates corresponding tick value
-    /// @param marketId Market identifier
-    /// @param settlementValue Exact winning settlement value with 6 decimals
-    function settleMarket(uint256 marketId, int256 settlementValue) external;
-
-    /// @notice Emit position settled events in batches (only callable by Owner)
-    /// @dev Emits PositionSettled events for positions using cursor-based pagination
-    /// @param marketId Market identifier
-    /// @param limit Maximum number of positions to process in this batch
-    function emitPositionSettledBatch(uint256 marketId, uint256 limit) external;
-
-    /// @notice Update market timing (only callable by Owner)
-    /// @dev Changes market start and end timestamps for a specific market
-    /// @param marketId Market identifier
-    /// @param newStartTimestamp New market start time
-    /// @param newEndTimestamp New market end time
-    function updateMarketTiming(
-        uint256 marketId,
-        uint64 newStartTimestamp,
-        uint64 newEndTimestamp
-    ) external;
 
     // ========================================
     // EXECUTION FUNCTIONS
@@ -336,24 +294,6 @@ interface ICLMSRMarketCore {
     /// @return sum Sum of exponential values in range
     function getRangeSum(uint256 marketId, int256 lo, int256 hi) 
         external view returns (uint256 sum);
-    
-    /// @notice Propagate lazy values and return range sum (state-changing function)
-    /// @dev For Keeper/Owner - actually pushes lazy values down the tree
-    /// @param marketId Market identifier
-    /// @param lo Left boundary (inclusive, actual tick value)
-    /// @param hi Right boundary (inclusive, actual tick value)
-    /// @return sum Sum of exponential values in range
-    function propagateLazy(uint256 marketId, int256 lo, int256 hi) 
-        external returns (uint256 sum);
-    
-    /// @notice Apply multiplication factor to range (state-changing function)
-    /// @dev For Keeper/Owner - updates market state by applying factor
-    /// @param marketId Market identifier
-    /// @param lo Left boundary (inclusive, actual tick value)
-    /// @param hi Right boundary (inclusive, actual tick value)
-    /// @param factor Multiplication factor (WAD scale)
-    function applyRangeFactor(uint256 marketId, int256 lo, int256 hi, uint256 factor) 
-        external;
 
     // ========================================
     // EMERGENCY FUNCTIONS
@@ -369,4 +309,13 @@ interface ICLMSRMarketCore {
     /// @notice Check if contract is paused
     /// @return True if paused
     function isPaused() external view returns (bool);
+
+    // ========================================
+    // ADMIN DELEGATION
+    // ========================================
+
+    /// @notice Admin entrypoint callable by Manager to execute ops via delegatecall
+    /// @param data Encoded function selector and arguments targeting Ops contract
+    /// @return result Return data from delegatecall
+    function adminCall(bytes calldata data) external returns (bytes memory result);
 }

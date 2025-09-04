@@ -32,7 +32,7 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
         tradeParams.quantity,
         tradeParams.maxCost
       );
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positions = await mockPosition.getOwnerPositions(alice.address);
     const positionId = positions[0];
 
     const balanceBefore = await paymentToken.balanceOf(alice.address);
@@ -82,7 +82,7 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
         MEDIUM_COST
       );
 
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positions = await mockPosition.getOwnerPositions(alice.address);
     const positionId = positions[0];
 
     await expect(
@@ -107,7 +107,7 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
         MEDIUM_COST
       );
 
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positions = await mockPosition.getOwnerPositions(alice.address);
     const positionId = positions[0];
 
     await expect(
@@ -136,7 +136,7 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
         MEDIUM_COST
       );
 
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positions = await mockPosition.getOwnerPositions(alice.address);
     const positionId = positions[0];
 
     // Calculate payout to set unrealistic minimum
@@ -171,7 +171,7 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
         MEDIUM_COST
       );
 
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positions = await mockPosition.getOwnerPositions(alice.address);
     const positionId = positions[0];
 
     // Pause the contract
@@ -206,7 +206,7 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
         tradeParams.quantity,
         tradeParams.maxCost
       );
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positions = await mockPosition.getOwnerPositions(alice.address);
     const positionId = positions[0];
 
     const payout = await core.calculateDecreaseProceeds(
@@ -233,7 +233,7 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
         ethers.parseUnits("10", 6)
       );
 
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positions = await mockPosition.getOwnerPositions(alice.address);
     const positionId = positions[0];
 
     // Small decrease

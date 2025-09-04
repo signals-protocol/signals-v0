@@ -103,38 +103,22 @@ export async function activePositionFixture() {
   );
   const CLMSRPositionFactory = await ethers.getContractFactory("CLMSRPosition");
 
-  // Get deployer nonce to calculate future addresses
-  const deployer = await ethers.provider.getSigner();
-  const deployerAddress = await deployer.getAddress();
-  const nonce = await ethers.provider.getTransactionCount(deployerAddress);
-
-  // Calculate future core address (will be deployed after position)
-  const futureCore = ethers.getCreateAddress({
-    from: deployerAddress,
-    nonce: nonce + 1, // Position deploys first, then core
-  });
-
-  // Deploy position with future core address
-  const position = await CLMSRPositionFactory.deploy(futureCore);
+  // Deploy position implementation (upgradeable-style) without constructor args
+  const position = await CLMSRPositionFactory.deploy();
   await position.waitForDeployment();
 
-  // Deploy core with actual position address
-  const core = await CLMSRMarketCoreFactory.deploy(
+  // Deploy core and initialize with position address
+  const coreImpl = await CLMSRMarketCoreFactory.deploy();
+  await coreImpl.waitForDeployment();
+  await coreImpl.initialize(
     await paymentToken.getAddress(),
-    await position.getAddress(),
-    keeper.address
+    await position.getAddress()
   );
-  await core.waitForDeployment();
 
-  // Verify the addresses match
-  const actualCoreAddress = await core.getAddress();
-  const positionCoreAddress = await position.getCoreContract();
+  // Initialize position with core address
+  await position.initialize(await coreImpl.getAddress());
 
-  if (actualCoreAddress !== positionCoreAddress) {
-    throw new Error(
-      `Core address mismatch: expected ${actualCoreAddress}, got ${positionCoreAddress}`
-    );
-  }
+  const core = coreImpl;
 
   // Setup contracts
   await paymentToken.mint(await core.getAddress(), INITIAL_SUPPLY);
@@ -164,8 +148,6 @@ export async function positionMarketFixture() {
   const currentTime = await time.latest();
   const startTime = currentTime + 500; // Larger buffer for position market tests
   const endTime = startTime + MARKET_DURATION;
-  const marketId = 1;
-
   // 새로운 틱 시스템 사용
   const minTick = 100000;
   const maxTick = minTick + (TICK_COUNT - 1) * 10;
@@ -173,15 +155,10 @@ export async function positionMarketFixture() {
 
   await core
     .connect(keeper)
-    .createMarket(
-      marketId,
-      minTick,
-      maxTick,
-      tickSpacing,
-      startTime,
-      endTime,
-      ALPHA
-    );
+    .createMarket(minTick, maxTick, tickSpacing, startTime, endTime, ALPHA);
+
+  const nextId = await core._nextMarketId();
+  const marketId = Number(nextId - 1n);
 
   // Move to market start time
   await time.increaseTo(startTime + 1);
@@ -204,8 +181,6 @@ export async function activePositionMarketFixture() {
   const currentTime = await time.latest();
   const startTime = currentTime + 600; // Even larger buffer for real position tests
   const endTime = startTime + MARKET_DURATION;
-  const marketId = 1;
-
   // 새로운 틱 시스템 사용
   const minTick = 100000;
   const maxTick = minTick + (TICK_COUNT - 1) * 10;
@@ -213,15 +188,10 @@ export async function activePositionMarketFixture() {
 
   await core
     .connect(keeper)
-    .createMarket(
-      marketId,
-      minTick,
-      maxTick,
-      tickSpacing,
-      startTime,
-      endTime,
-      ALPHA
-    );
+    .createMarket(minTick, maxTick, tickSpacing, startTime, endTime, ALPHA);
+
+  const nextId = await core._nextMarketId();
+  const marketId = Number(nextId - 1n);
 
   // LazyMulSegmentTree는 createMarket에서 자동 초기화됨
 
@@ -246,8 +216,8 @@ export async function positionWithDataFixture() {
   // Create some test positions
   const positionParams = {
     marketId,
-    lowerTick: 10,
-    upperTick: 20,
+    lowerTick: 100100,
+    upperTick: 100110,
     quantity: ethers.parseUnits("0.01", 6),
     maxCost: ethers.parseUnits("1", 6),
   };
@@ -327,7 +297,6 @@ export async function createTestPosition(
   const positionId = await contracts.core
     .connect(user)
     .openPosition.staticCall(
-      user.address,
       params.marketId,
       params.lowerTick,
       params.upperTick,
@@ -337,7 +306,6 @@ export async function createTestPosition(
   await contracts.core
     .connect(user)
     .openPosition(
-      user.address,
       params.marketId,
       params.lowerTick,
       params.upperTick,
@@ -376,7 +344,6 @@ export async function createRealTestPosition(
   const positionId = await contracts.core
     .connect(user)
     .openPosition.staticCall(
-      user.address,
       params.marketId,
       params.lowerTick,
       params.upperTick,
@@ -386,7 +353,6 @@ export async function createRealTestPosition(
   await contracts.core
     .connect(user)
     .openPosition(
-      user.address,
       params.marketId,
       params.lowerTick,
       params.upperTick,

@@ -103,7 +103,7 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
       const { position, alice, marketId } = contracts;
 
       // Initially no tokens
-      let aliceTokens = await position.getPositionsByOwner(alice.address);
+      let aliceTokens = await position.getOwnerPositions(alice.address);
       expect(aliceTokens.length).to.equal(0);
 
       // Create first position
@@ -115,7 +115,7 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
         100200
       );
 
-      aliceTokens = await position.getPositionsByOwner(alice.address);
+      aliceTokens = await position.getOwnerPositions(alice.address);
       expect(aliceTokens.length).to.equal(1);
       expect(aliceTokens[0]).to.equal(positionId1);
 
@@ -128,7 +128,7 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
         100400
       );
 
-      aliceTokens = await position.getPositionsByOwner(alice.address);
+      aliceTokens = await position.getOwnerPositions(alice.address);
       expect(aliceTokens.length).to.equal(2);
       expect(aliceTokens).to.include(positionId1);
       expect(aliceTokens).to.include(positionId2);
@@ -145,8 +145,8 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
       );
 
       // Initial state
-      let aliceTokens = await position.getPositionsByOwner(alice.address);
-      let bobTokens = await position.getPositionsByOwner(bob.address);
+      let aliceTokens = await position.getOwnerPositions(alice.address);
+      let bobTokens = await position.getOwnerPositions(bob.address);
       expect(aliceTokens.length).to.equal(1);
       expect(aliceTokens[0]).to.equal(positionId);
       expect(bobTokens.length).to.equal(0);
@@ -157,8 +157,8 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
         .transferFrom(alice.address, bob.address, positionId);
 
       // Updated state
-      aliceTokens = await position.getPositionsByOwner(alice.address);
-      bobTokens = await position.getPositionsByOwner(bob.address);
+      aliceTokens = await position.getOwnerPositions(alice.address);
+      bobTokens = await position.getOwnerPositions(bob.address);
       expect(aliceTokens.length).to.equal(0);
       expect(bobTokens.length).to.equal(1);
       expect(bobTokens[0]).to.equal(positionId);
@@ -194,9 +194,9 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
         .transferFrom(alice.address, charlie.address, pos2);
 
       // Verify final state
-      const aliceTokens = await position.getPositionsByOwner(alice.address);
-      const bobTokens = await position.getPositionsByOwner(bob.address);
-      const charlieTokens = await position.getPositionsByOwner(charlie.address);
+      const aliceTokens = await position.getOwnerPositions(alice.address);
+      const bobTokens = await position.getOwnerPositions(bob.address);
+      const charlieTokens = await position.getOwnerPositions(charlie.address);
 
       expect(aliceTokens.length).to.equal(0);
       expect(bobTokens.length).to.equal(1);
@@ -369,7 +369,7 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
       );
 
       // Verify position is tracked
-      let aliceTokens = await position.getPositionsByOwner(alice.address);
+      let aliceTokens = await position.getOwnerPositions(alice.address);
       expect(aliceTokens.length).to.equal(1);
       expect(aliceTokens[0]).to.equal(positionId);
 
@@ -380,7 +380,7 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
         .decreasePosition(positionId, positionData.quantity, 0);
 
       // Verify position is removed from tracking
-      aliceTokens = await position.getPositionsByOwner(alice.address);
+      aliceTokens = await position.getOwnerPositions(alice.address);
       expect(aliceTokens.length).to.equal(0);
     });
   });
@@ -404,7 +404,7 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
       }
 
       // Verify all positions are tracked
-      const aliceTokens = await position.getPositionsByOwner(alice.address);
+      const aliceTokens = await position.getOwnerPositions(alice.address);
       expect(aliceTokens.length).to.equal(5);
 
       // Transfer middle position to test removal efficiency
@@ -416,10 +416,10 @@ describe(`${UNIT_TAG} Position Storage Management`, function () {
         .transferFrom(alice.address, bob.address, middlePosition);
 
       // Verify efficient removal
-      const updatedAliceTokens = await position.getPositionsByOwner(
+      const updatedAliceTokens = await position.getOwnerPositions(
         alice.address
       );
-      const bobTokens = await position.getPositionsByOwner(bob.address);
+      const bobTokens = await position.getOwnerPositions(bob.address);
 
       expect(updatedAliceTokens.length).to.equal(4);
       expect(bobTokens.length).to.equal(1);

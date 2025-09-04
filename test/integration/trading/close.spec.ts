@@ -33,7 +33,7 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
         tradeParams.quantity,
         tradeParams.maxCost
       );
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positions = await mockPosition.getOwnerPositions(alice.address);
     const positionId = positions[0];
 
     const balanceBefore = await paymentToken.balanceOf(alice.address);
@@ -74,9 +74,7 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
           SMALL_QUANTITY,
           MEDIUM_COST
         );
-      const userPositions = await mockPosition.getPositionsByOwner(
-        user.address
-      );
+      const userPositions = await mockPosition.getOwnerPositions(user.address);
       positions.push(userPositions[userPositions.length - 1]);
     }
 
@@ -97,9 +95,7 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
 
     // All positions should be cleaned up
     for (const user of users) {
-      const userPositions = await mockPosition.getPositionsByOwner(
-        user.address
-      );
+      const userPositions = await mockPosition.getOwnerPositions(user.address);
       expect(userPositions.length).to.equal(0);
     }
   });
@@ -119,7 +115,7 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
         MEDIUM_QUANTITY,
         MEDIUM_COST
       );
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positions = await mockPosition.getOwnerPositions(alice.address);
     const positionId = positions[0];
 
     // Move to market end and settle
@@ -152,7 +148,7 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
       1, // Very small quantity
       ethers.parseUnits("1", 6)
     );
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positions = await mockPosition.getOwnerPositions(alice.address);
     const positionId = positions[0];
 
     const balanceBefore = await paymentToken.balanceOf(alice.address);
@@ -191,7 +187,7 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
         MEDIUM_QUANTITY,
         MEDIUM_COST
       );
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positions = await mockPosition.getOwnerPositions(alice.address);
     const positionId = positions[0];
 
     // Try to close with unreasonably high minimum payout
@@ -217,7 +213,7 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
         quantity,
         ethers.parseUnits("50", 6)
       );
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positions = await mockPosition.getOwnerPositions(alice.address);
     const positionId = positions[0];
 
     const balanceBefore = await paymentToken.balanceOf(alice.address);

@@ -242,7 +242,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
         positionIds.push({ id: positionId, owner: user.address });
 
         // Verify owner tracking invariant
-        const ownerPositions = await position.getPositionsByOwner(user.address);
+        const ownerPositions = await position.getOwnerPositions(user.address);
         const userBalance = await position.balanceOf(user.address);
 
         expect(ownerPositions.length).to.equal(userBalance);
@@ -273,9 +273,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
 
         // Verify invariant for all users
         for (const user of users) {
-          const ownerPositions = await position.getPositionsByOwner(
-            user.address
-          );
+          const ownerPositions = await position.getOwnerPositions(user.address);
           const userBalance = await position.balanceOf(user.address);
 
           expect(ownerPositions.length).to.equal(userBalance);
@@ -308,9 +306,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
 
         // Verify invariant for all users
         for (const user of users) {
-          const ownerPositions = await position.getPositionsByOwner(
-            user.address
-          );
+          const ownerPositions = await position.getOwnerPositions(user.address);
           const userBalance = await position.balanceOf(user.address);
 
           expect(ownerPositions.length).to.equal(userBalance);
@@ -325,7 +321,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
 
       // Final state: all users should have empty position lists
       for (const user of users) {
-        const ownerPositions = await position.getPositionsByOwner(user.address);
+        const ownerPositions = await position.getOwnerPositions(user.address);
         expect(ownerPositions.length).to.equal(0);
         expect(await position.balanceOf(user.address)).to.equal(0);
       }

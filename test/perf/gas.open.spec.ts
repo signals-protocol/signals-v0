@@ -26,14 +26,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
 
       const tx = await core
         .connect(alice)
-        .openPosition(
-          alice.address,
-          marketId,
-          100450,
-          100550,
-          SMALL_QUANTITY,
-          MEDIUM_COST
-        );
+        .openPosition(marketId, 100450, 100550, SMALL_QUANTITY, MEDIUM_COST);
 
       const receipt = await tx.wait();
       const gasUsed = receipt!.gasUsed;
@@ -50,14 +43,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
 
       const tx = await core
         .connect(alice)
-        .openPosition(
-          alice.address,
-          marketId,
-          100300,
-          100700,
-          MEDIUM_QUANTITY,
-          MEDIUM_COST
-        );
+        .openPosition(marketId, 100300, 100700, MEDIUM_QUANTITY, MEDIUM_COST);
 
       const receipt = await tx.wait();
       const gasUsed = receipt!.gasUsed;
@@ -74,14 +60,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
 
       const tx = await core
         .connect(alice)
-        .openPosition(
-          alice.address,
-          marketId,
-          100000,
-          100990,
-          LARGE_QUANTITY,
-          LARGE_COST
-        );
+        .openPosition(marketId, 100000, 100990, LARGE_QUANTITY, LARGE_COST);
 
       const receipt = await tx.wait();
       const gasUsed = receipt!.gasUsed;
@@ -103,7 +82,6 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
       // Test multiple single tick positions
       for (let tick = 100100; tick < 100900; tick += 200) {
         const tx = await core.connect(alice).openPosition(
-          alice.address,
           marketId,
           tick,
           tick + 10, // Single tick range
@@ -141,7 +119,6 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
         const tx = await core
           .connect(alice)
           .openPosition(
-            alice.address,
             marketId,
             range.lower,
             range.upper,
@@ -212,7 +189,6 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
         await core
           .connect(alice)
           .openPosition(
-            alice.address,
             marketId,
             100400 + i * 20,
             100600 - i * 20,
@@ -224,14 +200,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
       // Gas usage for new position should still be reasonable
       const tx = await core
         .connect(alice)
-        .openPosition(
-          bob.address,
-          marketId,
-          100450,
-          100550,
-          SMALL_QUANTITY,
-          MEDIUM_COST
-        );
+        .openPosition(marketId, 100450, 100550, SMALL_QUANTITY, MEDIUM_COST);
 
       const receipt = await tx.wait();
       const gasUsed = receipt!.gasUsed;
@@ -291,41 +260,20 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
       // Gas usage in fresh market
       const tx1 = await core
         .connect(alice)
-        .openPosition(
-          alice.address,
-          marketId,
-          100450,
-          100550,
-          SMALL_QUANTITY,
-          MEDIUM_COST
-        );
+        .openPosition(marketId, 100450, 100550, SMALL_QUANTITY, MEDIUM_COST);
       const freshMarketGas = (await tx1.wait())!.gasUsed;
 
       // Add some positions
       for (let i = 0; i < 3; i++) {
         await core
           .connect(alice)
-          .openPosition(
-            alice.address,
-            marketId,
-            100300,
-            100400,
-            SMALL_QUANTITY,
-            MEDIUM_COST
-          );
+          .openPosition(marketId, 100300, 100400, SMALL_QUANTITY, MEDIUM_COST);
       }
 
       // Gas usage in active market
       const tx2 = await core
         .connect(alice)
-        .openPosition(
-          alice.address,
-          marketId,
-          100450,
-          100550,
-          SMALL_QUANTITY,
-          MEDIUM_COST
-        );
+        .openPosition(marketId, 100450, 100550, SMALL_QUANTITY, MEDIUM_COST);
       const activeMarketGas = (await tx2.wait())!.gasUsed;
 
       console.log(`Fresh market gas: ${freshMarketGas}`);
@@ -348,14 +296,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
 
       const tx = await core
         .connect(alice)
-        .openPosition(
-          alice.address,
-          marketId,
-          100450,
-          100550,
-          MEDIUM_QUANTITY,
-          MEDIUM_COST
-        );
+        .openPosition(marketId, 100450, 100550, MEDIUM_QUANTITY, MEDIUM_COST);
       const receipt = await tx.wait();
       const gasUsed = receipt!.gasUsed;
 
@@ -376,16 +317,9 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
       // Create position first
       await core
         .connect(alice)
-        .openPosition(
-          alice.address,
-          marketId,
-          100450,
-          100550,
-          LARGE_QUANTITY,
-          LARGE_COST
-        );
+        .openPosition(marketId, 100450, 100550, LARGE_QUANTITY, LARGE_COST);
 
-      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positions = await mockPosition.getOwnerPositions(alice.address);
       const positionId = positions[0];
 
       // Test small increase
@@ -426,7 +360,7 @@ describe(`${PERF_TAG} Gas Optimization - Position Opening`, function () {
           LARGE_COST
         );
 
-      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positions = await mockPosition.getOwnerPositions(alice.address);
       const positionId = positions[0];
 
       // Use a more reasonable odd adjustment (0.1 USDC instead of 0.1 * 10^18)

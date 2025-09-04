@@ -13,6 +13,7 @@ import "../interfaces/ICLMSRPosition.sol";
 import {LazyMulSegmentTree} from "../libraries/LazyMulSegmentTree.sol";
 import {FixedPointMathU} from "../libraries/FixedPointMath.sol";
 import {CLMSRErrors as CE} from "../errors/CLMSRErrors.sol";
+import {CLMSRCoreOps} from "../manager/CLMSRCoreOps.sol";
 
 /// @title CLMSRMarketCore  
 /// @notice Core implementation for CLMSR Daily-Market System
@@ -84,7 +85,14 @@ contract CLMSRMarketCore is
     /// @dev Gap for future storage variables
     // NEW: guard to ensure PositionSettled is emitted once per position
     mapping(uint256 => bool) public positionSettledEmitted;
-    uint256[48] private __gap;
+    
+    // ========================================
+    // ADMIN DELEGATION TARGETS
+    // ========================================
+    // Admin delegation targets
+    address public manager;
+    address public ops;
+    uint256[46] private __gap;
     
 
 
@@ -134,162 +142,66 @@ contract CLMSRMarketCore is
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     // ========================================
+    // ADMIN GATEWAY (MANAGER → CORE.delegatecall(ops))
+    // ========================================
+
+    /// @notice Emitted when manager address is changed
+    event ManagerChanged(address indexed previousManager, address indexed newManager);
+    /// @notice Emitted when ops address is changed
+    event OpsChanged(address indexed previousOps, address indexed newOps);
+
+    /// @notice Set manager contract that is allowed to perform admin calls
+    function setManager(address _manager) external onlyOwner {
+        if (_manager == address(0)) revert CE.ZeroAddress();
+        emit ManagerChanged(manager, _manager);
+        manager = _manager;
+    }
+
+    /// @notice Set ops contract where admin logic lives
+    function setOps(address _ops) external onlyOwner {
+        if (_ops == address(0)) revert CE.ZeroAddress();
+        emit OpsChanged(ops, _ops);
+        ops = _ops;
+    }
+
+    /// @notice Admin entrypoint for manager; executes ops via delegatecall in Core context
+    function adminCall(bytes calldata data) external returns (bytes memory result) {
+        if (msg.sender != manager) revert CE.UnauthorizedCaller(msg.sender);
+        address target = ops;
+        if (target == address(0)) revert CE.ZeroAddress();
+        (bool ok, bytes memory ret) = target.delegatecall(data);
+        if (!ok) {
+            // bubble up revert reason
+            assembly {
+                revert(add(ret, 0x20), mload(ret))
+            }
+        }
+        return ret;
+    }
+
+    function _adminDelegate(bytes memory data) internal returns (bytes memory result) {
+        address target = ops;
+        if (target == address(0)) revert CE.ZeroAddress();
+        (bool ok, bytes memory ret) = target.delegatecall(data);
+        if (!ok) {
+            assembly {
+                revert(add(ret, 0x20), mload(ret))
+            }
+        }
+        return ret;
+    }
+
+    // ========================================
     // MARKET MANAGEMENT FUNCTIONS
     // ========================================
     
-    /// @inheritdoc ICLMSRMarketCore
-    function createMarket(
-        int256 minTick,
-        int256 maxTick,
-        int256 tickSpacing,
-        uint64 startTimestamp,
-        uint64 endTimestamp,
-        uint256 liquidityParameter
-    ) external override onlyOwner whenNotPaused returns (uint256 marketId) {
-        // Auto-generate market ID
-        marketId = _nextMarketId;
-        _nextMarketId++;
-        
-        // Validate market parameters
-        _validateMarketParameters(minTick, maxTick, tickSpacing);
-        
-        if (startTimestamp >= endTimestamp) {
-            revert CE.InvalidTimeRange();
-        }
-        
-        if (liquidityParameter < MIN_LIQUIDITY_PARAMETER || 
-            liquidityParameter > MAX_LIQUIDITY_PARAMETER) {
-            revert CE.InvalidLiquidityParameter();
-        }
-        
-        // Calculate number of bins
-        uint32 numBins = _calculateNumBins(minTick, maxTick, tickSpacing);
-        
-        if (numBins == 0 || numBins > MAX_TICK_COUNT) {
-            revert CE.BinCountExceedsLimit(numBins, MAX_TICK_COUNT);
-        }
-        
-        // Create market
-        markets[marketId] = Market({
-            isActive: true,
-            settled: false,
-            startTimestamp: startTimestamp,
-            endTimestamp: endTimestamp,
-            settlementTick: 0,
-            minTick: minTick,
-            maxTick: maxTick,
-            tickSpacing: tickSpacing,
-            numBins: numBins,
-            liquidityParameter: liquidityParameter,
-            positionEventsCursor: 0,
-            positionEventsEmitted: false,
-            settlementValue: 0
-        });
-        
-        // Initialize segment tree
-        LazyMulSegmentTree.init(marketTrees[marketId], numBins);
-        
-        emit MarketCreated(marketId, startTimestamp, endTimestamp, minTick, maxTick, tickSpacing, numBins, liquidityParameter);
-    }
-    
-    /// @inheritdoc ICLMSRMarketCore
-    function settleMarket(uint256 marketId, int256 settlementValue) 
-        external override onlyOwner marketExists(marketId) {
-        Market storage market = markets[marketId];
-        
-        if (market.settled) {
-            revert CE.MarketAlreadySettled(marketId);
-        }
-        
-        // Convert 6-decimal settlementValue to integer tick (floor division)
-        int256 settlementTick = settlementValue / 1_000_000;
-        
-        // Validate settlement tick is within market bounds
-        if (settlementTick < market.minTick || settlementTick > market.maxTick) {
-            revert CE.InvalidTick(settlementTick, market.minTick, market.maxTick);
-        }
-        
-        // Settle market with both original value and calculated tick
-        market.settled = true;
-        market.settlementValue = settlementValue;
-        market.settlementTick = settlementTick;
-        market.isActive = false;
-        
-        // Initialize position events emission state
-        market.positionEventsCursor = 0;
-        market.positionEventsEmitted = false;
-        
-        emit MarketSettled(marketId, settlementTick);
-        emit MarketSettlementValueSubmitted(marketId, settlementValue);
-    }
-
-    /// @inheritdoc ICLMSRMarketCore
-    function emitPositionSettledBatch(
-        uint256 marketId,
-        uint256 limit
-    ) external override onlyOwner marketExists(marketId) {
-        Market storage m = markets[marketId];
-        if (!m.settled) revert CE.MarketNotSettled(marketId);
-        if (m.positionEventsEmitted) return;
-        require(limit > 0, "limit=0");
-
-        uint256 len = positionContract.getMarketTokenLength(marketId);
-        uint256 cursor = uint256(m.positionEventsCursor);
-        if (cursor >= len) {
-            m.positionEventsEmitted = true;
-            emit PositionEventsProgress(marketId, cursor, cursor, true);
-            return;
-        }
-
-        uint256 toExclusive = cursor + limit;
-        if (toExclusive > len) toExclusive = len;
-
-        for (uint256 i = cursor; i < toExclusive; ++i) {
-            uint256 pid = positionContract.getMarketTokenAt(marketId, i);
-            if (pid == 0) continue; // burned hole
-            if (positionSettledEmitted[pid]) continue; // already emitted
-            if (!positionContract.exists(pid)) continue; // safety
-
-            ICLMSRPosition.Position memory p = positionContract.getPosition(pid);
-            if (p.marketId != marketId) continue; // safety
-
-            uint256 payout = _calculateClaimAmount(pid);
-            bool isWin = payout > 0;
-            address trader = positionContract.ownerOf(pid);
-            emit PositionSettled(pid, trader, payout, isWin);
-            positionSettledEmitted[pid] = true;
-        }
-
-        m.positionEventsCursor = uint32(toExclusive);
-        bool done = (toExclusive == len);
-        if (done) m.positionEventsEmitted = true;
-        emit PositionEventsProgress(marketId, cursor, toExclusive == 0 ? 0 : (toExclusive - 1), done);
-    }
-
-    /// @inheritdoc ICLMSRMarketCore
-    function updateMarketTiming(
-        uint256 marketId,
-        uint64 newStartTimestamp,
-        uint64 newEndTimestamp
-    ) external override onlyOwner marketExists(marketId) {
-        Market storage market = markets[marketId];
-        
-        // Market must not be settled
-        if (market.settled) {
-            revert CE.MarketAlreadySettled(marketId);
-        }
-        
-        // Validate new time range
-        if (newStartTimestamp >= newEndTimestamp) {
-            revert CE.InvalidTimeRange();
-        }
-        
-        // Update timing
-        market.startTimestamp = newStartTimestamp;
-        market.endTimestamp = newEndTimestamp;
-        
-        emit MarketTimingUpdated(marketId, newStartTimestamp, newEndTimestamp);
-    }
+    // Slim: remove external admin endpoints from Core
+    // function createMarket(...) external { ... }
+    // function settleMarket(...) external { ... }
+    // function emitPositionSettledBatch(...) external { ... }
+    // function updateMarketTiming(...) external { ... }
+    // function propagateLazy(...) external { ... }
+    // function applyRangeFactor(...) external { ... }
 
     // ========================================
     // TICK VALIDATION AND CONVERSION FUNCTIONS
@@ -492,55 +404,7 @@ contract CLMSRMarketCore is
         return LazyMulSegmentTree.getRangeSum(marketTrees[marketId], loBin, hiBin);
     }
 
-    /// @notice Propagate lazy values for market ticks (Keeper only)
-    /// @param marketId Market identifier
-    /// @param lo Lower tick (inclusive, actual tick value)
-    /// @param hi Upper tick (inclusive, actual tick value)
-    /// @return sum Sum of values in range after propagation
-    function propagateLazy(uint256 marketId, int256 lo, int256 hi)
-        external
-        override
-        onlyOwner
-        marketExists(marketId)
-        returns (uint256 sum)
-    {
-        Market memory market = markets[marketId];
-        _validateTick(lo, market);
-        _validateTick(hi, market);
-        
-        if (lo > hi) {
-            revert CE.InvalidTickRange(lo, hi);
-        }
-        
-        (uint32 loBin, uint32 hiBin) = _rangeToBins(lo, hi, market);
-        
-        return LazyMulSegmentTree.propagateLazy(marketTrees[marketId], loBin, hiBin);
-    }
-
-    /// @notice Apply range factor to market ticks (Keeper only)
-    /// @param marketId Market identifier
-    /// @param lo Lower tick (inclusive, actual tick value)
-    /// @param hi Upper tick (inclusive, actual tick value)
-    /// @param factor Multiplication factor in WAD format
-    function applyRangeFactor(uint256 marketId, int256 lo, int256 hi, uint256 factor)
-        external
-        override
-        onlyOwner
-        marketExists(marketId)
-    {
-        Market memory market = markets[marketId];
-        _validateTick(lo, market);
-        _validateTick(hi, market);
-        
-        if (lo > hi) {
-            revert CE.InvalidTickRange(lo, hi);
-        }
-        
-        (uint32 loBin, uint32 hiBin) = _rangeToBins(lo, hi, market);
-        
-        LazyMulSegmentTree.applyRangeFactor(marketTrees[marketId], loBin, hiBin, factor);
-        emit RangeFactorApplied(marketId, lo, hi, factor);
-    }
+    // Slim: removed propagateLazy/applyRangeFactor external admin endpoints
     
         /// @inheritdoc ICLMSRMarketCore
     function getPositionContract() external view override returns (address) {

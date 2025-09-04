@@ -23,9 +23,11 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
         "CLMSRPosition"
       );
 
+      const position = await CLMSRPositionFactory.deploy();
+      await position.waitForDeployment();
       await expect(
-        CLMSRPositionFactory.deploy(ethers.ZeroAddress)
-      ).to.be.revertedWithCustomError(CLMSRPositionFactory, "ZeroAddress");
+        position.initialize(ethers.ZeroAddress)
+      ).to.be.revertedWithCustomError(position, "ZeroAddress");
     });
 
     it("should identify authorized caller correctly", async function () {
@@ -60,7 +62,6 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             params.marketId,
             params.lowerTick,
             params.upperTick,
@@ -92,9 +93,7 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
       const { position, alice } = await loadFixture(activePositionFixture);
 
       await expect(
-        position
-          .connect(alice)
-          .setPositionQuantity(1, ethers.parseUnits("0.02", 6))
+        position.connect(alice).updateQuantity(1, ethers.parseUnits("0.02", 6))
       )
         .to.be.revertedWithCustomError(position, "UnauthorizedCaller")
         .withArgs(alice.address);
@@ -103,7 +102,7 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
     it("should revert burnPosition from non-core", async function () {
       const { position, alice } = await loadFixture(activePositionFixture);
 
-      await expect(position.connect(alice).burnPosition(1))
+      await expect(position.connect(alice).burn(1))
         .to.be.revertedWithCustomError(position, "UnauthorizedCaller")
         .withArgs(alice.address);
     });
@@ -127,7 +126,6 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
       const positionId = await core
         .connect(alice)
         .openPosition.staticCall(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -137,7 +135,6 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -178,7 +175,6 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
       const positionId = await core
         .connect(alice)
         .openPosition.staticCall(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -188,7 +184,6 @@ describe(`${UNIT_TAG} Position Access Control`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,

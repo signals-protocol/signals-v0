@@ -588,11 +588,9 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
       }
 
       // Verify owner tracking
-      let aliceOwnedPositions = await position.getPositionsByOwner(
-        alice.address
-      );
-      let bobOwnedPositions = await position.getPositionsByOwner(bob.address);
-      let charlieOwnedPositions = await position.getPositionsByOwner(
+      let aliceOwnedPositions = await position.getOwnerPositions(alice.address);
+      let bobOwnedPositions = await position.getOwnerPositions(bob.address);
+      let charlieOwnedPositions = await position.getOwnerPositions(
         charlie.address
       );
 
@@ -617,11 +615,9 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
         .transferFrom(bob.address, alice.address, bobPositions[1]);
 
       // Re-verify owner tracking
-      aliceOwnedPositions = await position.getPositionsByOwner(alice.address);
-      bobOwnedPositions = await position.getPositionsByOwner(bob.address);
-      charlieOwnedPositions = await position.getPositionsByOwner(
-        charlie.address
-      );
+      aliceOwnedPositions = await position.getOwnerPositions(alice.address);
+      bobOwnedPositions = await position.getOwnerPositions(bob.address);
+      charlieOwnedPositions = await position.getOwnerPositions(charlie.address);
 
       expect(aliceOwnedPositions.length).to.equal(3); // lost 1, gained 1
       expect(bobOwnedPositions.length).to.equal(2); // lost 1
@@ -649,7 +645,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
       // Initially all users have 0 balance and empty lists
       for (const user of users) {
         expect(await position.balanceOf(user.address)).to.equal(0);
-        const ownedPositions = await position.getPositionsByOwner(user.address);
+        const ownedPositions = await position.getOwnerPositions(user.address);
         expect(ownedPositions.length).to.equal(0);
       }
 
@@ -663,7 +659,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
         // Verify invariant after each creation
         for (const u of users) {
           const balance = await position.balanceOf(u.address);
-          const ownedPositions = await position.getPositionsByOwner(u.address);
+          const ownedPositions = await position.getOwnerPositions(u.address);
           expect(balance).to.equal(ownedPositions.length);
         }
       }
@@ -689,9 +685,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
         // Verify invariant after each transfer
         for (const user of users) {
           const balance = await position.balanceOf(user.address);
-          const ownedPositions = await position.getPositionsByOwner(
-            user.address
-          );
+          const ownedPositions = await position.getOwnerPositions(user.address);
           expect(balance).to.equal(ownedPositions.length);
         }
       }
@@ -703,9 +697,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
         // Verify invariant after each closure
         for (const user of users) {
           const balance = await position.balanceOf(user.address);
-          const ownedPositions = await position.getPositionsByOwner(
-            user.address
-          );
+          const ownedPositions = await position.getOwnerPositions(user.address);
           expect(balance).to.equal(ownedPositions.length);
         }
       }
@@ -713,7 +705,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
       // Final state: all users should have 0 balance and empty lists
       for (const user of users) {
         expect(await position.balanceOf(user.address)).to.equal(0);
-        const ownedPositions = await position.getPositionsByOwner(user.address);
+        const ownedPositions = await position.getOwnerPositions(user.address);
         expect(ownedPositions.length).to.equal(0);
       }
     });

@@ -28,7 +28,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
         MEDIUM_COST
       );
 
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positions = await mockPosition.getOwnerPositions(alice.address);
     const positionId = positions[0];
 
     // Settle market with winning tick
@@ -62,7 +62,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
         MEDIUM_COST
       );
 
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positions = await mockPosition.getOwnerPositions(alice.address);
     const positionId = positions[0];
 
     // Settle market with winning tick outside position range
@@ -101,7 +101,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
         MEDIUM_COST
       );
 
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positions = await mockPosition.getOwnerPositions(alice.address);
     const positionId = positions[0];
 
     // Try to claim before settlement
@@ -126,7 +126,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
         MEDIUM_COST
       );
 
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positions = await mockPosition.getOwnerPositions(alice.address);
     const positionId = positions[0];
 
     // Settle market
@@ -157,7 +157,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
         MEDIUM_COST
       );
 
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positions = await mockPosition.getOwnerPositions(alice.address);
     const positionId = positions[0];
 
     // Settle market
@@ -187,7 +187,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
         MEDIUM_COST
       );
 
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positions = await mockPosition.getOwnerPositions(alice.address);
     const positionId = positions[0];
 
     // Settle market
@@ -231,10 +231,8 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     // Settle market
     await core.connect(keeper).settleMarket(marketId, 100490, 100500);
 
-    const alicePositions = await mockPosition.getPositionsByOwner(
-      alice.address
-    );
-    const bobPositions = await mockPosition.getPositionsByOwner(bob.address);
+    const alicePositions = await mockPosition.getOwnerPositions(alice.address);
+    const bobPositions = await mockPosition.getOwnerPositions(bob.address);
 
     // Both should be able to claim
     await expect(core.connect(alice).claimPayout(alicePositions[0])).to.not.be
@@ -260,7 +258,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
         MEDIUM_COST
       );
 
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positions = await mockPosition.getOwnerPositions(alice.address);
     const positionId = positions[0];
 
     // Settle market
@@ -289,7 +287,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
         MEDIUM_COST
       );
 
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positions = await mockPosition.getOwnerPositions(alice.address);
     const positionId = positions[0];
 
     // Settle market with winning tick
@@ -322,7 +320,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
         MEDIUM_COST
       );
 
-    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positions = await mockPosition.getOwnerPositions(alice.address);
     const positionId = positions[0];
 
     // Settle market with losing tick (outside position range)
