@@ -43,7 +43,14 @@ contract CLMSRPosition is
     mapping(address => EnumerableSet.UintSet) private _ownedTokens;
     
     /// @dev Gap for future storage variables
-    uint256[50] private __gap;
+    // MARKET-LOCAL TOKEN INDEXING (NEW)
+    // - _marketTokenList: per-market ordered list of positionIds; 0 marks burned holes
+    // - _positionMarket: reverse lookup for positionId -> marketId
+    // - _positionMarketIndex: 1-based index into _marketTokenList[marketId]
+    mapping(uint256 => uint256[]) private _marketTokenList;
+    mapping(uint256 => uint256) private _positionMarket;
+    mapping(uint256 => uint256) private _positionMarketIndex;
+    uint256[47] private __gap;
 
     // ========================================
     // MODIFIERS
@@ -100,8 +107,8 @@ contract CLMSRPosition is
             '"description":"CLMSR Range Position",',
             '"attributes":[',
                 '{"trait_type":"Market ID","value":', position.marketId.toString(), '},',
-                '{"trait_type":"Lower Tick","value":', uint256(position.lowerTick).toString(), '},',
-                '{"trait_type":"Upper Tick","value":', uint256(position.upperTick).toString(), '},',
+                '{"trait_type":"Lower Tick","value":', _int256ToString(position.lowerTick), '},',
+                '{"trait_type":"Upper Tick","value":', _int256ToString(position.upperTick), '},',
                 '{"trait_type":"Quantity","value":', uint256(position.quantity).toString(), '},',
                 '{"trait_type":"Created At","value":', uint256(position.createdAt).toString(), '}',
             ']}'
@@ -171,6 +178,11 @@ contract CLMSRPosition is
         // Increment total supply (only if not already handled by ERC721)
         _totalSupply++;
         
+        // Market-local indexing
+        _positionMarket[positionId] = marketId;
+        _marketTokenList[marketId].push(positionId);
+        _positionMarketIndex[positionId] = _marketTokenList[marketId].length; // 1-based index
+        
         emit PositionMinted(positionId, to, marketId, lowerTick, upperTick, quantity);
     }
 
@@ -190,6 +202,8 @@ contract CLMSRPosition is
         if (!_exists(positionId)) revert PositionNotFound(positionId);
         
         address owner = ownerOf(positionId);
+        uint256 marketId = _positions[positionId].marketId;
+        uint256 idx1 = _positionMarketIndex[positionId];
         
         // Burn NFT (this will trigger _update and remove from _ownedTokens)
         _burn(positionId);
@@ -197,6 +211,16 @@ contract CLMSRPosition is
         // Decrement total supply
         _totalSupply--;
         
+        // Mark hole in market-local list and clear indexes
+        if (idx1 != 0) {
+            uint256 arrIndex = idx1 - 1; // convert to 0-based
+            if (arrIndex < _marketTokenList[marketId].length) {
+                _marketTokenList[marketId][arrIndex] = 0; // hole mark
+            }
+            delete _positionMarketIndex[positionId];
+        }
+        delete _positionMarket[positionId];
+
         // Clean up position data
         delete _positions[positionId];
         
@@ -387,6 +411,21 @@ contract CLMSRPosition is
     /// @return Core contract address
     function getCoreContract() external view returns (address) {
         return core;
+    }
+
+
+    // ========================================
+    // MARKET-LOCAL TOKEN INDEXING VIEWS
+    // ========================================
+
+    /// @inheritdoc ICLMSRPosition
+    function getMarketTokenLength(uint256 marketId) external view override returns (uint256 length) {
+        return _marketTokenList[marketId].length;
+    }
+
+    /// @inheritdoc ICLMSRPosition
+    function getMarketTokenAt(uint256 marketId, uint256 index) external view override returns (uint256 tokenId) {
+        return _marketTokenList[marketId][index];
     }
 
 

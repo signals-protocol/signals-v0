@@ -41,5 +41,3 @@ export function loadBinOrSkip(id: string, where: string): BinState | null {
   }
   return b;
 }
-
-

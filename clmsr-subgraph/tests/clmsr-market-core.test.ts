@@ -1616,4 +1616,268 @@ describe("CLMSR Market Core Tests", () => {
     assert.fieldEquals("MarketStats", marketIdStr, "totalMarketPnL", "1000000"); // 베팅수익 - 정산예정 = 1M - 0
     // 테스트를 간단하게 줄임
   });
+
+  test("Claim-only path should settle once and mark claimed (WIN)", () => {
+    clearStore();
+
+    // Setup market
+    let marketId = BigInt.fromI32(1);
+    let marketCreatedEvent = createMarketCreatedEvent(
+      marketId,
+      BigInt.fromI32(1000000),
+      BigInt.fromI32(2000000),
+      BigInt.fromI32(100),
+      BigInt.fromI32(200),
+      BigInt.fromI32(10),
+      BigInt.fromI32(10),
+      BigInt.fromString("1000000000000000000")
+    );
+    handleMarketCreated(marketCreatedEvent);
+
+    // Open position
+    let trader = Address.fromString(
+      "0x1234567890123456789012345678901234567890"
+    );
+    let positionId = BigInt.fromI32(1);
+    let open = createPositionOpenedEvent(
+      positionId,
+      trader,
+      marketId,
+      BigInt.fromI32(110),
+      BigInt.fromI32(120),
+      BigInt.fromString("1000000"), // qty 1.0
+      BigInt.fromString("2000000") // cost 2.0
+    );
+    open.block.timestamp = BigInt.fromI32(1_500_000);
+    open.logIndex = BigInt.fromI32(0);
+    open.transaction.hash = Bytes.fromHexString(
+      "0x0000000000000000000000000000000000000000000000000000000000000001"
+    );
+    handlePositionOpened(open);
+
+    // Claim without prior PositionSettled (payout > 0 => WIN)
+    let claim = createPositionClaimedEvent(
+      positionId,
+      trader,
+      BigInt.fromString("3000000") // payout 3.0
+    );
+    claim.block.timestamp = BigInt.fromI32(1_700_000);
+    claim.logIndex = BigInt.fromI32(1);
+    claim.transaction.hash = Bytes.fromHexString(
+      "0x0000000000000000000000000000000000000000000000000000000000000002"
+    );
+    handlePositionClaimed(claim);
+
+    // Outcome and claim status
+    assert.fieldEquals("UserPosition", "1", "outcome", "WIN");
+    assert.fieldEquals("UserPosition", "1", "isClaimed", "true");
+    assert.fieldEquals("UserPosition", "1", "totalProceeds", "3000000");
+
+    // SETTLE trade must exist (OPEN + SETTLE) -> 2 trades total
+    assert.entityCount("Trade", 2);
+
+    // MarketStats: both settlement and claimed payout should increase
+    assert.fieldEquals("MarketStats", "1", "totalSettlementPayout", "3000000");
+    assert.fieldEquals("MarketStats", "1", "totalClaimedPayout", "3000000");
+  });
+
+  test("Claim after settled should not duplicate settlement", () => {
+    clearStore();
+
+    // Setup market
+    let marketId = BigInt.fromI32(1);
+    handleMarketCreated(
+      createMarketCreatedEvent(
+        marketId,
+        BigInt.fromI32(1000000),
+        BigInt.fromI32(2000000),
+        BigInt.fromI32(100),
+        BigInt.fromI32(200),
+        BigInt.fromI32(10),
+        BigInt.fromI32(10),
+        BigInt.fromString("1000000000000000000")
+      )
+    );
+
+    // Open
+    let trader = Address.fromString(
+      "0x1234567890123456789012345678901234567890"
+    );
+    let positionId = BigInt.fromI32(1);
+    let open = createPositionOpenedEvent(
+      positionId,
+      trader,
+      marketId,
+      BigInt.fromI32(110),
+      BigInt.fromI32(120),
+      BigInt.fromString("1000000"),
+      BigInt.fromString("2000000")
+    );
+    open.logIndex = BigInt.fromI32(0);
+    open.transaction.hash = Bytes.fromHexString(
+      "0x0000000000000000000000000000000000000000000000000000000000000001"
+    );
+    handlePositionOpened(open);
+
+    // Settled first
+    let settled = createPositionSettledEvent(
+      positionId,
+      trader,
+      BigInt.fromString("3000000"), // payout 3.0
+      true
+    );
+    settled.logIndex = BigInt.fromI32(1);
+    settled.transaction.hash = Bytes.fromHexString(
+      "0x0000000000000000000000000000000000000000000000000000000000000002"
+    );
+    handlePositionSettled(settled);
+
+    // Then claim
+    let claim = createPositionClaimedEvent(
+      positionId,
+      trader,
+      BigInt.fromString("3000000")
+    );
+    claim.logIndex = BigInt.fromI32(2);
+    claim.transaction.hash = Bytes.fromHexString(
+      "0x0000000000000000000000000000000000000000000000000000000000000003"
+    );
+    handlePositionClaimed(claim);
+
+    // No duplicate settlement: still only 2 trades (OPEN + SETTLE)
+    assert.entityCount("Trade", 2);
+    assert.fieldEquals("UserPosition", "1", "isClaimed", "true");
+
+    // MarketStats: settlement once, claim once
+    assert.fieldEquals("MarketStats", "1", "totalSettlementPayout", "3000000");
+    assert.fieldEquals("MarketStats", "1", "totalClaimedPayout", "3000000");
+  });
+
+  test("Claim-only LOSS (payout=0) should settle LOSS and mark claimed", () => {
+    clearStore();
+
+    // Setup market
+    let marketId = BigInt.fromI32(1);
+    handleMarketCreated(
+      createMarketCreatedEvent(
+        marketId,
+        BigInt.fromI32(1000000),
+        BigInt.fromI32(2000000),
+        BigInt.fromI32(100),
+        BigInt.fromI32(200),
+        BigInt.fromI32(10),
+        BigInt.fromI32(10),
+        BigInt.fromString("1000000000000000000")
+      )
+    );
+
+    // Open
+    let trader = Address.fromString(
+      "0x1234567890123456789012345678901234567890"
+    );
+    let positionId = BigInt.fromI32(1);
+    let open = createPositionOpenedEvent(
+      positionId,
+      trader,
+      marketId,
+      BigInt.fromI32(150),
+      BigInt.fromI32(160),
+      BigInt.fromString("5000000"), // qty 5.0
+      BigInt.fromString("25000000") // cost 25.0
+    );
+    open.logIndex = BigInt.fromI32(0);
+    handlePositionOpened(open);
+
+    // Claim-only with payout 0
+    let claim = createPositionClaimedEvent(
+      positionId,
+      trader,
+      BigInt.fromI32(0)
+    );
+    claim.logIndex = BigInt.fromI32(1);
+    handlePositionClaimed(claim);
+
+    // Outcome LOSS and claimed true
+    assert.fieldEquals("UserPosition", "1", "outcome", "LOSS");
+    assert.fieldEquals("UserPosition", "1", "isClaimed", "true");
+
+    // Trades: OPEN + SETTLE(0)
+    assert.entityCount("Trade", 2);
+
+    // MarketStats: settlement payout 0, claimed payout 0
+    assert.fieldEquals("MarketStats", "1", "totalSettlementPayout", "0");
+    assert.fieldEquals("MarketStats", "1", "totalClaimedPayout", "0");
+  });
+
+  test("Duplicate PositionSettled should be ignored after first (idempotent)", () => {
+    clearStore();
+
+    // Setup market
+    let marketId = BigInt.fromI32(1);
+    handleMarketCreated(
+      createMarketCreatedEvent(
+        marketId,
+        BigInt.fromI32(1000000),
+        BigInt.fromI32(2000000),
+        BigInt.fromI32(100),
+        BigInt.fromI32(200),
+        BigInt.fromI32(10),
+        BigInt.fromI32(10),
+        BigInt.fromString("1000000000000000000")
+      )
+    );
+
+    // Open
+    let trader = Address.fromString(
+      "0x1111111111111111111111111111111111111111"
+    );
+    let positionId = BigInt.fromI32(1);
+    let open = createPositionOpenedEvent(
+      positionId,
+      trader,
+      marketId,
+      BigInt.fromI32(110),
+      BigInt.fromI32(120),
+      BigInt.fromString("1000000"),
+      BigInt.fromString("2000000")
+    );
+    open.logIndex = BigInt.fromI32(0);
+    open.transaction.hash = Bytes.fromHexString(
+      "0x0000000000000000000000000000000000000000000000000000000000000001"
+    );
+    handlePositionOpened(open);
+
+    // First settled
+    let settled1 = createPositionSettledEvent(
+      positionId,
+      trader,
+      BigInt.fromString("3000000"),
+      true
+    );
+    settled1.logIndex = BigInt.fromI32(1);
+    settled1.transaction.hash = Bytes.fromHexString(
+      "0x0000000000000000000000000000000000000000000000000000000000000002"
+    );
+    handlePositionSettled(settled1);
+
+    // Second duplicate settled (should be ignored by outcome!=OPEN guard)
+    let settled2 = createPositionSettledEvent(
+      positionId,
+      trader,
+      BigInt.fromString("3000000"),
+      true
+    );
+    settled2.logIndex = BigInt.fromI32(2);
+    settled2.transaction.hash = Bytes.fromHexString(
+      "0x0000000000000000000000000000000000000000000000000000000000000003"
+    );
+    handlePositionSettled(settled2);
+
+    // Still only one SETTLE trade plus one OPEN
+    assert.entityCount("Trade", 2);
+
+    // UserPosition remains WIN with same totals
+    assert.fieldEquals("UserPosition", "1", "outcome", "WIN");
+    assert.fieldEquals("UserPosition", "1", "totalProceeds", "3000000");
+  });
 });
