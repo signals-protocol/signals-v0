@@ -4,6 +4,19 @@
   "sourceName": "contracts/core/CLMSRMarketCore.sol",
   "abi": [
     {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "marketId",
+          "type": "uint256"
+        }
+      ],
+      "name": "MarketReopened",
+      "type": "event"
+    },
+    {
       "inputs": [
         {
           "internalType": "address",

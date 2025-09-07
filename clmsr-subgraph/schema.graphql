@@ -15,7 +15,6 @@ type Market @entity(immutable: false) {
   lastUpdated: BigInt!
   # 관계 필드들
   bins: [BinState!]! @derivedFrom(field: "market")
-  distribution: MarketDistribution @derivedFrom(field: "market")
 }
 
 # Segment Tree의 각 bin별 현재 상태
@@ -29,28 +28,6 @@ type BinState @entity(immutable: false) {
   lastUpdated: BigInt!
   updateCount: BigInt! # 업데이트된 횟수
   totalVolume: BigInt! # 이 bin에서 발생한 총 거래량 (6 decimals, raw USDC)
-}
-
-# 마켓별 전체 분포 데이터
-type MarketDistribution @entity(immutable: false) {
-  id: String! # marketId
-  market: Market!
-  totalBins: BigInt! # 총 빈 개수
-  # LMSR 계산용 데이터 (WAD 형식, 18 decimals)
-  totalSum: BigInt! # 전체 segment tree의 sum (Σ exp(q_i/α))
-  # 분포 통계 (WAD 형식, 18 decimals)
-  minFactor: BigInt! # 최소 factor 값
-  maxFactor: BigInt! # 최대 factor 값
-  avgFactor: BigInt! # 평균 factor 값
-  totalVolume: BigInt! # 전체 거래량 (6 decimals, raw USDC)
-  # 배열 형태 데이터
-  binFactors: [String!]! # bin factor 배열 (WAD 형식, 18 decimals)
-  binVolumes: [String!]! # 모든 bin의 volume 배열 (6 decimals, raw USDC)
-  tickRanges: [String!]! # 틱 범위 문자열 배열 ["100500-100600", "100600-100700", ...]
-  # 메타데이터
-  lastSnapshotAt: BigInt! # 마지막 스냅샷 시점
-  distributionHash: String! # 분포 데이터의 해시 (변화 감지용)
-  version: BigInt! # 버전 번호 (업데이트 추적용)
 }
 
 # 사용자별 포지션 현황 (실시간 업데이트)

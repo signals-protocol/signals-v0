@@ -1,11 +1,6 @@
 // src/_safeload.ts
 import { log } from "@graphprotocol/graph-ts";
-import {
-  Market,
-  UserPosition,
-  MarketDistribution,
-  BinState,
-} from "../generated/schema";
+import { Market, UserPosition, BinState } from "../generated/schema";
 
 export function loadMarketOrSkip(id: string, where: string): Market | null {
   const m = Market.load(id);
@@ -21,17 +16,6 @@ export function loadPosOrSkip(id: string, where: string): UserPosition | null {
     log.warning("[{}] UserPosition {} not found. Skip.", [where, id]);
   }
   return p;
-}
-
-export function loadDistOrSkip(
-  id: string,
-  where: string
-): MarketDistribution | null {
-  const d = MarketDistribution.load(id);
-  if (d == null) {
-    log.warning("[{}] Distribution {} not found. Skip.", [where, id]);
-  }
-  return d;
 }
 
 export function loadBinOrSkip(id: string, where: string): BinState | null {
