@@ -123,6 +123,10 @@ interface ICLMSRMarketCore {
         uint64 newEndTimestamp
     );
 
+    event MarketReopened(
+        uint256 indexed marketId
+    );
+
     /// @notice Emitted when range multiplication factor is applied
     /// @param marketId Market identifier
     /// @param lo Left boundary (inclusive)
@@ -180,6 +184,11 @@ interface ICLMSRMarketCore {
         uint64 newStartTimestamp,
         uint64 newEndTimestamp
     ) external;
+
+    /// @notice Reopen a settled market (only callable by Owner)
+    /// @dev Reactivates a settled market using existing timing parameters
+    /// @param marketId Market identifier
+    function reopenMarket(uint256 marketId) external;
 
     // ========================================
     // EXECUTION FUNCTIONS

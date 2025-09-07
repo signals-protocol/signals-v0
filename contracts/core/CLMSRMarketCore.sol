@@ -224,6 +224,28 @@ contract CLMSRMarketCore is
     }
 
     /// @inheritdoc ICLMSRMarketCore
+    function reopenMarket(uint256 marketId) 
+        external override onlyOwner marketExists(marketId) {
+        Market storage market = markets[marketId];
+        
+        if (!market.settled) {
+            revert CE.MarketNotSettled(marketId);
+        }
+        
+        // Reset settlement state
+        market.settled = false;
+        market.settlementValue = 0;
+        market.settlementTick = 0;
+        market.isActive = true;
+        
+        // Reset position events emission state
+        market.positionEventsCursor = 0;
+        market.positionEventsEmitted = false;
+        
+        emit MarketReopened(marketId);
+    }
+
+    /// @inheritdoc ICLMSRMarketCore
     function emitPositionSettledBatch(
         uint256 marketId,
         uint256 limit

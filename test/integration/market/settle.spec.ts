@@ -152,4 +152,82 @@ describe(`${INTEGRATION_TAG} Market Settlement`, function () {
       core.connect(bob).settleMarket(marketId, 100490, 100500)
     ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
   });
+
+  describe("Market Reopen", function () {
+    it("Should reopen settled market successfully", async function () {
+      const { core, keeper, marketId } = await loadFixture(
+        createActiveMarketFixture
+      );
+
+      // Settle the market first
+      const settlementValue = 100490000000; // 100490.0 with 6 decimals
+      await core.connect(keeper).settleMarket(marketId, settlementValue);
+
+      let market = await core.getMarket(marketId);
+      expect(market.settled).to.be.true;
+      expect(market.isActive).to.be.false;
+
+      // Reopen the market
+      await expect(core.connect(keeper).reopenMarket(marketId))
+        .to.emit(core, "MarketReopened")
+        .withArgs(marketId);
+
+      market = await core.getMarket(marketId);
+      expect(market.settled).to.be.false;
+      expect(market.isActive).to.be.true;
+      expect(market.settlementValue).to.equal(0);
+      expect(market.settlementTick).to.equal(0);
+    });
+
+    it("Should prevent reopening unsettled market", async function () {
+      const { core, keeper, marketId } = await loadFixture(
+        createActiveMarketFixture
+      );
+
+      // Try to reopen without settling first
+      await expect(
+        core.connect(keeper).reopenMarket(marketId)
+      ).to.be.revertedWithCustomError(core, "MarketNotSettled");
+    });
+
+    it("Should only allow owner to reopen markets", async function () {
+      const { core, keeper, alice, bob, marketId } = await loadFixture(
+        createActiveMarketFixture
+      );
+
+      // Settle the market first
+      const settlementValue = 100490000000;
+      await core.connect(keeper).settleMarket(marketId, settlementValue);
+
+      // Try unauthorized reopen
+      await expect(
+        core.connect(alice).reopenMarket(marketId)
+      ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
+
+      await expect(
+        core.connect(bob).reopenMarket(marketId)
+      ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
+    });
+
+    it("Should preserve market timing after reopen", async function () {
+      const { core, keeper, marketId } = await loadFixture(
+        createActiveMarketFixture
+      );
+
+      // Get original timing
+      const originalMarket = await core.getMarket(marketId);
+      const originalStartTime = originalMarket.startTimestamp;
+      const originalEndTime = originalMarket.endTimestamp;
+
+      // Settle and reopen
+      const settlementValue = 100490000000;
+      await core.connect(keeper).settleMarket(marketId, settlementValue);
+      await core.connect(keeper).reopenMarket(marketId);
+
+      // Check timing is preserved
+      const reopenedMarket = await core.getMarket(marketId);
+      expect(reopenedMarket.startTimestamp).to.equal(originalStartTime);
+      expect(reopenedMarket.endTimestamp).to.equal(originalEndTime);
+    });
+  });
 });
