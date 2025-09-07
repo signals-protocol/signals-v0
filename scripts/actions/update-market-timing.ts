@@ -7,9 +7,9 @@ export async function updateMarketTimingAction(
   environment: Environment
 ): Promise<void> {
   // 하드코딩된 값들
-  const marketId = 2; // 두 번째 마켓
-  const newStartTime = "2025-08-07T00:00:00Z"; // 2025년 8월 7일 UTC 00:00
-  const newEndTime = "2025-08-08T00:00:00Z"; // 2025년 8월 8일 UTC 00:00
+  const marketId = 24; // 두 번째 마켓
+  const newStartTime = "2025-09-06T00:00:00Z"; // 2025년 8월 7일 UTC 00:00
+  const newEndTime = "2025-09-07T00:00:00Z"; // 2025년 8월 8일 UTC 00:00
 
   console.log(`⏰ 마켓 ${marketId} 시간 변경 시작 on ${environment}`);
 

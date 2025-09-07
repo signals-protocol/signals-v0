@@ -6,10 +6,10 @@ export async function settleMarketAction(
   environment: Environment
 ): Promise<void> {
   // 🎯 기본 설정값 (필요시 환경변수로 오버라이드 가능)
-  const marketId = parseInt(process.env.MARKET_ID || "13");
+  const marketId = parseInt(process.env.MARKET_ID || "24");
   // settlementValue는 6 decimal 형태 (예: 117.491000 = 117491000)
   const settlementValue = parseInt(
-    process.env.SETTLEMENT_VALUE || "111802660000"
+    process.env.SETTLEMENT_VALUE || "121802660000"
   );
   const settlementTick = Math.floor(settlementValue / 1_000_000); // 표시용
 

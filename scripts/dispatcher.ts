@@ -40,6 +40,27 @@ if (!COMMAND) {
   settle-market:citrea:dev  - Settle market on citrea dev
   settle-market:citrea:prod - Settle market on citrea prod
   
+🔄 Market Reopen Commands:
+  reopen-market:localhost   - Reopen settled market on localhost
+  reopen-market:base:dev    - Reopen settled market on base dev
+  reopen-market:base:prod   - Reopen settled market on base prod
+  reopen-market:citrea:dev  - Reopen settled market on citrea dev
+  reopen-market:citrea:prod - Reopen settled market on citrea prod
+  
+⏸️ Market Pause Commands:
+  pause-market:localhost    - Pause market contract on localhost
+  pause-market:base:dev     - Pause market contract on base dev
+  pause-market:base:prod    - Pause market contract on base prod
+  pause-market:citrea:dev   - Pause market contract on citrea dev
+  pause-market:citrea:prod  - Pause market contract on citrea prod
+  
+▶️ Market Unpause Commands:
+  unpause-market:localhost  - Unpause market contract on localhost
+  unpause-market:base:dev   - Unpause market contract on base dev
+  unpause-market:base:prod  - Unpause market contract on base prod
+  unpause-market:citrea:dev - Unpause market contract on citrea dev
+  unpause-market:citrea:prod- Unpause market contract on citrea prod
+  
 📢 Position Events Commands:
   emit-position-settled:localhost   - Emit position settled events on localhost
   emit-position-settled:base:dev    - Emit position settled events on base dev
@@ -88,6 +109,16 @@ if (!COMMAND) {
   manifest-validate:ENV     - Validate manifest for environment
   repair-manifest:ENV       - Clean ghost implementations from manifest
 
+💸 Compensation Commands:
+  compensate-susd:ENV       - Send 2x total cost SUSD to investors from CSV
+
+🔍 Query Commands:
+  range-sum:localhost       - Get range sum for market on localhost
+  range-sum:base:dev        - Get range sum for market on base dev
+  range-sum:base:prod       - Get range sum for market on base prod
+  range-sum:citrea:dev      - Get range sum for market on citrea dev
+  range-sum:citrea:prod     - Get range sum for market on citrea prod
+
 Usage:
   COMMAND=deploy:localhost npx hardhat run scripts/dispatcher.ts --network localhost
   COMMAND=upgrade:base:prod npx hardhat run scripts/dispatcher.ts --network base-prod
@@ -134,6 +165,23 @@ async function dispatch() {
       case "settle-market":
         const { settleMarketAction } = await import("./actions/settle-market");
         await settleMarketAction(environment as Environment);
+        break;
+
+      case "reopen-market":
+        const { reopenMarketAction } = await import("./actions/reopen-market");
+        await reopenMarketAction(environment as Environment);
+        break;
+
+      case "pause-market":
+        const { pauseMarketAction } = await import("./actions/pause-market");
+        await pauseMarketAction(environment as Environment);
+        break;
+
+      case "unpause-market":
+        const { unpauseMarketAction } = await import(
+          "./actions/unpause-market"
+        );
+        await unpauseMarketAction(environment as Environment);
         break;
 
       case "emit-position-settled":
@@ -216,6 +264,18 @@ async function dispatch() {
       case "repair-manifest":
         const { repairManifestAction } = await import("./repair-manifest");
         await repairManifestAction(environment as Environment);
+        break;
+
+      case "compensate-susd":
+        const { compensateSUSDAction } = await import(
+          "./actions/compensate-susd"
+        );
+        await compensateSUSDAction(environment as Environment);
+        break;
+
+      case "range-sum":
+        const { rangeSumAction } = await import("./actions/range-sum");
+        await rangeSumAction(environment as Environment);
         break;
 
       default:

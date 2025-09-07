@@ -7,7 +7,7 @@ export async function emitPositionSettledAction(
 ): Promise<void> {
   // 🎯 기본 설정값 (필요시 환경변수로 오버라이드 가능)
   const startMarketId = parseInt(process.env.START_MARKET_ID || "21");
-  const endMarketId = parseInt(process.env.END_MARKET_ID || "21");
+  const endMarketId = parseInt(process.env.END_MARKET_ID || "22");
   const batchLimit = parseInt(process.env.BATCH_LIMIT || "500");
 
   console.log(
