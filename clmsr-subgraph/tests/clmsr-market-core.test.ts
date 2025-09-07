@@ -20,7 +20,6 @@ function stamp(e: ethereum.Event, i: i32): void {
     "0x" + i.toString(16).padStart(64, "0")
   ) as Bytes;
 }
-import { MarketDistribution } from "../generated/schema";
 import { PointsGranted } from "../generated/PointsGranter/PointsGranter";
 import {
   handleMarketCreated,
@@ -60,7 +59,7 @@ describe("CLMSR Market Core Tests", () => {
     clearStore();
   });
 
-  test("Market Creation - BinState and MarketDistribution initialized", () => {
+  test("Market Creation - BinState initialized", () => {
     clearStore(); // 각 테스트마다 초기화
 
     // 마켓 생성 이벤트 생성
@@ -122,22 +121,7 @@ describe("CLMSR Market Core Tests", () => {
     assert.fieldEquals("BinState", "1-9", "lowerTick", "190");
     assert.fieldEquals("BinState", "1-9", "upperTick", "200");
 
-    // MarketDistribution 엔티티 확인 - 초기 상태 검증
-    assert.entityCount("MarketDistribution", 1);
-    assert.fieldEquals("MarketDistribution", "1", "totalBins", "10");
-    assert.fieldEquals(
-      "MarketDistribution",
-      "1",
-      "totalSum",
-      "10000000000000000000"
-    ); // 모든 bin이 1.0 WAD이므로 합=10 WAD
-    assert.fieldEquals(
-      "MarketDistribution",
-      "1",
-      "maxFactor",
-      "1000000000000000000"
-    ); // 초기 최대값은 1.0 WAD
-    assert.fieldEquals("MarketDistribution", "1", "version", "1"); // 버전 1로 시작
+    // MarketDistribution 제거로 성능 최적화 - BinState만 확인
 
     // MarketStats 엔티티는 마켓 생성 시에 생성되고 초기화됨
     assert.entityCount("MarketStats", 1);
@@ -199,20 +183,7 @@ describe("CLMSR Market Core Tests", () => {
       "1000000000000000000"
     ); // 1.0 in WAD
 
-    // MarketDistribution 업데이트 확인
-    // 총합: bin0(2) + bin1~9(1*9) = 2 + 9 = 11
-    assert.fieldEquals(
-      "MarketDistribution",
-      "1",
-      "totalSum",
-      "11000000000000000000"
-    ); // 11.0 in WAD
-    assert.fieldEquals(
-      "MarketDistribution",
-      "1",
-      "maxFactor",
-      "2000000000000000000"
-    ); // 2.0 in WAD
+    // MarketDistribution 제거로 성능 최적화 - BinState만 확인
   });
 
   test("Position Open - User History Test", () => {
@@ -705,12 +676,7 @@ describe("CLMSR Market Core Tests", () => {
       "currentFactor",
       "2500000000000000000"
     ); // 1.0 * 2.5 = 2.5 in WAD
-    assert.fieldEquals(
-      "MarketDistribution",
-      "1",
-      "totalSum",
-      "4500000000000000000"
-    ); // bin0(1) + bin1(2.5) + bin2(1) = 4.5 in WAD
+    // MarketDistribution 제거로 성능 최적화 - BinState 확인만 수행
 
     // 4. Factor 변경 후 추가 거래 (INCREASE)
     let positionIncreasedEvent = createPositionIncreasedEvent(
@@ -728,8 +694,7 @@ describe("CLMSR Market Core Tests", () => {
     assert.fieldEquals("BinState", "1-1", "totalVolume", "800000"); // 초기 0.5 + 추가 0.3 = 0.8 USDC (volume = cost)
     assert.entityCount("Trade", 2); // OPEN + INCREASE
 
-    // Skip MarketDistribution check - causes WASM crash
-    // MarketDistribution array access causes issues in Matchstick
+    // MarketDistribution 제거로 성능 최적화 완료
   });
 
   test("🔥 Simple Test - Basic Position Open", () => {

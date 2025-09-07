@@ -27,7 +27,7 @@ graph codegen && graph build
 
 # 빌드 산출물 검증 (스키마/매핑 일치 보장)
 echo "🔍 Verifying build artifacts..."
-for t in "type Market @entity" "type MarketDistribution @entity" "type BinState @entity"; do
+for t in "type Market @entity" "type BinState @entity"; do
   grep -q "$t" build/schema.graphql || { echo "❌ Missing: $t"; exit 1; }
 done
 echo "✅ Core entities verified in build/schema.graphql"
@@ -35,7 +35,6 @@ echo "✅ Core entities verified in build/schema.graphql"
 # entities 매니페스트 검증 (BSD grep 호환)
 echo "🔍 Verifying entities in manifest..."
 if grep -- "- Market" build/subgraph.yaml >/dev/null 2>&1 && \
-   grep -- "- MarketDistribution" build/subgraph.yaml >/dev/null 2>&1 && \
    grep -- "- BinState" build/subgraph.yaml >/dev/null 2>&1; then
   echo "✅ 핵심 entities 확인 완료"
 
@@ -74,11 +73,15 @@ else
   exit 1
 fi
 
-# (옵션) 이전 버전에서 그라프트
+# (옵션) 이전 버전에서 그라프트 (헬스 체크 통과시에만 사용 권장)
 GRAFT_FLAG=()
 if [[ -n "${PREV}" ]]; then
-  GRAFT_FLAG=(--graft-from "${SUBGRAPH}/${PREV}")
-  echo "📈 Grafting from ${SUBGRAPH}/${PREV}"
+  echo "⚠️  Graft requested from ${SUBGRAPH}/${PREV}, but disabled by default."
+  echo "   Set ALLOW_GRAFT=1 to enable after passing health-checks."
+  if [[ "${ALLOW_GRAFT:-0}" == "1" ]]; then
+    GRAFT_FLAG=(--graft-from "${SUBGRAPH}/${PREV}")
+    echo "📈 Grafting from ${SUBGRAPH}/${PREV}"
+  fi
 fi
 
 echo "🚀 Deploying ${SUBGRAPH}/${NEW} from build artifacts..."

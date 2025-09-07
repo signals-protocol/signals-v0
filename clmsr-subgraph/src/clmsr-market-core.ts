@@ -5,12 +5,7 @@ import {
   dataSource,
   log,
 } from "@graphprotocol/graph-ts";
-import {
-  loadMarketOrSkip,
-  loadPosOrSkip,
-  loadDistOrSkip,
-  loadBinOrSkip,
-} from "./_safeload";
+import { loadMarketOrSkip, loadPosOrSkip, loadBinOrSkip } from "./_safeload";
 import {
   checkActivityLimit,
   calcActivityPoints,
@@ -26,6 +21,7 @@ import {
   PositionDecreased as PositionDecreasedEvent,
   PositionClosed as PositionClosedEvent,
   PositionClaimed as PositionClaimedEvent,
+  MarketReopened as MarketReopenedEvent,
   PositionSettled as PositionSettledEvent,
   MarketCreated as MarketCreatedEvent,
   MarketSettled as MarketSettledEvent,
@@ -40,7 +36,6 @@ import {
   UserStats,
   MarketStats,
   BinState,
-  MarketDistribution,
 } from "../generated/schema";
 
 // ============= ID HELPER FUNCTIONS =============
@@ -53,7 +48,7 @@ export function buildId(raw: BigInt): string {
 }
 
 /**
- * MarketId 기반 ID 생성 (Market, MarketStats, MarketDistribution 용)
+ * MarketId 기반 ID 생성 (Market, MarketStats 용)
  */
 export function buildMarketId(marketId: BigInt): string {
   return buildId(marketId);
@@ -229,28 +224,27 @@ function updateBinVolumes(
   for (let binIndex = lowerBinIndex; binIndex <= upperBinIndex; binIndex++) {
     let binStateId = buildBinStateId(marketId, binIndex);
     let binState = loadBinOrSkip(binStateId, "updateBinVolumes");
-    if (binState != null) {
-      binState.totalVolume = binState.totalVolume.plus(volume);
-      binState.save();
+    if (binState == null) {
+      // get-or-create: create missing BinState with defaults
+      let lowerTickBin = market.minTick.plus(
+        BigInt.fromI32(binIndex).times(market.tickSpacing)
+      );
+      let upperTickBin = lowerTickBin.plus(market.tickSpacing);
+      binState = new BinState(binStateId);
+      binState.market = buildMarketId(marketId);
+      binState.binIndex = BigInt.fromI32(binIndex);
+      binState.lowerTick = lowerTickBin;
+      binState.upperTick = upperTickBin;
+      binState.currentFactor = BigInt.fromString("1000000000000000000");
+      binState.lastUpdated = market.lastUpdated;
+      binState.updateCount = BigInt.fromI32(0);
+      binState.totalVolume = BigInt.fromI32(0);
     }
+    binState.totalVolume = binState.totalVolume.plus(volume);
+    binState.save();
   }
 
-  // Update MarketDistribution's binVolumes array
-  let distribution = loadDistOrSkip(
-    buildMarketId(marketId),
-    "updateBinVolumes"
-  );
-  if (distribution != null) {
-    let binVolumes = distribution.binVolumes;
-    for (let binIndex = lowerBinIndex; binIndex <= upperBinIndex; binIndex++) {
-      if (binIndex >= 0 && binIndex < binVolumes.length) {
-        let currentVolume = BigInt.fromString(binVolumes[binIndex]);
-        binVolumes[binIndex] = currentVolume.plus(volume).toString();
-      }
-    }
-    distribution.binVolumes = binVolumes;
-    distribution.save();
-  }
+  // MarketDistribution 제거로 성능 최적화 - BinState만 업데이트
 }
 
 export function handleMarketCreated(event: MarketCreatedEvent): void {
@@ -274,10 +268,7 @@ export function handleMarketCreated(event: MarketCreatedEvent): void {
   marketStats.lastUpdated = event.block.timestamp;
   marketStats.save();
 
-  let binFactorsWad: Array<string> = [];
-  let binVolumes: Array<string> = [];
-  let tickRanges: Array<string> = [];
-
+  // 배열 제거로 성능 최적화 - BinState만 생성
   for (let binIndex = 0; binIndex < event.params.numBins.toI32(); binIndex++) {
     let lowerTick = event.params.minTick.plus(
       BigInt.fromI32(binIndex).times(event.params.tickSpacing)
@@ -295,33 +286,9 @@ export function handleMarketCreated(event: MarketCreatedEvent): void {
     binState.updateCount = BigInt.fromI32(0);
     binState.totalVolume = BigInt.fromI32(0);
     binState.save();
-
-    binFactorsWad.push("1000000000000000000");
-    binVolumes.push("0");
-    tickRanges.push(lowerTick.toString() + "-" + upperTick.toString());
   }
 
-  let distribution = new MarketDistribution(marketIdStr);
-  distribution.market = market.id;
-  distribution.totalBins = event.params.numBins;
-
-  distribution.totalSum = event.params.numBins.times(
-    BigInt.fromString("1000000000000000000")
-  );
-
-  distribution.minFactor = BigInt.fromString("1000000000000000000");
-  distribution.maxFactor = BigInt.fromString("1000000000000000000");
-  distribution.avgFactor = BigInt.fromString("1000000000000000000");
-  distribution.totalVolume = BigInt.fromI32(0);
-
-  distribution.binFactors = binFactorsWad;
-  distribution.binVolumes = binVolumes;
-  distribution.tickRanges = tickRanges;
-
-  distribution.lastSnapshotAt = event.block.timestamp;
-  distribution.distributionHash = "init-" + event.block.timestamp.toString();
-  distribution.version = BigInt.fromI32(1);
-  distribution.save();
+  // MarketDistribution 제거로 성능 최적화 - BinState만 생성
 }
 
 export function handleMarketSettled(event: MarketSettledEvent): void {
@@ -349,6 +316,25 @@ export function handleMarketSettlementValueSubmitted(
   market.settlementValue = event.params.settlementValue;
   market.lastUpdated = event.block.timestamp;
   market.save();
+}
+
+export function handleMarketReopened(event: MarketReopenedEvent): void {
+  const market = loadMarketOrSkip(
+    buildMarketId(event.params.marketId),
+    "handleMarketReopened"
+  );
+  if (market == null) return;
+  // 재오픈 시 정산 상태 초기화 및 활성화
+  market.isSettled = false;
+  market.settlementTick = null;
+  market.settlementValue = null;
+  market.lastUpdated = event.block.timestamp;
+  market.save();
+
+  // MarketStats는 구조 자체를 초기화할 필요 없음. lastUpdated만 갱신
+  const stats = getOrCreateMarketStats(market.id);
+  stats.lastUpdated = event.block.timestamp;
+  stats.save();
 }
 
 function applySettlementOnce(
@@ -996,11 +982,24 @@ export function handleRangeFactorApplied(event: RangeFactorAppliedEvent): void {
   if (hi > maxIdx) hi = maxIdx;
 
   for (let i = lo; i <= hi; i++) {
-    const bin = loadBinOrSkip(
-      buildBinStateId(event.params.marketId, i),
-      "handleRangeFactorApplied"
-    );
-    if (bin == null) continue;
+    const id = buildBinStateId(event.params.marketId, i);
+    let bin = loadBinOrSkip(id, "handleRangeFactorApplied");
+    if (bin == null) {
+      // get-or-create for missing BinState
+      let lowerTickBin = market.minTick.plus(
+        BigInt.fromI32(i).times(market.tickSpacing)
+      );
+      let upperTickBin = lowerTickBin.plus(market.tickSpacing);
+      bin = new BinState(id);
+      bin.market = market.id;
+      bin.binIndex = BigInt.fromI32(i);
+      bin.lowerTick = lowerTickBin;
+      bin.upperTick = upperTickBin;
+      bin.currentFactor = BigInt.fromString("1000000000000000000");
+      bin.lastUpdated = event.block.timestamp;
+      bin.updateCount = BigInt.fromI32(0);
+      bin.totalVolume = BigInt.fromI32(0);
+    }
     bin.currentFactor = bin.currentFactor
       .times(event.params.factor)
       .div(BigInt.fromString("1000000000000000000"));
@@ -1009,42 +1008,7 @@ export function handleRangeFactorApplied(event: RangeFactorAppliedEvent): void {
     bin.save();
   }
 
-  const dist = loadDistOrSkip(market.id, "handleRangeFactorApplied");
-  if (dist == null) return;
-
-  // dist 재계산 루프에서 BinState가 null일 수 있으니 또 한번 체크
-  let total = BigInt.fromI32(0);
-  let min = BigInt.fromString("999999999999999999999999999999");
-  let max = BigInt.fromI32(0);
-  let factors: Array<string> = [];
-  let vols: Array<string> = [];
-
-  for (let i = 0; i < market.numBins.toI32(); i++) {
-    const bin = loadBinOrSkip(
-      buildBinStateId(event.params.marketId, i),
-      "handleRangeFactorApplied"
-    );
-    if (bin == null) {
-      factors.push("0");
-      vols.push("0");
-      continue;
-    }
-    total = total.plus(bin.currentFactor);
-    if (bin.currentFactor.lt(min)) min = bin.currentFactor;
-    if (bin.currentFactor.gt(max)) max = bin.currentFactor;
-    factors.push(bin.currentFactor.toString());
-    vols.push(bin.totalVolume.toString());
-  }
-
-  dist.totalSum = total;
-  dist.minFactor = min;
-  dist.maxFactor = max;
-  dist.avgFactor = total.div(market.numBins);
-  dist.binFactors = factors;
-  dist.binVolumes = vols;
-  dist.version = dist.version.plus(BigInt.fromI32(1));
-  dist.lastSnapshotAt = event.block.timestamp;
-  dist.save();
+  // MarketDistribution 완전 제거로 성능 최적화 - 별도 처리 불필요
 
   market.lastUpdated = event.block.timestamp;
   market.save();

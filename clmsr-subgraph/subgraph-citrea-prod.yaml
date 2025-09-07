@@ -1,6 +1,4 @@
 specVersion: 1.3.0
-indexerHints:
-  prune: auto
 schema:
   file: ./schema.graphql
 dataSources:
@@ -33,6 +31,8 @@ dataSources:
           handler: handleMarketCreated
         - event: MarketSettled(indexed uint256,int256)
           handler: handleMarketSettled
+        - event: MarketReopened(indexed uint256)
+          handler: handleMarketReopened
         - event: PositionClaimed(indexed uint256,indexed address,uint256)
           handler: handlePositionClaimed
         - event: PositionClosed(indexed uint256,indexed address,uint256)
