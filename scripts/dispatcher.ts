@@ -273,6 +273,20 @@ async function dispatch() {
         await compensateSUSDAction(environment as Environment);
         break;
 
+      case "debug-emission":
+        const { debugEmissionAction } = await import(
+          "./actions/debug-emission"
+        );
+        await debugEmissionAction(environment as Environment);
+        break;
+
+      case "test-batch-sizes":
+        const { testBatchSizesAction } = await import(
+          "./actions/test-batch-sizes"
+        );
+        await testBatchSizesAction(environment as Environment);
+        break;
+
       case "range-sum":
         const { rangeSumAction } = await import("./actions/range-sum");
         await rangeSumAction(environment as Environment);

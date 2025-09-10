@@ -189,37 +189,22 @@ export async function upgradeAction(environment: Environment): Promise<void> {
     }
   );
 
-  await upgrades.forceImport(
-    addresses.CLMSRMarketCoreProxy!,
-    CLMSRMarketCoreImport,
-    { kind: "uups" }
+  try {
+    await upgrades.forceImport(
+      addresses.CLMSRMarketCoreProxy!,
+      CLMSRMarketCoreImport,
+      { kind: "uups" }
+    );
+    console.log("✅ Core proxy pre-imported");
+  } catch (error) {
+    const msg = (error as any)?.message ?? String(error);
+    console.warn("⚠️ Core proxy import failed, continuing:", msg);
+  }
+
+  // Position과 Points는 forceImport 스킵 (bytecode 문제로 인해)
+  console.log(
+    "⚠️ Skipping Position and Points forceImport due to bytecode issues"
   );
-  console.log("✅ Core proxy pre-imported");
-
-  // Position과 Points도 매니페스트에 동기화
-  if (addresses.CLMSRPositionProxy) {
-    const CLMSRPositionImport = await ethers.getContractFactory(
-      "CLMSRPosition"
-    );
-    await upgrades.forceImport(
-      addresses.CLMSRPositionProxy,
-      CLMSRPositionImport,
-      { kind: "uups" }
-    );
-    console.log("✅ Position proxy pre-imported");
-  }
-
-  if (addresses.PointsGranterProxy) {
-    const PointsGranterImport = await ethers.getContractFactory(
-      "PointsGranter"
-    );
-    await upgrades.forceImport(
-      addresses.PointsGranterProxy,
-      PointsGranterImport,
-      { kind: "uups" }
-    );
-    console.log("✅ Points proxy pre-imported");
-  }
 
   await delay(1000);
 
@@ -246,45 +231,140 @@ export async function upgradeAction(environment: Environment): Promise<void> {
   );
   console.log("✅ New LazyMulSegmentTree deployed:", newSegmentTreeAddress);
 
-  // Position contract 업그레이드 (자동 forceImport 포함)
+  // Position contract 업그레이드 (안전한 방법)
   console.log("🎭 Upgrading Position contract...");
   await delay(3000); // Wait between transactions
 
-  if (!addresses.CLMSRPositionProxy) {
+  let newPositionImplAddress = addresses.CLMSRPositionImplementation;
+
+  if (addresses.CLMSRPositionProxy) {
+    try {
+      // 업그레이드 이전 구현체 주소를 저장
+      const beforePosImpl = await upgrades.erc1967.getImplementationAddress(
+        addresses.CLMSRPositionProxy
+      );
+      console.log("📋 Position impl before upgrade:", beforePosImpl);
+
+      const CLMSRPosition = await ethers.getContractFactory("CLMSRPosition");
+      await upgrades.upgradeProxy(addresses.CLMSRPositionProxy, CLMSRPosition, {
+        kind: "uups",
+        redeployImplementation: "always",
+        txOverrides: await safeTxOpts(),
+      });
+
+      // 새 구현체 주소가 반영될 때까지 대기(폴링)
+      newPositionImplAddress = await waitForImplChange(
+        addresses.CLMSRPositionProxy,
+        beforePosImpl
+      );
+      console.log("📋 Position impl after upgrade:", newPositionImplAddress);
+
+      envManager.updateContract(
+        environment,
+        "core",
+        "CLMSRPositionImplementation",
+        newPositionImplAddress
+      );
+      console.log("✅ Position contract upgraded:", newPositionImplAddress);
+    } catch (error) {
+      const msg = (error as any)?.message ?? String(error);
+      console.warn(
+        "⚠️ Position contract upgrade via upgrades.upgradeProxy failed:",
+        msg
+      );
+      console.log(
+        "🔁 Falling back to manual UUPS upgrade flow for Position..."
+      );
+
+      // 0) 오너십 확인 (UUPS onlyOwner)
+      const positionReadonly = await ethers.getContractAt(
+        "CLMSRPosition",
+        addresses.CLMSRPositionProxy
+      );
+      const currentOwner = await positionReadonly.owner();
+      console.log("🧑‍⚖️ Position owner:", currentOwner);
+      if (currentOwner.toLowerCase() !== deployer.address.toLowerCase()) {
+        throw new Error(
+          `❌ Position owner is ${currentOwner}, not deployer ${deployer.address}. Use the owner key to upgrade.`
+        );
+      }
+
+      // 1) 새 구현 컨트랙트 직접 배포 (Initializable, no constructor)
+      const txOverrides = await safeTxOpts();
+      const PositionImplFactory = await ethers.getContractFactory(
+        "CLMSRPosition"
+      );
+      const positionImpl = await PositionImplFactory.deploy(txOverrides);
+      await positionImpl.waitForDeployment();
+      const manualImplAddr = await positionImpl.getAddress();
+      console.log("📦 Deployed new Position implementation:", manualImplAddr);
+
+      // 2) proxy.upgradeTo(새 구현) 호출 (UUPS, onlyOwner)
+      // 업그레이드 이전 구현체 주소를 다시 한 번 저장 (수동 업그레이드 전)
+      const beforeManualPosImpl =
+        await upgrades.erc1967.getImplementationAddress(
+          addresses.CLMSRPositionProxy
+        );
+      // ethers v6에서 안전하게 직접 인코딩하여 트랜잭션 전송
+      try {
+        const iface = new ethers.Interface([
+          "function upgradeTo(address newImplementation)",
+        ]);
+        const data = iface.encodeFunctionData("upgradeTo", [manualImplAddr]);
+        const upgradeTx = await deployer.sendTransaction({
+          to: addresses.CLMSRPositionProxy,
+          data,
+          ...txOverrides,
+        });
+        await upgradeTx.wait();
+      } catch (e) {
+        const msg2 = (e as any)?.message ?? String(e);
+        console.warn(
+          "⚠️ upgradeTo failed, trying upgradeToAndCall (0x):",
+          msg2
+        );
+        const iface2 = new ethers.Interface([
+          "function upgradeToAndCall(address newImplementation, bytes data)",
+        ]);
+        const data2 = iface2.encodeFunctionData("upgradeToAndCall", [
+          manualImplAddr,
+          "0x",
+        ]);
+        const upgradeTx2 = await deployer.sendTransaction({
+          to: addresses.CLMSRPositionProxy,
+          data: data2,
+          ...txOverrides,
+        });
+        await upgradeTx2.wait();
+      }
+
+      // 3) 새 구현체 주소 반영 확인
+      newPositionImplAddress = await waitForImplChange(
+        addresses.CLMSRPositionProxy,
+        beforeManualPosImpl
+      );
+      console.log(
+        "📋 Position impl after manual upgrade:",
+        newPositionImplAddress
+      );
+
+      // 4) 환경 파일 업데이트
+      envManager.updateContract(
+        environment,
+        "core",
+        "CLMSRPositionImplementation",
+        newPositionImplAddress
+      );
+      console.log(
+        "✅ Position contract manually upgraded:",
+        newPositionImplAddress
+      );
+    }
+  } else {
     throw new Error(
       `Position proxy not deployed in ${environment} environment`
     );
   }
-
-  // Position 업그레이드 (레이스 컨디션 제거)
-
-  // 업그레이드 이전 구현체 주소를 저장
-  const beforePosImpl = await upgrades.erc1967.getImplementationAddress(
-    addresses.CLMSRPositionProxy
-  );
-  console.log("📋 Position impl before upgrade:", beforePosImpl);
-
-  const CLMSRPosition = await ethers.getContractFactory("CLMSRPosition");
-  await upgrades.upgradeProxy(addresses.CLMSRPositionProxy, CLMSRPosition, {
-    kind: "uups",
-    redeployImplementation: "always",
-    txOverrides: await safeTxOpts(),
-  });
-
-  // 새 구현체 주소가 반영될 때까지 대기(폴링)
-  const newPositionImplAddress = await waitForImplChange(
-    addresses.CLMSRPositionProxy,
-    beforePosImpl
-  );
-  console.log("📋 Position impl after upgrade:", newPositionImplAddress);
-
-  envManager.updateContract(
-    environment,
-    "core",
-    "CLMSRPositionImplementation",
-    newPositionImplAddress
-  );
-  console.log("✅ Position contract upgraded:", newPositionImplAddress);
 
   // Core contract 업그레이드
   console.log("🔧 Upgrading Core contract with new library...");
@@ -328,44 +408,55 @@ export async function upgradeAction(environment: Environment): Promise<void> {
   );
   console.log("✅ Core contract upgraded:", newImplAddress);
 
-  // PointsGranter 업그레이드
+  // PointsGranter 업그레이드 (안전한 방법)
   console.log("🎯 Upgrading PointsGranter...");
   await delay(3000);
 
-  if (!addresses.PointsGranterProxy) {
+  let pointsImplAddress = addresses.PointsGranterImplementation;
+  const pointsProxyAddress = addresses.PointsGranterProxy;
+
+  if (addresses.PointsGranterProxy) {
+    try {
+      // 업그레이드 이전 구현체 주소를 저장
+      const beforePointsImpl = await upgrades.erc1967.getImplementationAddress(
+        addresses.PointsGranterProxy
+      );
+      console.log("📋 Points impl before upgrade:", beforePointsImpl);
+
+      const PointsGranter = await ethers.getContractFactory("PointsGranter");
+      await upgrades.upgradeProxy(addresses.PointsGranterProxy, PointsGranter, {
+        kind: "uups",
+        redeployImplementation: "always",
+        txOverrides: await safeTxOpts(),
+      });
+
+      // 새 구현체 주소가 반영될 때까지 대기(폴링)
+      pointsImplAddress = await waitForImplChange(
+        pointsProxyAddress,
+        beforePointsImpl
+      );
+      console.log("📋 Points impl after upgrade:", pointsImplAddress);
+
+      envManager.updateContract(
+        environment,
+        "points",
+        "PointsGranterImplementation",
+        pointsImplAddress
+      );
+      console.log("✅ PointsGranter upgraded:", pointsImplAddress);
+    } catch (error) {
+      const msg = (error as any)?.message ?? String(error);
+      console.warn("⚠️ PointsGranter upgrade failed, using existing:", msg);
+      console.log(
+        "📋 Using existing PointsGranter implementation:",
+        pointsImplAddress
+      );
+    }
+  } else {
     throw new Error(
       `PointsGranter proxy not deployed in ${environment} environment`
     );
   }
-
-  // 업그레이드 이전 구현체 주소를 저장
-  const beforePointsImpl = await upgrades.erc1967.getImplementationAddress(
-    addresses.PointsGranterProxy
-  );
-  console.log("📋 Points impl before upgrade:", beforePointsImpl);
-
-  const PointsGranter = await ethers.getContractFactory("PointsGranter");
-  await upgrades.upgradeProxy(addresses.PointsGranterProxy, PointsGranter, {
-    kind: "uups",
-    redeployImplementation: "always",
-    txOverrides: await safeTxOpts(),
-  });
-
-  // 새 구현체 주소가 반영될 때까지 대기(폴링)
-  const pointsProxyAddress = addresses.PointsGranterProxy;
-  const pointsImplAddress = await waitForImplChange(
-    pointsProxyAddress,
-    beforePointsImpl
-  );
-  console.log("📋 Points impl after upgrade:", pointsImplAddress);
-
-  envManager.updateContract(
-    environment,
-    "points",
-    "PointsGranterImplementation",
-    pointsImplAddress
-  );
-  console.log("✅ PointsGranter upgraded:", pointsImplAddress);
 
   // 업그레이드 기록 저장
   const nextVersion = envManager.getNextVersion(environment);

@@ -146,9 +146,11 @@ library LazyMulSegmentTree {
             if (node.childPtr != 0) {
                 // Force push current pending factor to children
                 _forcePushPendingFactor(tree, nodeIndex);
+                node.pendingFactor = uint192(factor);         // 자식이 있을 땐 기존 동작 유지
+            } else {
+                // 자식이 없으면 과거 누적을 보존 (p_old × factor)
+                node.pendingFactor = uint192(newPendingFactor);
             }
-            // Reset pending factor and apply new factor directly
-            node.pendingFactor = uint192(factor);
         } else {
             // Normal case: accumulate the factor
             if (newPendingFactor > 1e50) revert CE.LazyFactorOverflow(); // Ultimate safety limit
