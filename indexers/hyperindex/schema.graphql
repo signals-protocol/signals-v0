@@ -1,0 +1,148 @@
+type Market @entity(immutable: false) {
+  id: ID!
+  marketId: BigInt!
+  minTick: BigInt!
+  maxTick: BigInt!
+  tickSpacing: BigInt!
+  startTimestamp: BigInt!
+  endTimestamp: BigInt!
+  numBins: BigInt!
+  liquidityParameter: BigInt!
+  isSettled: Boolean!
+  settlementValue: BigInt
+  settlementTick: BigInt
+  lastUpdated: BigInt!
+}
+
+type BinState @entity(immutable: false) {
+  id: ID!
+  market: Market!
+  binIndex: BigInt!
+  lowerTick: BigInt!
+  upperTick: BigInt!
+  currentFactor: BigInt!
+  lastUpdated: BigInt!
+  updateCount: BigInt!
+  totalVolume: BigInt!
+}
+
+type UserPosition @entity(immutable: false) {
+  id: ID!
+  positionId: BigInt!
+  user: Bytes!
+  stats: UserStats!
+  market: Market!
+  lowerTick: BigInt!
+  upperTick: BigInt!
+  currentQuantity: BigInt!
+  totalCostBasis: BigInt!
+  averageEntryPrice: BigInt!
+  totalQuantityBought: BigInt!
+  totalQuantitySold: BigInt!
+  totalProceeds: BigInt!
+  realizedPnL: BigInt!
+  outcome: PositionOutcome!
+  isClaimed: Boolean!
+  createdAt: BigInt!
+  lastUpdated: BigInt!
+  activityRemaining: BigInt!
+  weightedEntryTime: BigInt!
+}
+
+type Trade @entity(immutable: true) {
+  id: ID!
+  userPosition: String!
+  user: Bytes!
+  market: Market!
+  positionId: BigInt!
+  tradeType: TradeType!
+  lowerTick: BigInt!
+  upperTick: BigInt!
+  quantity: BigInt!
+  costOrProceeds: BigInt!
+  price: BigInt!
+  gasUsed: BigInt!
+  gasPrice: BigInt!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  transactionHash: Bytes!
+  activityPt: BigInt!
+  performancePt: BigInt!
+  riskBonusPt: BigInt!
+}
+
+enum TradeType {
+  OPEN
+  INCREASE
+  DECREASE
+  CLOSE
+  SETTLE
+}
+
+enum PositionOutcome {
+  OPEN
+  CLOSED
+  WIN
+  LOSS
+}
+
+type UserStats @entity(immutable: false) {
+  id: ID!
+  user: Bytes!
+  totalTrades: BigInt!
+  totalVolume: BigInt!
+  totalCosts: BigInt!
+  totalProceeds: BigInt!
+  totalRealizedPnL: BigInt!
+  totalGasFees: BigInt!
+  netPnL: BigInt!
+  activePositionsCount: BigInt!
+  winningTrades: BigInt!
+  losingTrades: BigInt!
+  winRate: BigDecimal!
+  avgTradeSize: BigInt!
+  firstTradeAt: BigInt!
+  lastTradeAt: BigInt!
+  totalPoints: BigInt!
+  activityPoints: BigInt!
+  performancePoints: BigInt!
+  riskBonusPoints: BigInt!
+  activityPointsToday: BigInt!
+  lastActivityDay: BigInt!
+}
+
+# 추가: 검증 스크립트가 사용
+type MarketDistribution @entity(immutable: false) {
+  id: String!
+  totalSum: BigInt!
+  binFactors: [BigInt!]!
+  binVolumes: [BigInt!]!
+  minFactor: BigInt!
+  maxFactor: BigInt!
+  avgFactor: BigDecimal!
+  version: String!
+  lastSnapshotAt: BigInt!
+}
+
+# 추가: PnL 및 통계용
+type MarketStats @entity(immutable: false) {
+  id: String!
+  market: Market!
+  totalVolume: BigInt!
+  totalTrades: BigInt!
+  totalFees: BigInt!
+  currentPrice: BigInt!
+  highestPrice: BigInt!
+  lowestPrice: BigInt!
+  priceChange24h: BigDecimal!
+  volume24h: BigInt!
+  lastUpdated: BigInt!
+  totalBetReceived: BigInt!
+  totalBetPaidOut: BigInt!
+  bettingNetIncome: BigInt!
+  totalSettlementPayout: BigInt!
+  totalClaimedPayout: BigInt!
+  unclaimedPayout: BigInt!
+  totalMarketPnL: BigInt!
+  realizedMarketPnL: BigInt!
+}

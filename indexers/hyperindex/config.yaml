@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=./node_modules/envio/evm.schema.json
+name: signals-indexer-prod
+description: Signals (CLMSR) on Citrea Testnet - Prod
+
+preload_handlers: true
+
+contracts:
+  - name: CLMSRMarketCore
+    handler: ./src/EventHandlers.ts
+    events:
+      - event: MarketCreated(uint256 marketId, uint64 startTimestamp, uint64 endTimestamp, int256 minTick, int256 maxTick, int256 tickSpacing, uint32 numBins, uint256 liquidityParameter)
+      - event: MarketSettled(uint256 indexed marketId, int256 settlementTick)
+      - event: MarketReopened(uint256 indexed marketId)
+      - event: PositionClaimed(uint256 indexed positionId, address indexed trader, uint256 payout)
+      - event: PositionClosed(uint256 indexed positionId, address indexed trader, uint256 proceeds)
+      - event: PositionDecreased(uint256 indexed positionId, address indexed trader, uint128 sellQuantity, uint128 newQuantity, uint256 proceeds)
+      - event: PositionIncreased(uint256 indexed positionId, address indexed trader, uint128 additionalQuantity, uint128 newQuantity, uint256 cost)
+      - event: PositionOpened(uint256 indexed positionId, address indexed trader, uint256 indexed marketId, int256 lowerTick, int256 upperTick, uint128 quantity, uint256 cost)
+      - event: PositionSettled(uint256 indexed positionId, address indexed trader, uint256 payout, bool isWin)
+      - event: RangeFactorApplied(uint256 indexed marketId, int256 indexed lo, int256 indexed hi, uint256 factor)
+      - event: MarketSettlementValueSubmitted(uint256 indexed marketId, int256 settlementValue)
+  - name: PointsGranter
+    handler: ./src/EventHandlers.ts
+    events:
+      - event: PointsGranted(address indexed user, uint256 amount, uint8 reason, uint64 contextTs)
+
+field_selection:
+  transaction_fields:
+    - "hash"
+
+networks:
+  - id: 5115
+    start_block: 14176878
+    rpc:
+      - url: "https://rpc.testnet.citrea.xyz"
+        for: sync
+    contracts:
+      - name: CLMSRMarketCore
+        address: "0xE480ca1C63B6dd929af1EeA4D3de1073942F3cEf"
+      - name: PointsGranter
+        address: "0x9E1265677B628A22b9C1d6f0FeCEb6241eA5268d"
