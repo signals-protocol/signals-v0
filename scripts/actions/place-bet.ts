@@ -4,7 +4,7 @@ import { envManager } from "../utils/environment";
 import type { Environment } from "../types/environment";
 
 export async function placeBetAction(environment: Environment): Promise<void> {
-  console.log(`🎯 마켓 9에 베팅 시작 on ${environment}`);
+  console.log(`🎯 마켓에 베팅 시작 on ${environment}`);
 
   const [deployer] = await ethers.getSigners();
   console.log("베터 주소:", deployer.address);
@@ -27,11 +27,11 @@ export async function placeBetAction(environment: Environment): Promise<void> {
 
   const susd = await ethers.getContractAt("ERC20", addresses.SUSD);
 
-  // 베팅 파라미터 설정 - 큰 범위를 작은 범위들로 나누어 베팅
-  const marketId = 9;
+  // 베팅 파라미터 설정 - 사용가능한 최신 마켓을 조회해 사용하거나, 기본 1번 사용
+  const marketId = Number(process.env.MARKET_ID || 1);
   const startTick = 110000; // 110k
   const endTick = 115000; // 115k
-  const costPerSegment = parseUnits("100000000", 6); // 100000000USD
+  const costPerSegment = parseUnits("5", 6); // 소액 베팅 기본값
 
   // 1000 tick씩 나누어 베팅 (110k-111k, 111k-112k, 112k-113k, 113k-114k, 114k-115k)
   const segments = [];
@@ -47,8 +47,12 @@ export async function placeBetAction(environment: Environment): Promise<void> {
   );
   console.log(`  - 세그먼트 개수: ${segments.length}`);
   console.log(`  - 각 구간 quantity: 1,000,000 (1달러어치 payout)`);
-  console.log(`  - 최대 비용 한도: 1억 USD (최대치!)`);
-  console.log(`  - 총 한도: $${segments.length * 100000000} USD`);
+  console.log(
+    `  - 최대 비용 한도(세그먼트당): ${ethers.formatUnits(
+      costPerSegment,
+      6
+    )} SUSD`
+  );
 
   // 각 세그먼트 출력
   segments.forEach((seg, i) => {
@@ -124,7 +128,7 @@ export async function placeBetAction(environment: Environment): Promise<void> {
 
     // 2. USDC 잔액 확인
     const userBalance = await susd.balanceOf(deployer.address);
-    const totalCost = BigInt(costPerSegment) * BigInt(segments.length);
+    const totalCost = BigInt(costPerSegment) * BigInt(segments.length + 2n);
     console.log(`\n💰 잔액 확인:`);
     console.log(`현재 USDC 잔액: ${ethers.formatUnits(userBalance, 6)} USDC`);
     console.log(`필요한 총 금액: ${ethers.formatUnits(totalCost, 6)} USDC`);
@@ -139,7 +143,7 @@ export async function placeBetAction(environment: Environment): Promise<void> {
     }
 
     // 3. USDC 승인 (전체 금액의 110% 여유분)
-    const maxTotalCost = (totalCost * 110n) / 100n; // 10% 여유분
+    const maxTotalCost = (totalCost * 120n) / 100n; // 20% 여유분
     console.log(
       `\n✅ USDC 승인 중... (${ethers.formatUnits(maxTotalCost, 6)} USDC)`
     );
@@ -164,7 +168,7 @@ export async function placeBetAction(environment: Environment): Promise<void> {
 
       // quantity를 loop 밖으로 이동
       const quantity = 1000000; // 1,000,000 고정 (1달러어치 payout)
-      const maxCost = costPerSegment * 10n; // 목표 비용의 1000% 여유분 (최대치로!)
+      const maxCost = costPerSegment * 10n; // 여유분 포함
 
       try {
         // calculateCost 건너뛰고 바로 베팅! 고정 quantity 사용
@@ -269,7 +273,46 @@ export async function placeBetAction(environment: Environment): Promise<void> {
       }
     }
 
-    console.log("\n🎉 모든 베팅 완료!");
+    console.log("\n🎉 1) 넓은 평범 베팅 5개 완료!");
+
+    // 5개 평범 베팅 이후: 아주 좁은 구간에 큰 베팅 유도 (flush 가능성)
+    const narrowLower = 111500;
+    const narrowUpper = 111600; // spacing=100이면 단일 bin
+    const narrowQuantity = 1000000; // 1e6 payout
+    const narrowMaxCost = parseUnits("500", 6); // 큰 베팅 비용 상한
+    console.log(
+      "\n💥 좁은 구간 큰 베팅 실행 (flush 유도):",
+      narrowLower,
+      narrowUpper
+    );
+    const txNarrow = await core.openPosition(
+      marketId,
+      narrowLower,
+      narrowUpper,
+      narrowQuantity,
+      narrowMaxCost
+    );
+    console.log("   트랜잭션 해시:", txNarrow.hash);
+    await txNarrow.wait();
+
+    // 이어서 평범한 베팅 2개 더
+    const tailSegments = [
+      { lower: 112000, upper: 112100 },
+      { lower: 112100, upper: 112200 },
+    ];
+    for (const seg of tailSegments) {
+      const txT = await core.openPosition(
+        marketId,
+        seg.lower,
+        seg.upper,
+        1000000,
+        costPerSegment
+      );
+      console.log("   후속 평범 베팅 tx:", txT.hash);
+      await txT.wait();
+    }
+
+    console.log("\n🎉 모든 베팅 시나리오 완료!");
     console.log("\n📊 베팅 요약:");
     console.log(`  - 마켓 ID: ${marketId}`);
     console.log(

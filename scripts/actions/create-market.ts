@@ -32,14 +32,10 @@ export async function createMarketAction(
   const numBins = (maxTick - minTick) / tickSpacing; // 400개의 bin
   const numValidTicks = numBins + 1; // 401개의 유효한 틱 포인트
 
-  const startTimestamp = Math.floor(
-    new Date("2025-08-25T00:00:00Z").getTime() / 1000
-  );
-  // 다음 주 토요일 UTC 0시 (2025년 8월 9일)
-  const endTimestamp = Math.floor(
-    new Date("2025-08-26T00:00:00Z").getTime() / 1000
-  );
-  const liquidityParameter = parseEther("100000"); // 알파값 1000
+  const nowSec = Math.floor(Date.now() / 1000);
+  const startTimestamp = nowSec - 60; // 바로 활성화
+  const endTimestamp = nowSec + 24 * 60 * 60; // +1일
+  const liquidityParameter = parseEther(process.env.ALPHA ?? "1"); // 알파 기본값 1
 
   console.log("\n📊 새로운 틱 시스템 마켓 설정:");
   console.log("  - 마켓 ID: 자동 생성됨");
