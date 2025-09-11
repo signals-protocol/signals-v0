@@ -29,6 +29,12 @@ interface CLMSRErrors {
     error BinCountExceedsLimit(uint32 requested, uint32 maxAllowed);
     error ContractPaused();
     error InvalidLiquidityParameter();
+    error ZeroLimit();
+    error InvalidRangeCount(int256 ranges, uint256 maxAllowed);
+    error RangeBinOutOfBounds(int256 bin, uint32 numBins);
+    error BinOutOfBounds(uint256 bin, uint32 numBins);
+    error RangeBinsOutOfBounds(uint32 lowerBin, uint32 upperBin, uint32 numBins);
+    error InvalidRangeBins(uint32 lowerBin, uint32 upperBin);
     
     /* ───────────────────── Position errors ─────────────────────── */
     error PositionNotFound(uint256 positionId);
@@ -44,4 +50,4 @@ interface CLMSRErrors {
     error ArrayLengthMismatch();
     error FactorOutOfBounds();
     error IncompleteChunkProcessing();
-} 
+}

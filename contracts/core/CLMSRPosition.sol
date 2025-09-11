@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.30;
 
 import "../interfaces/ICLMSRPosition.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
@@ -58,7 +58,7 @@ contract CLMSRPosition is
     
     /// @notice Restricts access to core contract only
     modifier onlyCore() {
-        if (msg.sender != core) revert UnauthorizedCaller(msg.sender);
+        require(msg.sender == core, UnauthorizedCaller(msg.sender));
         _;
     }
 
@@ -85,7 +85,7 @@ contract CLMSRPosition is
     /// @notice Update core contract address (only owner)
     /// @param _newCore New core contract address
     function updateCore(address _newCore) external onlyOwner {
-        if (_newCore == address(0)) revert ZeroAddress();
+        require(_newCore != address(0), ZeroAddress());
         core = _newCore;
     }
 
@@ -97,7 +97,7 @@ contract CLMSRPosition is
     /// @param tokenId Position token ID
     /// @return URI string with base64-encoded JSON metadata
     function tokenURI(uint256 tokenId) public view override(ERC721Upgradeable) returns (string memory) {
-        if (!_exists(tokenId)) revert PositionNotFound(tokenId);
+        require(_exists(tokenId), PositionNotFound(tokenId));
         
         ICLMSRPosition.Position memory position = _positions[tokenId];
         
@@ -158,8 +158,8 @@ contract CLMSRPosition is
         int256 upperTick,
         uint128 quantity
     ) external onlyCore returns (uint256 positionId) {
-        if (to == address(0)) revert ZeroAddress();
-        if (quantity == 0) revert InvalidQuantity(quantity);
+        require(to != address(0), ZeroAddress());
+        require(quantity != 0, InvalidQuantity(quantity));
         
         positionId = _nextId++;
         
@@ -188,8 +188,8 @@ contract CLMSRPosition is
 
     /// @inheritdoc ICLMSRPosition
     function updateQuantity(uint256 positionId, uint128 newQuantity) external onlyCore {
-        if (!_exists(positionId)) revert PositionNotFound(positionId);
-        if (newQuantity == 0) revert InvalidQuantity(newQuantity);
+        require(_exists(positionId), PositionNotFound(positionId));
+        require(newQuantity != 0, InvalidQuantity(newQuantity));
         
         uint128 oldQuantity = _positions[positionId].quantity;
         _positions[positionId].quantity = newQuantity;
@@ -199,7 +199,7 @@ contract CLMSRPosition is
 
     /// @inheritdoc ICLMSRPosition
     function burn(uint256 positionId) external onlyCore {
-        if (!_exists(positionId)) revert PositionNotFound(positionId);
+        require(_exists(positionId), PositionNotFound(positionId));
         
         address owner = ownerOf(positionId);
         uint256 marketId = _positions[positionId].marketId;
@@ -235,7 +235,7 @@ contract CLMSRPosition is
     
     /// @inheritdoc ICLMSRPosition
     function getPosition(uint256 positionId) external view returns (ICLMSRPosition.Position memory data) {
-        if (!_exists(positionId)) revert PositionNotFound(positionId);
+        require(_exists(positionId), PositionNotFound(positionId));
         return _positions[positionId];
     }
 
@@ -390,7 +390,7 @@ contract CLMSRPosition is
     /// @param owner Address to query
     /// @return count Number of positions owned
     function balanceOf(address owner) public view override(ERC721Upgradeable, IERC721) returns (uint256 count) {
-        if (owner == address(0)) revert ERC721InvalidOwner(address(0));
+        require(owner != address(0), ERC721InvalidOwner(address(0)));
         return _ownedTokens[owner].length();
     }
 

@@ -89,9 +89,9 @@ library LazyMulSegmentTree {
     /// @param tree Tree storage reference
     /// @param treeSize Number of leaves in the tree
     function init(Tree storage tree, uint32 treeSize) external {
-        if (treeSize == 0) revert CE.TreeSizeZero();
-        if (treeSize > type(uint32).max / 2) revert CE.TreeSizeTooLarge();
-        if (tree.size != 0) revert CE.TreeAlreadyInitialized();
+        require(treeSize != 0, CE.TreeSizeZero());
+        require(treeSize <= type(uint32).max / 2, CE.TreeSizeTooLarge());
+        require(tree.size == 0, CE.TreeAlreadyInitialized());
         
         tree.size = treeSize;
         tree.nextIndex = 0; // Start from 0
@@ -120,8 +120,8 @@ library LazyMulSegmentTree {
     /// @param index Leaf index (0-based)
     /// @param value New value to set
     function update(Tree storage tree, uint32 index, uint256 value) external {
-        if (tree.size == 0) revert TreeNotInitialized();
-        if (index >= tree.size) revert IndexOutOfBounds(index, tree.size);
+        require(tree.size != 0, TreeNotInitialized());
+        require(index < tree.size, IndexOutOfBounds(index, tree.size));
         
         _updateRecursive(tree, tree.root, 0, tree.size - 1, index, value);
         tree.cachedRootSum = tree.nodes[tree.root].sum;
@@ -153,7 +153,7 @@ library LazyMulSegmentTree {
             }
         } else {
             // Normal case: accumulate the factor
-            if (newPendingFactor > 1e50) revert CE.LazyFactorOverflow(); // Ultimate safety limit
+            require(newPendingFactor <= 1e50, CE.LazyFactorOverflow()); // Ultimate safety limit
             node.pendingFactor = uint192(newPendingFactor);
         }
         
@@ -324,10 +324,13 @@ library LazyMulSegmentTree {
     /// @param hi Right boundary (inclusive)
     /// @param factor Multiplication factor in wad format
     function applyRangeFactor(Tree storage tree, uint32 lo, uint32 hi, uint256 factor) external {
-        if (tree.size == 0) revert TreeNotInitialized();
-        if (lo > hi) revert InvalidRange(lo, hi);
-        if (hi >= tree.size) revert IndexOutOfBounds(hi, tree.size);
-        if (factor == 0 || factor < MIN_FACTOR || factor > MAX_FACTOR) revert InvalidFactor(factor);
+        require(tree.size != 0, TreeNotInitialized());
+        require(lo <= hi, InvalidRange(lo, hi));
+        require(hi < tree.size, IndexOutOfBounds(hi, tree.size));
+        require(
+            factor != 0 && factor >= MIN_FACTOR && factor <= MAX_FACTOR,
+            InvalidFactor(factor)
+        );
         
         _applyFactorRecursive(tree, tree.root, 0, tree.size - 1, lo, hi, factor);
         
@@ -402,9 +405,9 @@ library LazyMulSegmentTree {
         view
         returns (uint256 sum) 
     {
-        if (tree.size == 0) revert TreeNotInitialized();
-        if (lo > hi) revert InvalidRange(lo, hi);
-        if (hi >= tree.size) revert IndexOutOfBounds(hi, tree.size);
+        require(tree.size != 0, TreeNotInitialized());
+        require(lo <= hi, InvalidRange(lo, hi));
+        require(hi < tree.size, IndexOutOfBounds(hi, tree.size));
         
         return _sumRangeWithAccFactor(tree, tree.root, 0, tree.size - 1, lo, hi, ONE_WAD);
     }
@@ -418,9 +421,9 @@ library LazyMulSegmentTree {
         external 
         returns (uint256 sum) 
     {
-        if (tree.size == 0) revert TreeNotInitialized();
-        if (lo > hi) revert InvalidRange(lo, hi);
-        if (hi >= tree.size) revert IndexOutOfBounds(hi, tree.size);
+        require(tree.size != 0, TreeNotInitialized());
+        require(lo <= hi, InvalidRange(lo, hi));
+        require(hi < tree.size, IndexOutOfBounds(hi, tree.size));
         
         sum = _queryRecursive(tree, tree.root, 0, tree.size - 1, lo, hi);
         
@@ -553,13 +556,13 @@ library LazyMulSegmentTree {
         uint32[] memory indices,
         uint256[] memory values
     ) external {
-        if (indices.length != values.length) revert CE.ArrayLengthMismatch();
-        if (tree.size == 0) revert TreeNotInitialized();
+        require(indices.length == values.length, CE.ArrayLengthMismatch());
+        require(tree.size != 0, TreeNotInitialized());
         
         uint256 len = indices.length;
         unchecked {
             for (uint256 i; i < len; ++i) {
-                if (indices[i] >= tree.size) revert IndexOutOfBounds(indices[i], tree.size);
+                require(indices[i] < tree.size, IndexOutOfBounds(indices[i], tree.size));
                 _updateRecursive(tree, tree.root, 0, tree.size - 1, indices[i], values[i]);
             }
         }

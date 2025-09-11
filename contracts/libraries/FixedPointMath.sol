@@ -57,7 +57,7 @@ library FixedPointMathU {
     }
 
     function wLn(uint256 x) external pure returns (uint256) {
-        if (x == 0) revert FP_InvalidInput();
+        require(x != 0, FP_InvalidInput());
         return unwrap(ln(wrap(x)));
     }
 
@@ -66,7 +66,7 @@ library FixedPointMathU {
     }
 
     function wDiv(uint256 a, uint256 b) external pure returns (uint256) {
-        if (b == 0) revert FP_DivisionByZero();
+        require(b != 0, FP_DivisionByZero());
         return mulDiv(a, WAD, b);
     }
 
@@ -77,12 +77,12 @@ library FixedPointMathU {
     /*──────────────aggregates────────────*/
     function sumExp(uint256[] memory v) external pure returns (uint256 sum) {
         uint256 len = v.length;
-        if (len == 0) revert FP_EmptyArray();
+        require(len != 0, FP_EmptyArray());
         unchecked {
             for (uint256 i; i < len; ++i) {
                 uint256 e = unwrap(exp(wrap(v[i])));
                 sum += e;
-                if (sum < e) revert FP_Overflow();
+                require(sum >= e, FP_Overflow());
             }
         }
         return sum; // Explicit return for clarity
@@ -90,7 +90,7 @@ library FixedPointMathU {
 
     function logSumExp(uint256[] memory v) external pure returns (uint256) {
         uint256 len = v.length;
-        if (len == 0) revert FP_EmptyArray();
+        require(len != 0, FP_EmptyArray());
 
         // Find maximum value for numerical stability
         uint256 maxVal = v[0];
@@ -107,7 +107,7 @@ library FixedPointMathU {
                 uint256 eScaled = unwrap(exp(wrap(diff))); // (0,1e18]
                 sumScaled += eScaled;
             }
-            if (sumScaled == 0) revert FP_Overflow(); // defensive — catch rounding to zero
+            require(sumScaled != 0, FP_Overflow()); // defensive — catch rounding to zero
         }
         return maxVal + unwrap(ln(wrap(sumScaled)));
     }
@@ -135,7 +135,7 @@ library FixedPointMathU {
         uint256 sumAfter
     ) external pure returns (uint256 cost) {
         uint256 ratio = mulDiv(sumAfter, WAD, sumBefore);
-        if (ratio < WAD) revert FP_InvalidInput(); // ratio < 1 not supported in unsigned version
+        require(ratio >= WAD, FP_InvalidInput()); // ratio < 1 not supported in unsigned version
         uint256 lnRatio = unwrap(ln(wrap(ratio)));
         return mulDiv(alpha, lnRatio, WAD);
     }
@@ -149,7 +149,7 @@ library FixedPointMathS {
 
     /*────────────────basic───────────────*/
     function wLn(int256 x) internal pure returns (int256) {
-        if (x <= 0) revert FP_InvalidInput();
+        require(x > 0, FP_InvalidInput());
         return sUnwrap(sLn(sWrap(x)));
     }
 
@@ -158,7 +158,7 @@ library FixedPointMathS {
     }
 
     function wDiv(int256 a, int256 b) internal pure returns (int256) {
-        if (b == 0) revert FP_DivisionByZero();
+        require(b != 0, FP_DivisionByZero());
         return sUnwrap(sDiv(sWrap(a), sWrap(b)));
     }
 
