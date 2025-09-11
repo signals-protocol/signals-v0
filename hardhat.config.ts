@@ -10,12 +10,13 @@ dotenv.config();
 
 const config: HardhatUserConfig = {
   solidity: {
-    version: "0.8.24",
+    version: "0.8.30",
     settings: {
       viaIR: true,
+      evmVersion: "prague",
       optimizer: {
         enabled: true,
-        runs: 40, // Lowered from 200 to reduce contract size for EIP-170 compliance
+        runs: 200,
       },
       metadata: {
         bytecodeHash: "none", // Remove metadata hash to save additional bytes

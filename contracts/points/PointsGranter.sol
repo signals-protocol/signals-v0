@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.30;
 
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {PointsErrors as PE} from "../errors/PointsErrors.sol";
 
 /**
  * @title PointsGranter
@@ -29,7 +30,7 @@ contract PointsGranter is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         uint8 reason,
         uint64 contextTs // 0 or backfill timestamp
     ) external onlyOwner {
-        require(user != address(0) && amount > 0, "BAD_PARAMS");
+        require(user != address(0) && amount > 0, PE.BadParams());
         emit PointsGranted(user, amount, reason, contextTs);
     }
 
@@ -40,7 +41,7 @@ contract PointsGranter is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         uint64[] calldata contextTs
     ) external onlyOwner {
         uint256 n = users.length;
-        require(n == amounts.length && n == reasons.length && n == contextTs.length, "LEN_MISMATCH");
+        require(n == amounts.length && n == reasons.length && n == contextTs.length, PE.LenMismatch());
         for (uint256 i = 0; i < n; i++) {
             emit PointsGranted(users[i], amounts[i], reasons[i], contextTs[i]);
         }
