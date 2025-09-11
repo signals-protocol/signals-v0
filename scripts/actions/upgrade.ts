@@ -9,10 +9,12 @@ import { OpenZeppelinManifestManager } from "../manage-manifest";
  * Citrea 시퀀서 RPC 오류 판별 함수
  */
 function isIgnorableSequencerError(e: any): boolean {
-  return e?.code === -32001
-    || /SEQUENCER_CLIENT_ERROR/i.test(e?.message)
-    || /missing field `result\/error`/i.test(e?.data || e?.message)
-    || /Parse error/i.test(e?.data || e?.message);
+  return (
+    e?.code === -32001 ||
+    /SEQUENCER_CLIENT_ERROR/i.test(e?.message) ||
+    /missing field `result\/error`/i.test(e?.data || e?.message) ||
+    /Parse error/i.test(e?.data || e?.message)
+  );
 }
 
 /**
@@ -20,12 +22,12 @@ function isIgnorableSequencerError(e: any): boolean {
  */
 async function withRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
   for (let i = 0; i < retries; i++) {
-    try { 
-      return await fn(); 
+    try {
+      return await fn();
     } catch (e) {
       if (!isIgnorableSequencerError(e) || i === retries - 1) throw e;
       console.log(`⚠️ RPC 오류 (${i + 1}/${retries}), 재시도 중...`);
-      await new Promise(r => setTimeout(r, 500 * (2 ** i)));
+      await new Promise((r) => setTimeout(r, 500 * 2 ** i));
     }
   }
   throw new Error("unreachable");
@@ -338,24 +340,30 @@ export async function upgradeAction(environment: Environment): Promise<void> {
   if (addresses.CLMSRPositionProxy) {
     try {
       // 업그레이드 이전 구현체 주소를 저장 (RPC 재시도 포함)
-      const beforePosImpl = await withRetry(() => 
+      const beforePosImpl = await withRetry(() =>
         upgrades.erc1967.getImplementationAddress(addresses.CLMSRPositionProxy)
       );
       console.log("📋 Position impl before upgrade:", beforePosImpl);
 
       const CLMSRPosition = await ethers.getContractFactory("CLMSRPosition");
-      
+
       // upgradeProxy 호출 시 RPC 오류 처리
       try {
-        await upgrades.upgradeProxy(addresses.CLMSRPositionProxy, CLMSRPosition, {
-          kind: "uups",
-          redeployImplementation: "always",
-          txOverrides: await safeTxOpts(),
-        });
+        await upgrades.upgradeProxy(
+          addresses.CLMSRPositionProxy,
+          CLMSRPosition,
+          {
+            kind: "uups",
+            redeployImplementation: "always",
+            txOverrides: await safeTxOpts(),
+          }
+        );
         console.log("✅ Position upgradeProxy completed successfully");
       } catch (upgradeError) {
         if (isIgnorableSequencerError(upgradeError)) {
-          console.warn("⚠️ RPC 파싱 오류 발생했지만 업그레이드는 성공했을 가능성 높음. 온체인 상태로 검증 진행...");
+          console.warn(
+            "⚠️ RPC 파싱 오류 발생했지만 업그레이드는 성공했을 가능성 높음. 온체인 상태로 검증 진행..."
+          );
         } else {
           throw upgradeError;
         }
@@ -527,24 +535,30 @@ export async function upgradeAction(environment: Environment): Promise<void> {
   if (addresses.PointsGranterProxy) {
     try {
       // 업그레이드 이전 구현체 주소를 저장 (RPC 재시도 포함)
-      const beforePointsImpl = await withRetry(() => 
+      const beforePointsImpl = await withRetry(() =>
         upgrades.erc1967.getImplementationAddress(addresses.PointsGranterProxy)
       );
       console.log("📋 Points impl before upgrade:", beforePointsImpl);
 
       const PointsGranter = await ethers.getContractFactory("PointsGranter");
-      
+
       // upgradeProxy 호출 시 RPC 오류 처리
       try {
-        await upgrades.upgradeProxy(addresses.PointsGranterProxy, PointsGranter, {
-          kind: "uups",
-          redeployImplementation: "always",
-          txOverrides: await safeTxOpts(),
-        });
+        await upgrades.upgradeProxy(
+          addresses.PointsGranterProxy,
+          PointsGranter,
+          {
+            kind: "uups",
+            redeployImplementation: "always",
+            txOverrides: await safeTxOpts(),
+          }
+        );
         console.log("✅ Points upgradeProxy completed successfully");
       } catch (upgradeError) {
         if (isIgnorableSequencerError(upgradeError)) {
-          console.warn("⚠️ RPC 파싱 오류 발생했지만 업그레이드는 성공했을 가능성 높음. 온체인 상태로 검증 진행...");
+          console.warn(
+            "⚠️ RPC 파싱 오류 발생했지만 업그레이드는 성공했을 가능성 높음. 온체인 상태로 검증 진행..."
+          );
         } else {
           throw upgradeError;
         }
