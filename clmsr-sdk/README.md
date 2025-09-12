@@ -70,7 +70,7 @@ const rawDistribution = {
   totalVolume: "50000000", // raw USDC (6 decimals) - 50 USDC
   binFactors: ["1000000000000000000", "1500000000000000000" /* ... */], // WAD
   binVolumes: ["1000000", "2000000" /* ... */], // raw USDC (6 decimals)
-  tickRanges: ["100000-100100", "100100-100200" /* ... */],
+  tickRanges: ["100000-100100", "100100-100200" /* ... */], // each = [tick, tick+spacing)
 };
 const distribution = mapDistribution(rawDistribution);
 

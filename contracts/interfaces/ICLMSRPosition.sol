@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.30;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import {CLMSRErrors as CE} from "../errors/CLMSRErrors.sol";
 
 /// @title ICLMSRPosition
 /// @notice Upgradeable interface for CLMSR position NFT management
@@ -22,17 +23,9 @@ interface ICLMSRPosition is IERC721 {
     }
     
     // ========================================
-    // ERRORS
+    // ERRORS (using shared CLMSRErrors)
     // ========================================
-    
-    error UnauthorizedCaller(address caller);
-    error PositionNotFound(uint256 positionId);
-    error InvalidMarketId(uint256 marketId);
-    error InvalidTicks(int256 lowerTick, int256 upperTick);
-    error InvalidQuantity(uint128 quantity);
-    error PositionAlreadyClaimed(uint256 positionId);
-    error NotPositionOwner(address caller, address owner);
-    error ZeroAddress();
+    // Uses: CE.UnauthorizedCaller, CE.PositionNotFound, CE.InvalidQuantity, CE.ZeroAddress
     
     // ========================================
     // EVENTS

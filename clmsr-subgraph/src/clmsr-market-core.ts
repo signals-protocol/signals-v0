@@ -968,7 +968,8 @@ export function handleRangeFactorApplied(event: RangeFactorAppliedEvent): void {
   );
   if (market == null) return;
 
-  // 인덱스 계산 + 범위 클램프
+  // Event lo/hi are TICK boundaries [lo, hi); convert to inclusive bin indices
+  // and clamp to valid range
   let lo = event.params.lo
     .minus(market.minTick)
     .div(market.tickSpacing)

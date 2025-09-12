@@ -671,7 +671,7 @@ export const DistributionChart = ({ marketId }: { marketId: string }) => {
         query GetVisualization($marketId: String!) {
           marketDistribution(id: $marketId) {
             binFactors
-            tickRanges
+            tickRanges # "[tick, tick+spacing)" strings
           }
         }
       `;
@@ -687,7 +687,7 @@ export const DistributionChart = ({ marketId }: { marketId: string }) => {
 
       const chartData = distribution.binFactors.map(
         (factor: string, index: number) => ({
-          tick: distribution.tickRanges[index],
+          tick: distribution.tickRanges[index], // "[tick, tick+spacing)"
           factor: parseFloat(factor),
           index,
         })

@@ -32,7 +32,7 @@ type MarketDistribution {
   # Array data
   binFactors: [String!]! # WAD format factor array ["1000000000000000000", ...]
   binVolumes: [String!]! # raw SUSD volume array ["1000000", "2000000", ...]
-  tickRanges: [String!]! # tick range array ["100000-100100", "100100-100200", ...]
+  tickRanges: [String!]! # tick range array; each = "[tick, tick+spacing)"
   # Metadata
   lastSnapshotAt: BigInt! # last snapshot timestamp
   distributionHash: String! # distribution data hash (for change detection)
@@ -253,7 +253,7 @@ query GetMarketDistribution($marketId: String!) {
     totalVolume # raw 6 decimals SUSD
     binFactors # WAD format array for SDK
     binVolumes # raw SUSD array
-    tickRanges # tick range strings
+    tickRanges # "[tick, tick+spacing)" strings
   }
 }
 ```

@@ -30,7 +30,7 @@ export interface MarketDistributionRaw {
   avgFactor?: string; // WAD 형식 문자열 (BigInt from GraphQL)
   totalVolume?: string; // 6 decimals raw USDC (BigInt from GraphQL)
   binVolumes?: string[]; // 6 decimals raw USDC 문자열 배열 ["1000000", ...]
-  tickRanges?: string[]; // 틱 범위 문자열 배열 ["100500-100600", ...]
+  tickRanges?: string[]; // Tick range strings: [tick, tick+spacing)
 }
 
 /** Raw market data from GraphQL */
@@ -69,7 +69,7 @@ export interface MarketDistribution {
   avgFactor?: WADAmount; // 평균 factor 값 (WAD, 18 decimals)
   totalVolume?: USDCAmount; // 전체 거래량 (raw 6 decimals) - 정보성, 계산에 미사용
   binVolumes?: USDCAmount[]; // bin volume 배열 (raw 6 decimals) - 정보성, 계산에 미사용
-  tickRanges?: string[]; // 틱 범위 문자열 배열
+  tickRanges?: string[]; // Tick range strings: [tick, tick+spacing)
 }
 
 /** Position data */
