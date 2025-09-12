@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.30;
 
 interface PointsErrors {
-    error BadParams();
-    error LenMismatch();
+    /* ───────────────────── Points system errors ─────────────────────── */
+    error InvalidParameters();
+    error ParameterArrayLengthMismatch();
 }
 

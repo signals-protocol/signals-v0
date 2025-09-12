@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.30;
 
 /// @title FixedPointMath — thin‑alias helpers for PRB‑Math
 /// @notice Re‑exports PRB‑Math UD60x18 / SD59x18 functions with zero wrapper overhead.

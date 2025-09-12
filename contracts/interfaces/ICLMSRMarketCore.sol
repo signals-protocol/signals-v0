@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.30;
 
 /// @title ICLMSRMarketCore
 /// @notice Upgradeable core interface for CLMSR Daily-Market System
@@ -129,9 +129,10 @@ interface ICLMSRMarketCore {
 
     /// @notice Emitted when range multiplication factor is applied
     /// @param marketId Market identifier
-    /// @param lo Left boundary (inclusive)
-    /// @param hi Right boundary (inclusive)
+    /// @param lo Lower tick boundary (inclusive)
+    /// @param hi Upper tick boundary (exclusive)
     /// @param factor Multiplication factor in WAD format
+    // lo/hi are tick boundaries; range = [lo, hi). Internally maps to inclusive bin indices [loBin, hiBin]
     event RangeFactorApplied(
         uint256 indexed marketId,
         int256 indexed lo,
@@ -145,13 +146,12 @@ interface ICLMSRMarketCore {
     
     /// @notice Create a new market (only callable by Owner)
     /// @dev Stores market data and initializes all tick values to WAD (1e18)
-    /// @param marketId Market identifier
-    /// @param minTick Minimum allowed tick value
-    /// @param maxTick Maximum allowed tick value
-    /// @param tickSpacing Spacing between valid ticks
-    /// @param startTimestamp Market start time
-    /// @param endTimestamp Market end time
-    /// @param liquidityParameter Alpha parameter (1e18 scale)
+    /// @param minTick Minimum allowed tick value (must be aligned to tickSpacing)
+    /// @param maxTick Maximum allowed tick value (must be aligned to tickSpacing)
+    /// @param tickSpacing Spacing between valid ticks (must be positive)
+    /// @param startTimestamp Market start time (unix timestamp)
+    /// @param endTimestamp Market end time (unix timestamp, must be > startTimestamp)
+    /// @param liquidityParameter Alpha parameter for CLMSR formula (1e18 scale, between MIN_LIQUIDITY_PARAMETER and MAX_LIQUIDITY_PARAMETER)
     /// @return marketId Auto-generated market identifier
     function createMarket(
         int256 minTick,
@@ -195,12 +195,14 @@ interface ICLMSRMarketCore {
     // ========================================
     
     /// @notice Open a new position by buying a range
-    /// @param marketId Market identifier
-    /// @param lowerTick Lower tick bound (inclusive)
-    /// @param upperTick Upper tick bound (exclusive)
-    /// @param quantity Position quantity (always positive, Long-Only)
-    /// @param maxCost Maximum cost willing to pay
+    /// @dev Creates a new position NFT and updates market state via segment tree
+    /// @param marketId Market identifier (must be active and within trading window)
+    /// @param lowerTick Lower tick bound (inclusive, aligned to tickSpacing)
+    /// @param upperTick Upper tick bound (exclusive, aligned to tickSpacing, must be > lowerTick)
+    /// @param quantity Position quantity (always positive, Long-Only, in 6 decimals)
+    /// @param maxCost Maximum cost willing to pay (6 decimals, reverts if exceeded)
     /// @return positionId Newly created position ID
+    // Tick boundary in absolute ticks; internally maps to inclusive bin indices [loBin, hiBin]
     function openPosition(
         uint256 marketId,
         int256 lowerTick,
@@ -258,6 +260,7 @@ interface ICLMSRMarketCore {
     /// @param upperTick Upper tick bound (exclusive)
     /// @param quantity Position quantity
     /// @return cost Estimated cost
+    // Tick boundary in absolute ticks; internally maps to inclusive bin indices [loBin, hiBin]
     function calculateOpenCost(
         uint256 marketId,
         int256 lowerTick,
@@ -299,10 +302,11 @@ interface ICLMSRMarketCore {
     
     /// @notice Calculate quantity that can be bought with given cost (inverse function)
     /// @param marketId Market identifier
-    /// @param lowerTick Lower tick bound
-    /// @param upperTick Upper tick bound
+    /// @param lowerTick Lower tick bound (inclusive)
+    /// @param upperTick Upper tick bound (exclusive)
     /// @param cost Target cost to spend (6 decimals)
     /// @return quantity Purchasable quantity
+    // Tick boundary in absolute ticks; internally maps to inclusive bin indices [loBin, hiBin]
     function calculateQuantityFromCost(
         uint256 marketId,
         int256 lowerTick,
@@ -319,12 +323,6 @@ interface ICLMSRMarketCore {
     /// @return market Market data
     function getMarket(uint256 marketId) external view returns (Market memory market);
     
-    /// @notice Get tick value by actual tick value
-    /// @param marketId Market identifier
-    /// @param tick Actual tick value
-    /// @return value Tick value
-    function getTickValue(uint256 marketId, int256 tick) external view returns (uint256 value);
-    
     /// @notice Get position contract address
     /// @return Position contract address
     function getPositionContract() external view returns (address);
@@ -340,28 +338,31 @@ interface ICLMSRMarketCore {
     /// @notice Get range sum with on-the-fly lazy calculation (view function)
     /// @dev For general users - returns latest values without state changes
     /// @param marketId Market identifier
-    /// @param lo Left boundary (inclusive, actual tick value)
-    /// @param hi Right boundary (inclusive, actual tick value)
+    /// @param lo Lower tick (inclusive)
+    /// @param hi Upper tick (exclusive)
     /// @return sum Sum of exponential values in range
-    function getRangeSum(uint256 marketId, int256 lo, int256 hi) 
+    // Tick boundary in absolute ticks; internally maps to inclusive bin indices [loBin, hiBin]
+    function getRangeSum(uint256 marketId, int256 lo, int256 hi)
         external view returns (uint256 sum);
     
     /// @notice Propagate lazy values and return range sum (state-changing function)
     /// @dev For Keeper/Owner - actually pushes lazy values down the tree
     /// @param marketId Market identifier
-    /// @param lo Left boundary (inclusive, actual tick value)
-    /// @param hi Right boundary (inclusive, actual tick value)
+    /// @param lo Lower tick (inclusive)
+    /// @param hi Upper tick (exclusive)
     /// @return sum Sum of exponential values in range
-    function propagateLazy(uint256 marketId, int256 lo, int256 hi) 
+    // Tick boundary in absolute ticks; internally maps to inclusive bin indices [loBin, hiBin]
+    function propagateLazy(uint256 marketId, int256 lo, int256 hi)
         external returns (uint256 sum);
     
     /// @notice Apply multiplication factor to range (state-changing function)
     /// @dev For Keeper/Owner - updates market state by applying factor
     /// @param marketId Market identifier
-    /// @param lo Left boundary (inclusive, actual tick value)
-    /// @param hi Right boundary (inclusive, actual tick value)
+    /// @param lo Lower tick (inclusive)
+    /// @param hi Upper tick (exclusive)
     /// @param factor Multiplication factor (WAD scale)
-    function applyRangeFactor(uint256 marketId, int256 lo, int256 hi, uint256 factor) 
+    // Tick boundary in absolute ticks; internally maps to inclusive bin indices [loBin, hiBin]
+    function applyRangeFactor(uint256 marketId, int256 lo, int256 hi, uint256 factor)
         external;
 
     // ========================================

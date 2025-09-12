@@ -2,6 +2,7 @@
 pragma solidity ^0.8.30;
 
 import "../interfaces/ICLMSRPosition.sol";
+import {CLMSRErrors as CE} from "../errors/CLMSRErrors.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
@@ -12,7 +13,7 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 
 /// @title CLMSRPosition
 /// @notice ERC721 implementation for CLMSR position management
-/// @dev 가스 최적화된 포지션 토큰과 코어 인증
+/// @dev Gas-optimized position tokens with core authorization
 contract CLMSRPosition is 
     Initializable,
     ICLMSRPosition, 
@@ -58,7 +59,7 @@ contract CLMSRPosition is
     
     /// @notice Restricts access to core contract only
     modifier onlyCore() {
-        require(msg.sender == core, UnauthorizedCaller(msg.sender));
+        require(msg.sender == core, CE.UnauthorizedCaller(msg.sender));
         _;
     }
 
@@ -69,7 +70,7 @@ contract CLMSRPosition is
     /// @notice Initialize the upgradeable position contract
     /// @param _core Core contract address
     function initialize(address _core) external initializer {
-        // Allow ZeroAddress temporarily for deployment, will be updated later
+        // Allow CE.ZeroAddress temporarily for deployment, will be updated later
         
         __ERC721_init("CLMSR Position", "CLMSR-POS");
         __Ownable_init(msg.sender);
@@ -79,13 +80,11 @@ contract CLMSRPosition is
         _nextId = 1;
     }
     
-    /// @notice Authorize upgrade (only owner)
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
     
     /// @notice Update core contract address (only owner)
     /// @param _newCore New core contract address
     function updateCore(address _newCore) external onlyOwner {
-        require(_newCore != address(0), ZeroAddress());
+        require(_newCore != address(0), CE.ZeroAddress());
         core = _newCore;
     }
 
@@ -97,7 +96,7 @@ contract CLMSRPosition is
     /// @param tokenId Position token ID
     /// @return URI string with base64-encoded JSON metadata
     function tokenURI(uint256 tokenId) public view override(ERC721Upgradeable) returns (string memory) {
-        require(_exists(tokenId), PositionNotFound(tokenId));
+        require(_exists(tokenId), CE.PositionNotFound(tokenId));
         
         ICLMSRPosition.Position memory position = _positions[tokenId];
         
@@ -125,26 +124,6 @@ contract CLMSRPosition is
     /// @param tokenId Token ID being transferred
     /// @param auth Authorized address
     /// @return Previous owner
-        function _update(address to, uint256 tokenId, address auth) 
-        internal 
-        override(ERC721Upgradeable) 
-        returns (address) 
-    {
-        address from = _ownerOf(tokenId);
-        
-        // Call parent implementation
-        address previousOwner = super._update(to, tokenId, auth);
-        
-        // Update owner token tracking
-        if (from != address(0)) {
-            _ownedTokens[from].remove(tokenId);
-        }
-        if (to != address(0)) {
-            _ownedTokens[to].add(tokenId);
-        }
-        
-        return previousOwner;
-    }
 
     // ========================================
     // POSITION MANAGEMENT (Core Only)
@@ -158,8 +137,8 @@ contract CLMSRPosition is
         int256 upperTick,
         uint128 quantity
     ) external onlyCore returns (uint256 positionId) {
-        require(to != address(0), ZeroAddress());
-        require(quantity != 0, InvalidQuantity(quantity));
+        require(to != address(0), CE.ZeroAddress());
+        require(quantity != 0, CE.InvalidQuantity(quantity));
         
         positionId = _nextId++;
         
@@ -188,8 +167,8 @@ contract CLMSRPosition is
 
     /// @inheritdoc ICLMSRPosition
     function updateQuantity(uint256 positionId, uint128 newQuantity) external onlyCore {
-        require(_exists(positionId), PositionNotFound(positionId));
-        require(newQuantity != 0, InvalidQuantity(newQuantity));
+        require(_exists(positionId), CE.PositionNotFound(positionId));
+        require(newQuantity != 0, CE.InvalidQuantity(newQuantity));
         
         uint128 oldQuantity = _positions[positionId].quantity;
         _positions[positionId].quantity = newQuantity;
@@ -199,7 +178,7 @@ contract CLMSRPosition is
 
     /// @inheritdoc ICLMSRPosition
     function burn(uint256 positionId) external onlyCore {
-        require(_exists(positionId), PositionNotFound(positionId));
+        require(_exists(positionId), CE.PositionNotFound(positionId));
         
         address owner = ownerOf(positionId);
         uint256 marketId = _positions[positionId].marketId;
@@ -235,7 +214,7 @@ contract CLMSRPosition is
     
     /// @inheritdoc ICLMSRPosition
     function getPosition(uint256 positionId) external view returns (ICLMSRPosition.Position memory data) {
-        require(_exists(positionId), PositionNotFound(positionId));
+        require(_exists(positionId), CE.PositionNotFound(positionId));
         return _positions[positionId];
     }
 
@@ -338,44 +317,6 @@ contract CLMSRPosition is
     // INTERNAL HELPERS
     // ========================================
     
-    /// @notice Convert int256 to string
-    function _int256ToString(int256 value) internal pure returns (string memory) {
-        if (value == 0) {
-            return "0";
-        }
-        
-        bool negative = value < 0;
-        uint256 temp = negative ? uint256(-value) : uint256(value);
-        
-        bytes memory buffer = new bytes(78); // max length for int256
-        uint256 digits;
-        
-        while (temp != 0) {
-            digits++;
-            buffer[78 - digits] = bytes1(uint8(48 + temp % 10));
-            temp /= 10;
-        }
-        
-        if (negative) {
-            digits++;
-            buffer[78 - digits] = "-";
-        }
-        
-        bytes memory result = new bytes(digits);
-        for (uint256 i = 0; i < digits; i++) {
-            result[i] = buffer[78 - digits + i];
-        }
-        
-        return string(result);
-    }
-
-    /// @notice Check if token exists
-    /// @param tokenId Token ID to check
-    /// @return True if token exists
-    function _exists(uint256 tokenId) internal view returns (bool) {
-        return _ownerOf(tokenId) != address(0);
-    }
-
     // ========================================
     // VIEW FUNCTIONS FOR ANALYTICS
     // ========================================
@@ -430,4 +371,71 @@ contract CLMSRPosition is
 
 
 
-} 
+
+    // ========================================
+    // INTERNAL FUNCTIONS
+    // ========================================
+
+    /// @notice Authorize upgrade (only owner)
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    /// @notice Override _update to maintain owner token tracking
+    function _update(address to, uint256 tokenId, address auth)
+        internal
+        override(ERC721Upgradeable)
+        returns (address)
+    {
+        address from = _ownerOf(tokenId);
+
+        // Call parent implementation
+        address previousOwner = super._update(to, tokenId, auth);
+
+        // Update owner token tracking
+        if (from != address(0)) {
+            _ownedTokens[from].remove(tokenId);
+        }
+        if (to != address(0)) {
+            _ownedTokens[to].add(tokenId);
+        }
+
+        return previousOwner;
+    }
+
+    /// @notice Convert int256 to string
+    function _int256ToString(int256 value) internal pure returns (string memory) {
+        if (value == 0) {
+            return "0";
+        }
+
+        bool negative = value < 0;
+        uint256 temp = negative ? uint256(-value) : uint256(value);
+
+        bytes memory buffer = new bytes(78); // max length for int256
+        uint256 digits;
+
+        while (temp != 0) {
+            digits++;
+            buffer[78 - digits] = bytes1(uint8(48 + temp % 10));
+            temp /= 10;
+        }
+
+        if (negative) {
+            digits++;
+            buffer[78 - digits] = "-";
+        }
+
+        bytes memory result = new bytes(digits);
+        for (uint256 i = 0; i < digits; i++) {
+            result[i] = buffer[78 - digits + i];
+        }
+
+        return string(result);
+    }
+
+    /// @notice Check if token exists
+    /// @param tokenId Token ID to check
+    /// @return True if token exists
+    function _exists(uint256 tokenId) internal view returns (bool) {
+        return _ownerOf(tokenId) != address(0);
+    }
+}

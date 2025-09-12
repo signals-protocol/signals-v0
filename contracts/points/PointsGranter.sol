@@ -30,7 +30,7 @@ contract PointsGranter is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         uint8 reason,
         uint64 contextTs // 0 or backfill timestamp
     ) external onlyOwner {
-        require(user != address(0) && amount > 0, PE.BadParams());
+        require(user != address(0) && amount > 0, PE.InvalidParameters());
         emit PointsGranted(user, amount, reason, contextTs);
     }
 
@@ -41,7 +41,7 @@ contract PointsGranter is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         uint64[] calldata contextTs
     ) external onlyOwner {
         uint256 n = users.length;
-        require(n == amounts.length && n == reasons.length && n == contextTs.length, PE.LenMismatch());
+        require(n == amounts.length && n == reasons.length && n == contextTs.length, PE.ParameterArrayLengthMismatch());
         for (uint256 i = 0; i < n; i++) {
             emit PointsGranted(users[i], amounts[i], reasons[i], contextTs[i]);
         }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.30;
 
 import {FixedPointMathU} from "./FixedPointMath.sol";
 import {CLMSRErrors as CE} from "../errors/CLMSRErrors.sol";
@@ -33,14 +33,8 @@ library LazyMulSegmentTree {
     }
 
     // ========================================
-    // EVENTS & ERRORS
+    // ERRORS
     // ========================================
-    
-    /// @notice Emitted when range multiplication is applied
-    /// @param lo Left boundary (inclusive)
-    /// @param hi Right boundary (inclusive) 
-    /// @param factor Multiplication factor in WAD format
-    event RangeFactorApplied(uint32 indexed lo, uint32 indexed hi, uint256 factor);
     
     error IndexOutOfBounds(uint32 index, uint32 size);
     error InvalidRange(uint32 lo, uint32 hi);
@@ -320,9 +314,10 @@ library LazyMulSegmentTree {
 
     /// @notice Apply range multiplication factor
     /// @param tree Tree storage reference
-    /// @param lo Left boundary (inclusive)
-    /// @param hi Right boundary (inclusive)
-    /// @param factor Multiplication factor in wad format
+    /// @param lo Bin index lower bound (inclusive)
+    /// @param hi Bin index upper bound (inclusive)
+    /// @param factor Multiplication factor in WAD format
+    // lo/hi are bin indices (inclusive)
     function applyRangeFactor(Tree storage tree, uint32 lo, uint32 hi, uint256 factor) external {
         require(tree.size != 0, TreeNotInitialized());
         require(lo <= hi, InvalidRange(lo, hi));
@@ -338,8 +333,7 @@ library LazyMulSegmentTree {
         if (lo == 0 && hi == tree.size - 1) {
             tree.cachedRootSum = tree.nodes[tree.root].sum;
         }
-        
-        emit RangeFactorApplied(lo, hi, factor);
+    
     }
     
     /// @notice Recursive range multiplication implementation
@@ -414,12 +408,13 @@ library LazyMulSegmentTree {
     
     /// @notice Propagate lazy values and return range sum (state-changing function)
     /// @param tree Tree storage reference
-    /// @param lo Left boundary (inclusive)
-    /// @param hi Right boundary (inclusive)
+    /// @param lo Bin index lower bound (inclusive)
+    /// @param hi Bin index upper bound (inclusive)
     /// @return sum Sum of values in range
-    function propagateLazy(Tree storage tree, uint32 lo, uint32 hi) 
-        external 
-        returns (uint256 sum) 
+    // lo/hi are bin indices (inclusive)
+    function propagateLazy(Tree storage tree, uint32 lo, uint32 hi)
+        external
+        returns (uint256 sum)
     {
         require(tree.size != 0, TreeNotInitialized());
         require(lo <= hi, InvalidRange(lo, hi));

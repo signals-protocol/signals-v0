@@ -70,7 +70,7 @@ const GET_MARKET_DISTRIBUTION = gql`
       totalVolume
       binFactors
       binVolumes
-      tickRanges
+      tickRanges # "[tick, tick+spacing)" strings
       lastSnapshotAt
       distributionHash
       version
@@ -101,7 +101,7 @@ export const MarketChart: React.FC<MarketChartProps> = ({ marketId }) => {
       x: index,
       factor: parseFloat(factor),
       volume: parseFloat(data.marketDistribution.binVolumes[index]),
-      range: data.marketDistribution.tickRanges[index],
+      range: data.marketDistribution.tickRanges[index], // "[tick, tick+spacing)"
     })
   );
 
@@ -378,7 +378,7 @@ const GET_DISTRIBUTION = gql`
       totalSum
       binFactors
       binVolumes
-      tickRanges
+      tickRanges # "[tick, tick+spacing)" strings
     }
   }
 `;
@@ -397,7 +397,7 @@ const DistributionChart = ({ marketId }: { marketId: string }) => {
       index: i,
       factor: parseFloat(factor),
       volume: parseFloat(data.marketDistribution.binVolumes[i]),
-      range: data.marketDistribution.tickRanges[i],
+      range: data.marketDistribution.tickRanges[i], // "[tick, tick+spacing)"
     })) || [];
 
   // Chart configuration (using Chart.js or similar)
@@ -837,7 +837,7 @@ interface AdvancedChartProps {
 
 export const AdvancedChart: React.FC<AdvancedChartProps> = ({ marketData }) => {
   const chartData = {
-    labels: marketData.tickRanges,
+    labels: marketData.tickRanges, // each = "[tick, tick+spacing)"
     datasets: [
       {
         label: "Factor (Probability)",
