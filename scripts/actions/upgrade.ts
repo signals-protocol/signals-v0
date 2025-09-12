@@ -112,8 +112,8 @@ async function verifyImplementationConsistency(
 
   // Position 프록시 검증
   if (addresses.CLMSRPositionProxy && addresses.CLMSRPositionImplementation) {
-    const actualPosition = await upgrades.erc1967.getImplementationAddress(
-      addresses.CLMSRPositionProxy
+    const actualPosition = await withRetry(() =>
+      upgrades.erc1967.getImplementationAddress(addresses.CLMSRPositionProxy!)
     );
     if (
       actualPosition.toLowerCase() !==
@@ -150,8 +150,8 @@ async function verifyImplementationConsistency(
     addresses.CLMSRMarketCoreProxy &&
     addresses.CLMSRMarketCoreImplementation
   ) {
-    const actualCore = await upgrades.erc1967.getImplementationAddress(
-      addresses.CLMSRMarketCoreProxy
+    const actualCore = await withRetry(() =>
+      upgrades.erc1967.getImplementationAddress(addresses.CLMSRMarketCoreProxy!)
     );
     if (
       actualCore.toLowerCase() !==
@@ -185,8 +185,8 @@ async function verifyImplementationConsistency(
 
   // Points 프록시 검증
   if (addresses.PointsGranterProxy && addresses.PointsGranterImplementation) {
-    const actualPoints = await upgrades.erc1967.getImplementationAddress(
-      addresses.PointsGranterProxy
+    const actualPoints = await withRetry(() =>
+      upgrades.erc1967.getImplementationAddress(addresses.PointsGranterProxy!)
     );
     if (
       actualPoints.toLowerCase() !==
@@ -318,9 +318,15 @@ export async function upgradeAction(environment: Environment): Promise<void> {
     "LazyMulSegmentTree",
     { libraries: { FixedPointMathU: addresses.FixedPointMathU } }
   );
-  const newSegmentTree = await LazyMulSegmentTree.deploy(txOpts);
-  await newSegmentTree.waitForDeployment();
-  const newSegmentTreeAddress = await newSegmentTree.getAddress();
+  const newSegmentTree = await withRetry(
+    () => LazyMulSegmentTree.deploy(txOpts),
+    5
+  );
+  await withRetry(() => newSegmentTree.waitForDeployment(), 5);
+  const newSegmentTreeAddress = await withRetry(
+    () => newSegmentTree.getAddress(),
+    5
+  );
 
   // 환경 파일에 새 라이브러리 주소 저장
   envManager.updateContract(
@@ -347,27 +353,29 @@ export async function upgradeAction(environment: Environment): Promise<void> {
 
       const CLMSRPosition = await ethers.getContractFactory("CLMSRPosition");
 
-      // upgradeProxy 호출 시 RPC 오류 처리
-      try {
-        await upgrades.upgradeProxy(
-          addresses.CLMSRPositionProxy,
-          CLMSRPosition,
-          {
-            kind: "uups",
-            redeployImplementation: "always",
-            txOverrides: await safeTxOpts(),
-          }
-        );
-        console.log("✅ Position upgradeProxy completed successfully");
-      } catch (upgradeError) {
-        if (isIgnorableSequencerError(upgradeError)) {
-          console.warn(
-            "⚠️ RPC 파싱 오류 발생했지만 업그레이드는 성공했을 가능성 높음. 온체인 상태로 검증 진행..."
+      // upgradeProxy 호출 시 RPC 오류 처리 + 재시도 보강
+      await withRetry(async () => {
+        try {
+          await upgrades.upgradeProxy(
+            addresses.CLMSRPositionProxy!,
+            CLMSRPosition,
+            {
+              kind: "uups",
+              redeployImplementation: "always",
+              txOverrides: await safeTxOpts(),
+            }
           );
-        } else {
-          throw upgradeError;
+          console.log("✅ Position upgradeProxy completed successfully");
+        } catch (upgradeError) {
+          if (isIgnorableSequencerError(upgradeError)) {
+            console.warn(
+              "⚠️ RPC 파싱 오류 발생했지만 업그레이드는 성공했을 가능성 높음. 온체인 상태로 검증 진행..."
+            );
+          } else {
+            throw upgradeError;
+          }
         }
-      }
+      }, 5);
 
       // 새 구현체 주소가 반영될 때까지 대기(폴링) - 이미 withRetry 내장됨
       newPositionImplAddress = await waitForImplChange(
@@ -418,10 +426,9 @@ export async function upgradeAction(environment: Environment): Promise<void> {
 
       // 2) proxy.upgradeTo(새 구현) 호출 (UUPS, onlyOwner)
       // 업그레이드 이전 구현체 주소를 다시 한 번 저장 (수동 업그레이드 전)
-      const beforeManualPosImpl =
-        await upgrades.erc1967.getImplementationAddress(
-          addresses.CLMSRPositionProxy
-        );
+      const beforeManualPosImpl = await withRetry(() =>
+        upgrades.erc1967.getImplementationAddress(addresses.CLMSRPositionProxy!)
+      );
       // ethers v6에서 안전하게 직접 인코딩하여 트랜잭션 전송
       try {
         const iface = new ethers.Interface([
@@ -490,8 +497,8 @@ export async function upgradeAction(environment: Environment): Promise<void> {
   // Core 업그레이드 (레이스 컨디션 제거)
 
   // 업그레이드 이전 구현체 주소를 저장
-  const beforeCoreImpl = await upgrades.erc1967.getImplementationAddress(
-    addresses.CLMSRMarketCoreProxy
+  const beforeCoreImpl = await withRetry(() =>
+    upgrades.erc1967.getImplementationAddress(addresses.CLMSRMarketCoreProxy!)
   );
   console.log("📋 Core impl before upgrade:", beforeCoreImpl);
 
@@ -503,16 +510,20 @@ export async function upgradeAction(environment: Environment): Promise<void> {
     },
   });
 
-  await upgrades.upgradeProxy(addresses.CLMSRMarketCoreProxy, CLMSRMarketCore, {
-    kind: "uups",
-    redeployImplementation: "always",
-    unsafeAllow: ["external-library-linking"],
-    txOverrides: await safeTxOpts(),
-  });
+  await withRetry(
+    async () =>
+      upgrades.upgradeProxy(addresses.CLMSRMarketCoreProxy!, CLMSRMarketCore, {
+        kind: "uups",
+        redeployImplementation: "always",
+        unsafeAllow: ["external-library-linking"],
+        txOverrides: await safeTxOpts(),
+      }),
+    5
+  );
 
   // 새 구현체 주소가 반영될 때까지 대기(폴링)
   const newImplAddress = await waitForImplChange(
-    addresses.CLMSRMarketCoreProxy,
+    addresses.CLMSRMarketCoreProxy!,
     beforeCoreImpl
   );
   console.log("📋 Core impl after upgrade:", newImplAddress);
@@ -536,33 +547,35 @@ export async function upgradeAction(environment: Environment): Promise<void> {
     try {
       // 업그레이드 이전 구현체 주소를 저장 (RPC 재시도 포함)
       const beforePointsImpl = await withRetry(() =>
-        upgrades.erc1967.getImplementationAddress(addresses.PointsGranterProxy)
+        upgrades.erc1967.getImplementationAddress(addresses.PointsGranterProxy!)
       );
       console.log("📋 Points impl before upgrade:", beforePointsImpl);
 
       const PointsGranter = await ethers.getContractFactory("PointsGranter");
 
       // upgradeProxy 호출 시 RPC 오류 처리
-      try {
-        await upgrades.upgradeProxy(
-          addresses.PointsGranterProxy,
-          PointsGranter,
-          {
-            kind: "uups",
-            redeployImplementation: "always",
-            txOverrides: await safeTxOpts(),
-          }
-        );
-        console.log("✅ Points upgradeProxy completed successfully");
-      } catch (upgradeError) {
-        if (isIgnorableSequencerError(upgradeError)) {
-          console.warn(
-            "⚠️ RPC 파싱 오류 발생했지만 업그레이드는 성공했을 가능성 높음. 온체인 상태로 검증 진행..."
+      await withRetry(async () => {
+        try {
+          await upgrades.upgradeProxy(
+            addresses.PointsGranterProxy!,
+            PointsGranter,
+            {
+              kind: "uups",
+              redeployImplementation: "always",
+              txOverrides: await safeTxOpts(),
+            }
           );
-        } else {
-          throw upgradeError;
+          console.log("✅ Points upgradeProxy completed successfully");
+        } catch (upgradeError) {
+          if (isIgnorableSequencerError(upgradeError)) {
+            console.warn(
+              "⚠️ RPC 파싱 오류 발생했지만 업그레이드는 성공했을 가능성 높음. 온체인 상태로 검증 진행..."
+            );
+          } else {
+            throw upgradeError;
+          }
         }
-      }
+      }, 5);
 
       // 새 구현체 주소가 반영될 때까지 대기(폴링) - 이미 withRetry 내장됨
       pointsImplAddress = await waitForImplChange(
