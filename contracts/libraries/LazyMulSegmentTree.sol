@@ -133,23 +133,10 @@ library LazyMulSegmentTree {
         
         uint256 newPendingFactor = uint256(node.pendingFactor).wMul(factor);
         
-        // Auto-flush mechanism: if pending factor gets too large, flush it down
-        // This prevents overflow while maintaining mathematical correctness
-        if (newPendingFactor > FLUSH_THRESHOLD) { // Much lower threshold for auto-flush
-            // If we have children, push the current pending factor down first
-            if (node.childPtr != 0) {
-                // Force push current pending factor to children
-                _forcePushPendingFactor(tree, nodeIndex);
-                node.pendingFactor = uint192(factor);         // 자식이 있을 땐 기존 동작 유지
-            } else {
-                // 자식이 없으면 과거 누적을 보존 (p_old × factor)
-                node.pendingFactor = uint192(newPendingFactor);
-            }
-        } else {
-            // Normal case: accumulate the factor
-            require(newPendingFactor <= 1e50, CE.LazyFactorOverflow()); // Ultimate safety limit
-            node.pendingFactor = uint192(newPendingFactor);
-        }
+        // 🔧 FIXED: No auto-flush here to prevent factor loss
+        // Auto-flush decision moved to _applyFactorRecursive where l,r bounds are known
+        require(newPendingFactor <= 1e50, CE.LazyFactorOverflow()); // Ultimate safety limit
+        node.pendingFactor = uint192(newPendingFactor);
         
         // Update cached root sum if this is root
         if (nodeIndex == tree.root) {
@@ -157,54 +144,6 @@ library LazyMulSegmentTree {
         }
     }
     
-    /// @notice Force push pending factor to children (for auto-flush)
-    /// @param tree Tree storage reference
-    /// @param nodeIndex Target node index
-    function _forcePushPendingFactor(Tree storage tree, uint32 nodeIndex) private {
-        if (nodeIndex == 0) return;
-        
-        Node storage node = tree.nodes[nodeIndex];
-        uint192 pendingFactor = node.pendingFactor;
-        
-        if (pendingFactor != uint192(ONE_WAD) && node.childPtr != 0) {
-            (uint32 left, uint32 right) = _unpackChildPtr(node.childPtr);
-            
-            // Apply pending factor to children with overflow protection
-            if (left != 0) {
-                Node storage leftNode = tree.nodes[left];
-                leftNode.sum = leftNode.sum.wMul(uint256(pendingFactor));
-                uint256 newLeftPending = uint256(leftNode.pendingFactor).wMul(uint256(pendingFactor));
-                if (newLeftPending <= FLUSH_THRESHOLD) {
-                    leftNode.pendingFactor = uint192(newLeftPending);
-                } else {
-                    // Recursive flush if still too large
-                    _forcePushPendingFactor(tree, left);
-                    leftNode.pendingFactor = uint192(pendingFactor);
-                }
-            }
-            
-            if (right != 0) {
-                Node storage rightNode = tree.nodes[right];
-                rightNode.sum = rightNode.sum.wMul(uint256(pendingFactor));
-                uint256 newRightPending = uint256(rightNode.pendingFactor).wMul(uint256(pendingFactor));
-                if (newRightPending <= FLUSH_THRESHOLD) {
-                    rightNode.pendingFactor = uint192(newRightPending);
-                } else {
-                    // Recursive flush if still too large
-                    _forcePushPendingFactor(tree, right);
-                    rightNode.pendingFactor = uint192(pendingFactor);
-                }
-            }
-            
-            // Clear pending factor after flushing
-            node.pendingFactor = uint192(ONE_WAD);
-            
-            // Update cached root sum if this is root
-            if (nodeIndex == tree.root) {
-                tree.cachedRootSum = node.sum;
-            }
-        }
-    }
     
     /// @notice Push lazy values down to children (with auto-allocation)
     /// @param tree Tree storage reference
@@ -337,6 +276,7 @@ library LazyMulSegmentTree {
     }
     
     /// @notice Recursive range multiplication implementation
+    /// @dev 🔧 FIXED: Auto-flush decision moved here where l,r bounds are known
     /// @param tree Tree storage reference
     /// @param nodeIndex Current node index
     /// @param l Left boundary of current segment
@@ -359,16 +299,38 @@ library LazyMulSegmentTree {
         // If no node exists, nothing to do
         if (nodeIndex == 0) return;
         
-        // Complete overlap - apply lazy update
+        Node storage node = tree.nodes[nodeIndex];
+        
+        // Complete overlap - apply lazy update with smart auto-flush
         if (l >= lo && r <= hi) {
-            _applyFactorToNode(tree, nodeIndex, factor);
+            node.sum = node.sum.wMul(factor);
+            
+            uint256 newPendingFactor = uint256(node.pendingFactor).wMul(factor);
+            
+            // 🔧 FIXED: Smart auto-flush decision with range knowledge
+            if (newPendingFactor > FLUSH_THRESHOLD) {
+                // Force push current pendingFactor first, then apply new factor
+                if (node.pendingFactor != uint192(ONE_WAD)) {
+                    _pushPendingFactor(tree, nodeIndex, l, r);
+                }
+                // Now apply the new factor
+                node.pendingFactor = uint192(factor);
+            } else {
+                // Normal case: accumulate the factor
+                require(newPendingFactor <= 1e50, CE.LazyFactorOverflow());
+                node.pendingFactor = uint192(newPendingFactor);
+            }
+            
+            // Update cached root sum if this is root
+            if (nodeIndex == tree.root) {
+                tree.cachedRootSum = node.sum;
+            }
             return;
         }
         
         // Partial overlap - push down and recurse
         _pushPendingFactor(tree, nodeIndex, l, r);
         
-        Node storage node = tree.nodes[nodeIndex];
         (uint32 leftChild, uint32 rightChild) = _unpackChildPtr(node.childPtr);
         uint32 mid = l + (r - l) / 2;
         
