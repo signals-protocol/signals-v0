@@ -58,7 +58,13 @@ class CLMSRSDK {
     // ============================================================================
     /**
      * calculateOpenCost - 새 포지션 열기 비용 계산
+     * @param lowerTick Lower tick bound (inclusive)
+     * @param upperTick Upper tick bound (exclusive)
+     * @param quantity 매수 수량
+     * @param distribution Current market distribution
+     * @param market Market parameters
      */
+    // Tick boundary in absolute ticks; internally maps to inclusive bin indices [loBin, hiBin]
     calculateOpenCost(lowerTick, upperTick, quantity, distribution, market) {
         // Input validation
         if (new big_js_1.default(quantity).lte(0)) {
@@ -159,13 +165,14 @@ class CLMSRSDK {
     }
     /**
      * 주어진 비용으로 살 수 있는 수량 계산 (역산)
-     * @param lowerTick Lower tick bound
-     * @param upperTick Upper tick bound
+     * @param lowerTick Lower tick bound (inclusive)
+     * @param upperTick Upper tick bound (exclusive)
      * @param cost 목표 비용 (6 decimals)
      * @param distribution Current market distribution
      * @param market Market parameters
      * @returns 구매 가능한 수량
      */
+    // Tick boundary in absolute ticks; internally maps to inclusive bin indices [loBin, hiBin]
     calculateQuantityFromCost(lowerTick, upperTick, cost, distribution, market) {
         const costWad = MathUtils.toWad(cost); // 6→18 dec 변환
         // Convert from input
@@ -222,7 +229,7 @@ class CLMSRSDK {
      */
     _assertQuantityWithinLimit(quantity, alpha) {
         // maxQty = α × MAX_EXP_INPUT_WAD × MAX_CHUNKS_PER_TX
-        //        = α × 0.13 × 1000
+        //        = α × 1.0 × 1000
         // alpha는 WAD 형식, 직접 계산
         const chunksWad = new big_js_1.default(MathUtils.MAX_CHUNKS_PER_TX.toString()).mul(MathUtils.WAD);
         const step1 = MathUtils.wMul(alpha, MathUtils.MAX_EXP_INPUT_WAD);
@@ -231,19 +238,20 @@ class CLMSRSDK {
         const qtyWad = MathUtils.toWad(quantity);
         if (qtyWad.gt(maxQtyWad)) {
             const maxQtyFormatted = MathUtils.wadToNumber(maxQtyWad);
-            throw new types_1.ValidationError(`Quantity too large. Max per trade = ${maxQtyFormatted.toString()} USDC (market limit: α × 0.13 × 1000)`);
+            throw new types_1.ValidationError(`Quantity too large. Max per trade = ${maxQtyFormatted.toString()} USDC (market limit: α × 1.0 × 1000)`);
         }
     }
     /**
      * 내부 헬퍼: 매도 수익 계산 (코드 중복 제거)
-     * @param lowerTick Lower tick bound
-     * @param upperTick Upper tick bound
+     * @param lowerTick Lower tick bound (inclusive)
+     * @param upperTick Upper tick bound (exclusive)
      * @param sellQuantity 매도할 수량
      * @param positionQuantity 현재 포지션 수량 (검증용)
      * @param distribution Current market distribution
      * @param market Market parameters
      * @returns 매도 수익
      */
+    // Tick boundary in absolute ticks; internally maps to inclusive bin indices [loBin, hiBin]
     _calcSellProceeds(lowerTick, upperTick, sellQuantity, positionQuantity, distribution, market) {
         this.validateTickRange(lowerTick, upperTick, market);
         // Input validation
