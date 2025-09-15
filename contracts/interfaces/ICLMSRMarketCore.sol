@@ -26,7 +26,6 @@ interface ICLMSRMarketCore {
         uint32 positionEventsCursor;    // Next emission start index
         bool positionEventsEmitted;     // All events emitted flag
         
-        // ⚠️ UPGRADE SAFE: New fields must be added at the end
         int256 settlementValue;         // Original settlement value with 6 decimals (only if settled)
     }
     
