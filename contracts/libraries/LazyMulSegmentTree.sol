@@ -12,7 +12,16 @@ library LazyMulSegmentTree {
     using FixedPointMathU for uint256;
 
     // ========================================
-    // STRUCTS & STORAGE
+    // CONSTANTS
+    // ========================================
+    
+    uint256 public constant ONE_WAD = 1e18;
+    uint256 public constant MIN_FACTOR = 0.01e18;  // 1% minimum - allow wide range for CLMSR
+    uint256 public constant MAX_FACTOR = 100e18;   // 100x maximum - allow wide range for CLMSR
+    uint256 public constant FLUSH_THRESHOLD = 1e21; // 1,000 WAD - auto-flush when pendingFactor exceeds this
+
+    // ========================================
+    // STRUCTS
     // ========================================
     
     /// @notice Packed node structure for lazy multiplication segment tree
@@ -32,26 +41,80 @@ library LazyMulSegmentTree {
         uint256 cachedRootSum;          // Cached total sum for O(1) access
     }
 
-    // ========================================
-    // ERRORS
-    // ========================================
-    
-    error IndexOutOfBounds(uint32 index, uint32 size);
-    error InvalidRange(uint32 lo, uint32 hi);
-    error TreeNotInitialized();
-    error InvalidFactor(uint256 factor);
 
     // ========================================
-    // CONSTANTS
+    // EXTERNAL FUNCTIONS
     // ========================================
     
-    uint256 public constant ONE_WAD = 1e18;
-    uint256 public constant MIN_FACTOR = 0.01e18;  // 0.01% minimum - allow wide range for CLMSR
-    uint256 public constant MAX_FACTOR = 100e18;   // 100x maximum - allow wide range for CLMSR
-    uint256 public constant FLUSH_THRESHOLD = 1e21; // 1,000,000,000,000 WAD - auto-flush when pendingFactor exceeds this
+    /// @notice Initialize a new lazy multiplication segment tree
+    /// @param tree Tree storage reference
+    /// @param treeSize Number of leaves in the tree
+    function init(Tree storage tree, uint32 treeSize) external {
+        require(treeSize != 0, CE.TreeSizeZero());
+        require(tree.size == 0, CE.TreeAlreadyInitialized());
+        require(treeSize <= type(uint32).max / 2, CE.TreeSizeTooLarge());
+        
+        tree.size = treeSize;
+        tree.nextIndex = 0; // Start from 0
+        tree.root = _allocateNode(tree, 0, treeSize - 1);
+        tree.cachedRootSum = tree.nodes[tree.root].sum; // Read actual root sum
+    }
+    
+    /// @notice Apply range multiplication factor
+    /// @param tree Tree storage reference
+    /// @param lo Bin index lower bound (inclusive)
+    /// @param hi Bin index upper bound (inclusive)
+    /// @param factor Multiplication factor in WAD format
+    function applyRangeFactor(Tree storage tree, uint32 lo, uint32 hi, uint256 factor) external {
+        require(tree.size != 0, CE.TreeNotInitialized());
+        require(lo <= hi, CE.InvalidRange(lo, hi));
+        require(hi < tree.size, CE.IndexOutOfBounds(hi, tree.size));
+        require(
+            factor >= MIN_FACTOR && factor <= MAX_FACTOR,
+            CE.InvalidFactor(factor)
+        );
+        
+        _applyFactorRecursive(tree, tree.root, 0, tree.size - 1, lo, hi, factor);
+    
+    }
+
+    /// @notice Get range sum (on-the-fly calculation, view function)
+    /// @param tree Tree storage reference
+    /// @param lo Left boundary (inclusive)
+    /// @param hi Right boundary (inclusive)
+    /// @return sum Sum of values in range
+    function getRangeSum(Tree storage tree, uint32 lo, uint32 hi) 
+        external 
+        view
+        returns (uint256 sum) 
+    {
+        require(tree.size != 0, CE.TreeNotInitialized());
+        require(lo <= hi, CE.InvalidRange(lo, hi));
+        require(hi < tree.size, CE.IndexOutOfBounds(hi, tree.size));
+        
+        return _sumRangeWithAccFactor(tree, tree.root, 0, tree.size - 1, lo, hi, ONE_WAD);
+    }
+    
+    /// @notice Propagate lazy values and return range sum (state-changing function)
+    /// @param tree Tree storage reference
+    /// @param lo Bin index lower bound (inclusive)
+    /// @param hi Bin index upper bound (inclusive)
+    /// @return sum Sum of values in range
+    function propagateLazy(Tree storage tree, uint32 lo, uint32 hi)
+        external
+        returns (uint256 sum)
+    {
+        require(tree.size != 0, CE.TreeNotInitialized());
+        require(lo <= hi, CE.InvalidRange(lo, hi));
+        require(hi < tree.size, CE.IndexOutOfBounds(hi, tree.size));
+        
+        sum = _queryRecursive(tree, tree.root, 0, tree.size - 1, lo, hi);
+        
+        return sum;
+    }
 
     // ========================================
-    // HELPER FUNCTIONS
+    // INTERNAL FUNCTIONS
     // ========================================
     
     /// @notice Calculate default sum for empty range (all leaves = 1 WAD)
@@ -74,24 +137,6 @@ library LazyMulSegmentTree {
         left = uint32(packed >> 32);
         right = uint32(packed);
     }
-
-    // ========================================
-    // INITIALIZATION
-    // ========================================
-    
-    /// @notice Initialize a new lazy multiplication segment tree
-    /// @param tree Tree storage reference
-    /// @param treeSize Number of leaves in the tree
-    function init(Tree storage tree, uint32 treeSize) external {
-        require(treeSize != 0, CE.TreeSizeZero());
-        require(treeSize <= type(uint32).max / 2, CE.TreeSizeTooLarge());
-        require(tree.size == 0, CE.TreeAlreadyInitialized());
-        
-        tree.size = treeSize;
-        tree.nextIndex = 0; // Start from 0
-        tree.root = _allocateNode(tree, 0, treeSize - 1);
-        tree.cachedRootSum = uint256(treeSize) * ONE_WAD; // All leaves default to ONE_WAD
-    }
     
     /// @notice Allocate a new node with range boundaries
     /// @param tree Tree storage reference
@@ -105,23 +150,8 @@ library LazyMulSegmentTree {
         node.sum = _defaultSum(l, r); // Default sum for range
     }
 
-    // ========================================
-    // CORE OPERATIONS
-    // ========================================
-    
-    /// @notice Update a single leaf value
-    /// @param tree Tree storage reference
-    /// @param index Leaf index (0-based)
-    /// @param value New value to set
-    function update(Tree storage tree, uint32 index, uint256 value) external {
-        require(tree.size != 0, TreeNotInitialized());
-        require(index < tree.size, IndexOutOfBounds(index, tree.size));
-        
-        _updateRecursive(tree, tree.root, 0, tree.size - 1, index, value);
-        tree.cachedRootSum = tree.nodes[tree.root].sum;
-    }
-    
     /// @notice Apply lazy propagation to a node
+    /// @dev INVARIANT: node.sum already contains its own pendingFactor
     /// @param tree Tree storage reference
     /// @param nodeIndex Node index to apply to
     /// @param factor Multiplication factor
@@ -133,9 +163,7 @@ library LazyMulSegmentTree {
         
         uint256 newPendingFactor = uint256(node.pendingFactor).wMul(factor);
         
-        // 🔧 FIXED: No auto-flush here to prevent factor loss
-        // Auto-flush decision moved to _applyFactorRecursive where l,r bounds are known
-        require(newPendingFactor <= 1e50, CE.LazyFactorOverflow()); // Ultimate safety limit
+        require(newPendingFactor <= type(uint192).max, CE.LazyFactorOverflow());
         node.pendingFactor = uint192(newPendingFactor);
         
         // Update cached root sum if this is root
@@ -143,7 +171,6 @@ library LazyMulSegmentTree {
             tree.cachedRootSum = node.sum;
         }
     }
-    
     
     /// @notice Push lazy values down to children (with auto-allocation)
     /// @param tree Tree storage reference
@@ -181,6 +208,7 @@ library LazyMulSegmentTree {
     }
     
     /// @notice Pull values up from children
+    /// @dev PREREQUISITE: Must call _pushPendingFactor first (pending=ONE_WAD state)
     /// @param tree Tree storage reference
     /// @param nodeIndex Current node index
     /// @param l Left boundary
@@ -203,80 +231,8 @@ library LazyMulSegmentTree {
             tree.cachedRootSum = node.sum;
         }
     }
-
-    /// @notice Recursive update implementation
-    /// @param tree Tree storage reference
-    /// @param nodeIndex Current node index
-    /// @param l Left boundary of current segment
-    /// @param r Right boundary of current segment
-    /// @param index Target index to update
-    /// @param value New value
-    function _updateRecursive(
-        Tree storage tree,
-        uint32 nodeIndex,
-        uint32 l,
-        uint32 r,
-        uint32 index,
-        uint256 value
-    ) private {
-        if (l == r) {
-            // Leaf node
-            Node storage leaf = tree.nodes[nodeIndex];
-            leaf.sum = value;
-            leaf.pendingFactor = uint192(ONE_WAD);  // Clear any pending lazy factor
-            return;
-        }
-        
-        _pushPendingFactor(tree, nodeIndex, l, r);
-        
-        uint32 mid = l + (r - l) / 2;
-        (uint32 leftChild, uint32 rightChild) = _unpackChildPtr(tree.nodes[nodeIndex].childPtr);
-        
-        if (index <= mid) {
-            // Auto-allocate left child if needed
-            if (leftChild == 0) {
-                leftChild = _allocateNode(tree, l, mid);
-                tree.nodes[nodeIndex].childPtr = _packChildPtr(leftChild, rightChild);
-            }
-            _updateRecursive(tree, leftChild, l, mid, index, value);
-        } else {
-            // Auto-allocate right child if needed
-            if (rightChild == 0) {
-                rightChild = _allocateNode(tree, mid + 1, r);
-                tree.nodes[nodeIndex].childPtr = _packChildPtr(leftChild, rightChild);
-            }
-            _updateRecursive(tree, rightChild, mid + 1, r, index, value);
-        }
-        
-        _pullUpSum(tree, nodeIndex, l, r);
-    }
-
-    /// @notice Apply range multiplication factor
-    /// @param tree Tree storage reference
-    /// @param lo Bin index lower bound (inclusive)
-    /// @param hi Bin index upper bound (inclusive)
-    /// @param factor Multiplication factor in WAD format
-    // lo/hi are bin indices (inclusive)
-    function applyRangeFactor(Tree storage tree, uint32 lo, uint32 hi, uint256 factor) external {
-        require(tree.size != 0, TreeNotInitialized());
-        require(lo <= hi, InvalidRange(lo, hi));
-        require(hi < tree.size, IndexOutOfBounds(hi, tree.size));
-        require(
-            factor != 0 && factor >= MIN_FACTOR && factor <= MAX_FACTOR,
-            InvalidFactor(factor)
-        );
-        
-        _applyFactorRecursive(tree, tree.root, 0, tree.size - 1, lo, hi, factor);
-        
-        // Update cached root sum if affecting entire tree
-        if (lo == 0 && hi == tree.size - 1) {
-            tree.cachedRootSum = tree.nodes[tree.root].sum;
-        }
-    
-    }
     
     /// @notice Recursive range multiplication implementation
-    /// @dev 🔧 FIXED: Auto-flush decision moved here where l,r bounds are known
     /// @param tree Tree storage reference
     /// @param nodeIndex Current node index
     /// @param l Left boundary of current segment
@@ -307,7 +263,6 @@ library LazyMulSegmentTree {
             
             uint256 newPendingFactor = uint256(node.pendingFactor).wMul(factor);
             
-            // 🔧 FIXED: Smart auto-flush decision with range knowledge
             if (newPendingFactor > FLUSH_THRESHOLD) {
                 // Force push current pendingFactor first, then apply new factor
                 if (node.pendingFactor != uint192(ONE_WAD)) {
@@ -317,7 +272,7 @@ library LazyMulSegmentTree {
                 node.pendingFactor = uint192(factor);
             } else {
                 // Normal case: accumulate the factor
-                require(newPendingFactor <= 1e50, CE.LazyFactorOverflow());
+                require(newPendingFactor <= type(uint192).max, CE.LazyFactorOverflow());
                 node.pendingFactor = uint192(newPendingFactor);
             }
             
@@ -349,47 +304,6 @@ library LazyMulSegmentTree {
         _applyFactorRecursive(tree, rightChild, mid + 1, r, lo, hi, factor);
         
         _pullUpSum(tree, nodeIndex, l, r);
-    }
-
-    /// @notice Get range sum (on-the-fly calculation, view function)
-    /// @param tree Tree storage reference
-    /// @param lo Left boundary (inclusive)
-    /// @param hi Right boundary (inclusive)
-    /// @return sum Sum of values in range
-    function getRangeSum(Tree storage tree, uint32 lo, uint32 hi) 
-        external 
-        view
-        returns (uint256 sum) 
-    {
-        require(tree.size != 0, TreeNotInitialized());
-        require(lo <= hi, InvalidRange(lo, hi));
-        require(hi < tree.size, IndexOutOfBounds(hi, tree.size));
-        
-        return _sumRangeWithAccFactor(tree, tree.root, 0, tree.size - 1, lo, hi, ONE_WAD);
-    }
-    
-    /// @notice Propagate lazy values and return range sum (state-changing function)
-    /// @param tree Tree storage reference
-    /// @param lo Bin index lower bound (inclusive)
-    /// @param hi Bin index upper bound (inclusive)
-    /// @return sum Sum of values in range
-    // lo/hi are bin indices (inclusive)
-    function propagateLazy(Tree storage tree, uint32 lo, uint32 hi)
-        external
-        returns (uint256 sum)
-    {
-        require(tree.size != 0, TreeNotInitialized());
-        require(lo <= hi, InvalidRange(lo, hi));
-        require(hi < tree.size, IndexOutOfBounds(hi, tree.size));
-        
-        sum = _queryRecursive(tree, tree.root, 0, tree.size - 1, lo, hi);
-        
-        // Update cached root sum if affecting entire tree
-        if (lo == 0 && hi == tree.size - 1) {
-            tree.cachedRootSum = tree.nodes[tree.root].sum;
-        }
-        
-        return sum;
     }
     
     /// @notice On-the-fly query with accumulated lazy (true view function)
@@ -489,42 +403,4 @@ library LazyMulSegmentTree {
         return leftSum + rightSum;
     }
 
-    // ========================================
-    // UTILITY FUNCTIONS
-    // ========================================
-    
-    /// @notice Get total sum of all elements (O(1) cached access)
-    /// @param tree Tree storage reference
-    /// @return sum Total sum
-    function getTotalSum(Tree storage tree) external view returns (uint256 sum) {
-        return tree.cachedRootSum;
-    }
-
-    // ========================================
-    // BULK OPERATIONS
-    // ========================================
-    
-    /// @notice Batch update multiple values efficiently
-    /// @param tree Tree storage reference
-    /// @param indices Array of indices to update
-    /// @param values Array of new values
-    function batchUpdate(
-        Tree storage tree,
-        uint32[] memory indices,
-        uint256[] memory values
-    ) external {
-        require(indices.length == values.length, CE.ArrayLengthMismatch());
-        require(tree.size != 0, TreeNotInitialized());
-        
-        uint256 len = indices.length;
-        unchecked {
-            for (uint256 i; i < len; ++i) {
-                require(indices[i] < tree.size, IndexOutOfBounds(indices[i], tree.size));
-                _updateRecursive(tree, tree.root, 0, tree.size - 1, indices[i], values[i]);
-            }
-        }
-        
-        // Update cached root sum only once at the end
-        tree.cachedRootSum = tree.nodes[tree.root].sum;
-    }
 } 
