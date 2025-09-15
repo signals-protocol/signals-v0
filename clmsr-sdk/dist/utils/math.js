@@ -274,12 +274,12 @@ function safeExp(q, alpha) {
     if (alpha.eq(0)) {
         throw new types_1.ValidationError("Alpha cannot be zero");
     }
-    const maxPerChunk = wMul(alpha, exports.MAX_EXP_INPUT_WAD); // α * 0.13
+    const maxPerChunk = wMul(alpha, exports.MAX_EXP_INPUT_WAD); // α * 1.0
     let result = exports.WAD; // 1.0
     let remaining = new big_js_1.default(q.toString());
     while (remaining.gt(0)) {
         const chunk = remaining.gt(maxPerChunk) ? maxPerChunk : remaining;
-        const factor = wExp(wDiv(chunk, alpha)); // Safe: chunk/α ≤ 0.13
+        const factor = wExp(wDiv(chunk, alpha)); // Safe: chunk/α ≤ 1.0
         result = wMul(result, factor);
         remaining = remaining.minus(chunk);
     }

@@ -7,6 +7,11 @@ export { toWAD, toMicroUSDC } from "./utils/math";
 export declare class CLMSRSDK {
     /**
      * calculateOpenCost - 새 포지션 열기 비용 계산
+     * @param lowerTick Lower tick bound (inclusive)
+     * @param upperTick Upper tick bound (exclusive)
+     * @param quantity 매수 수량
+     * @param distribution Current market distribution
+     * @param market Market parameters
      */
     calculateOpenCost(lowerTick: Tick, upperTick: Tick, quantity: Quantity, distribution: MarketDistribution, market: Market): OpenCostResult;
     /**
@@ -36,8 +41,8 @@ export declare class CLMSRSDK {
     calculateSellProceeds(position: Position, sellQuantity: Quantity, distribution: MarketDistribution, market: Market): DecreaseProceedsResult;
     /**
      * 주어진 비용으로 살 수 있는 수량 계산 (역산)
-     * @param lowerTick Lower tick bound
-     * @param upperTick Upper tick bound
+     * @param lowerTick Lower tick bound (inclusive)
+     * @param upperTick Upper tick bound (exclusive)
      * @param cost 목표 비용 (6 decimals)
      * @param distribution Current market distribution
      * @param market Market parameters
@@ -53,8 +58,8 @@ export declare class CLMSRSDK {
     private _assertQuantityWithinLimit;
     /**
      * 내부 헬퍼: 매도 수익 계산 (코드 중복 제거)
-     * @param lowerTick Lower tick bound
-     * @param upperTick Upper tick bound
+     * @param lowerTick Lower tick bound (inclusive)
+     * @param upperTick Upper tick bound (exclusive)
      * @param sellQuantity 매도할 수량
      * @param positionQuantity 현재 포지션 수량 (검증용)
      * @param distribution Current market distribution
