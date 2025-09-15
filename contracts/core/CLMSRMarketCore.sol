@@ -974,12 +974,12 @@ contract CLMSRMarketCore is
     /// @param alpha Liquidity parameter in WAD format
     /// @return res Result of exp(q/α) in WAD format
     function _safeExp(uint256 q, uint256 alpha) internal pure returns (uint256 res) {
-        uint256 maxPerChunk = alpha.wMul(MAX_EXP_INPUT_WAD); // α * 0.13
+        uint256 maxPerChunk = alpha.wMul(MAX_EXP_INPUT_WAD); // α * 1.0
         res = FixedPointMathU.WAD; // 1.0
         
         while (q > 0) {
             uint256 chunk = q > maxPerChunk ? maxPerChunk : q;
-            uint256 factor = (chunk.wDiv(alpha)).wExp(); // Safe: chunk/α ≤ 0.13
+            uint256 factor = (chunk.wDiv(alpha)).wExp(); // Safe: chunk/α ≤ 1.0
             res = res.wMul(factor);
             q -= chunk;
         }
@@ -1007,7 +1007,7 @@ contract CLMSRMarketCore is
         
         // Get current state with proper lazy propagation
         // Use getRangeSum for entire tree to get accurate total with lazy values
-        uint256 sumBefore = LazyMulSegmentTree.getRangeSum(marketTrees[marketId], 0, market.numBins - 1);
+        uint256 sumBefore = marketTrees[marketId].cachedRootSum;
         uint256 affectedSum = LazyMulSegmentTree.getRangeSum(marketTrees[marketId], loBin, hiBin);
         
         // Ensure tree is properly initialized
@@ -1055,7 +1055,7 @@ contract CLMSRMarketCore is
             return _calculateSingleTradeCost(marketId, lowerTick, upperTick, totalQuantity, alpha);
         } else {
             // Split into chunks with proper cumulative calculation
-            uint256 sumBefore = LazyMulSegmentTree.getRangeSum(marketTrees[marketId], 0, market.numBins - 1);
+            uint256 sumBefore = marketTrees[marketId].cachedRootSum;
             uint256 affectedSum = LazyMulSegmentTree.getRangeSum(marketTrees[marketId], loBin, hiBin);
             
             // Ensure tree is properly initialized
@@ -1147,7 +1147,7 @@ contract CLMSRMarketCore is
     ) internal view returns (uint256 cost) {
         // Get current sum before trade with proper lazy propagation
         Market memory market = markets[marketId];
-        uint256 sumBefore = LazyMulSegmentTree.getRangeSum(marketTrees[marketId], 0, market.numBins - 1);
+        uint256 sumBefore = marketTrees[marketId].cachedRootSum;
         
         // Calculate multiplicative factor: exp(quantity / α)
         uint256 quantityScaled = quantity.wDiv(alpha);
@@ -1200,7 +1200,7 @@ contract CLMSRMarketCore is
             return _calculateSingleSellProceeds(marketId, lowerTick, upperTick, totalQuantity, alpha);
         } else {
             // Split into chunks with proper cumulative calculation
-            uint256 sumBefore = LazyMulSegmentTree.getRangeSum(marketTrees[marketId], 0, market.numBins - 1);
+            uint256 sumBefore = marketTrees[marketId].cachedRootSum;
             uint256 affectedSum = LazyMulSegmentTree.getRangeSum(marketTrees[marketId], loBin, hiBin);
             
             // Ensure tree is properly initialized
@@ -1301,7 +1301,7 @@ contract CLMSRMarketCore is
     ) internal view returns (uint256 proceeds) {
         // Get current sum before sell with proper lazy propagation
         Market memory market = markets[marketId];
-        uint256 sumBefore = LazyMulSegmentTree.getRangeSum(marketTrees[marketId], 0, market.numBins - 1);
+        uint256 sumBefore = marketTrees[marketId].cachedRootSum;
         
         // Calculate multiplicative factor: exp(-quantity / α) = 1 / exp(quantity / α)
         uint256 quantityScaled = quantity.wDiv(alpha);
@@ -1447,7 +1447,7 @@ contract CLMSRMarketCore is
             
             require(
                 requiredChunks <= MAX_CHUNKS_PER_TX,
-                CE.InvalidQuantity(uint128(quantity)) // Quantity too large for single transaction
+                CE.ChunkLimitExceeded(requiredChunks, MAX_CHUNKS_PER_TX)
             );
             
             // Split into chunks with gas-efficient batch processing
