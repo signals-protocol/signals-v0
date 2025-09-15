@@ -7,7 +7,6 @@ import "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/utils/Base64.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
@@ -21,7 +20,6 @@ contract CLMSRPosition is
     OwnableUpgradeable,
     UUPSUpgradeable
 {
-    using EnumerableSet for EnumerableSet.UintSet;
     using Strings for uint256;
 
     // ========================================
@@ -34,22 +32,19 @@ contract CLMSRPosition is
     /// @notice Next position ID to mint (starts at 1)
     uint256 private _nextId;
     
-    /// @notice Current total supply (excluding burned tokens)
+    /// @notice DEPRECATED: Total supply tracking (no longer maintained)
     uint256 private _totalSupply;
     
     /// @notice Position data mapping
     mapping(uint256 => ICLMSRPosition.Position) private _positions;
     
-    /// @notice Owner to position IDs mapping (gas-optimized with EnumerableSet)
-    mapping(address => EnumerableSet.UintSet) private _ownedTokens;
+    /// @notice DEPRECATED: Owner tokens slot (no longer maintained)
+    mapping(address => uint256) private _ownedTokensSlot;
     
     /// @dev Gap for future storage variables
-    // MARKET-LOCAL TOKEN INDEXING (NEW)
-    // - _marketTokenList: per-market ordered list of positionIds; 0 marks burned holes
-    // - _positionMarket: reverse lookup for positionId -> marketId
-    // - _positionMarketIndex: 1-based index into _marketTokenList[marketId]
+    // MARKET-LOCAL TOKEN INDEXING
     mapping(uint256 => uint256[]) private _marketTokenList;
-    mapping(uint256 => uint256) private _positionMarket;
+    mapping(uint256 => uint256) private _positionMarket; // DEPRECATED: no longer maintained
     mapping(uint256 => uint256) private _positionMarketIndex;
     uint256[47] private __gap;
 
@@ -119,11 +114,6 @@ contract CLMSRPosition is
         ));
     }
 
-    /// @notice Override _update to maintain owner token tracking
-    /// @param to Recipient address
-    /// @param tokenId Token ID being transferred
-    /// @param auth Authorized address
-    /// @return Previous owner
 
     // ========================================
     // POSITION MANAGEMENT (Core Only)
@@ -151,14 +141,10 @@ contract CLMSRPosition is
             createdAt: uint64(block.timestamp)
         });
         
-        // Mint NFT (this will trigger _update and add to _ownedTokens)
+        // Mint NFT
         _safeMint(to, positionId);
         
-        // Increment total supply (only if not already handled by ERC721)
-        _totalSupply++;
-        
         // Market-local indexing
-        _positionMarket[positionId] = marketId;
         _marketTokenList[marketId].push(positionId);
         _positionMarketIndex[positionId] = _marketTokenList[marketId].length; // 1-based index
         
@@ -184,11 +170,8 @@ contract CLMSRPosition is
         uint256 marketId = _positions[positionId].marketId;
         uint256 idx1 = _positionMarketIndex[positionId];
         
-        // Burn NFT (this will trigger _update and remove from _ownedTokens)
+        // Burn NFT 
         _burn(positionId);
-        
-        // Decrement total supply
-        _totalSupply--;
         
         // Mark hole in market-local list and clear indexes
         if (idx1 != 0) {
@@ -198,7 +181,7 @@ contract CLMSRPosition is
             }
             delete _positionMarketIndex[positionId];
         }
-        delete _positionMarket[positionId];
+        // No longer maintaining _positionMarket mapping
 
         // Clean up position data
         delete _positions[positionId];
@@ -218,81 +201,13 @@ contract CLMSRPosition is
         return _positions[positionId];
     }
 
-    /// @inheritdoc ICLMSRPosition
-    function getOwnerPositions(address owner) external view returns (uint256[] memory positionIds) {
-        return _ownedTokens[owner].values();
-    }
 
-    /// @inheritdoc ICLMSRPosition
-    function getUserPositionsInMarket(address owner, uint256 marketId) 
-        external 
-        view 
-        returns (uint256[] memory positionIds) 
-    {
-        uint256[] memory allTokens = _ownedTokens[owner].values();
-        uint256[] memory temp = new uint256[](allTokens.length);
-        uint256 count = 0;
-        
-        unchecked {
-            for (uint256 i = 0; i < allTokens.length; ++i) {
-                uint256 tokenId = allTokens[i];
-                if (_positions[tokenId].marketId == marketId) {
-                    temp[count] = tokenId;
-                    ++count;
-                }
-            }
-        }
-        
-        // Create result array with exact size
-        positionIds = new uint256[](count);
-        unchecked {
-            for (uint256 i = 0; i < count; ++i) {
-                positionIds[i] = temp[i];
-            }
-        }
-    }
-
-    /// @inheritdoc ICLMSRPosition
-    function getMarketPositions(uint256 marketId) 
-        external 
-        view 
-        returns (uint256[] memory positionIds) 
-    {
-        // Count positions for this market
-        uint256 count = 0;
-        uint256 totalPositions = _nextId - 1;
-        
-        // First pass: count matching positions
-        unchecked {
-            for (uint256 i = 1; i <= totalPositions; ++i) {
-                if (_exists(i) && _positions[i].marketId == marketId) {
-                    ++count;
-                }
-            }
-        }
-        
-        // Second pass: collect matching positions
-        positionIds = new uint256[](count);
-        uint256 index = 0;
-        unchecked {
-            for (uint256 i = 1; i <= totalPositions; ++i) {
-                if (_exists(i) && _positions[i].marketId == marketId) {
-                    positionIds[index] = i;
-                    ++index;
-                }
-            }
-        }
-    }
 
     /// @inheritdoc ICLMSRPosition
     function exists(uint256 positionId) external view returns (bool) {
         return _exists(positionId);
     }
 
-    /// @notice Check if caller is authorized (core contract)
-    function isAuthorizedCaller(address caller) external view returns (bool) {
-        return caller == core;
-    }
 
     // ========================================
     // ERC165 SUPPORT
@@ -305,8 +220,7 @@ contract CLMSRPosition is
         override(ERC721Upgradeable, IERC165) 
         returns (bool) 
     {
-        return interfaceId == type(ICLMSRPosition).interfaceId || 
-               super.supportsInterface(interfaceId);
+        return super.supportsInterface(interfaceId);
     }
 
 
@@ -317,42 +231,6 @@ contract CLMSRPosition is
     // INTERNAL HELPERS
     // ========================================
     
-    // ========================================
-    // VIEW FUNCTIONS FOR ANALYTICS
-    // ========================================
-    
-    /// @notice Get total supply of position tokens
-    /// @return Total number of existing positions (excluding burned)
-    function totalSupply() external view returns (uint256) {
-        return _totalSupply;
-    }
-    
-    /// @notice Get total number of positions owned by address
-    /// @param owner Address to query
-    /// @return count Number of positions owned
-    function balanceOf(address owner) public view override(ERC721Upgradeable, IERC721) returns (uint256 count) {
-        require(owner != address(0), ERC721InvalidOwner(address(0)));
-        return _ownedTokens[owner].length();
-    }
-
-    /// @notice Find the owner of a token
-    /// @param tokenId The identifier for a token
-    /// @return The address of the owner of the token
-    function ownerOf(uint256 tokenId) public view override(ERC721Upgradeable, IERC721) returns (address) {
-        return super.ownerOf(tokenId);
-    }
-
-    /// @notice Get next position ID that will be minted
-    /// @return Next position ID
-    function getNextId() external view returns (uint256) {
-        return _nextId;
-    }
-
-    /// @notice Get core contract address
-    /// @return Core contract address
-    function getCoreContract() external view returns (address) {
-        return core;
-    }
 
 
     // ========================================
@@ -379,27 +257,6 @@ contract CLMSRPosition is
     /// @notice Authorize upgrade (only owner)
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
-    /// @notice Override _update to maintain owner token tracking
-    function _update(address to, uint256 tokenId, address auth)
-        internal
-        override(ERC721Upgradeable)
-        returns (address)
-    {
-        address from = _ownerOf(tokenId);
-
-        // Call parent implementation
-        address previousOwner = super._update(to, tokenId, auth);
-
-        // Update owner token tracking
-        if (from != address(0)) {
-            _ownedTokens[from].remove(tokenId);
-        }
-        if (to != address(0)) {
-            _ownedTokens[to].add(tokenId);
-        }
-
-        return previousOwner;
-    }
 
     /// @notice Convert int256 to string
     function _int256ToString(int256 value) internal pure returns (string memory) {
