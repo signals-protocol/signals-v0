@@ -34,6 +34,7 @@
     "safety:citrea:prod": "MANIFEST_DEFAULT_DIR=.openzeppelin/prod COMMAND=safety-check:citrea:prod npx hardhat run scripts/dispatcher.ts --network citrea-prod",
     "verify:citrea:dev": "bash scripts/verify-all.sh citrea-dev",
     "verify:citrea:prod": "bash scripts/verify-all.sh citrea-prod",
+    "find-divergence": "npx hardhat run verification/find-divergence-block.ts --network citrea-prod",
     "manifest:backup:localhost": "COMMAND=manifest-backup:localhost npx hardhat run scripts/dispatcher.ts",
     "manifest:backup:dev": "COMMAND=manifest-backup:dev npx hardhat run scripts/dispatcher.ts",
     "manifest:backup:prod": "COMMAND=manifest-backup:prod npx hardhat run scripts/dispatcher.ts",

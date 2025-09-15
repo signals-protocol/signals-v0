@@ -2,21 +2,21 @@
   "manifestVersion": "3.2",
   "proxies": [
     {
-      "address": "0xE480ca1C63B6dd929af1EeA4D3de1073942F3cEf",
+      "address": "0x971F9bcE130743BB3eFb37aeAC2050cD44d7579a",
       "kind": "uups"
     },
     {
-      "address": "0xB4c33Df898F8139D784ADE1aDCa9B5979898fE03",
+      "address": "0xe163497F304ad4b7482C84Bc82079d46050c6e93",
       "kind": "uups"
     },
     {
-      "address": "0x9E1265677B628A22b9C1d6f0FeCEb6241eA5268d",
+      "address": "0x59eb810fa5e7c0646902C29D9e8bfdaDf25Ce274",
       "kind": "uups"
     }
   ],
   "impls": {
-    "59b5fde84d9d912723541bd6ae8946ca3d2f96e0dcb1f0db52e9e21ca32db5a9": {
-      "address": "0xb6a370353eFC3864385a70C57cAE1bBa0A034B40",
+    "13d29ab59c9de74c915cfb91de4ceb3215740057054480a21f594e77aae8c671": {
+      "address": "0x509c04aFbFFDE66400d48c1A5A044291B47b0D43",
       "layout": {
         "solcVersion": "0.8.24",
         "storage": [
@@ -24,7 +24,7 @@
             "label": "paymentToken",
             "offset": 0,
             "slot": "0",
-            "type": "t_contract(IERC20)1482",
+            "type": "t_contract(IERC20)3402",
             "contract": "CLMSRMarketCore",
             "src": "contracts/core/CLMSRMarketCore.sol:68"
           },
@@ -32,7 +32,7 @@
             "label": "positionContract",
             "offset": 0,
             "slot": "1",
-            "type": "t_contract(ICLMSRPosition)15194",
+            "type": "t_contract(ICLMSRPosition)25192",
             "contract": "CLMSRMarketCore",
             "src": "contracts/core/CLMSRMarketCore.sol:71"
           },
@@ -40,7 +40,7 @@
             "label": "markets",
             "offset": 0,
             "slot": "2",
-            "type": "t_mapping(t_uint256,t_struct(Market)14598_storage)",
+            "type": "t_mapping(t_uint256,t_struct(Market)24596_storage)",
             "contract": "CLMSRMarketCore",
             "src": "contracts/core/CLMSRMarketCore.sol:76"
           },
@@ -48,7 +48,7 @@
             "label": "marketTrees",
             "offset": 0,
             "slot": "3",
-            "type": "t_mapping(t_uint256,t_struct(Tree)15750_storage)",
+            "type": "t_mapping(t_uint256,t_struct(Tree)25748_storage)",
             "contract": "CLMSRMarketCore",
             "src": "contracts/core/CLMSRMarketCore.sol:79"
           },
@@ -116,7 +116,7 @@
             ],
             "numberOfBytes": "32"
           },
-          "t_struct(PausableStorage)224_storage": {
+          "t_struct(PausableStorage)559_storage": {
             "label": "struct PausableUpgradeable.PausableStorage",
             "members": [
               {
@@ -128,7 +128,7 @@
             ],
             "numberOfBytes": "32"
           },
-          "t_struct(ReentrancyGuardStorage)288_storage": {
+          "t_struct(ReentrancyGuardStorage)623_storage": {
             "label": "struct ReentrancyGuardUpgradeable.ReentrancyGuardStorage",
             "members": [
               {
@@ -152,11 +152,11 @@
             "label": "uint256[48]",
             "numberOfBytes": "1536"
           },
-          "t_contract(ICLMSRPosition)15194": {
+          "t_contract(ICLMSRPosition)25192": {
             "label": "contract ICLMSRPosition",
             "numberOfBytes": "20"
           },
-          "t_contract(IERC20)1482": {
+          "t_contract(IERC20)3402": {
             "label": "contract IERC20",
             "numberOfBytes": "20"
           },
@@ -168,19 +168,19 @@
             "label": "mapping(uint256 => bool)",
             "numberOfBytes": "32"
           },
-          "t_mapping(t_uint256,t_struct(Market)14598_storage)": {
+          "t_mapping(t_uint256,t_struct(Market)24596_storage)": {
             "label": "mapping(uint256 => struct ICLMSRMarketCore.Market)",
             "numberOfBytes": "32"
           },
-          "t_mapping(t_uint256,t_struct(Tree)15750_storage)": {
+          "t_mapping(t_uint256,t_struct(Tree)25748_storage)": {
             "label": "mapping(uint256 => struct LazyMulSegmentTree.Tree)",
             "numberOfBytes": "32"
           },
-          "t_mapping(t_uint32,t_struct(Node)15735_storage)": {
+          "t_mapping(t_uint32,t_struct(Node)25733_storage)": {
             "label": "mapping(uint32 => struct LazyMulSegmentTree.Node)",
             "numberOfBytes": "32"
           },
-          "t_struct(Market)14598_storage": {
+          "t_struct(Market)24596_storage": {
             "label": "struct ICLMSRMarketCore.Market",
             "members": [
               {
@@ -264,7 +264,7 @@
             ],
             "numberOfBytes": "288"
           },
-          "t_struct(Node)15735_storage": {
+          "t_struct(Node)25733_storage": {
             "label": "struct LazyMulSegmentTree.Node",
             "members": [
               {
@@ -288,12 +288,12 @@
             ],
             "numberOfBytes": "64"
           },
-          "t_struct(Tree)15750_storage": {
+          "t_struct(Tree)25748_storage": {
             "label": "struct LazyMulSegmentTree.Tree",
             "members": [
               {
                 "label": "nodes",
-                "type": "t_mapping(t_uint32,t_struct(Node)15735_storage)",
+                "type": "t_mapping(t_uint32,t_struct(Node)25733_storage)",
                 "offset": 0,
                 "slot": "0"
               },
@@ -383,395 +383,13 @@
             }
           ]
         }
-      }
-    },
-    "8c7c2d79456b1645b0162bbd5abb8be8ea2ab53d431cc4308727f0871e376ecf": {
-      "address": "0x86b42180E19Ba0089D226deA6d283973c1640012",
-      "layout": {
-        "solcVersion": "0.8.24",
-        "storage": [
-          {
-            "label": "core",
-            "offset": 0,
-            "slot": "0",
-            "type": "t_address",
-            "contract": "CLMSRPosition",
-            "src": "contracts/core/CLMSRPosition.sol:33"
-          },
-          {
-            "label": "_nextId",
-            "offset": 0,
-            "slot": "1",
-            "type": "t_uint256",
-            "contract": "CLMSRPosition",
-            "src": "contracts/core/CLMSRPosition.sol:36"
-          },
-          {
-            "label": "_totalSupply",
-            "offset": 0,
-            "slot": "2",
-            "type": "t_uint256",
-            "contract": "CLMSRPosition",
-            "src": "contracts/core/CLMSRPosition.sol:38"
-          },
-          {
-            "label": "_positions",
-            "offset": 0,
-            "slot": "3",
-            "type": "t_mapping(t_uint256,t_struct(Position)25011_storage)",
-            "contract": "CLMSRPosition",
-            "src": "contracts/core/CLMSRPosition.sol:40"
-          },
-          {
-            "label": "_ownedTokens",
-            "offset": 0,
-            "slot": "4",
-            "type": "t_mapping(t_address,t_struct(UintSet)11253_storage)",
-            "contract": "CLMSRPosition",
-            "src": "contracts/core/CLMSRPosition.sol:43"
-          },
-          {
-            "label": "_marketTokenList",
-            "offset": 0,
-            "slot": "5",
-            "type": "t_mapping(t_uint256,t_array(t_uint256)dyn_storage)",
-            "contract": "CLMSRPosition",
-            "src": "contracts/core/CLMSRPosition.sol:50"
-          },
-          {
-            "label": "_positionMarket",
-            "offset": 0,
-            "slot": "6",
-            "type": "t_mapping(t_uint256,t_uint256)",
-            "contract": "CLMSRPosition",
-            "src": "contracts/core/CLMSRPosition.sol:51"
-          },
-          {
-            "label": "_positionMarketIndex",
-            "offset": 0,
-            "slot": "7",
-            "type": "t_mapping(t_uint256,t_uint256)",
-            "contract": "CLMSRPosition",
-            "src": "contracts/core/CLMSRPosition.sol:52"
-          },
-          {
-            "label": "__gap",
-            "offset": 0,
-            "slot": "8",
-            "type": "t_array(t_uint256)47_storage",
-            "contract": "CLMSRPosition",
-            "src": "contracts/core/CLMSRPosition.sol:55"
-          }
-        ],
-        "types": {
-          "t_address": {
-            "label": "address",
-            "numberOfBytes": "20"
-          },
-          "t_bool": {
-            "label": "bool",
-            "numberOfBytes": "1"
-          },
-          "t_mapping(t_address,t_bool)": {
-            "label": "mapping(address => bool)",
-            "numberOfBytes": "32"
-          },
-          "t_mapping(t_address,t_mapping(t_address,t_bool))": {
-            "label": "mapping(address => mapping(address => bool))",
-            "numberOfBytes": "32"
-          },
-          "t_mapping(t_address,t_uint256)": {
-            "label": "mapping(address => uint256)",
-            "numberOfBytes": "32"
-          },
-          "t_mapping(t_uint256,t_address)": {
-            "label": "mapping(uint256 => address)",
-            "numberOfBytes": "32"
-          },
-          "t_string_storage": {
-            "label": "string",
-            "numberOfBytes": "32"
-          },
-          "t_struct(ERC721Storage)240_storage": {
-            "label": "struct ERC721Upgradeable.ERC721Storage",
-            "members": [
-              {
-                "label": "_name",
-                "type": "t_string_storage",
-                "offset": 0,
-                "slot": "0"
-              },
-              {
-                "label": "_symbol",
-                "type": "t_string_storage",
-                "offset": 0,
-                "slot": "1"
-              },
-              {
-                "label": "_owners",
-                "type": "t_mapping(t_uint256,t_address)",
-                "offset": 0,
-                "slot": "2"
-              },
-              {
-                "label": "_balances",
-                "type": "t_mapping(t_address,t_uint256)",
-                "offset": 0,
-                "slot": "3"
-              },
-              {
-                "label": "_tokenApprovals",
-                "type": "t_mapping(t_uint256,t_address)",
-                "offset": 0,
-                "slot": "4"
-              },
-              {
-                "label": "_operatorApprovals",
-                "type": "t_mapping(t_address,t_mapping(t_address,t_bool))",
-                "offset": 0,
-                "slot": "5"
-              }
-            ],
-            "numberOfBytes": "192"
-          },
-          "t_struct(InitializableStorage)73_storage": {
-            "label": "struct Initializable.InitializableStorage",
-            "members": [
-              {
-                "label": "_initialized",
-                "type": "t_uint64",
-                "offset": 0,
-                "slot": "0"
-              },
-              {
-                "label": "_initializing",
-                "type": "t_bool",
-                "offset": 8,
-                "slot": "0"
-              }
-            ],
-            "numberOfBytes": "32"
-          },
-          "t_struct(OwnableStorage)13_storage": {
-            "label": "struct OwnableUpgradeable.OwnableStorage",
-            "members": [
-              {
-                "label": "_owner",
-                "type": "t_address",
-                "offset": 0,
-                "slot": "0"
-              }
-            ],
-            "numberOfBytes": "32"
-          },
-          "t_uint256": {
-            "label": "uint256",
-            "numberOfBytes": "32"
-          },
-          "t_uint64": {
-            "label": "uint64",
-            "numberOfBytes": "8"
-          },
-          "t_array(t_bytes32)dyn_storage": {
-            "label": "bytes32[]",
-            "numberOfBytes": "32"
-          },
-          "t_array(t_uint256)47_storage": {
-            "label": "uint256[47]",
-            "numberOfBytes": "1504"
-          },
-          "t_array(t_uint256)dyn_storage": {
-            "label": "uint256[]",
-            "numberOfBytes": "32"
-          },
-          "t_bytes32": {
-            "label": "bytes32",
-            "numberOfBytes": "32"
-          },
-          "t_int256": {
-            "label": "int256",
-            "numberOfBytes": "32"
-          },
-          "t_mapping(t_address,t_struct(UintSet)11253_storage)": {
-            "label": "mapping(address => struct EnumerableSet.UintSet)",
-            "numberOfBytes": "32"
-          },
-          "t_mapping(t_bytes32,t_uint256)": {
-            "label": "mapping(bytes32 => uint256)",
-            "numberOfBytes": "32"
-          },
-          "t_mapping(t_uint256,t_array(t_uint256)dyn_storage)": {
-            "label": "mapping(uint256 => uint256[])",
-            "numberOfBytes": "32"
-          },
-          "t_mapping(t_uint256,t_struct(Position)25011_storage)": {
-            "label": "mapping(uint256 => struct ICLMSRPosition.Position)",
-            "numberOfBytes": "32"
-          },
-          "t_mapping(t_uint256,t_uint256)": {
-            "label": "mapping(uint256 => uint256)",
-            "numberOfBytes": "32"
-          },
-          "t_struct(Position)25011_storage": {
-            "label": "struct ICLMSRPosition.Position",
-            "members": [
-              {
-                "label": "marketId",
-                "type": "t_uint256",
-                "offset": 0,
-                "slot": "0"
-              },
-              {
-                "label": "lowerTick",
-                "type": "t_int256",
-                "offset": 0,
-                "slot": "1"
-              },
-              {
-                "label": "upperTick",
-                "type": "t_int256",
-                "offset": 0,
-                "slot": "2"
-              },
-              {
-                "label": "quantity",
-                "type": "t_uint128",
-                "offset": 0,
-                "slot": "3"
-              },
-              {
-                "label": "createdAt",
-                "type": "t_uint64",
-                "offset": 16,
-                "slot": "3"
-              }
-            ],
-            "numberOfBytes": "128"
-          },
-          "t_struct(Set)10712_storage": {
-            "label": "struct EnumerableSet.Set",
-            "members": [
-              {
-                "label": "_values",
-                "type": "t_array(t_bytes32)dyn_storage",
-                "offset": 0,
-                "slot": "0"
-              },
-              {
-                "label": "_positions",
-                "type": "t_mapping(t_bytes32,t_uint256)",
-                "offset": 0,
-                "slot": "1"
-              }
-            ],
-            "numberOfBytes": "64"
-          },
-          "t_struct(UintSet)11253_storage": {
-            "label": "struct EnumerableSet.UintSet",
-            "members": [
-              {
-                "label": "_inner",
-                "type": "t_struct(Set)10712_storage",
-                "offset": 0,
-                "slot": "0"
-              }
-            ],
-            "numberOfBytes": "64"
-          },
-          "t_uint128": {
-            "label": "uint128",
-            "numberOfBytes": "16"
-          }
-        },
-        "namespaces": {
-          "erc7201:openzeppelin.storage.Ownable": [
-            {
-              "contract": "OwnableUpgradeable",
-              "label": "_owner",
-              "type": "t_address",
-              "src": "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol:24",
-              "offset": 0,
-              "slot": "0"
-            }
-          ],
-          "erc7201:openzeppelin.storage.ERC721": [
-            {
-              "contract": "ERC721Upgradeable",
-              "label": "_name",
-              "type": "t_string_storage",
-              "src": "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol:27",
-              "offset": 0,
-              "slot": "0"
-            },
-            {
-              "contract": "ERC721Upgradeable",
-              "label": "_symbol",
-              "type": "t_string_storage",
-              "src": "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol:30",
-              "offset": 0,
-              "slot": "1"
-            },
-            {
-              "contract": "ERC721Upgradeable",
-              "label": "_owners",
-              "type": "t_mapping(t_uint256,t_address)",
-              "src": "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol:32",
-              "offset": 0,
-              "slot": "2"
-            },
-            {
-              "contract": "ERC721Upgradeable",
-              "label": "_balances",
-              "type": "t_mapping(t_address,t_uint256)",
-              "src": "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol:34",
-              "offset": 0,
-              "slot": "3"
-            },
-            {
-              "contract": "ERC721Upgradeable",
-              "label": "_tokenApprovals",
-              "type": "t_mapping(t_uint256,t_address)",
-              "src": "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol:36",
-              "offset": 0,
-              "slot": "4"
-            },
-            {
-              "contract": "ERC721Upgradeable",
-              "label": "_operatorApprovals",
-              "type": "t_mapping(t_address,t_mapping(t_address,t_bool))",
-              "src": "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol:38",
-              "offset": 0,
-              "slot": "5"
-            }
-          ],
-          "erc7201:openzeppelin.storage.Initializable": [
-            {
-              "contract": "Initializable",
-              "label": "_initialized",
-              "type": "t_uint64",
-              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:69",
-              "offset": 0,
-              "slot": "0"
-            },
-            {
-              "contract": "Initializable",
-              "label": "_initializing",
-              "type": "t_bool",
-              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:73",
-              "offset": 8,
-              "slot": "0"
-            }
-          ]
-        }
       },
       "allAddresses": [
-        "0x86b42180E19Ba0089D226deA6d283973c1640012",
-        "0x8D3EE670E1F77785Fb556A913FD1a0ad3f0B722c",
-        "0xE429D2bD379CBB86978d6A994b744Ebc1472b865"
+        "0x509c04aFbFFDE66400d48c1A5A044291B47b0D43"
       ]
     },
     "9379634d8942428c26234f6cf9663401660e704a50e9547f8a9f926b7618f730": {
-      "address": "0xC8Cc64E49B4a068eF45F8e06f8C100EC520A3223",
+      "address": "0x4BB795AB68a69be8134BB81Bba33dB2144752b1b",
       "layout": {
         "solcVersion": "0.8.24",
         "storage": [],
@@ -851,13 +469,13 @@
         }
       },
       "allAddresses": [
-        "0xC8Cc64E49B4a068eF45F8e06f8C100EC520A3223",
-        "0xBAb0447414653e1E8bB4b61197b4733E4A9eCbCC",
-        "0x5EF6713131fD6b126aBC44FFc26F6CCFDBd3A4aB"
+        "0x4BB795AB68a69be8134BB81Bba33dB2144752b1b",
+        "0x9940126c4cf830A85b15E45fAbd32bF2Ce9e5A9c",
+        "0x2F65AB8132e51c23261F92e8FA502801aa7d5824"
       ]
     },
-    "1b0c846fb99d242c5c257435befb7d10ef4457da5b2bbee151e573a6811ebeb7": {
-      "address": "0xb6a370353eFC3864385a70C57cAE1bBa0A034B40",
+    "3e7c30c64c52f1348c008d7a71e54bdf9091247b9b0fde384577454958a58850": {
+      "address": "0x509c04aFbFFDE66400d48c1A5A044291B47b0D43",
       "layout": {
         "solcVersion": "0.8.24",
         "storage": [
@@ -1226,9 +844,382 @@
         }
       }
     },
-    "e0a372b478faab40e45cae208547d1d6b91dc51021a12f37739a9a50d4fc4478": {
-      "address": "0xa18C70923F200440Bac1Ea0E4E21421A92F86721",
-      "txHash": "0xac27c946518bc2cdf46da39bbedbe0c7ee3688b6f6be32142ad8281bdb8e4abd",
+    "cbd1e6bd7e274e1e321a880d2bdadf5f333370b889d2899f85122f5c7ac49a68": {
+      "address": "0xC98Ac18F5a5b84C8410cbcD0E9Ac63C9178f653D",
+      "txHash": "0x98eb6dd983e457d307675d80ab20ccaac93fed981dd312143ad2b40306a1b582",
+      "layout": {
+        "solcVersion": "0.8.24",
+        "storage": [
+          {
+            "label": "paymentToken",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_contract(IERC20)3402",
+            "contract": "CLMSRMarketCore",
+            "src": "contracts/core/CLMSRMarketCore.sol:68"
+          },
+          {
+            "label": "positionContract",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_contract(ICLMSRPosition)25192",
+            "contract": "CLMSRMarketCore",
+            "src": "contracts/core/CLMSRMarketCore.sol:71"
+          },
+          {
+            "label": "markets",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_mapping(t_uint256,t_struct(Market)24596_storage)",
+            "contract": "CLMSRMarketCore",
+            "src": "contracts/core/CLMSRMarketCore.sol:76"
+          },
+          {
+            "label": "marketTrees",
+            "offset": 0,
+            "slot": "3",
+            "type": "t_mapping(t_uint256,t_struct(Tree)25748_storage)",
+            "contract": "CLMSRMarketCore",
+            "src": "contracts/core/CLMSRMarketCore.sol:79"
+          },
+          {
+            "label": "_nextMarketId",
+            "offset": 0,
+            "slot": "4",
+            "type": "t_uint256",
+            "contract": "CLMSRMarketCore",
+            "src": "contracts/core/CLMSRMarketCore.sol:82"
+          },
+          {
+            "label": "positionSettledEmitted",
+            "offset": 0,
+            "slot": "5",
+            "type": "t_mapping(t_uint256,t_bool)",
+            "contract": "CLMSRMarketCore",
+            "src": "contracts/core/CLMSRMarketCore.sol:86"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "6",
+            "type": "t_array(t_uint256)48_storage",
+            "contract": "CLMSRMarketCore",
+            "src": "contracts/core/CLMSRMarketCore.sol:87"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_struct(InitializableStorage)73_storage": {
+            "label": "struct Initializable.InitializableStorage",
+            "members": [
+              {
+                "label": "_initialized",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "_initializing",
+                "type": "t_bool",
+                "offset": 8,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(OwnableStorage)13_storage": {
+            "label": "struct OwnableUpgradeable.OwnableStorage",
+            "members": [
+              {
+                "label": "_owner",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(PausableStorage)559_storage": {
+            "label": "struct PausableUpgradeable.PausableStorage",
+            "members": [
+              {
+                "label": "_paused",
+                "type": "t_bool",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(ReentrancyGuardStorage)623_storage": {
+            "label": "struct ReentrancyGuardUpgradeable.ReentrancyGuardStorage",
+            "members": [
+              {
+                "label": "_status",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64",
+            "numberOfBytes": "8"
+          },
+          "t_array(t_uint256)48_storage": {
+            "label": "uint256[48]",
+            "numberOfBytes": "1536"
+          },
+          "t_contract(ICLMSRPosition)25192": {
+            "label": "contract ICLMSRPosition",
+            "numberOfBytes": "20"
+          },
+          "t_contract(IERC20)3402": {
+            "label": "contract IERC20",
+            "numberOfBytes": "20"
+          },
+          "t_int256": {
+            "label": "int256",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_bool)": {
+            "label": "mapping(uint256 => bool)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(Market)24596_storage)": {
+            "label": "mapping(uint256 => struct ICLMSRMarketCore.Market)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(Tree)25748_storage)": {
+            "label": "mapping(uint256 => struct LazyMulSegmentTree.Tree)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint32,t_struct(Node)25733_storage)": {
+            "label": "mapping(uint32 => struct LazyMulSegmentTree.Node)",
+            "numberOfBytes": "32"
+          },
+          "t_struct(Market)24596_storage": {
+            "label": "struct ICLMSRMarketCore.Market",
+            "members": [
+              {
+                "label": "isActive",
+                "type": "t_bool",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "settled",
+                "type": "t_bool",
+                "offset": 1,
+                "slot": "0"
+              },
+              {
+                "label": "startTimestamp",
+                "type": "t_uint64",
+                "offset": 2,
+                "slot": "0"
+              },
+              {
+                "label": "endTimestamp",
+                "type": "t_uint64",
+                "offset": 10,
+                "slot": "0"
+              },
+              {
+                "label": "settlementTick",
+                "type": "t_int256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "minTick",
+                "type": "t_int256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "maxTick",
+                "type": "t_int256",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "tickSpacing",
+                "type": "t_int256",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "numBins",
+                "type": "t_uint32",
+                "offset": 0,
+                "slot": "5"
+              },
+              {
+                "label": "liquidityParameter",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "6"
+              },
+              {
+                "label": "positionEventsCursor",
+                "type": "t_uint32",
+                "offset": 0,
+                "slot": "7"
+              },
+              {
+                "label": "positionEventsEmitted",
+                "type": "t_bool",
+                "offset": 4,
+                "slot": "7"
+              },
+              {
+                "label": "settlementValue",
+                "type": "t_int256",
+                "offset": 0,
+                "slot": "8"
+              }
+            ],
+            "numberOfBytes": "288"
+          },
+          "t_struct(Node)25733_storage": {
+            "label": "struct LazyMulSegmentTree.Node",
+            "members": [
+              {
+                "label": "sum",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "pendingFactor",
+                "type": "t_uint192",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "childPtr",
+                "type": "t_uint64",
+                "offset": 24,
+                "slot": "1"
+              }
+            ],
+            "numberOfBytes": "64"
+          },
+          "t_struct(Tree)25748_storage": {
+            "label": "struct LazyMulSegmentTree.Tree",
+            "members": [
+              {
+                "label": "nodes",
+                "type": "t_mapping(t_uint32,t_struct(Node)25733_storage)",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "root",
+                "type": "t_uint32",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "nextIndex",
+                "type": "t_uint32",
+                "offset": 4,
+                "slot": "1"
+              },
+              {
+                "label": "size",
+                "type": "t_uint32",
+                "offset": 8,
+                "slot": "1"
+              },
+              {
+                "label": "cachedRootSum",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              }
+            ],
+            "numberOfBytes": "96"
+          },
+          "t_uint192": {
+            "label": "uint192",
+            "numberOfBytes": "24"
+          },
+          "t_uint32": {
+            "label": "uint32",
+            "numberOfBytes": "4"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.ReentrancyGuard": [
+            {
+              "contract": "ReentrancyGuardUpgradeable",
+              "label": "_status",
+              "type": "t_uint256",
+              "src": "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol:43",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Pausable": [
+            {
+              "contract": "PausableUpgradeable",
+              "label": "_paused",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol:21",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Ownable": [
+            {
+              "contract": "OwnableUpgradeable",
+              "label": "_owner",
+              "type": "t_address",
+              "src": "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol:24",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:69",
+              "offset": 0,
+              "slot": "0"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:73",
+              "offset": 8,
+              "slot": "0"
+            }
+          ]
+        }
+      },
+      "allAddresses": [
+        "0xC98Ac18F5a5b84C8410cbcD0E9Ac63C9178f653D"
+      ]
+    },
+    "19c381c2f7bd29fa7b1fe628e129f0b9ddd953c68cd74ce3383c53d83c356f64": {
+      "address": "0xC98Ac18F5a5b84C8410cbcD0E9Ac63C9178f653D",
       "layout": {
         "solcVersion": "0.8.24",
         "storage": [
@@ -1597,8 +1588,8 @@
         }
       }
     },
-    "f2b17838cf856cdd319a86e3d2b4c37d2daa9be04899054d5c251ec21037602a": {
-      "address": "0xa18C70923F200440Bac1Ea0E4E21421A92F86721",
+    "633429bc233819c8074ccc7c0184da3d68a235b7ad6816b8f25e88a3dbea9639": {
+      "address": "0xC98Ac18F5a5b84C8410cbcD0E9Ac63C9178f653D",
       "layout": {
         "solcVersion": "0.8.24",
         "storage": [
@@ -1967,9 +1958,9 @@
         }
       }
     },
-    "3e27db2c297be37b93b95a43961d0ed986182b2b2fb50e52dc1e25d2c31dcd96": {
-      "address": "0x03502e15bf5f8EFacd66B4786CB36DE7bb8a2F93",
-      "txHash": "0xb2601d6038fb03210f625c7305caad155f671a3dfdc211bc4665f2d87871b129",
+    "92f82f6d62b8c034f9ac9816c70940928fd1ebb4bbb902223f7a4c7061f9f13b": {
+      "address": "0xcb32cda691caf6116243CcddBE080B51D28dBfBB",
+      "txHash": "0xa8b58e2db36dcd16a2eb7ad4990098de49610b98a16534445c94e9ebeaf7718c",
       "layout": {
         "solcVersion": "0.8.24",
         "storage": [
@@ -2338,8 +2329,8 @@
         }
       }
     },
-    "a937b788402f75a9c0627596767602a796c7921af0da8fabedfc4a4e0632f875": {
-      "address": "0x03502e15bf5f8EFacd66B4786CB36DE7bb8a2F93",
+    "6840d9fb19f9d411b5d32a9cf5811ab14103e6bbbeb3134989a74c29c4960d5a": {
+      "address": "0xcb32cda691caf6116243CcddBE080B51D28dBfBB",
       "layout": {
         "solcVersion": "0.8.30",
         "storage": [
@@ -2708,8 +2699,8 @@
         }
       }
     },
-    "10627ea1577602621b0471cdbad2ea1b6293e4c6b3776827aaa01230ba998d4d": {
-      "address": "0x03502e15bf5f8EFacd66B4786CB36DE7bb8a2F93",
+    "949d69b391b73fe48217256c841457e86c5e6116fd984f58fec72dbdb2d3465d": {
+      "address": "0xcb32cda691caf6116243CcddBE080B51D28dBfBB",
       "layout": {
         "solcVersion": "0.8.30",
         "storage": [
@@ -3078,379 +3069,9 @@
         }
       }
     },
-    "756599d1d51fbb9f96e284f161b56e555c445777ad26b06c49bb14993130c98b": {
-      "address": "0x03502e15bf5f8EFacd66B4786CB36DE7bb8a2F93",
-      "layout": {
-        "solcVersion": "0.8.30",
-        "storage": [
-          {
-            "label": "paymentToken",
-            "offset": 0,
-            "slot": "0",
-            "type": "t_contract(IERC20)1482",
-            "contract": "CLMSRMarketCore",
-            "src": "contracts/core/CLMSRMarketCore.sol:68"
-          },
-          {
-            "label": "positionContract",
-            "offset": 0,
-            "slot": "1",
-            "type": "t_contract(ICLMSRPosition)15175",
-            "contract": "CLMSRMarketCore",
-            "src": "contracts/core/CLMSRMarketCore.sol:71"
-          },
-          {
-            "label": "markets",
-            "offset": 0,
-            "slot": "2",
-            "type": "t_mapping(t_uint256,t_struct(Market)14579_storage)",
-            "contract": "CLMSRMarketCore",
-            "src": "contracts/core/CLMSRMarketCore.sol:76"
-          },
-          {
-            "label": "marketTrees",
-            "offset": 0,
-            "slot": "3",
-            "type": "t_mapping(t_uint256,t_struct(Tree)15740_storage)",
-            "contract": "CLMSRMarketCore",
-            "src": "contracts/core/CLMSRMarketCore.sol:79"
-          },
-          {
-            "label": "_nextMarketId",
-            "offset": 0,
-            "slot": "4",
-            "type": "t_uint256",
-            "contract": "CLMSRMarketCore",
-            "src": "contracts/core/CLMSRMarketCore.sol:82"
-          },
-          {
-            "label": "positionSettledEmitted",
-            "offset": 0,
-            "slot": "5",
-            "type": "t_mapping(t_uint256,t_bool)",
-            "contract": "CLMSRMarketCore",
-            "src": "contracts/core/CLMSRMarketCore.sol:86"
-          },
-          {
-            "label": "__gap",
-            "offset": 0,
-            "slot": "6",
-            "type": "t_array(t_uint256)48_storage",
-            "contract": "CLMSRMarketCore",
-            "src": "contracts/core/CLMSRMarketCore.sol:87"
-          }
-        ],
-        "types": {
-          "t_address": {
-            "label": "address",
-            "numberOfBytes": "20"
-          },
-          "t_bool": {
-            "label": "bool",
-            "numberOfBytes": "1"
-          },
-          "t_struct(InitializableStorage)86_storage": {
-            "label": "struct Initializable.InitializableStorage",
-            "members": [
-              {
-                "label": "_initialized",
-                "type": "t_uint64",
-                "offset": 0,
-                "slot": "0"
-              },
-              {
-                "label": "_initializing",
-                "type": "t_bool",
-                "offset": 8,
-                "slot": "0"
-              }
-            ],
-            "numberOfBytes": "32"
-          },
-          "t_struct(OwnableStorage)14_storage": {
-            "label": "struct OwnableUpgradeable.OwnableStorage",
-            "members": [
-              {
-                "label": "_owner",
-                "type": "t_address",
-                "offset": 0,
-                "slot": "0"
-              }
-            ],
-            "numberOfBytes": "32"
-          },
-          "t_struct(PausableStorage)264_storage": {
-            "label": "struct PausableUpgradeable.PausableStorage",
-            "members": [
-              {
-                "label": "_paused",
-                "type": "t_bool",
-                "offset": 0,
-                "slot": "0"
-              }
-            ],
-            "numberOfBytes": "32"
-          },
-          "t_struct(ReentrancyGuardStorage)340_storage": {
-            "label": "struct ReentrancyGuardUpgradeable.ReentrancyGuardStorage",
-            "members": [
-              {
-                "label": "_status",
-                "type": "t_uint256",
-                "offset": 0,
-                "slot": "0"
-              }
-            ],
-            "numberOfBytes": "32"
-          },
-          "t_uint256": {
-            "label": "uint256",
-            "numberOfBytes": "32"
-          },
-          "t_uint64": {
-            "label": "uint64",
-            "numberOfBytes": "8"
-          },
-          "t_array(t_uint256)48_storage": {
-            "label": "uint256[48]",
-            "numberOfBytes": "1536"
-          },
-          "t_contract(ICLMSRPosition)15175": {
-            "label": "contract ICLMSRPosition",
-            "numberOfBytes": "20"
-          },
-          "t_contract(IERC20)1482": {
-            "label": "contract IERC20",
-            "numberOfBytes": "20"
-          },
-          "t_int256": {
-            "label": "int256",
-            "numberOfBytes": "32"
-          },
-          "t_mapping(t_uint256,t_bool)": {
-            "label": "mapping(uint256 => bool)",
-            "numberOfBytes": "32"
-          },
-          "t_mapping(t_uint256,t_struct(Market)14579_storage)": {
-            "label": "mapping(uint256 => struct ICLMSRMarketCore.Market)",
-            "numberOfBytes": "32"
-          },
-          "t_mapping(t_uint256,t_struct(Tree)15740_storage)": {
-            "label": "mapping(uint256 => struct LazyMulSegmentTree.Tree)",
-            "numberOfBytes": "32"
-          },
-          "t_mapping(t_uint32,t_struct(Node)15725_storage)": {
-            "label": "mapping(uint32 => struct LazyMulSegmentTree.Node)",
-            "numberOfBytes": "32"
-          },
-          "t_struct(Market)14579_storage": {
-            "label": "struct ICLMSRMarketCore.Market",
-            "members": [
-              {
-                "label": "isActive",
-                "type": "t_bool",
-                "offset": 0,
-                "slot": "0"
-              },
-              {
-                "label": "settled",
-                "type": "t_bool",
-                "offset": 1,
-                "slot": "0"
-              },
-              {
-                "label": "startTimestamp",
-                "type": "t_uint64",
-                "offset": 2,
-                "slot": "0"
-              },
-              {
-                "label": "endTimestamp",
-                "type": "t_uint64",
-                "offset": 10,
-                "slot": "0"
-              },
-              {
-                "label": "settlementTick",
-                "type": "t_int256",
-                "offset": 0,
-                "slot": "1"
-              },
-              {
-                "label": "minTick",
-                "type": "t_int256",
-                "offset": 0,
-                "slot": "2"
-              },
-              {
-                "label": "maxTick",
-                "type": "t_int256",
-                "offset": 0,
-                "slot": "3"
-              },
-              {
-                "label": "tickSpacing",
-                "type": "t_int256",
-                "offset": 0,
-                "slot": "4"
-              },
-              {
-                "label": "numBins",
-                "type": "t_uint32",
-                "offset": 0,
-                "slot": "5"
-              },
-              {
-                "label": "liquidityParameter",
-                "type": "t_uint256",
-                "offset": 0,
-                "slot": "6"
-              },
-              {
-                "label": "positionEventsCursor",
-                "type": "t_uint32",
-                "offset": 0,
-                "slot": "7"
-              },
-              {
-                "label": "positionEventsEmitted",
-                "type": "t_bool",
-                "offset": 4,
-                "slot": "7"
-              },
-              {
-                "label": "settlementValue",
-                "type": "t_int256",
-                "offset": 0,
-                "slot": "8"
-              }
-            ],
-            "numberOfBytes": "288"
-          },
-          "t_struct(Node)15725_storage": {
-            "label": "struct LazyMulSegmentTree.Node",
-            "members": [
-              {
-                "label": "sum",
-                "type": "t_uint256",
-                "offset": 0,
-                "slot": "0"
-              },
-              {
-                "label": "pendingFactor",
-                "type": "t_uint192",
-                "offset": 0,
-                "slot": "1"
-              },
-              {
-                "label": "childPtr",
-                "type": "t_uint64",
-                "offset": 24,
-                "slot": "1"
-              }
-            ],
-            "numberOfBytes": "64"
-          },
-          "t_struct(Tree)15740_storage": {
-            "label": "struct LazyMulSegmentTree.Tree",
-            "members": [
-              {
-                "label": "nodes",
-                "type": "t_mapping(t_uint32,t_struct(Node)15725_storage)",
-                "offset": 0,
-                "slot": "0"
-              },
-              {
-                "label": "root",
-                "type": "t_uint32",
-                "offset": 0,
-                "slot": "1"
-              },
-              {
-                "label": "nextIndex",
-                "type": "t_uint32",
-                "offset": 4,
-                "slot": "1"
-              },
-              {
-                "label": "size",
-                "type": "t_uint32",
-                "offset": 8,
-                "slot": "1"
-              },
-              {
-                "label": "cachedRootSum",
-                "type": "t_uint256",
-                "offset": 0,
-                "slot": "2"
-              }
-            ],
-            "numberOfBytes": "96"
-          },
-          "t_uint192": {
-            "label": "uint192",
-            "numberOfBytes": "24"
-          },
-          "t_uint32": {
-            "label": "uint32",
-            "numberOfBytes": "4"
-          }
-        },
-        "namespaces": {
-          "erc7201:openzeppelin.storage.ReentrancyGuard": [
-            {
-              "contract": "ReentrancyGuardUpgradeable",
-              "label": "_status",
-              "type": "t_uint256",
-              "src": "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol:43",
-              "offset": 0,
-              "slot": "0"
-            }
-          ],
-          "erc7201:openzeppelin.storage.Pausable": [
-            {
-              "contract": "PausableUpgradeable",
-              "label": "_paused",
-              "type": "t_bool",
-              "src": "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol:21",
-              "offset": 0,
-              "slot": "0"
-            }
-          ],
-          "erc7201:openzeppelin.storage.Ownable": [
-            {
-              "contract": "OwnableUpgradeable",
-              "label": "_owner",
-              "type": "t_address",
-              "src": "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol:24",
-              "offset": 0,
-              "slot": "0"
-            }
-          ],
-          "erc7201:openzeppelin.storage.Initializable": [
-            {
-              "contract": "Initializable",
-              "label": "_initialized",
-              "type": "t_uint64",
-              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:69",
-              "offset": 0,
-              "slot": "0"
-            },
-            {
-              "contract": "Initializable",
-              "label": "_initializing",
-              "type": "t_bool",
-              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:73",
-              "offset": 8,
-              "slot": "0"
-            }
-          ]
-        }
-      }
-    },
-    "ab84a74c9656099335c96af950459a1d79a2ef329c7279999f08bf4abcb38e57": {
-      "address": "0x991841C5867c36308f6fC955715B62cC331bBD2D",
-      "txHash": "0x49503243fec52f4b44fc2e09f5ca6533f6956484f8562f7864f0863b6cb8b848",
+    "5e41afae873fd0baa69886ab2fa5b7be0a63c16791ae20f717c842c8db06bace": {
+      "address": "0xCBD537DeA2F2844CF94A91726BD7F4d4fF91dec5",
+      "txHash": "0x47eefbb3333da1848b68bf25622e4dee2fb09412ec13a4f2733c4cb1feacd48f",
       "layout": {
         "solcVersion": "0.8.30",
         "storage": [
@@ -3819,12 +3440,12 @@
         }
       },
       "allAddresses": [
-        "0x991841C5867c36308f6fC955715B62cC331bBD2D"
+        "0xCBD537DeA2F2844CF94A91726BD7F4d4fF91dec5"
       ]
     },
     "dc68b2c7bc93b8076673fda040ec198cede8c170833b9c74623019e02485c3b3": {
-      "address": "0x7Da4f41903B29f232FBd6f85180c8BE1BF4e7a5c",
-      "txHash": "0xf189c5afa752497e0462fe7644937f54941b4f7c25e0ef15c4d49b48ae73c674",
+      "address": "0x8d26d03FABA01f7b5721BccE2C25a621Cd652b31",
+      "txHash": "0x6475cf5d09a8741265ffd7a527263a16993d849c4301af30bb6f7e8c3fe88057",
       "layout": {
         "solcVersion": "0.8.30",
         "storage": [],
@@ -3904,20 +3525,390 @@
         }
       },
       "allAddresses": [
-        "0x7Da4f41903B29f232FBd6f85180c8BE1BF4e7a5c",
-        "0xfd6a07f69CDEe1F4aF7C3D6b2F7A8c76F7972259"
+        "0x8d26d03FABA01f7b5721BccE2C25a621Cd652b31",
+        "0xb68DF68F093D87D55D48bEf71685098bC416Cc34"
       ]
     },
-    "0xf117130ee6341545248a8421b96c60f622c96fec239e3687f2566d83da7a95ae": {
-      "address": "0xd40985208e45ced0d49a78babf75b63d740eafb7",
-      "txHash": "0x0000000000000000000000000000000000000000000000000000000000000001",
+    "0xdevcc2028dfposition1993968b051": {
+      "address": "0xcc2028df32a6fc19b4e279b8d943a3492d87c2dc",
+      "txHash": "0x0000000000000000000000000000000000000000000000000000000000000002",
       "layout": {
         "storage": [],
         "types": {}
       }
     },
+    "b8d7da817a8c1074f10773c18b745483333e08a2adfe9d04f9fb9d5ee64ead2c": {
+      "address": "0xCBD537DeA2F2844CF94A91726BD7F4d4fF91dec5",
+      "layout": {
+        "solcVersion": "0.8.30",
+        "storage": [
+          {
+            "label": "paymentToken",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_contract(IERC20)1482",
+            "contract": "CLMSRMarketCore",
+            "src": "contracts/core/CLMSRMarketCore.sol:68"
+          },
+          {
+            "label": "positionContract",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_contract(ICLMSRPosition)15175",
+            "contract": "CLMSRMarketCore",
+            "src": "contracts/core/CLMSRMarketCore.sol:71"
+          },
+          {
+            "label": "markets",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_mapping(t_uint256,t_struct(Market)14579_storage)",
+            "contract": "CLMSRMarketCore",
+            "src": "contracts/core/CLMSRMarketCore.sol:76"
+          },
+          {
+            "label": "marketTrees",
+            "offset": 0,
+            "slot": "3",
+            "type": "t_mapping(t_uint256,t_struct(Tree)15740_storage)",
+            "contract": "CLMSRMarketCore",
+            "src": "contracts/core/CLMSRMarketCore.sol:79"
+          },
+          {
+            "label": "_nextMarketId",
+            "offset": 0,
+            "slot": "4",
+            "type": "t_uint256",
+            "contract": "CLMSRMarketCore",
+            "src": "contracts/core/CLMSRMarketCore.sol:82"
+          },
+          {
+            "label": "positionSettledEmitted",
+            "offset": 0,
+            "slot": "5",
+            "type": "t_mapping(t_uint256,t_bool)",
+            "contract": "CLMSRMarketCore",
+            "src": "contracts/core/CLMSRMarketCore.sol:86"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "6",
+            "type": "t_array(t_uint256)48_storage",
+            "contract": "CLMSRMarketCore",
+            "src": "contracts/core/CLMSRMarketCore.sol:87"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_struct(InitializableStorage)86_storage": {
+            "label": "struct Initializable.InitializableStorage",
+            "members": [
+              {
+                "label": "_initialized",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "_initializing",
+                "type": "t_bool",
+                "offset": 8,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(OwnableStorage)14_storage": {
+            "label": "struct OwnableUpgradeable.OwnableStorage",
+            "members": [
+              {
+                "label": "_owner",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(PausableStorage)264_storage": {
+            "label": "struct PausableUpgradeable.PausableStorage",
+            "members": [
+              {
+                "label": "_paused",
+                "type": "t_bool",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(ReentrancyGuardStorage)340_storage": {
+            "label": "struct ReentrancyGuardUpgradeable.ReentrancyGuardStorage",
+            "members": [
+              {
+                "label": "_status",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64",
+            "numberOfBytes": "8"
+          },
+          "t_array(t_uint256)48_storage": {
+            "label": "uint256[48]",
+            "numberOfBytes": "1536"
+          },
+          "t_contract(ICLMSRPosition)15175": {
+            "label": "contract ICLMSRPosition",
+            "numberOfBytes": "20"
+          },
+          "t_contract(IERC20)1482": {
+            "label": "contract IERC20",
+            "numberOfBytes": "20"
+          },
+          "t_int256": {
+            "label": "int256",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_bool)": {
+            "label": "mapping(uint256 => bool)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(Market)14579_storage)": {
+            "label": "mapping(uint256 => struct ICLMSRMarketCore.Market)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(Tree)15740_storage)": {
+            "label": "mapping(uint256 => struct LazyMulSegmentTree.Tree)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint32,t_struct(Node)15725_storage)": {
+            "label": "mapping(uint32 => struct LazyMulSegmentTree.Node)",
+            "numberOfBytes": "32"
+          },
+          "t_struct(Market)14579_storage": {
+            "label": "struct ICLMSRMarketCore.Market",
+            "members": [
+              {
+                "label": "isActive",
+                "type": "t_bool",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "settled",
+                "type": "t_bool",
+                "offset": 1,
+                "slot": "0"
+              },
+              {
+                "label": "startTimestamp",
+                "type": "t_uint64",
+                "offset": 2,
+                "slot": "0"
+              },
+              {
+                "label": "endTimestamp",
+                "type": "t_uint64",
+                "offset": 10,
+                "slot": "0"
+              },
+              {
+                "label": "settlementTick",
+                "type": "t_int256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "minTick",
+                "type": "t_int256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "maxTick",
+                "type": "t_int256",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "tickSpacing",
+                "type": "t_int256",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "numBins",
+                "type": "t_uint32",
+                "offset": 0,
+                "slot": "5"
+              },
+              {
+                "label": "liquidityParameter",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "6"
+              },
+              {
+                "label": "positionEventsCursor",
+                "type": "t_uint32",
+                "offset": 0,
+                "slot": "7"
+              },
+              {
+                "label": "positionEventsEmitted",
+                "type": "t_bool",
+                "offset": 4,
+                "slot": "7"
+              },
+              {
+                "label": "settlementValue",
+                "type": "t_int256",
+                "offset": 0,
+                "slot": "8"
+              }
+            ],
+            "numberOfBytes": "288"
+          },
+          "t_struct(Node)15725_storage": {
+            "label": "struct LazyMulSegmentTree.Node",
+            "members": [
+              {
+                "label": "sum",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "pendingFactor",
+                "type": "t_uint192",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "childPtr",
+                "type": "t_uint64",
+                "offset": 24,
+                "slot": "1"
+              }
+            ],
+            "numberOfBytes": "64"
+          },
+          "t_struct(Tree)15740_storage": {
+            "label": "struct LazyMulSegmentTree.Tree",
+            "members": [
+              {
+                "label": "nodes",
+                "type": "t_mapping(t_uint32,t_struct(Node)15725_storage)",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "root",
+                "type": "t_uint32",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "nextIndex",
+                "type": "t_uint32",
+                "offset": 4,
+                "slot": "1"
+              },
+              {
+                "label": "size",
+                "type": "t_uint32",
+                "offset": 8,
+                "slot": "1"
+              },
+              {
+                "label": "cachedRootSum",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              }
+            ],
+            "numberOfBytes": "96"
+          },
+          "t_uint192": {
+            "label": "uint192",
+            "numberOfBytes": "24"
+          },
+          "t_uint32": {
+            "label": "uint32",
+            "numberOfBytes": "4"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.ReentrancyGuard": [
+            {
+              "contract": "ReentrancyGuardUpgradeable",
+              "label": "_status",
+              "type": "t_uint256",
+              "src": "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol:43",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Pausable": [
+            {
+              "contract": "PausableUpgradeable",
+              "label": "_paused",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol:21",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Ownable": [
+            {
+              "contract": "OwnableUpgradeable",
+              "label": "_owner",
+              "type": "t_address",
+              "src": "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol:24",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:69",
+              "offset": 0,
+              "slot": "0"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:73",
+              "offset": 8,
+              "slot": "0"
+            }
+          ]
+        }
+      }
+    },
     "f92fc78d7d2288fc6a1afc3784cd6cdf9b615f3ea1029325e028fe2fdcb02f74": {
-      "address": "0xd40985208e45ced0d49a78bAbf75B63d740Eafb7",
+      "address": "0xCC2028Df32a6FC19B4e279B8D943a3492d87c2Dc",
       "layout": {
         "solcVersion": "0.8.30",
         "storage": [
@@ -4296,17 +4287,14 @@
         }
       },
       "allAddresses": [
-        "0xd40985208e45ced0d49a78bAbf75B63d740Eafb7",
-        "0x1be7F6eC49Fa1CEf499044c2d1C209B10cE2c228",
-        "0x8FE534E3b27A64223518cc7b31b44897a29FD29F",
-        "0x1564c55080bbDAC444477c9053089E34125Aa86f",
-        "0xde94A64B1ba3f91a1e933B8AD54466373C21E6b8",
-        "0x1Dc4B4517a77794ACA43b4BB2C91b6Da7A14535A"
+        "0xCC2028Df32a6FC19B4e279B8D943a3492d87c2Dc",
+        "0x98818ab923937968c1f876deDA7BE94371A9f2F8",
+        "0x32f5Df7aDDaf7137F627faeb63F649FE9EB7210b",
+        "0x736be0e0A1410F5a4878b09FD3E5434032273D7b"
       ]
     },
-    "b1edfab658c64269848199ccdeb6cfdf81f2bb5ab1cab54664c819736c6e35ed": {
-      "address": "0xa9c55d0b8d64468808F1684eACa7d67b64641e64",
-      "txHash": "0x6f61d7379ef4956b6aaa3c6422a9da3cb9cac73636e6e0d385952db72e91d19c",
+    "09d1449e66279dcf07e2b932e57dd62ca7a0c056c652e3802fb98ad1e6d6be65": {
+      "address": "0xCBD537DeA2F2844CF94A91726BD7F4d4fF91dec5",
       "layout": {
         "solcVersion": "0.8.30",
         "storage": [
@@ -4675,8 +4663,752 @@
         }
       }
     },
-    "2723c15d058622f53be5b25deb55b8a225999547d08a591f913b5b80d5820c17": {
-      "address": "0xa9c55d0b8d64468808F1684eACa7d67b64641e64",
+    "37bd06c147603575ab50fce22924c63311b043f2b6e1b4b9e45020b3eccc790b": {
+      "address": "0xCBD537DeA2F2844CF94A91726BD7F4d4fF91dec5",
+      "layout": {
+        "solcVersion": "0.8.30",
+        "storage": [
+          {
+            "label": "paymentToken",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_contract(IERC20)1482",
+            "contract": "CLMSRMarketCore",
+            "src": "contracts/core/CLMSRMarketCore.sol:68"
+          },
+          {
+            "label": "positionContract",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_contract(ICLMSRPosition)15175",
+            "contract": "CLMSRMarketCore",
+            "src": "contracts/core/CLMSRMarketCore.sol:71"
+          },
+          {
+            "label": "markets",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_mapping(t_uint256,t_struct(Market)14579_storage)",
+            "contract": "CLMSRMarketCore",
+            "src": "contracts/core/CLMSRMarketCore.sol:76"
+          },
+          {
+            "label": "marketTrees",
+            "offset": 0,
+            "slot": "3",
+            "type": "t_mapping(t_uint256,t_struct(Tree)15740_storage)",
+            "contract": "CLMSRMarketCore",
+            "src": "contracts/core/CLMSRMarketCore.sol:79"
+          },
+          {
+            "label": "_nextMarketId",
+            "offset": 0,
+            "slot": "4",
+            "type": "t_uint256",
+            "contract": "CLMSRMarketCore",
+            "src": "contracts/core/CLMSRMarketCore.sol:82"
+          },
+          {
+            "label": "positionSettledEmitted",
+            "offset": 0,
+            "slot": "5",
+            "type": "t_mapping(t_uint256,t_bool)",
+            "contract": "CLMSRMarketCore",
+            "src": "contracts/core/CLMSRMarketCore.sol:86"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "6",
+            "type": "t_array(t_uint256)48_storage",
+            "contract": "CLMSRMarketCore",
+            "src": "contracts/core/CLMSRMarketCore.sol:87"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_struct(InitializableStorage)86_storage": {
+            "label": "struct Initializable.InitializableStorage",
+            "members": [
+              {
+                "label": "_initialized",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "_initializing",
+                "type": "t_bool",
+                "offset": 8,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(OwnableStorage)14_storage": {
+            "label": "struct OwnableUpgradeable.OwnableStorage",
+            "members": [
+              {
+                "label": "_owner",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(PausableStorage)264_storage": {
+            "label": "struct PausableUpgradeable.PausableStorage",
+            "members": [
+              {
+                "label": "_paused",
+                "type": "t_bool",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(ReentrancyGuardStorage)340_storage": {
+            "label": "struct ReentrancyGuardUpgradeable.ReentrancyGuardStorage",
+            "members": [
+              {
+                "label": "_status",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64",
+            "numberOfBytes": "8"
+          },
+          "t_array(t_uint256)48_storage": {
+            "label": "uint256[48]",
+            "numberOfBytes": "1536"
+          },
+          "t_contract(ICLMSRPosition)15175": {
+            "label": "contract ICLMSRPosition",
+            "numberOfBytes": "20"
+          },
+          "t_contract(IERC20)1482": {
+            "label": "contract IERC20",
+            "numberOfBytes": "20"
+          },
+          "t_int256": {
+            "label": "int256",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_bool)": {
+            "label": "mapping(uint256 => bool)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(Market)14579_storage)": {
+            "label": "mapping(uint256 => struct ICLMSRMarketCore.Market)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(Tree)15740_storage)": {
+            "label": "mapping(uint256 => struct LazyMulSegmentTree.Tree)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint32,t_struct(Node)15725_storage)": {
+            "label": "mapping(uint32 => struct LazyMulSegmentTree.Node)",
+            "numberOfBytes": "32"
+          },
+          "t_struct(Market)14579_storage": {
+            "label": "struct ICLMSRMarketCore.Market",
+            "members": [
+              {
+                "label": "isActive",
+                "type": "t_bool",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "settled",
+                "type": "t_bool",
+                "offset": 1,
+                "slot": "0"
+              },
+              {
+                "label": "startTimestamp",
+                "type": "t_uint64",
+                "offset": 2,
+                "slot": "0"
+              },
+              {
+                "label": "endTimestamp",
+                "type": "t_uint64",
+                "offset": 10,
+                "slot": "0"
+              },
+              {
+                "label": "settlementTick",
+                "type": "t_int256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "minTick",
+                "type": "t_int256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "maxTick",
+                "type": "t_int256",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "tickSpacing",
+                "type": "t_int256",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "numBins",
+                "type": "t_uint32",
+                "offset": 0,
+                "slot": "5"
+              },
+              {
+                "label": "liquidityParameter",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "6"
+              },
+              {
+                "label": "positionEventsCursor",
+                "type": "t_uint32",
+                "offset": 0,
+                "slot": "7"
+              },
+              {
+                "label": "positionEventsEmitted",
+                "type": "t_bool",
+                "offset": 4,
+                "slot": "7"
+              },
+              {
+                "label": "settlementValue",
+                "type": "t_int256",
+                "offset": 0,
+                "slot": "8"
+              }
+            ],
+            "numberOfBytes": "288"
+          },
+          "t_struct(Node)15725_storage": {
+            "label": "struct LazyMulSegmentTree.Node",
+            "members": [
+              {
+                "label": "sum",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "pendingFactor",
+                "type": "t_uint192",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "childPtr",
+                "type": "t_uint64",
+                "offset": 24,
+                "slot": "1"
+              }
+            ],
+            "numberOfBytes": "64"
+          },
+          "t_struct(Tree)15740_storage": {
+            "label": "struct LazyMulSegmentTree.Tree",
+            "members": [
+              {
+                "label": "nodes",
+                "type": "t_mapping(t_uint32,t_struct(Node)15725_storage)",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "root",
+                "type": "t_uint32",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "nextIndex",
+                "type": "t_uint32",
+                "offset": 4,
+                "slot": "1"
+              },
+              {
+                "label": "size",
+                "type": "t_uint32",
+                "offset": 8,
+                "slot": "1"
+              },
+              {
+                "label": "cachedRootSum",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              }
+            ],
+            "numberOfBytes": "96"
+          },
+          "t_uint192": {
+            "label": "uint192",
+            "numberOfBytes": "24"
+          },
+          "t_uint32": {
+            "label": "uint32",
+            "numberOfBytes": "4"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.ReentrancyGuard": [
+            {
+              "contract": "ReentrancyGuardUpgradeable",
+              "label": "_status",
+              "type": "t_uint256",
+              "src": "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol:43",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Pausable": [
+            {
+              "contract": "PausableUpgradeable",
+              "label": "_paused",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol:21",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Ownable": [
+            {
+              "contract": "OwnableUpgradeable",
+              "label": "_owner",
+              "type": "t_address",
+              "src": "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol:24",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:69",
+              "offset": 0,
+              "slot": "0"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:73",
+              "offset": 8,
+              "slot": "0"
+            }
+          ]
+        }
+      },
+      "allAddresses": [
+        "0xCBD537DeA2F2844CF94A91726BD7F4d4fF91dec5"
+      ]
+    },
+    "aa84465413d03a01a694d8c3fbcc5ea8735ddb23bda00a9a3fae7fe275e10c10": {
+      "address": "0x848cCe81c6a5C0a54Ab7f257eC556fA9e3621aC5",
+      "txHash": "0xcc8a3fe8e554232b543ebe0f16b7220ddae26f6ea5e90c84c4618ec4996e2bb5",
+      "layout": {
+        "solcVersion": "0.8.30",
+        "storage": [
+          {
+            "label": "paymentToken",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_contract(IERC20)1482",
+            "contract": "CLMSRMarketCore",
+            "src": "contracts/core/CLMSRMarketCore.sol:68"
+          },
+          {
+            "label": "positionContract",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_contract(ICLMSRPosition)15175",
+            "contract": "CLMSRMarketCore",
+            "src": "contracts/core/CLMSRMarketCore.sol:71"
+          },
+          {
+            "label": "markets",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_mapping(t_uint256,t_struct(Market)14579_storage)",
+            "contract": "CLMSRMarketCore",
+            "src": "contracts/core/CLMSRMarketCore.sol:76"
+          },
+          {
+            "label": "marketTrees",
+            "offset": 0,
+            "slot": "3",
+            "type": "t_mapping(t_uint256,t_struct(Tree)15740_storage)",
+            "contract": "CLMSRMarketCore",
+            "src": "contracts/core/CLMSRMarketCore.sol:79"
+          },
+          {
+            "label": "_nextMarketId",
+            "offset": 0,
+            "slot": "4",
+            "type": "t_uint256",
+            "contract": "CLMSRMarketCore",
+            "src": "contracts/core/CLMSRMarketCore.sol:82"
+          },
+          {
+            "label": "positionSettledEmitted",
+            "offset": 0,
+            "slot": "5",
+            "type": "t_mapping(t_uint256,t_bool)",
+            "contract": "CLMSRMarketCore",
+            "src": "contracts/core/CLMSRMarketCore.sol:86"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "6",
+            "type": "t_array(t_uint256)48_storage",
+            "contract": "CLMSRMarketCore",
+            "src": "contracts/core/CLMSRMarketCore.sol:87"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_struct(InitializableStorage)86_storage": {
+            "label": "struct Initializable.InitializableStorage",
+            "members": [
+              {
+                "label": "_initialized",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "_initializing",
+                "type": "t_bool",
+                "offset": 8,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(OwnableStorage)14_storage": {
+            "label": "struct OwnableUpgradeable.OwnableStorage",
+            "members": [
+              {
+                "label": "_owner",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(PausableStorage)264_storage": {
+            "label": "struct PausableUpgradeable.PausableStorage",
+            "members": [
+              {
+                "label": "_paused",
+                "type": "t_bool",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(ReentrancyGuardStorage)340_storage": {
+            "label": "struct ReentrancyGuardUpgradeable.ReentrancyGuardStorage",
+            "members": [
+              {
+                "label": "_status",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64",
+            "numberOfBytes": "8"
+          },
+          "t_array(t_uint256)48_storage": {
+            "label": "uint256[48]",
+            "numberOfBytes": "1536"
+          },
+          "t_contract(ICLMSRPosition)15175": {
+            "label": "contract ICLMSRPosition",
+            "numberOfBytes": "20"
+          },
+          "t_contract(IERC20)1482": {
+            "label": "contract IERC20",
+            "numberOfBytes": "20"
+          },
+          "t_int256": {
+            "label": "int256",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_bool)": {
+            "label": "mapping(uint256 => bool)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(Market)14579_storage)": {
+            "label": "mapping(uint256 => struct ICLMSRMarketCore.Market)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(Tree)15740_storage)": {
+            "label": "mapping(uint256 => struct LazyMulSegmentTree.Tree)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint32,t_struct(Node)15725_storage)": {
+            "label": "mapping(uint32 => struct LazyMulSegmentTree.Node)",
+            "numberOfBytes": "32"
+          },
+          "t_struct(Market)14579_storage": {
+            "label": "struct ICLMSRMarketCore.Market",
+            "members": [
+              {
+                "label": "isActive",
+                "type": "t_bool",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "settled",
+                "type": "t_bool",
+                "offset": 1,
+                "slot": "0"
+              },
+              {
+                "label": "startTimestamp",
+                "type": "t_uint64",
+                "offset": 2,
+                "slot": "0"
+              },
+              {
+                "label": "endTimestamp",
+                "type": "t_uint64",
+                "offset": 10,
+                "slot": "0"
+              },
+              {
+                "label": "settlementTick",
+                "type": "t_int256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "minTick",
+                "type": "t_int256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "maxTick",
+                "type": "t_int256",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "tickSpacing",
+                "type": "t_int256",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "numBins",
+                "type": "t_uint32",
+                "offset": 0,
+                "slot": "5"
+              },
+              {
+                "label": "liquidityParameter",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "6"
+              },
+              {
+                "label": "positionEventsCursor",
+                "type": "t_uint32",
+                "offset": 0,
+                "slot": "7"
+              },
+              {
+                "label": "positionEventsEmitted",
+                "type": "t_bool",
+                "offset": 4,
+                "slot": "7"
+              },
+              {
+                "label": "settlementValue",
+                "type": "t_int256",
+                "offset": 0,
+                "slot": "8"
+              }
+            ],
+            "numberOfBytes": "288"
+          },
+          "t_struct(Node)15725_storage": {
+            "label": "struct LazyMulSegmentTree.Node",
+            "members": [
+              {
+                "label": "sum",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "pendingFactor",
+                "type": "t_uint192",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "childPtr",
+                "type": "t_uint64",
+                "offset": 24,
+                "slot": "1"
+              }
+            ],
+            "numberOfBytes": "64"
+          },
+          "t_struct(Tree)15740_storage": {
+            "label": "struct LazyMulSegmentTree.Tree",
+            "members": [
+              {
+                "label": "nodes",
+                "type": "t_mapping(t_uint32,t_struct(Node)15725_storage)",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "root",
+                "type": "t_uint32",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "nextIndex",
+                "type": "t_uint32",
+                "offset": 4,
+                "slot": "1"
+              },
+              {
+                "label": "size",
+                "type": "t_uint32",
+                "offset": 8,
+                "slot": "1"
+              },
+              {
+                "label": "cachedRootSum",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              }
+            ],
+            "numberOfBytes": "96"
+          },
+          "t_uint192": {
+            "label": "uint192",
+            "numberOfBytes": "24"
+          },
+          "t_uint32": {
+            "label": "uint32",
+            "numberOfBytes": "4"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.ReentrancyGuard": [
+            {
+              "contract": "ReentrancyGuardUpgradeable",
+              "label": "_status",
+              "type": "t_uint256",
+              "src": "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol:43",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Pausable": [
+            {
+              "contract": "PausableUpgradeable",
+              "label": "_paused",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol:21",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Ownable": [
+            {
+              "contract": "OwnableUpgradeable",
+              "label": "_owner",
+              "type": "t_address",
+              "src": "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol:24",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:69",
+              "offset": 0,
+              "slot": "0"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:73",
+              "offset": 8,
+              "slot": "0"
+            }
+          ]
+        }
+      }
+    },
+    "a653f65bb62e7fe48b8dcf835329b6569cbfa625ff6dd9878a70cf82e77d938d": {
+      "address": "0x848cCe81c6a5C0a54Ab7f257eC556fA9e3621aC5",
       "layout": {
         "solcVersion": "0.8.30",
         "storage": [
@@ -5046,7 +5778,7 @@
       }
     },
     "864e5df554d20b067fb60aa6f7dee8ad3bdf1003ade03d060575568066e7348e": {
-      "address": "0xfd6a07f69CDEe1F4aF7C3D6b2F7A8c76F7972259",
+      "address": "0xb68DF68F093D87D55D48bEf71685098bC416Cc34",
       "layout": {
         "solcVersion": "0.8.30",
         "storage": [],
@@ -5126,13 +5858,12 @@
         }
       },
       "allAddresses": [
-        "0xfd6a07f69CDEe1F4aF7C3D6b2F7A8c76F7972259",
-        "0x63eE33138329A0d142497Fb75797CA98A2898811",
-        "0xE850AcE0E3E8b52c7F936290511064B464F75C92"
+        "0xb68DF68F093D87D55D48bEf71685098bC416Cc34",
+        "0xEAc7a416A920f7A65C2a7a85A698890CA9389533"
       ]
     },
-    "593f12576df8588bb50eadad991470a0228c8621d97c8913be1bea34002d29c6": {
-      "address": "0xa9c55d0b8d64468808F1684eACa7d67b64641e64",
+    "270238b3b4a6d7fa594461894c8483ac2ef411e58137b487ba4554cda384424f": {
+      "address": "0x848cCe81c6a5C0a54Ab7f257eC556fA9e3621aC5",
       "layout": {
         "solcVersion": "0.8.30",
         "storage": [
@@ -5501,9 +6232,9 @@
         }
       }
     },
-    "4607a349dec9bc376d0339f1d62e34267fe890c70b507e0ccab3311090b09f3a": {
-      "address": "0x62bc77F5fe2EDf1D2bfEC57A967FA8c4472Fe3C0",
-      "txHash": "0xce96ae710d46dce55faeec419ab89f62080ffd5150cb938d4f032e09473dbc42",
+    "49514e2a340b680d88d65655b2ad2d5edf71b90be02ce4463f012c30ef594f1d": {
+      "address": "0xCcDE151F3B9Bf2C26fE47bB2EB44Ab5912DD0d71",
+      "txHash": "0xadadde2e0d07312bfa71c52a40db9dc18bb66e1f3b6d0ef8db9004f5586cf1a0",
       "layout": {
         "solcVersion": "0.8.30",
         "storage": [
@@ -5781,1124 +6512,6 @@
               {
                 "label": "nodes",
                 "type": "t_mapping(t_uint32,t_struct(Node)24990_storage)",
-                "offset": 0,
-                "slot": "0"
-              },
-              {
-                "label": "root",
-                "type": "t_uint32",
-                "offset": 0,
-                "slot": "1"
-              },
-              {
-                "label": "nextIndex",
-                "type": "t_uint32",
-                "offset": 4,
-                "slot": "1"
-              },
-              {
-                "label": "size",
-                "type": "t_uint32",
-                "offset": 8,
-                "slot": "1"
-              },
-              {
-                "label": "cachedRootSum",
-                "type": "t_uint256",
-                "offset": 0,
-                "slot": "2"
-              }
-            ],
-            "numberOfBytes": "96"
-          },
-          "t_uint192": {
-            "label": "uint192",
-            "numberOfBytes": "24"
-          },
-          "t_uint32": {
-            "label": "uint32",
-            "numberOfBytes": "4"
-          }
-        },
-        "namespaces": {
-          "erc7201:openzeppelin.storage.ReentrancyGuard": [
-            {
-              "contract": "ReentrancyGuardUpgradeable",
-              "label": "_status",
-              "type": "t_uint256",
-              "src": "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol:43",
-              "offset": 0,
-              "slot": "0"
-            }
-          ],
-          "erc7201:openzeppelin.storage.Pausable": [
-            {
-              "contract": "PausableUpgradeable",
-              "label": "_paused",
-              "type": "t_bool",
-              "src": "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol:21",
-              "offset": 0,
-              "slot": "0"
-            }
-          ],
-          "erc7201:openzeppelin.storage.Ownable": [
-            {
-              "contract": "OwnableUpgradeable",
-              "label": "_owner",
-              "type": "t_address",
-              "src": "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol:24",
-              "offset": 0,
-              "slot": "0"
-            }
-          ],
-          "erc7201:openzeppelin.storage.Initializable": [
-            {
-              "contract": "Initializable",
-              "label": "_initialized",
-              "type": "t_uint64",
-              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:69",
-              "offset": 0,
-              "slot": "0"
-            },
-            {
-              "contract": "Initializable",
-              "label": "_initializing",
-              "type": "t_bool",
-              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:73",
-              "offset": 8,
-              "slot": "0"
-            }
-          ]
-        }
-      },
-      "allAddresses": [
-        "0x62bc77F5fe2EDf1D2bfEC57A967FA8c4472Fe3C0"
-      ]
-    },
-    "4c092dc9598ac1b543f841397a50b9a5012630943eb06ef28adc4b1cf24f45e9": {
-      "address": "0x0FdBd1f666C4b2696563e85a3e6308B5dC3E09fF",
-      "txHash": "0xa98782f1a19db4ce8545668e74d09db0b6407ee62893e7cfaae7a3ea4adc6763",
-      "layout": {
-        "solcVersion": "0.8.30",
-        "storage": [
-          {
-            "label": "paymentToken",
-            "offset": 0,
-            "slot": "0",
-            "type": "t_contract(IERC20)1482",
-            "contract": "CLMSRMarketCore",
-            "src": "contracts/core/CLMSRMarketCore.sol:68"
-          },
-          {
-            "label": "positionContract",
-            "offset": 0,
-            "slot": "1",
-            "type": "t_contract(ICLMSRPosition)15144",
-            "contract": "CLMSRMarketCore",
-            "src": "contracts/core/CLMSRMarketCore.sol:71"
-          },
-          {
-            "label": "markets",
-            "offset": 0,
-            "slot": "2",
-            "type": "t_mapping(t_uint256,t_struct(Market)14590_storage)",
-            "contract": "CLMSRMarketCore",
-            "src": "contracts/core/CLMSRMarketCore.sol:76"
-          },
-          {
-            "label": "marketTrees",
-            "offset": 0,
-            "slot": "3",
-            "type": "t_mapping(t_uint256,t_struct(Tree)15709_storage)",
-            "contract": "CLMSRMarketCore",
-            "src": "contracts/core/CLMSRMarketCore.sol:79"
-          },
-          {
-            "label": "_nextMarketId",
-            "offset": 0,
-            "slot": "4",
-            "type": "t_uint256",
-            "contract": "CLMSRMarketCore",
-            "src": "contracts/core/CLMSRMarketCore.sol:82"
-          },
-          {
-            "label": "positionSettledEmitted",
-            "offset": 0,
-            "slot": "5",
-            "type": "t_mapping(t_uint256,t_bool)",
-            "contract": "CLMSRMarketCore",
-            "src": "contracts/core/CLMSRMarketCore.sol:86"
-          },
-          {
-            "label": "__gap",
-            "offset": 0,
-            "slot": "6",
-            "type": "t_array(t_uint256)48_storage",
-            "contract": "CLMSRMarketCore",
-            "src": "contracts/core/CLMSRMarketCore.sol:87"
-          }
-        ],
-        "types": {
-          "t_address": {
-            "label": "address",
-            "numberOfBytes": "20"
-          },
-          "t_bool": {
-            "label": "bool",
-            "numberOfBytes": "1"
-          },
-          "t_struct(InitializableStorage)86_storage": {
-            "label": "struct Initializable.InitializableStorage",
-            "members": [
-              {
-                "label": "_initialized",
-                "type": "t_uint64",
-                "offset": 0,
-                "slot": "0"
-              },
-              {
-                "label": "_initializing",
-                "type": "t_bool",
-                "offset": 8,
-                "slot": "0"
-              }
-            ],
-            "numberOfBytes": "32"
-          },
-          "t_struct(OwnableStorage)14_storage": {
-            "label": "struct OwnableUpgradeable.OwnableStorage",
-            "members": [
-              {
-                "label": "_owner",
-                "type": "t_address",
-                "offset": 0,
-                "slot": "0"
-              }
-            ],
-            "numberOfBytes": "32"
-          },
-          "t_struct(PausableStorage)264_storage": {
-            "label": "struct PausableUpgradeable.PausableStorage",
-            "members": [
-              {
-                "label": "_paused",
-                "type": "t_bool",
-                "offset": 0,
-                "slot": "0"
-              }
-            ],
-            "numberOfBytes": "32"
-          },
-          "t_struct(ReentrancyGuardStorage)340_storage": {
-            "label": "struct ReentrancyGuardUpgradeable.ReentrancyGuardStorage",
-            "members": [
-              {
-                "label": "_status",
-                "type": "t_uint256",
-                "offset": 0,
-                "slot": "0"
-              }
-            ],
-            "numberOfBytes": "32"
-          },
-          "t_uint256": {
-            "label": "uint256",
-            "numberOfBytes": "32"
-          },
-          "t_uint64": {
-            "label": "uint64",
-            "numberOfBytes": "8"
-          },
-          "t_array(t_uint256)48_storage": {
-            "label": "uint256[48]",
-            "numberOfBytes": "1536"
-          },
-          "t_contract(ICLMSRPosition)15144": {
-            "label": "contract ICLMSRPosition",
-            "numberOfBytes": "20"
-          },
-          "t_contract(IERC20)1482": {
-            "label": "contract IERC20",
-            "numberOfBytes": "20"
-          },
-          "t_int256": {
-            "label": "int256",
-            "numberOfBytes": "32"
-          },
-          "t_mapping(t_uint256,t_bool)": {
-            "label": "mapping(uint256 => bool)",
-            "numberOfBytes": "32"
-          },
-          "t_mapping(t_uint256,t_struct(Market)14590_storage)": {
-            "label": "mapping(uint256 => struct ICLMSRMarketCore.Market)",
-            "numberOfBytes": "32"
-          },
-          "t_mapping(t_uint256,t_struct(Tree)15709_storage)": {
-            "label": "mapping(uint256 => struct LazyMulSegmentTree.Tree)",
-            "numberOfBytes": "32"
-          },
-          "t_mapping(t_uint32,t_struct(Node)15694_storage)": {
-            "label": "mapping(uint32 => struct LazyMulSegmentTree.Node)",
-            "numberOfBytes": "32"
-          },
-          "t_struct(Market)14590_storage": {
-            "label": "struct ICLMSRMarketCore.Market",
-            "members": [
-              {
-                "label": "isActive",
-                "type": "t_bool",
-                "offset": 0,
-                "slot": "0"
-              },
-              {
-                "label": "settled",
-                "type": "t_bool",
-                "offset": 1,
-                "slot": "0"
-              },
-              {
-                "label": "startTimestamp",
-                "type": "t_uint64",
-                "offset": 2,
-                "slot": "0"
-              },
-              {
-                "label": "endTimestamp",
-                "type": "t_uint64",
-                "offset": 10,
-                "slot": "0"
-              },
-              {
-                "label": "settlementTick",
-                "type": "t_int256",
-                "offset": 0,
-                "slot": "1"
-              },
-              {
-                "label": "minTick",
-                "type": "t_int256",
-                "offset": 0,
-                "slot": "2"
-              },
-              {
-                "label": "maxTick",
-                "type": "t_int256",
-                "offset": 0,
-                "slot": "3"
-              },
-              {
-                "label": "tickSpacing",
-                "type": "t_int256",
-                "offset": 0,
-                "slot": "4"
-              },
-              {
-                "label": "numBins",
-                "type": "t_uint32",
-                "offset": 0,
-                "slot": "5"
-              },
-              {
-                "label": "liquidityParameter",
-                "type": "t_uint256",
-                "offset": 0,
-                "slot": "6"
-              },
-              {
-                "label": "positionEventsCursor",
-                "type": "t_uint32",
-                "offset": 0,
-                "slot": "7"
-              },
-              {
-                "label": "positionEventsEmitted",
-                "type": "t_bool",
-                "offset": 4,
-                "slot": "7"
-              },
-              {
-                "label": "settlementValue",
-                "type": "t_int256",
-                "offset": 0,
-                "slot": "8"
-              }
-            ],
-            "numberOfBytes": "288"
-          },
-          "t_struct(Node)15694_storage": {
-            "label": "struct LazyMulSegmentTree.Node",
-            "members": [
-              {
-                "label": "sum",
-                "type": "t_uint256",
-                "offset": 0,
-                "slot": "0"
-              },
-              {
-                "label": "pendingFactor",
-                "type": "t_uint192",
-                "offset": 0,
-                "slot": "1"
-              },
-              {
-                "label": "childPtr",
-                "type": "t_uint64",
-                "offset": 24,
-                "slot": "1"
-              }
-            ],
-            "numberOfBytes": "64"
-          },
-          "t_struct(Tree)15709_storage": {
-            "label": "struct LazyMulSegmentTree.Tree",
-            "members": [
-              {
-                "label": "nodes",
-                "type": "t_mapping(t_uint32,t_struct(Node)15694_storage)",
-                "offset": 0,
-                "slot": "0"
-              },
-              {
-                "label": "root",
-                "type": "t_uint32",
-                "offset": 0,
-                "slot": "1"
-              },
-              {
-                "label": "nextIndex",
-                "type": "t_uint32",
-                "offset": 4,
-                "slot": "1"
-              },
-              {
-                "label": "size",
-                "type": "t_uint32",
-                "offset": 8,
-                "slot": "1"
-              },
-              {
-                "label": "cachedRootSum",
-                "type": "t_uint256",
-                "offset": 0,
-                "slot": "2"
-              }
-            ],
-            "numberOfBytes": "96"
-          },
-          "t_uint192": {
-            "label": "uint192",
-            "numberOfBytes": "24"
-          },
-          "t_uint32": {
-            "label": "uint32",
-            "numberOfBytes": "4"
-          }
-        },
-        "namespaces": {
-          "erc7201:openzeppelin.storage.ReentrancyGuard": [
-            {
-              "contract": "ReentrancyGuardUpgradeable",
-              "label": "_status",
-              "type": "t_uint256",
-              "src": "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol:43",
-              "offset": 0,
-              "slot": "0"
-            }
-          ],
-          "erc7201:openzeppelin.storage.Pausable": [
-            {
-              "contract": "PausableUpgradeable",
-              "label": "_paused",
-              "type": "t_bool",
-              "src": "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol:21",
-              "offset": 0,
-              "slot": "0"
-            }
-          ],
-          "erc7201:openzeppelin.storage.Ownable": [
-            {
-              "contract": "OwnableUpgradeable",
-              "label": "_owner",
-              "type": "t_address",
-              "src": "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol:24",
-              "offset": 0,
-              "slot": "0"
-            }
-          ],
-          "erc7201:openzeppelin.storage.Initializable": [
-            {
-              "contract": "Initializable",
-              "label": "_initialized",
-              "type": "t_uint64",
-              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:69",
-              "offset": 0,
-              "slot": "0"
-            },
-            {
-              "contract": "Initializable",
-              "label": "_initializing",
-              "type": "t_bool",
-              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:73",
-              "offset": 8,
-              "slot": "0"
-            }
-          ]
-        }
-      },
-      "allAddresses": [
-        "0x0FdBd1f666C4b2696563e85a3e6308B5dC3E09fF"
-      ]
-    },
-    "556162e82552dbd42dcc0d85c66af29d9553675bb83bc6887ded0343eb53dbfc": {
-      "address": "0x0FdBd1f666C4b2696563e85a3e6308B5dC3E09fF",
-      "layout": {
-        "solcVersion": "0.8.30",
-        "storage": [
-          {
-            "label": "paymentToken",
-            "offset": 0,
-            "slot": "0",
-            "type": "t_contract(IERC20)1482",
-            "contract": "CLMSRMarketCore",
-            "src": "contracts/core/CLMSRMarketCore.sol:68"
-          },
-          {
-            "label": "positionContract",
-            "offset": 0,
-            "slot": "1",
-            "type": "t_contract(ICLMSRPosition)15144",
-            "contract": "CLMSRMarketCore",
-            "src": "contracts/core/CLMSRMarketCore.sol:71"
-          },
-          {
-            "label": "markets",
-            "offset": 0,
-            "slot": "2",
-            "type": "t_mapping(t_uint256,t_struct(Market)14590_storage)",
-            "contract": "CLMSRMarketCore",
-            "src": "contracts/core/CLMSRMarketCore.sol:76"
-          },
-          {
-            "label": "marketTrees",
-            "offset": 0,
-            "slot": "3",
-            "type": "t_mapping(t_uint256,t_struct(Tree)15709_storage)",
-            "contract": "CLMSRMarketCore",
-            "src": "contracts/core/CLMSRMarketCore.sol:79"
-          },
-          {
-            "label": "_nextMarketId",
-            "offset": 0,
-            "slot": "4",
-            "type": "t_uint256",
-            "contract": "CLMSRMarketCore",
-            "src": "contracts/core/CLMSRMarketCore.sol:82"
-          },
-          {
-            "label": "positionSettledEmitted",
-            "offset": 0,
-            "slot": "5",
-            "type": "t_mapping(t_uint256,t_bool)",
-            "contract": "CLMSRMarketCore",
-            "src": "contracts/core/CLMSRMarketCore.sol:86"
-          },
-          {
-            "label": "__gap",
-            "offset": 0,
-            "slot": "6",
-            "type": "t_array(t_uint256)48_storage",
-            "contract": "CLMSRMarketCore",
-            "src": "contracts/core/CLMSRMarketCore.sol:87"
-          }
-        ],
-        "types": {
-          "t_address": {
-            "label": "address",
-            "numberOfBytes": "20"
-          },
-          "t_bool": {
-            "label": "bool",
-            "numberOfBytes": "1"
-          },
-          "t_struct(InitializableStorage)86_storage": {
-            "label": "struct Initializable.InitializableStorage",
-            "members": [
-              {
-                "label": "_initialized",
-                "type": "t_uint64",
-                "offset": 0,
-                "slot": "0"
-              },
-              {
-                "label": "_initializing",
-                "type": "t_bool",
-                "offset": 8,
-                "slot": "0"
-              }
-            ],
-            "numberOfBytes": "32"
-          },
-          "t_struct(OwnableStorage)14_storage": {
-            "label": "struct OwnableUpgradeable.OwnableStorage",
-            "members": [
-              {
-                "label": "_owner",
-                "type": "t_address",
-                "offset": 0,
-                "slot": "0"
-              }
-            ],
-            "numberOfBytes": "32"
-          },
-          "t_struct(PausableStorage)264_storage": {
-            "label": "struct PausableUpgradeable.PausableStorage",
-            "members": [
-              {
-                "label": "_paused",
-                "type": "t_bool",
-                "offset": 0,
-                "slot": "0"
-              }
-            ],
-            "numberOfBytes": "32"
-          },
-          "t_struct(ReentrancyGuardStorage)340_storage": {
-            "label": "struct ReentrancyGuardUpgradeable.ReentrancyGuardStorage",
-            "members": [
-              {
-                "label": "_status",
-                "type": "t_uint256",
-                "offset": 0,
-                "slot": "0"
-              }
-            ],
-            "numberOfBytes": "32"
-          },
-          "t_uint256": {
-            "label": "uint256",
-            "numberOfBytes": "32"
-          },
-          "t_uint64": {
-            "label": "uint64",
-            "numberOfBytes": "8"
-          },
-          "t_array(t_uint256)48_storage": {
-            "label": "uint256[48]",
-            "numberOfBytes": "1536"
-          },
-          "t_contract(ICLMSRPosition)15144": {
-            "label": "contract ICLMSRPosition",
-            "numberOfBytes": "20"
-          },
-          "t_contract(IERC20)1482": {
-            "label": "contract IERC20",
-            "numberOfBytes": "20"
-          },
-          "t_int256": {
-            "label": "int256",
-            "numberOfBytes": "32"
-          },
-          "t_mapping(t_uint256,t_bool)": {
-            "label": "mapping(uint256 => bool)",
-            "numberOfBytes": "32"
-          },
-          "t_mapping(t_uint256,t_struct(Market)14590_storage)": {
-            "label": "mapping(uint256 => struct ICLMSRMarketCore.Market)",
-            "numberOfBytes": "32"
-          },
-          "t_mapping(t_uint256,t_struct(Tree)15709_storage)": {
-            "label": "mapping(uint256 => struct LazyMulSegmentTree.Tree)",
-            "numberOfBytes": "32"
-          },
-          "t_mapping(t_uint32,t_struct(Node)15694_storage)": {
-            "label": "mapping(uint32 => struct LazyMulSegmentTree.Node)",
-            "numberOfBytes": "32"
-          },
-          "t_struct(Market)14590_storage": {
-            "label": "struct ICLMSRMarketCore.Market",
-            "members": [
-              {
-                "label": "isActive",
-                "type": "t_bool",
-                "offset": 0,
-                "slot": "0"
-              },
-              {
-                "label": "settled",
-                "type": "t_bool",
-                "offset": 1,
-                "slot": "0"
-              },
-              {
-                "label": "startTimestamp",
-                "type": "t_uint64",
-                "offset": 2,
-                "slot": "0"
-              },
-              {
-                "label": "endTimestamp",
-                "type": "t_uint64",
-                "offset": 10,
-                "slot": "0"
-              },
-              {
-                "label": "settlementTick",
-                "type": "t_int256",
-                "offset": 0,
-                "slot": "1"
-              },
-              {
-                "label": "minTick",
-                "type": "t_int256",
-                "offset": 0,
-                "slot": "2"
-              },
-              {
-                "label": "maxTick",
-                "type": "t_int256",
-                "offset": 0,
-                "slot": "3"
-              },
-              {
-                "label": "tickSpacing",
-                "type": "t_int256",
-                "offset": 0,
-                "slot": "4"
-              },
-              {
-                "label": "numBins",
-                "type": "t_uint32",
-                "offset": 0,
-                "slot": "5"
-              },
-              {
-                "label": "liquidityParameter",
-                "type": "t_uint256",
-                "offset": 0,
-                "slot": "6"
-              },
-              {
-                "label": "positionEventsCursor",
-                "type": "t_uint32",
-                "offset": 0,
-                "slot": "7"
-              },
-              {
-                "label": "positionEventsEmitted",
-                "type": "t_bool",
-                "offset": 4,
-                "slot": "7"
-              },
-              {
-                "label": "settlementValue",
-                "type": "t_int256",
-                "offset": 0,
-                "slot": "8"
-              }
-            ],
-            "numberOfBytes": "288"
-          },
-          "t_struct(Node)15694_storage": {
-            "label": "struct LazyMulSegmentTree.Node",
-            "members": [
-              {
-                "label": "sum",
-                "type": "t_uint256",
-                "offset": 0,
-                "slot": "0"
-              },
-              {
-                "label": "pendingFactor",
-                "type": "t_uint192",
-                "offset": 0,
-                "slot": "1"
-              },
-              {
-                "label": "childPtr",
-                "type": "t_uint64",
-                "offset": 24,
-                "slot": "1"
-              }
-            ],
-            "numberOfBytes": "64"
-          },
-          "t_struct(Tree)15709_storage": {
-            "label": "struct LazyMulSegmentTree.Tree",
-            "members": [
-              {
-                "label": "nodes",
-                "type": "t_mapping(t_uint32,t_struct(Node)15694_storage)",
-                "offset": 0,
-                "slot": "0"
-              },
-              {
-                "label": "root",
-                "type": "t_uint32",
-                "offset": 0,
-                "slot": "1"
-              },
-              {
-                "label": "nextIndex",
-                "type": "t_uint32",
-                "offset": 4,
-                "slot": "1"
-              },
-              {
-                "label": "size",
-                "type": "t_uint32",
-                "offset": 8,
-                "slot": "1"
-              },
-              {
-                "label": "cachedRootSum",
-                "type": "t_uint256",
-                "offset": 0,
-                "slot": "2"
-              }
-            ],
-            "numberOfBytes": "96"
-          },
-          "t_uint192": {
-            "label": "uint192",
-            "numberOfBytes": "24"
-          },
-          "t_uint32": {
-            "label": "uint32",
-            "numberOfBytes": "4"
-          }
-        },
-        "namespaces": {
-          "erc7201:openzeppelin.storage.ReentrancyGuard": [
-            {
-              "contract": "ReentrancyGuardUpgradeable",
-              "label": "_status",
-              "type": "t_uint256",
-              "src": "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol:43",
-              "offset": 0,
-              "slot": "0"
-            }
-          ],
-          "erc7201:openzeppelin.storage.Pausable": [
-            {
-              "contract": "PausableUpgradeable",
-              "label": "_paused",
-              "type": "t_bool",
-              "src": "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol:21",
-              "offset": 0,
-              "slot": "0"
-            }
-          ],
-          "erc7201:openzeppelin.storage.Ownable": [
-            {
-              "contract": "OwnableUpgradeable",
-              "label": "_owner",
-              "type": "t_address",
-              "src": "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol:24",
-              "offset": 0,
-              "slot": "0"
-            }
-          ],
-          "erc7201:openzeppelin.storage.Initializable": [
-            {
-              "contract": "Initializable",
-              "label": "_initialized",
-              "type": "t_uint64",
-              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:69",
-              "offset": 0,
-              "slot": "0"
-            },
-            {
-              "contract": "Initializable",
-              "label": "_initializing",
-              "type": "t_bool",
-              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:73",
-              "offset": 8,
-              "slot": "0"
-            }
-          ]
-        }
-      }
-    },
-    "7b9c121173d3916197cff7f4dec2c52d1087c57dabbd029e16431b54dc347f05": {
-      "address": "0x057e20FdD7B7c6520f3A2734aE052FA1BCc90E71",
-      "txHash": "0x6d07a0ab21f07977281fd0af3f8ab5e8a19df0804305c8c063d615dcc494aa43",
-      "layout": {
-        "solcVersion": "0.8.30",
-        "storage": [
-          {
-            "label": "paymentToken",
-            "offset": 0,
-            "slot": "0",
-            "type": "t_contract(IERC20)1482",
-            "contract": "CLMSRMarketCore",
-            "src": "contracts/core/CLMSRMarketCore.sol:68"
-          },
-          {
-            "label": "positionContract",
-            "offset": 0,
-            "slot": "1",
-            "type": "t_contract(ICLMSRPosition)15144",
-            "contract": "CLMSRMarketCore",
-            "src": "contracts/core/CLMSRMarketCore.sol:71"
-          },
-          {
-            "label": "markets",
-            "offset": 0,
-            "slot": "2",
-            "type": "t_mapping(t_uint256,t_struct(Market)14590_storage)",
-            "contract": "CLMSRMarketCore",
-            "src": "contracts/core/CLMSRMarketCore.sol:76"
-          },
-          {
-            "label": "marketTrees",
-            "offset": 0,
-            "slot": "3",
-            "type": "t_mapping(t_uint256,t_struct(Tree)15709_storage)",
-            "contract": "CLMSRMarketCore",
-            "src": "contracts/core/CLMSRMarketCore.sol:79"
-          },
-          {
-            "label": "_nextMarketId",
-            "offset": 0,
-            "slot": "4",
-            "type": "t_uint256",
-            "contract": "CLMSRMarketCore",
-            "src": "contracts/core/CLMSRMarketCore.sol:82"
-          },
-          {
-            "label": "positionSettledEmitted",
-            "offset": 0,
-            "slot": "5",
-            "type": "t_mapping(t_uint256,t_bool)",
-            "contract": "CLMSRMarketCore",
-            "src": "contracts/core/CLMSRMarketCore.sol:86"
-          },
-          {
-            "label": "__gap",
-            "offset": 0,
-            "slot": "6",
-            "type": "t_array(t_uint256)48_storage",
-            "contract": "CLMSRMarketCore",
-            "src": "contracts/core/CLMSRMarketCore.sol:87"
-          }
-        ],
-        "types": {
-          "t_address": {
-            "label": "address",
-            "numberOfBytes": "20"
-          },
-          "t_bool": {
-            "label": "bool",
-            "numberOfBytes": "1"
-          },
-          "t_struct(InitializableStorage)86_storage": {
-            "label": "struct Initializable.InitializableStorage",
-            "members": [
-              {
-                "label": "_initialized",
-                "type": "t_uint64",
-                "offset": 0,
-                "slot": "0"
-              },
-              {
-                "label": "_initializing",
-                "type": "t_bool",
-                "offset": 8,
-                "slot": "0"
-              }
-            ],
-            "numberOfBytes": "32"
-          },
-          "t_struct(OwnableStorage)14_storage": {
-            "label": "struct OwnableUpgradeable.OwnableStorage",
-            "members": [
-              {
-                "label": "_owner",
-                "type": "t_address",
-                "offset": 0,
-                "slot": "0"
-              }
-            ],
-            "numberOfBytes": "32"
-          },
-          "t_struct(PausableStorage)264_storage": {
-            "label": "struct PausableUpgradeable.PausableStorage",
-            "members": [
-              {
-                "label": "_paused",
-                "type": "t_bool",
-                "offset": 0,
-                "slot": "0"
-              }
-            ],
-            "numberOfBytes": "32"
-          },
-          "t_struct(ReentrancyGuardStorage)340_storage": {
-            "label": "struct ReentrancyGuardUpgradeable.ReentrancyGuardStorage",
-            "members": [
-              {
-                "label": "_status",
-                "type": "t_uint256",
-                "offset": 0,
-                "slot": "0"
-              }
-            ],
-            "numberOfBytes": "32"
-          },
-          "t_uint256": {
-            "label": "uint256",
-            "numberOfBytes": "32"
-          },
-          "t_uint64": {
-            "label": "uint64",
-            "numberOfBytes": "8"
-          },
-          "t_array(t_uint256)48_storage": {
-            "label": "uint256[48]",
-            "numberOfBytes": "1536"
-          },
-          "t_contract(ICLMSRPosition)15144": {
-            "label": "contract ICLMSRPosition",
-            "numberOfBytes": "20"
-          },
-          "t_contract(IERC20)1482": {
-            "label": "contract IERC20",
-            "numberOfBytes": "20"
-          },
-          "t_int256": {
-            "label": "int256",
-            "numberOfBytes": "32"
-          },
-          "t_mapping(t_uint256,t_bool)": {
-            "label": "mapping(uint256 => bool)",
-            "numberOfBytes": "32"
-          },
-          "t_mapping(t_uint256,t_struct(Market)14590_storage)": {
-            "label": "mapping(uint256 => struct ICLMSRMarketCore.Market)",
-            "numberOfBytes": "32"
-          },
-          "t_mapping(t_uint256,t_struct(Tree)15709_storage)": {
-            "label": "mapping(uint256 => struct LazyMulSegmentTree.Tree)",
-            "numberOfBytes": "32"
-          },
-          "t_mapping(t_uint32,t_struct(Node)15694_storage)": {
-            "label": "mapping(uint32 => struct LazyMulSegmentTree.Node)",
-            "numberOfBytes": "32"
-          },
-          "t_struct(Market)14590_storage": {
-            "label": "struct ICLMSRMarketCore.Market",
-            "members": [
-              {
-                "label": "isActive",
-                "type": "t_bool",
-                "offset": 0,
-                "slot": "0"
-              },
-              {
-                "label": "settled",
-                "type": "t_bool",
-                "offset": 1,
-                "slot": "0"
-              },
-              {
-                "label": "startTimestamp",
-                "type": "t_uint64",
-                "offset": 2,
-                "slot": "0"
-              },
-              {
-                "label": "endTimestamp",
-                "type": "t_uint64",
-                "offset": 10,
-                "slot": "0"
-              },
-              {
-                "label": "settlementTick",
-                "type": "t_int256",
-                "offset": 0,
-                "slot": "1"
-              },
-              {
-                "label": "minTick",
-                "type": "t_int256",
-                "offset": 0,
-                "slot": "2"
-              },
-              {
-                "label": "maxTick",
-                "type": "t_int256",
-                "offset": 0,
-                "slot": "3"
-              },
-              {
-                "label": "tickSpacing",
-                "type": "t_int256",
-                "offset": 0,
-                "slot": "4"
-              },
-              {
-                "label": "numBins",
-                "type": "t_uint32",
-                "offset": 0,
-                "slot": "5"
-              },
-              {
-                "label": "liquidityParameter",
-                "type": "t_uint256",
-                "offset": 0,
-                "slot": "6"
-              },
-              {
-                "label": "positionEventsCursor",
-                "type": "t_uint32",
-                "offset": 0,
-                "slot": "7"
-              },
-              {
-                "label": "positionEventsEmitted",
-                "type": "t_bool",
-                "offset": 4,
-                "slot": "7"
-              },
-              {
-                "label": "settlementValue",
-                "type": "t_int256",
-                "offset": 0,
-                "slot": "8"
-              }
-            ],
-            "numberOfBytes": "288"
-          },
-          "t_struct(Node)15694_storage": {
-            "label": "struct LazyMulSegmentTree.Node",
-            "members": [
-              {
-                "label": "sum",
-                "type": "t_uint256",
-                "offset": 0,
-                "slot": "0"
-              },
-              {
-                "label": "pendingFactor",
-                "type": "t_uint192",
-                "offset": 0,
-                "slot": "1"
-              },
-              {
-                "label": "childPtr",
-                "type": "t_uint64",
-                "offset": 24,
-                "slot": "1"
-              }
-            ],
-            "numberOfBytes": "64"
-          },
-          "t_struct(Tree)15709_storage": {
-            "label": "struct LazyMulSegmentTree.Tree",
-            "members": [
-              {
-                "label": "nodes",
-                "type": "t_mapping(t_uint32,t_struct(Node)15694_storage)",
                 "offset": 0,
                 "slot": "0"
               },
