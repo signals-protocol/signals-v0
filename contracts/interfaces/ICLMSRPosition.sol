@@ -21,12 +21,7 @@ interface ICLMSRPosition is IERC721 {
         uint128 quantity;               // Position quantity (always positive, Long-Only)
         uint64 createdAt;               // Creation timestamp
     }
-    
-    // ========================================
-    // ERRORS (using shared CLMSRErrors)
-    // ========================================
-    // Uses: CE.UnauthorizedCaller, CE.PositionNotFound, CE.InvalidQuantity, CE.ZeroAddress
-    
+
     // ========================================
     // EVENTS
     // ========================================
@@ -94,39 +89,12 @@ interface ICLMSRPosition is IERC721 {
     /// @return position Position data
     function getPosition(uint256 positionId) external view returns (Position memory position);
     
-    /// @notice Get all position IDs for a specific market
-    /// @param marketId Market identifier
-    /// @return positionIds Array of position IDs
-    function getMarketPositions(uint256 marketId) external view returns (uint256[] memory positionIds);
-    
-    /// @notice Get all position IDs owned by an address
-    /// @param owner Position owner
-    /// @return positionIds Array of position IDs
-    function getOwnerPositions(address owner) external view returns (uint256[] memory positionIds);
-
-    /// @notice Get positions for a specific market and owner
-    /// @param owner Address to query
-    /// @param marketId Market identifier
-    /// @return positionIds Array of position IDs for the market
-    function getUserPositionsInMarket(address owner, uint256 marketId) 
-        external view returns (uint256[] memory positionIds);
     
     /// @notice Check if a position exists
     /// @param positionId Position identifier
     /// @return exists True if position exists
     function exists(uint256 positionId) external view returns (bool exists);
     
-    /// @notice Get next position ID
-    /// @return nextId Next position ID to be minted
-    function getNextId() external view returns (uint256 nextId);
-    
-    /// @notice Get total supply of positions (excluding burned)
-    /// @return supply Total supply
-    function totalSupply() external view returns (uint256 supply);
-    
-    /// @notice Get core contract address
-    /// @return core Core contract address
-    function core() external view returns (address core);
 
     // ========================================
     // MARKET-LOCAL TOKEN INDEXING (NEW)
