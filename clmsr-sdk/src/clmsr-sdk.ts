@@ -325,7 +325,7 @@ export class CLMSRSDK {
     alpha: WADAmount
   ): void {
     // maxQty = α × MAX_EXP_INPUT_WAD × MAX_CHUNKS_PER_TX
-    //        = α × 0.13 × 1000
+    //        = α × 1.0 × 1000
     // alpha는 WAD 형식, 직접 계산
     const chunksWad = new Big(MathUtils.MAX_CHUNKS_PER_TX.toString()).mul(
       MathUtils.WAD
@@ -338,7 +338,7 @@ export class CLMSRSDK {
     if (qtyWad.gt(maxQtyWad)) {
       const maxQtyFormatted = MathUtils.wadToNumber(maxQtyWad);
       throw new ValidationError(
-        `Quantity too large. Max per trade = ${maxQtyFormatted.toString()} USDC (market limit: α × 0.13 × 1000)`
+        `Quantity too large. Max per trade = ${maxQtyFormatted.toString()} USDC (market limit: α × 1.0 × 1000)`
       );
     }
   }
