@@ -316,13 +316,13 @@ export function safeExp(q: WADAmount, alpha: WADAmount): WADAmount {
     throw new ValidationError("Alpha cannot be zero");
   }
 
-  const maxPerChunk = wMul(alpha, MAX_EXP_INPUT_WAD); // α * 0.13
+  const maxPerChunk = wMul(alpha, MAX_EXP_INPUT_WAD); // α * 1.0
   let result = WAD; // 1.0
   let remaining = new Big(q.toString());
 
   while (remaining.gt(0)) {
     const chunk = remaining.gt(maxPerChunk) ? maxPerChunk : remaining;
-    const factor = wExp(wDiv(chunk, alpha)); // Safe: chunk/α ≤ 0.13
+    const factor = wExp(wDiv(chunk, alpha)); // Safe: chunk/α ≤ 1.0
     result = wMul(result, factor);
     remaining = remaining.minus(chunk);
   }
