@@ -47,6 +47,9 @@ interface CLMSRErrors {
     error ArrayLengthMismatch();
     error FactorOutOfBounds();
     error IncompleteChunkProcessing();
+    error IndexOutOfBounds(uint32 index, uint32 size);
+    error InvalidRange(uint32 lo, uint32 hi);
+    error InvalidFactor(uint256 factor);
 
     // ───────────────────── Core math / flow / slippage ─────────────────────
     error MathMulOverflow();
