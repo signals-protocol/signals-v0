@@ -27,6 +27,7 @@ interface ICLMSRMarketCore {
         bool positionEventsEmitted;     // All events emitted flag
         
         int256 settlementValue;         // Original settlement value with 6 decimals (only if settled)
+        uint64 settlementTimestamp;     // Settlement reference time (when settlement data should be retrieved)
     }
     
 
@@ -126,6 +127,11 @@ interface ICLMSRMarketCore {
         uint256 indexed marketId
     );
 
+    event SettlementTimestampUpdated(
+        uint256 indexed marketId,
+        uint64 settlementTimestamp
+    );
+
     /// @notice Emitted when range multiplication factor is applied
     /// @param marketId Market identifier
     /// @param lo Lower tick boundary (inclusive)
@@ -150,6 +156,7 @@ interface ICLMSRMarketCore {
     /// @param tickSpacing Spacing between valid ticks (must be positive)
     /// @param startTimestamp Market start time (unix timestamp)
     /// @param endTimestamp Market end time (unix timestamp, must be > startTimestamp)
+    /// @param settlementTimestamp Settlement reference time (must be > endTimestamp)
     /// @param liquidityParameter Alpha parameter for CLMSR formula (1e18 scale, between MIN_LIQUIDITY_PARAMETER and MAX_LIQUIDITY_PARAMETER)
     /// @return marketId Auto-generated market identifier
     function createMarket(
@@ -158,6 +165,7 @@ interface ICLMSRMarketCore {
         int256 tickSpacing,
         uint64 startTimestamp,
         uint64 endTimestamp,
+        uint64 settlementTimestamp,
         uint256 liquidityParameter
     ) external returns (uint256 marketId);
     
@@ -174,14 +182,16 @@ interface ICLMSRMarketCore {
     function emitPositionSettledBatch(uint256 marketId, uint256 limit) external;
 
     /// @notice Update market timing (only callable by Owner)
-    /// @dev Changes market start and end timestamps for a specific market
+    /// @dev Changes market start, end, and settlement timestamps for a specific market
     /// @param marketId Market identifier
     /// @param newStartTimestamp New market start time
     /// @param newEndTimestamp New market end time
+    /// @param newSettlementTimestamp New settlement reference time (must be > newEndTimestamp)
     function updateMarketTiming(
         uint256 marketId,
         uint64 newStartTimestamp,
-        uint64 newEndTimestamp
+        uint64 newEndTimestamp,
+        uint64 newSettlementTimestamp
     ) external;
 
     /// @notice Reopen a settled market (only callable by Owner)

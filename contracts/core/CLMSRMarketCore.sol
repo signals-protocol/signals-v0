@@ -141,6 +141,7 @@ contract CLMSRMarketCore is
         int256 tickSpacing,
         uint64 startTimestamp,
         uint64 endTimestamp,
+        uint64 settlementTimestamp,
         uint256 liquidityParameter
     ) external override onlyOwner whenNotPaused returns (uint256 marketId) {
         // Auto-generate market ID
@@ -154,6 +155,7 @@ contract CLMSRMarketCore is
         _validateMarketParameters(minTick, maxTick, tickSpacing);
         
         require(startTimestamp < endTimestamp, CE.InvalidTimeRange());
+        require(endTimestamp < settlementTimestamp, CE.InvalidTimeRange());
 
         require(
             liquidityParameter >= MIN_LIQUIDITY_PARAMETER &&
@@ -183,13 +185,15 @@ contract CLMSRMarketCore is
             liquidityParameter: liquidityParameter,
             positionEventsCursor: 0,
             positionEventsEmitted: false,
-            settlementValue: 0
+            settlementValue: 0,
+            settlementTimestamp: settlementTimestamp
         });
         
         // Initialize segment tree
         LazyMulSegmentTree.init(marketTrees[marketId], numBins);
         
         emit MarketCreated(marketId, startTimestamp, endTimestamp, minTick, maxTick, tickSpacing, numBins, liquidityParameter);
+        emit SettlementTimestampUpdated(marketId, settlementTimestamp);
     }
     
     /// @inheritdoc ICLMSRMarketCore
@@ -198,6 +202,9 @@ contract CLMSRMarketCore is
         Market storage market = markets[marketId];
         
         require(!market.settled, CE.MarketAlreadySettled(marketId));
+
+        uint64 gate = (market.settlementTimestamp == 0) ? market.endTimestamp : market.settlementTimestamp;
+        require(block.timestamp >= gate, CE.SettlementTooEarly(gate, uint64(block.timestamp)));
         
         // Convert 6-decimal settlementValue to integer tick (floor division)
         int256 settlementTick = settlementValue / 1_000_000;
@@ -242,6 +249,7 @@ contract CLMSRMarketCore is
         
         emit MarketReopened(marketId);
     }
+
 
     /// @inheritdoc ICLMSRMarketCore
     function emitPositionSettledBatch(
@@ -290,21 +298,25 @@ contract CLMSRMarketCore is
     function updateMarketTiming(
         uint256 marketId,
         uint64 newStartTimestamp,
-        uint64 newEndTimestamp
+        uint64 newEndTimestamp,
+        uint64 newSettlementTimestamp
     ) external override onlyOwner marketExists(marketId) {
         Market storage market = markets[marketId];
         
         // Market must not be settled
         require(!market.settled, CE.MarketAlreadySettled(marketId));
         
-        // Validate new time range
+        // Validate new time ranges
         require(newStartTimestamp < newEndTimestamp, CE.InvalidTimeRange());
+        require(newEndTimestamp < newSettlementTimestamp, CE.InvalidTimeRange());
         
         // Update timing
         market.startTimestamp = newStartTimestamp;
         market.endTimestamp = newEndTimestamp;
+        market.settlementTimestamp = newSettlementTimestamp;
         
         emit MarketTimingUpdated(marketId, newStartTimestamp, newEndTimestamp);
+        emit SettlementTimestampUpdated(marketId, newSettlementTimestamp);
     }
 
     
