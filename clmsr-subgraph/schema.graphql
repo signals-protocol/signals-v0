@@ -7,6 +7,7 @@ type Market @entity(immutable: false) {
   tickSpacing: BigInt! # int256 - 틱 간격
   startTimestamp: BigInt!
   endTimestamp: BigInt!
+  settlementTimestamp: BigInt # uint64 - 정산 기준 시각 (신규 필드, nullable)
   numBins: BigInt! # uint32 - 계산된 빈 개수
   liquidityParameter: BigInt!
   isSettled: Boolean!
