@@ -129,6 +129,7 @@ export async function marketFixture() {
 
   const startTime = await time.latest();
   const endTime = startTime + MARKET_DURATION;
+  const settlementTime = endTime + 3600; // 1 hour after end
   const marketId = 1;
 
   // 새로운 틱 시스템: 100000부터 시작, 10 간격으로 TICK_COUNT개
@@ -139,12 +140,12 @@ export async function marketFixture() {
   await core
     .connect(keeper)
     .createMarket(
-      marketId,
       minTick,
       maxTick,
       tickSpacing,
       startTime,
       endTime,
+      settlementTime,
       ALPHA
     );
 
@@ -166,6 +167,7 @@ export async function createActiveMarket(
   const currentTime = await time.latest();
   const startTime = currentTime + 200; // Add larger buffer to avoid timestamp conflicts
   const endTime = startTime + MARKET_DURATION;
+  const settlementTime = endTime + 3600; // 1 hour after end
 
   // 새로운 틱 시스템: 100000부터 시작, 10 간격으로 TICK_COUNT개
   const minTick = 100000;
@@ -176,7 +178,15 @@ export async function createActiveMarket(
   // 업그레이더블 컨트랙트에서는 deployer가 owner이므로 keeper 대신 deployer 사용
   await contracts.core
     .connect(contracts.deployer)
-    .createMarket(minTick, maxTick, tickSpacing, startTime, endTime, ALPHA);
+    .createMarket(
+      minTick,
+      maxTick,
+      tickSpacing,
+      startTime,
+      endTime,
+      settlementTime,
+      ALPHA
+    );
 
   // Move to market start time
   await time.increaseTo(startTime + 1);
@@ -203,6 +213,7 @@ export async function createActiveMarketFixture() {
   const currentTime = await time.latest();
   const startTime = currentTime + 300; // Larger buffer for fixture tests
   const endTime = startTime + MARKET_DURATION;
+  const settlementTime = endTime + 3600; // 1 hour after end
   const marketId = 1;
 
   // 새로운 틱 시스템: 100000부터 시작, 10 간격으로 TICK_COUNT개
@@ -213,12 +224,12 @@ export async function createActiveMarketFixture() {
   await core
     .connect(keeper)
     .createMarket(
-      marketId,
       minTick,
       maxTick,
       tickSpacing,
       startTime,
       endTime,
+      settlementTime,
       ALPHA
     );
 
@@ -242,6 +253,7 @@ export async function createExtremeMarket(
 ) {
   const startTime = await time.latest();
   const endTime = startTime + MARKET_DURATION;
+  const settlementTime = endTime + 3600; // 1 hour after end
   const extremeAlpha = ethers.parseEther("1000");
 
   // 새로운 틱 시스템: 100000부터 시작, 10 간격으로 TICK_COUNT개
@@ -252,12 +264,12 @@ export async function createExtremeMarket(
   await contracts.core
     .connect(contracts.keeper)
     .createMarket(
-      marketId,
       minTick,
       maxTick,
       tickSpacing,
       startTime,
       endTime,
+      settlementTime,
       extremeAlpha
     );
 
@@ -320,6 +332,7 @@ export async function setupCustomMarket(
   const currentTime = await time.latest();
   const startTime = currentTime + 200;
   const endTime = startTime + duration;
+  const settlementTime = endTime + 3600; // 1 hour after end
 
   // 새로운 틱 시스템으로 변환
   const minTick = 100000;
@@ -329,12 +342,12 @@ export async function setupCustomMarket(
   await contracts.core
     .connect(contracts.keeper)
     .createMarket(
-      marketId,
       minTick,
       maxTick,
       tickSpacing,
       startTime,
       endTime,
+      settlementTime,
       alpha
     );
 

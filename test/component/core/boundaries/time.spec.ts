@@ -670,4 +670,278 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       ).to.be.revertedWithCustomError(core, "MarketExpired");
     });
   });
+
+  describe("Settlement Timestamp Features", function () {
+    it("Should create market with settlement timestamp using createMarket", async function () {
+      const contracts = await loadFixture(coreFixture);
+      const { core, keeper } = contracts;
+
+      const currentTime = await time.latest();
+      const startTime = currentTime + 100;
+      const endTime = startTime + 86400; // 1 day later
+      const settlementTime = endTime + 3600; // 1 hour after end
+      const marketId = Math.floor(Math.random() * 1000000) + 1;
+
+      await expect(
+        core.connect(keeper).createMarket(
+          100000, // minTick
+          100990, // maxTick
+          10, // tickSpacing
+          startTime,
+          endTime,
+          settlementTime,
+          ethers.parseEther("0.1")
+        )
+      ).to.not.be.reverted;
+
+      const market = await core.getMarket(marketId);
+      expect(market.startTimestamp).to.equal(startTime);
+      expect(market.endTimestamp).to.equal(endTime);
+      expect(market.settlementTimestamp).to.equal(settlementTime);
+    });
+
+    it("Should reject createMarket with invalid time order", async function () {
+      const contracts = await loadFixture(coreFixture);
+      const { core, keeper } = contracts;
+
+      const currentTime = await time.latest();
+      const startTime = currentTime + 100;
+      const endTime = startTime + 86400;
+      const invalidSettlementTime = endTime - 100; // Before end time - invalid!
+
+      await expect(
+        core.connect(keeper).createMarket(
+          100000, // minTick
+          100990, // maxTick
+          10, // tickSpacing
+          startTime,
+          endTime,
+          invalidSettlementTime,
+          ethers.parseEther("0.1")
+        )
+      ).to.be.revertedWithCustomError(core, "InvalidTimeRange");
+    });
+
+    it("Should update settlement timestamp correctly", async function () {
+      const contracts = await loadFixture(coreFixture);
+      const { core, keeper } = contracts;
+
+      const currentTime = await time.latest();
+      const startTime = currentTime + 100;
+      const endTime = startTime + 86400;
+      const marketId = Math.floor(Math.random() * 1000000) + 1;
+
+      // Create market with legacy method (no settlement timestamp)
+      await core.connect(keeper).createMarket(
+        100000, // minTick
+        100990, // maxTick
+        10, // tickSpacing
+        startTime,
+        endTime,
+        ethers.parseEther("0.1")
+      );
+
+      const newSettlementTime = endTime + 3600; // 1 hour after end
+
+      await expect(
+        core
+          .connect(keeper)
+          .updateSettlementTimestamp(marketId, newSettlementTime)
+      ).to.not.be.reverted;
+
+      const market = await core.getMarket(marketId);
+      expect(market.settlementTimestamp).to.equal(newSettlementTime);
+    });
+
+    it("Should reject updateSettlementTimestamp with invalid time", async function () {
+      const contracts = await loadFixture(coreFixture);
+      const { core, keeper } = contracts;
+
+      const currentTime = await time.latest();
+      const startTime = currentTime + 100;
+      const endTime = startTime + 86400;
+      const marketId = Math.floor(Math.random() * 1000000) + 1;
+
+      await core.connect(keeper).createMarket(
+        100000, // minTick
+        100990, // maxTick
+        10, // tickSpacing
+        startTime,
+        endTime,
+        ethers.parseEther("0.1")
+      );
+
+      const invalidSettlementTime = endTime - 100; // Before end time
+
+      await expect(
+        core
+          .connect(keeper)
+          .updateSettlementTimestamp(marketId, invalidSettlementTime)
+      ).to.be.revertedWithCustomError(core, "InvalidTimeRange");
+    });
+
+    it("Should enforce settlement time gate in settleMarket", async function () {
+      const contracts = await loadFixture(coreFixture);
+      const { core, keeper } = contracts;
+
+      const currentTime = await time.latest();
+      const startTime = currentTime + 100;
+      const endTime = startTime + 86400;
+      const settlementTime = endTime + 3600; // 1 hour after end
+      const marketId = Math.floor(Math.random() * 1000000) + 1;
+
+      await core.connect(keeper).createMarket(
+        100000, // minTick
+        100990, // maxTick
+        10, // tickSpacing
+        startTime,
+        endTime,
+        settlementTime,
+        ethers.parseEther("0.1")
+      );
+
+      // Try to settle before settlement time (but after end time)
+      await time.setNextBlockTimestamp(endTime + 1800); // 30 minutes after end, but before settlement
+
+      await expect(
+        core.connect(keeper).settleMarket(marketId, 100000 * 1000000) // 100000 with 6 decimals
+      ).to.be.revertedWithCustomError(core, "SettlementTooEarly");
+
+      // Settlement should work at or after settlement time
+      await time.setNextBlockTimestamp(settlementTime + 1);
+
+      await expect(
+        core.connect(keeper).settleMarket(marketId, 100000 * 1000000)
+      ).to.not.be.reverted;
+    });
+
+    it("Should allow settlement after endTime for legacy markets (no settlementTimestamp)", async function () {
+      const contracts = await loadFixture(coreFixture);
+      const { core, keeper } = contracts;
+
+      const currentTime = await time.latest();
+      const startTime = currentTime + 100;
+      const endTime = startTime + 86400;
+      const marketId = Math.floor(Math.random() * 1000000) + 1;
+
+      // Create legacy market (no settlement timestamp)
+      await core.connect(keeper).createMarket(
+        100000, // minTick
+        100990, // maxTick
+        10, // tickSpacing
+        startTime,
+        endTime,
+        ethers.parseEther("0.1")
+      );
+
+      // Move just after end time
+      await time.setNextBlockTimestamp(endTime + 1);
+
+      // Should work because settlementTimestamp is 0, so it falls back to endTimestamp
+      await expect(
+        core.connect(keeper).settleMarket(marketId, 100000 * 1000000)
+      ).to.not.be.reverted;
+    });
+
+    it("Should enforce cross-constraint in updateMarketTiming when settlementTimestamp exists", async function () {
+      const contracts = await loadFixture(coreFixture);
+      const { core, keeper } = contracts;
+
+      const currentTime = await time.latest();
+      const startTime = currentTime + 100;
+      const endTime = startTime + 86400;
+      const settlementTime = endTime + 3600;
+      const marketId = Math.floor(Math.random() * 1000000) + 1;
+
+      await core.connect(keeper).createMarket(
+        100000, // minTick
+        100990, // maxTick
+        10, // tickSpacing
+        startTime,
+        endTime,
+        settlementTime,
+        ethers.parseEther("0.1")
+      );
+
+      const newStartTime = startTime + 1800; // 30 minutes later
+      const invalidNewEndTime = settlementTime + 100; // After settlement time - invalid!
+
+      await expect(
+        core
+          .connect(keeper)
+          .updateMarketTiming(marketId, newStartTime, invalidNewEndTime)
+      ).to.be.revertedWithCustomError(core, "InvalidTimeRange");
+
+      // Valid update: new end time before settlement time
+      const validNewEndTime = settlementTime - 100;
+
+      await expect(
+        core
+          .connect(keeper)
+          .updateMarketTiming(marketId, newStartTime, validNewEndTime)
+      ).to.not.be.reverted;
+    });
+
+    it("Should allow updateMarketTiming without cross-constraint for legacy markets", async function () {
+      const contracts = await loadFixture(coreFixture);
+      const { core, keeper } = contracts;
+
+      const currentTime = await time.latest();
+      const startTime = currentTime + 100;
+      const endTime = startTime + 86400;
+      const marketId = Math.floor(Math.random() * 1000000) + 1;
+
+      // Legacy market (no settlement timestamp)
+      await core.connect(keeper).createMarket(
+        100000, // minTick
+        100990, // maxTick
+        10, // tickSpacing
+        startTime,
+        endTime,
+        ethers.parseEther("0.1")
+      );
+
+      const newStartTime = startTime + 1800;
+      const newEndTime = endTime + 3600; // Extend end time
+
+      // Should work because there's no settlement timestamp constraint
+      await expect(
+        core
+          .connect(keeper)
+          .updateMarketTiming(marketId, newStartTime, newEndTime)
+      ).to.not.be.reverted;
+    });
+
+    it("Should prevent updateSettlementTimestamp on settled market", async function () {
+      const contracts = await loadFixture(coreFixture);
+      const { core, keeper } = contracts;
+
+      const currentTime = await time.latest();
+      const startTime = currentTime + 100;
+      const endTime = startTime + 86400;
+      const settlementTime = endTime + 3600;
+      const marketId = Math.floor(Math.random() * 1000000) + 1;
+
+      await core.connect(keeper).createMarket(
+        100000, // minTick
+        100990, // maxTick
+        10, // tickSpacing
+        startTime,
+        endTime,
+        settlementTime,
+        ethers.parseEther("0.1")
+      );
+
+      // Settle the market
+      await time.setNextBlockTimestamp(settlementTime + 1);
+      await core.connect(keeper).settleMarket(marketId, 100000 * 1000000);
+
+      // Try to update settlement timestamp after settlement
+      await expect(
+        core
+          .connect(keeper)
+          .updateSettlementTimestamp(marketId, settlementTime + 3600)
+      ).to.be.revertedWithCustomError(core, "MarketAlreadySettled");
+    });
+  });
 });
