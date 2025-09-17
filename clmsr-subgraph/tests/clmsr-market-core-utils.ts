@@ -37,6 +37,7 @@ import {
   PositionOpened,
   PositionSettled,
   RangeFactorApplied,
+  SettlementTimestampUpdated,
 } from "../generated/CLMSRMarketCore/CLMSRMarketCore";
 
 export function createMarketCreatedEvent(
@@ -482,4 +483,40 @@ export function createPositionSettledEvent(
   );
 
   return positionSettledEvent;
+}
+
+export function createSettlementTimestampUpdatedEvent(
+  marketId: BigInt,
+  settlementTimestamp: BigInt
+): SettlementTimestampUpdated {
+  let settlementTimestampUpdatedEvent =
+    changetype<SettlementTimestampUpdated>(newMockEvent());
+
+  // Mock 이벤트 기본값 설정
+  settlementTimestampUpdatedEvent.address = Address.fromString(
+    "0xA16081F360e3847006dB660bae1c6d1b2e17eC2A"
+  );
+  settlementTimestampUpdatedEvent.transaction.hash = Bytes.fromHexString(
+    "0x123456789012345678901234567890123456789012345678901234567890123D"
+  );
+  settlementTimestampUpdatedEvent.logIndex = BigInt.fromI32(1);
+  settlementTimestampUpdatedEvent.block.number = BigInt.fromI32(1);
+  settlementTimestampUpdatedEvent.block.timestamp = BigInt.fromI32(1000000);
+
+  settlementTimestampUpdatedEvent.parameters = new Array();
+
+  settlementTimestampUpdatedEvent.parameters.push(
+    new ethereum.EventParam(
+      "marketId",
+      ethereum.Value.fromUnsignedBigInt(marketId)
+    )
+  );
+  settlementTimestampUpdatedEvent.parameters.push(
+    new ethereum.EventParam(
+      "settlementTimestamp",
+      ethereum.Value.fromUnsignedBigInt(settlementTimestamp)
+    )
+  );
+
+  return settlementTimestampUpdatedEvent;
 }

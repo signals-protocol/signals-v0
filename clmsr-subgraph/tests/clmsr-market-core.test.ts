@@ -32,6 +32,7 @@ import {
   handlePositionClosed,
   handlePositionClaimed,
   handlePositionSettled,
+  handleSettlementTimestampUpdated,
 } from "../src/clmsr-market-core";
 import { handlePointsGranted } from "../src/points";
 import {
@@ -45,6 +46,7 @@ import {
   createPositionClosedEvent,
   createPositionClaimedEvent,
   createPositionSettledEvent,
+  createSettlementTimestampUpdatedEvent,
 } from "./clmsr-market-core-utils";
 
 // Tests structure (matchstick-as >=0.5.0)
@@ -1844,5 +1846,245 @@ describe("CLMSR Market Core Tests", () => {
     // UserPosition remains WIN with same totals
     assert.fieldEquals("UserPosition", "1", "outcome", "WIN");
     assert.fieldEquals("UserPosition", "1", "totalProceeds", "3000000");
+  });
+
+  // ======================================
+  // Settlement Timestamp Feature Tests
+  // ======================================
+
+  test("Settlement Timestamp - Market Creation with fallback", () => {
+    clearStore();
+
+    // Market 생성 시 settlementTimestamp는 endTimestamp로 fallback됨
+    let marketId = BigInt.fromI32(1);
+    let startTimestamp = BigInt.fromI32(1000000);
+    let endTimestamp = BigInt.fromI32(2000000);
+    let marketCreatedEvent = createMarketCreatedEvent(
+      marketId,
+      startTimestamp,
+      endTimestamp,
+      BigInt.fromI32(100),
+      BigInt.fromI32(200),
+      BigInt.fromI32(10),
+      BigInt.fromI32(10),
+      BigInt.fromString("1000000000000000000")
+    );
+    handleMarketCreated(marketCreatedEvent);
+
+    // 검증: settlementTimestamp는 endTimestamp와 동일 (fallback)
+    assert.fieldEquals("Market", "1", "startTimestamp", "1000000");
+    assert.fieldEquals("Market", "1", "endTimestamp", "2000000");
+    assert.fieldEquals("Market", "1", "settlementTimestamp", "2000000"); // fallback value
+  });
+
+  test("Settlement Timestamp - Update via SettlementTimestampUpdated event", () => {
+    clearStore();
+
+    // 1. Market 생성
+    let marketId = BigInt.fromI32(1);
+    let startTimestamp = BigInt.fromI32(1000000);
+    let endTimestamp = BigInt.fromI32(2000000);
+    let marketCreatedEvent = createMarketCreatedEvent(
+      marketId,
+      startTimestamp,
+      endTimestamp,
+      BigInt.fromI32(100),
+      BigInt.fromI32(200),
+      BigInt.fromI32(10),
+      BigInt.fromI32(10),
+      BigInt.fromString("1000000000000000000")
+    );
+    handleMarketCreated(marketCreatedEvent);
+
+    // 초기값 확인 (fallback)
+    assert.fieldEquals("Market", "1", "settlementTimestamp", "2000000");
+
+    // 2. SettlementTimestampUpdated 이벤트로 업데이트
+    let newSettlementTimestamp = BigInt.fromI32(2500000); // endTime + 500초
+    let settlementTimestampUpdatedEvent = createSettlementTimestampUpdatedEvent(
+      marketId,
+      newSettlementTimestamp
+    );
+    handleSettlementTimestampUpdated(settlementTimestampUpdatedEvent);
+
+    // 검증: settlementTimestamp가 새 값으로 업데이트됨
+    assert.fieldEquals("Market", "1", "settlementTimestamp", "2500000");
+    assert.fieldEquals("Market", "1", "endTimestamp", "2000000"); // 기존 값 유지
+
+    // lastUpdated도 업데이트되었는지 확인
+    assert.fieldEquals("Market", "1", "lastUpdated", "1000000"); // 이벤트 블록 타임스탬프
+  });
+
+  test("Settlement Timestamp - Multiple updates", () => {
+    clearStore();
+
+    // Market 생성
+    let marketId = BigInt.fromI32(1);
+    let marketCreatedEvent = createMarketCreatedEvent(
+      marketId,
+      BigInt.fromI32(1000000),
+      BigInt.fromI32(2000000),
+      BigInt.fromI32(100),
+      BigInt.fromI32(200),
+      BigInt.fromI32(10),
+      BigInt.fromI32(10),
+      BigInt.fromString("1000000000000000000")
+    );
+    handleMarketCreated(marketCreatedEvent);
+
+    // 첫 번째 업데이트
+    let firstUpdate = createSettlementTimestampUpdatedEvent(
+      marketId,
+      BigInt.fromI32(2100000)
+    );
+    handleSettlementTimestampUpdated(firstUpdate);
+    assert.fieldEquals("Market", "1", "settlementTimestamp", "2100000");
+
+    // 두 번째 업데이트 (다른 시간)
+    let secondUpdate = createSettlementTimestampUpdatedEvent(
+      marketId,
+      BigInt.fromI32(2200000)
+    );
+    secondUpdate.block.timestamp = BigInt.fromI32(1500000); // 다른 블록 시간
+    handleSettlementTimestampUpdated(secondUpdate);
+
+    // 검증: 마지막 업데이트 값이 적용됨
+    assert.fieldEquals("Market", "1", "settlementTimestamp", "2200000");
+    assert.fieldEquals("Market", "1", "lastUpdated", "1500000");
+  });
+
+  test("Settlement Timestamp - Non-existent market should be ignored", () => {
+    clearStore();
+
+    // 존재하지 않는 마켓에 대한 이벤트
+    let settlementTimestampUpdatedEvent = createSettlementTimestampUpdatedEvent(
+      BigInt.fromI32(999), // 존재하지 않는 marketId
+      BigInt.fromI32(2000000)
+    );
+
+    // 핸들러는 에러 없이 처리되어야 함 (loadMarketOrSkip이 null 리턴하고 early return)
+    handleSettlementTimestampUpdated(settlementTimestampUpdatedEvent);
+
+    // 검증: 마켓이 생성되지 않았음
+    assert.entityCount("Market", 0);
+  });
+
+  test("Settlement Timestamp - Integration with market workflow", () => {
+    clearStore();
+
+    // 1. Market 생성
+    let marketId = BigInt.fromI32(1);
+    let startTimestamp = BigInt.fromI32(1000000);
+    let endTimestamp = BigInt.fromI32(2000000);
+    let settlementTimestamp = BigInt.fromI32(2500000);
+
+    let marketCreatedEvent = createMarketCreatedEvent(
+      marketId,
+      startTimestamp,
+      endTimestamp,
+      BigInt.fromI32(100),
+      BigInt.fromI32(200),
+      BigInt.fromI32(10),
+      BigInt.fromI32(10),
+      BigInt.fromString("1000000000000000000")
+    );
+    handleMarketCreated(marketCreatedEvent);
+
+    // 2. Settlement timestamp 설정
+    let settlementTimestampUpdatedEvent = createSettlementTimestampUpdatedEvent(
+      marketId,
+      settlementTimestamp
+    );
+    handleSettlementTimestampUpdated(settlementTimestampUpdatedEvent);
+
+    // 3. Position 생성
+    let trader = Address.fromString(
+      "0x1234567890123456789012345678901234567890"
+    );
+    let positionOpenedEvent = createPositionOpenedEvent(
+      BigInt.fromI32(1), // positionId
+      trader,
+      marketId,
+      BigInt.fromI32(110),
+      BigInt.fromI32(120),
+      BigInt.fromString("1000000"), // quantity
+      BigInt.fromString("2000000") // cost
+    );
+    positionOpenedEvent.logIndex = BigInt.fromI32(0);
+    positionOpenedEvent.transaction.hash = Bytes.fromHexString(
+      "0x0000000000000000000000000000000000000000000000000000000000000001"
+    );
+    handlePositionOpened(positionOpenedEvent);
+
+    // 4. Market settlement
+    let marketSettledEvent = createMarketSettledEvent(
+      marketId,
+      BigInt.fromI32(115)
+    );
+    handleMarketSettled(marketSettledEvent);
+
+    // 검증: 모든 필드가 올바르게 설정됨
+    assert.fieldEquals(
+      "Market",
+      "1",
+      "startTimestamp",
+      startTimestamp.toString()
+    );
+    assert.fieldEquals("Market", "1", "endTimestamp", endTimestamp.toString());
+    assert.fieldEquals(
+      "Market",
+      "1",
+      "settlementTimestamp",
+      settlementTimestamp.toString()
+    );
+    assert.fieldEquals("Market", "1", "isSettled", "true");
+    assert.fieldEquals("Market", "1", "settlementTick", "115");
+
+    // Position과 Market 모두 정상적으로 처리됨
+    assert.entityCount("Market", 1);
+    assert.entityCount("UserPosition", 1);
+    assert.entityCount("Trade", 1); // Position Open
+  });
+
+  test("Settlement Timestamp - Schema compatibility test", () => {
+    clearStore();
+
+    // 여러 마켓으로 스키마 호환성 테스트
+    for (let i = 1; i <= 3; i++) {
+      let marketId = BigInt.fromI32(i);
+      let baseTime = BigInt.fromI32(1000000 * i);
+
+      // Market 생성
+      let marketCreatedEvent = createMarketCreatedEvent(
+        marketId,
+        baseTime,
+        baseTime.plus(BigInt.fromI32(86400)), // +1 day
+        BigInt.fromI32(100 * i),
+        BigInt.fromI32(200 * i),
+        BigInt.fromI32(10),
+        BigInt.fromI32(10),
+        BigInt.fromString("1000000000000000000")
+      );
+      handleMarketCreated(marketCreatedEvent);
+
+      // Settlement timestamp 설정 (일부만)
+      if (i % 2 == 0) {
+        // 짝수 마켓만 업데이트
+        let settlementTimestampUpdatedEvent =
+          createSettlementTimestampUpdatedEvent(
+            marketId,
+            baseTime.plus(BigInt.fromI32(90000)) // +25 hours
+          );
+        handleSettlementTimestampUpdated(settlementTimestampUpdatedEvent);
+      }
+    }
+
+    // 검증: 모든 마켓이 생성됨
+    assert.entityCount("Market", 3);
+
+    // 개별 검증
+    assert.fieldEquals("Market", "1", "settlementTimestamp", "1086400"); // fallback (endTimestamp)
+    assert.fieldEquals("Market", "2", "settlementTimestamp", "2090000"); // updated
+    assert.fieldEquals("Market", "3", "settlementTimestamp", "3086400"); // fallback (endTimestamp)
   });
 });

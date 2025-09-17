@@ -49,6 +49,8 @@ dataSources:
           handler: handleRangeFactorApplied
         - event: MarketSettlementValueSubmitted(indexed uint256,int256)
           handler: handleMarketSettlementValueSubmitted
+        - event: SettlementTimestampUpdated(indexed uint256,uint64)
+          handler: handleSettlementTimestampUpdated
       file: ./src/clmsr-market-core.ts
 
   # ===== PointsGranter 컨트랙트 =====
