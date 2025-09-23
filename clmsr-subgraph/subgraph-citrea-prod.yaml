@@ -47,6 +47,8 @@ dataSources:
           handler: handlePositionSettled
         - event: RangeFactorApplied(indexed uint256,indexed int256,indexed int256,uint256)
           handler: handleRangeFactorApplied
+        - event: MarketTimingUpdated(indexed uint256,uint64,uint64)
+          handler: handleMarketTimingUpdated
         - event: MarketSettlementValueSubmitted(indexed uint256,int256)
           handler: handleMarketSettlementValueSubmitted
         - event: SettlementTimestampUpdated(indexed uint256,uint64)

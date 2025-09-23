@@ -75,6 +75,7 @@ beta-addresses.json
 combine_all_files.sh
 combine_website_docs.sh
 complete_codebase.md
+complete_codebase_app.md
 website_docs_codebase.md
 coverage.json
 
