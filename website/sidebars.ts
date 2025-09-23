@@ -2,52 +2,78 @@ import type { SidebarsConfig } from "@docusaurus/plugin-content-docs";
 
 const sidebars: SidebarsConfig = {
   docs: [
-    "index",
     {
       type: "category",
       label: "Start Here",
-      items: ["quickstart/index", "faq", "glossary"],
-    },
-    {
-      type: "category",
-      label: "How It Works",
+      collapsed: false,
       items: [
-        "concepts/architecture",
-        "concepts/math-deep-dive",
-        "concepts/precision-rounding",
+        "index",
+        "start/why-signals",
+        "start/market-flow-overview",
+        "start/faq",
+        "start/glossary",
       ],
     },
     {
       type: "category",
-      label: "Using the App",
-      items: ["user/positions-lifecycle", "user/settlement"],
+      label: "Mechanism",
+      items: [
+        "mechanism/overview",
+        "mechanism/outcome-space",
+        "mechanism/cost-rounding",
+        "mechanism/safety-parameters",
+        "mechanism/key-formulas",
+      ],
     },
     {
       type: "category",
-      label: "Markets",
-      items: ["markets/bitcoin"],
+      label: "Protocol",
+      items: [
+        "protocol/architecture",
+        "security/audits",
+        "governance/parameters",
+        "governance/upgrades",
+        "networks/supported-networks",
+        "addresses/index",
+      ],
     },
     {
       type: "category",
-      label: "Risk & Security",
-      items: ["security/audits", "risk/disclosure"],
+      label: "Operations",
+      items: [
+        "start/how-it-works",
+        "market/settlement-pipeline",
+      ],
     },
     {
       type: "category",
-      label: "Data & API",
-      items: ["api/subgraph", "api/events-reference"],
+      label: "Trading Guides",
+      items: [
+        "quickstart/index",
+        "user/positions-lifecycle",
+        "user/settlement",
+        "user/risk",
+        "start/use-cases",
+      ],
     },
     {
       type: "category",
-      label: "Governance",
-      items: ["governance/parameters", "governance/upgrades"],
+      label: "Integrations",
+      items: [
+        "api/subgraph",
+        "api/events-reference",
+      ],
     },
     {
       type: "category",
-      label: "Networks & Addresses",
-      items: ["networks/supported-networks", "addresses/index"],
+      label: "References",
+      items: [
+        "references/index",
+        "changelog/index",
+        "references/whitepaper",
+        "references/bibliography",
+      ],
     },
-    "changelog/index",
   ],
 };
 

@@ -1,57 +1,44 @@
-# Events Reference Guide
+# Events Reference
 
-The Signals protocol emits comprehensive events that enable tracking of market activity, position changes, and system operations. These events provide essential data for building user interfaces, conducting analysis, and monitoring protocol health.
+Signals emits structured events for every market lifecycle step. Use this guide when building indexers, analytics, or monitoring jobs.
 
-## Market Lifecycle Events
+## Core market events
 
-Market creation generates events that capture initial parameters and configuration. The MarketCreated event includes the market identifier, tick range boundaries, liquidity parameter alpha, start and end times, and other configuration values. This information establishes the foundation for tracking all subsequent market activity.
+| Event | Emitted by | Purpose |
+| --- | --- | --- |
+| `MarketCreated(uint256 marketId, int256 minTick, int256 maxTick, int256 tickSpacing, uint256 alpha, uint64 startTimestamp, uint64 endTimestamp)` | `CLMSRMarketCore` | Announces a new daily market and its configuration. |
+| `MarketSettled(uint256 marketId, int256 settlementTick, uint256 settlementValue)` | `CLMSRMarketCore` | Records the settlement value submitted from CoinMarketCap. |
+| `PositionEventsProgress(uint256 marketId, uint256 processed, uint256 total, bool done)` | `CLMSRMarketCore` | Reports progress during batched settlement emission. |
 
-Settlement events mark the transition from active trading to final outcome determination. MarketSettled events include the settlement value, calculated settlement tick, and timestamp. These events trigger the transition to the claiming phase and provide authoritative outcome data for all positions within the market.
+## Position lifecycle events
 
-## Position Management Events
+| Event | Trigger | Notes |
+| --- | --- | --- |
+| `PositionOpened(uint256 positionId, address owner, uint256 marketId, int256 lowerTick, int256 upperTick, uint256 quantity, uint256 cost)` | `openPosition` | Issued once per new position token. Cost is rounded up per CLMSR rules. |
+| `PositionIncreased(uint256 positionId, uint256 quantity, uint256 cost)` | `increasePosition` | Adds size at current probabilities. |
+| `PositionDecreased(uint256 positionId, uint256 quantity, uint256 proceeds)` | `decreasePosition` | Returns SUSD at current probabilities (future update will round down). |
+| `PositionClosed(uint256 positionId, uint256 proceeds)` | `closePosition` | Final exit before settlement; burns the token once quantity hits zero. |
+| `PositionSettled(uint256 positionId, uint256 payout, bool won)` | `emitPositionSettledBatch` | Marks whether the range won and records the claim amount (current contracts round payout up; upcoming releases will switch to floor per the CLMSR spec). |
+| `PositionClaimed(uint256 positionId, address owner, uint256 payout)` | `claimPosition` | Transfers SUSD back to the owner and burns the token. |
 
-Position opening generates PositionOpened events that record the creation of new range securities holdings. These events capture the position token identifier, market reference, tick range boundaries, share quantity, and cost paid. The events provide complete information needed to track position origins and initial conditions.
+## Points layer events
 
-Position modifications through increase and decrease operations generate corresponding PositionIncreased and PositionDecreased events. These events record the change in share quantity and associated costs or proceeds. Together with opening events, they provide a complete transaction history for each position.
+| Event | Meaning |
+| --- | --- |
+| `PointsGranted(address account, uint8 reason, uint128 amount)` | Emitted by `PointsGranter`. `reason` codes: 1 Activity, 2 Performance, 3 Risk Bonus. |
 
-Position closure generates PositionClosed events when holdings are eliminated entirely through selling all shares back to the market. These events mark the end of position lifecycle before settlement and record final proceeds received.
+## Working with the subgraph
 
-## Settlement and Claiming Events
+The Goldsky-hosted subgraph mirrors all events above:
 
-Claiming operations generate PositionClaimed events that record successful payout retrieval by position holders. These events include the position identifier, claimed amount, and timestamp. They provide definitive records of which positions have been successfully claimed and when payouts were distributed.
+- Endpoints listed in the [Subgraph API guide](./subgraph.md).
+- Entities worth highlighting: `Market`, `BinState`, `UserPosition`, `Trade`, `PositionSettled`, `MarketStats`, `UserStats`.
+- `MarketStats.unclaimedPayout` helps monitor post-settlement obligations, while `PositionSettled` plus `PositionClaimed` reveal who still needs to claim.
 
-Batch settlement processing generates events that efficiently record outcomes for multiple positions simultaneously. These events reduce gas costs while maintaining complete auditability of settlement results across all positions within a market.
+## Best practices
 
-## Tree Operations and Technical Events
+- Handle potential reorgs by monitoring `PositionEventsProgress.done`. Stop emitting batches only after the flag is `true`.
+- Derive probabilities and PnL using the SDK helpers (`clmsr-sdk/src/utils/math.ts`) to stay aligned with CLMSR rounding rules.
+- When running archival jobs, paginate by `marketId` and `positionId` to avoid missing events in large batches.
 
-Range factor application generates RangeFactorApplied events that record the mathematical operations underlying position changes. These events capture the tick range affected, multiplication factor applied, and context of the operation. While primarily technical, they provide detailed audit trails of all mathematical operations.
-
-Tree flushing operations generate events when pending factors are propagated down the segment tree structure. These events help monitor the internal state management of the protocol and can be useful for debugging or optimization analysis.
-
-## Event Data Structure Patterns
-
-Position-related events consistently include market identifiers to enable filtering and aggregation by market. Token identifiers provide unique position tracking across the entire protocol. Tick ranges use consistent lower-bound inclusive, upper-bound exclusive conventions.
-
-Monetary amounts in events follow the protocol's precision conventions with internal 18-decimal calculations and external 6-decimal representations. Cost and proceeds values reflect the user-facing amounts after precision conversion and rounding application.
-
-Timestamp fields use block timestamps for consistency with blockchain state. These values provide ordering and timing information while acknowledging the inherent limitations of blockchain time accuracy.
-
-## Monitoring and Analysis Applications
-
-Volume analysis can be conducted by aggregating PositionOpened and PositionIncreased events to track market participation over time. Price impact analysis requires correlating position events with RangeFactorApplied events to understand how trading activity affects market pricing.
-
-Settlement accuracy assessment involves comparing market-estimated probabilities derived from trading activity against actual outcomes recorded in settlement events. This analysis helps evaluate the information aggregation effectiveness of the prediction markets.
-
-Liquidity analysis can examine the relationship between position size and price impact by correlating position events with factor application events. This information helps assess market efficiency and capital adequacy for different trading scenarios.
-
-User behavior analysis involves tracking sequences of position events to understand trading patterns, holding periods, and strategic approaches. Privacy considerations should be balanced against analytical value when conducting such research.
-
-## Integration Best Practices
-
-Event monitoring systems should implement appropriate filtering to focus on relevant events while avoiding unnecessary data processing. Market-specific filters help isolate activity for particular prediction markets without processing unrelated events.
-
-Error handling should account for potential blockchain reorganizations that might temporarily affect event ordering or availability. Robust systems implement retry logic and state reconciliation to handle these edge cases gracefully.
-
-Rate limiting considerations apply when accessing events through external providers or blockchain nodes. High-frequency analysis applications should implement appropriate caching and batching to avoid overwhelming underlying infrastructure.
-
-Data validation ensures that event data meets expected formats and constraints before integration into analytical systems. This validation helps identify potential issues early and maintains data quality for downstream analysis.
+Need the underlying math? Revisit [Key Formulas](../mechanism/key-formulas.md). For a trader-focused view, see [Settlement & Claims](../user/settlement.md).
