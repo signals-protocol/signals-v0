@@ -26,6 +26,7 @@ import {
   MarketCreated as MarketCreatedEvent,
   MarketSettled as MarketSettledEvent,
   MarketSettlementValueSubmitted as MarketSettlementValueSubmittedEvent,
+  MarketTimingUpdated as MarketTimingUpdatedEvent,
   SettlementTimestampUpdated as SettlementTimestampUpdatedEvent,
   RangeFactorApplied as RangeFactorAppliedEvent,
 } from "../generated/CLMSRMarketCore/CLMSRMarketCore";
@@ -316,6 +317,20 @@ export function handleMarketSettlementValueSubmitted(
   );
   if (market == null) return;
   market.settlementValue = event.params.settlementValue;
+  market.lastUpdated = event.block.timestamp;
+  market.save();
+}
+
+export function handleMarketTimingUpdated(
+  event: MarketTimingUpdatedEvent
+): void {
+  const market = loadMarketOrSkip(
+    buildMarketId(event.params.marketId),
+    "handleMarketTimingUpdated"
+  );
+  if (market == null) return;
+  market.startTimestamp = event.params.newStartTimestamp;
+  market.endTimestamp = event.params.newEndTimestamp;
   market.lastUpdated = event.block.timestamp;
   market.save();
 }
