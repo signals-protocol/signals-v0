@@ -1,11 +1,79 @@
 .features {
-  display: flex;
-  align-items: center;
-  padding: 2rem 0;
-  width: 100%;
+  background: #f5f7ff;
+  padding: 4rem 0 5rem;
 }
 
-.featureSvg {
-  height: 200px;
-  width: 200px;
+:global([data-theme='dark']) .features {
+  background: #060d20;
+}
+
+.featureGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+
+@media screen and (max-width: 996px) {
+  .featureGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.featureCard {
+  position: relative;
+  padding: 2.25rem 2rem;
+  border-radius: 20px;
+  background: #ffffff;
+  box-shadow: 0 16px 32px rgba(20, 68, 194, 0.08);
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+:global([data-theme='dark']) .featureCard {
+  background: #0d1a3b;
+  box-shadow: 0 20px 28px rgba(0, 0, 0, 0.4);
+}
+
+.featureCard:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 20px 40px rgba(20, 68, 194, 0.15);
+}
+
+:global([data-theme='dark']) .featureCard:hover {
+  box-shadow: 0 24px 36px rgba(0, 0, 0, 0.5);
+}
+
+.featureCard h3 {
+  margin-bottom: 1rem;
+  font-size: 1.35rem;
+}
+
+.featureCard p {
+  margin: 0;
+  color: #334067;
+  line-height: 1.55;
+}
+
+:global([data-theme='dark']) .featureCard p {
+  color: rgba(231, 238, 255, 0.85);
+}
+
+.featureAccent {
+  position: absolute;
+  inset: 0;
+  opacity: 0.12;
+  background: linear-gradient(140deg, #1444c2, transparent 70%);
+  pointer-events: none;
+}
+
+.featureCard.primary .featureAccent {
+  background: linear-gradient(140deg, #1444c2, transparent 70%);
+}
+
+.featureCard.btc .featureAccent {
+  background: linear-gradient(140deg, #f7931a, transparent 70%);
+}
+
+.featureCard.positive .featureAccent {
+  background: linear-gradient(140deg, #00bf40, transparent 70%);
 }

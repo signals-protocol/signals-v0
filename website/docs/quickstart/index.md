@@ -1,85 +1,51 @@
-# Quick Start: Join Prediction Markets
+# Quick Start
 
-Learn how to participate in Signals prediction markets in 5 minutes.
+Trade the daily Bitcoin market in minutes. This guide walks you from wallet setup to placing and claiming your first range.
 
-## What You Can Do
+## 1. Connect wallet & network
 
-On Signals, you can:
+1. Install MetaMask (or any EVM wallet).
+2. Add **Citrea Tangerine Testnet**:
+   ```text
+   Network Name: Citrea Testnet
+   RPC URL:      https://rpc.testnet.citrea.xyz
+   Chain ID:     5115
+   Currency:     cBTC
+   Explorer:     https://explorer.testnet.citrea.xyz/
+   ```
+3. Switch your wallet to Citrea.
 
-- **Trade range securities** on continuous outcomes (asset prices, indices, etc.)
-- **Express precise predictions** by buying specific price ranges
-- **Earn rewards** when your predictions are correct
-- **Exit positions** anytime before market settlement
+## 2. Get test tokens
 
-## Getting Started
+- Request cBTC from the [Citrea faucet](https://faucet.testnet.citrea.xyz/) for gas.
+- Mint or request SUSD test tokens via the Signals faucet (see community Discord) or by running `npx hardhat run scripts/mint-susd.ts --network <env>`.
+  - Use `citrea-dev` for the development deployment or `citrea-prod` for the production test market.
 
-### 1. Connect Your Wallet
+## 3. Enter today’s market
 
-You'll need:
+1. Open the Signals app. You’ll see the active “Bitcoin Closing Price on …” card with timer, chart, and leaderboards.
+2. Connect your wallet; your SUSD balance appears in the trade panel.
 
-- A Web3 wallet (MetaMask, WalletConnect, etc.)
-- Some cBTC for transaction fees on Citrea network
-- SUSD tokens for trading
+## 4. Pick a range and stake
 
-### 2. Add Citrea Network
+1. Select the minimum and maximum prices using the $100-increment inputs.
+2. Enter the amount of SUSD you want to stake.
+3. Review the displayed **win probability** and **payout**.
+4. Confirm the transaction. The AMM debits your stake immediately.
 
-Add Citrea to your wallet:
+## 5. Manage until settlement
 
-```
-Network Name: Citrea Testnet
-RPC URL: https://rpc.testnet.citrea.xyz
-Chain ID: 5115
-Currency Symbol: cBTC
-Block Explorer: https://explorer.testnet.citrea.xyz/
-```
+- Increase or decrease your range whenever you like before the countdown ends.
+- Use the probability chart and recent trades list to stay informed.
 
-### 3. Get Test Tokens
+## 6. Settlement & claim
 
-1. Visit [Citrea Faucet](https://faucet.testnet.citrea.xyz/)
-2. Request cBTC for transaction fees
-3. Get SUSD tokens for trading (contact team for initial allocation)
+1. After the daily close, the Signals operator settles the market using the official CoinMarketCap price.
+2. Once the “Settlement events complete” banner appears, click **Claim** next to each winning position.
+3. SUSD payouts transfer instantly; there is **no expiration** on claims.
 
-## How Range Trading Works
+## What next?
 
-### Understanding Range Securities
-
-Instead of betting "yes" or "no", you buy **ranges**:
-
-**Example: BTC Price Market**
-
-- Current price: $51,000
-- Available ranges: $48,000-$50,000, $50,000-$52,000, $52,000-$54,000, etc.
-- Each range pays **1 SUSD** if BTC settles in that range
-
-### Price = Probability
-
-If a range costs 0.25 SUSD, the market thinks there's a 25% chance of that outcome.
-
-### Multiple Ranges
-
-You can buy multiple ranges to express complex predictions:
-
-- Bullish: Buy $52,000-$54,000 + $54,000-$56,000
-- Bearish: Buy $46,000-$48,000 + $48,000-$50,000
-- Neutral: Buy $50,000-$52,000
-
-## Example Trade
-
-**Market**: "BTC Price in 30 Days"
-**Your Prediction**: BTC will be between $52,000-$54,000
-
-**Action**: Buy 10 shares of [$52,000-$54,000) range
-**Cost**: ~2.5 SUSD (price depends on current market probability)
-**Potential Payout**: 10 SUSD if BTC settles between $52,000-$54,000
-**Profit**: 7.5 SUSD if correct
-
-## Next Steps
-
-1. **Explore Active Markets**: See what prediction markets are currently available
-2. **Start Small**: Make your first trade with a small amount
-3. **Learn the Interface**: Familiarize yourself with position management
-4. **Develop Strategy**: Practice different trading approaches
-
----
-
-**Ready to start predicting?** Connect your wallet and explore the available markets!
+- Learn tactics in the [Trader Guide](../user/positions-lifecycle.md).
+- Understand the settlement flow in [Settlement & Claims](../user/settlement.md).
+- Explore the underlying mechanism in the [Mechanism Spec](../mechanism/overview.md).

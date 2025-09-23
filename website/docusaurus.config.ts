@@ -1,4 +1,6 @@
 import { themes as prismThemes } from "prism-react-renderer";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 import type { Config } from "@docusaurus/types";
 import type * as Preset from "@docusaurus/preset-classic";
 
@@ -31,6 +33,10 @@ const config: Config = {
   i18n: {
     defaultLocale: "en",
     locales: ["en", "ko"],
+    localeConfigs: {
+      en: { label: "English" },
+      ko: { label: "한국어" },
+    },
   },
 
   presets: [
@@ -42,6 +48,8 @@ const config: Config = {
           // Edit URL for GitHub integration
           editUrl:
             "https://github.com/signals-protocol/signals-v0/edit/main/website/",
+          remarkPlugins: [remarkMath],
+          rehypePlugins: [rehypeKatex],
         },
         blog: false,
         theme: {
@@ -76,8 +84,9 @@ const config: Config = {
     navbar: {
       title: "Signals",
       logo: {
-        alt: "Signals Logo",
-        src: "img/logo.svg",
+        alt: "Signals wordmark",
+        src: "img/logo.png",
+        srcDark: "img/logo.png",
       },
       items: [
         {
@@ -106,6 +115,10 @@ const config: Config = {
           label: "GitHub",
           position: "right",
         },
+        {
+          type: "localeDropdown",
+          position: "right",
+        },
       ],
     },
     footer: {
@@ -119,8 +132,8 @@ const config: Config = {
               to: "/docs/quickstart",
             },
             {
-              label: "How CLMSR Works",
-              to: "/docs/concepts/architecture",
+              label: "Mechanism Spec",
+              to: "/docs/mechanism/overview",
             },
             {
               label: "Contract Addresses",

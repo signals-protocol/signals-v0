@@ -1,88 +1,50 @@
 # Protocol Parameters
 
-Configuration parameters that govern the Signals protocol behavior.
+This page catalogues configurable parameters and constants that govern Signals deployments. Values come from the CLMSR whitepaper and the current Solidity contracts; when they differ, the whitepaper entry describes the intended change.
 
-## Market Parameters
+## Market Configuration
 
-### Core Constants
+| Parameter | Description | Source |
+| --- | --- | --- |
+| `OutcomeSpec = (L, U, s, d)` | Outcome bounds, tick spacing, and oracle decimals | Operator per market |
+| `α` (alpha) | Liquidity parameter controlling slippage and maker loss | Operator per market |
+| Trading window | `startTimestamp`, `endTimestamp`, optional `settlementTimestamp` | Operator per market |
+| Payment token | ERC-20 used for trades (SUSD, 6 decimals) | Deployment |
 
-| Parameter             | Value     | Description                                         |
-| --------------------- | --------- | --------------------------------------------------- |
-| **Tick Spacing**      | Variable  | Distance between consecutive ticks (set per market) |
-| **Min Tick Range**    | 2         | Minimum number of ticks in a market                 |
-| **Max Tick Range**    | 1000      | Maximum number of ticks in a market                 |
-| **Min Position Size** | 0.01 SUSD | Minimum position size to prevent dust               |
+### Recommended Defaults
 
-### Liquidity Parameters
+- Minimum trade size `δ_min = 0.01 SUSD` (spec) — enforce in UI until contracts add the guard.
+- Choose `s` based on desired resolution; finer spacing increases gas and `α × ln n`.
 
-| Parameter             | Value         | Description                                 |
-| --------------------- | ------------- | ------------------------------------------- |
-| **Alpha (α)**         | Variable      | Liquidity parameter (set per market)        |
-| **Max Loss Bound**    | α × ln(n)     | Mathematical maximum loss for market makers |
-| **Initial Liquidity** | Equal weights | All bins start with weight = 1              |
+## Hard-Coded Constants
 
-## Technical Limits
+| Constant | Value | Purpose |
+| --- | --- | --- |
+| `MAX_TICK_COUNT` | `1_000_000` | Prevents excessive tree depth |
+| `MAX_CHUNKS_PER_TX` | `1_000` | Caps exponential chunking loops |
+| `MIN_FACTOR` / `MAX_FACTOR` | `0.01e18` / `100e18` | Bounds lazy multipliers |
+| `FLUSH_THRESHOLD` | `1e21` | Forces propagation of large pending factors |
+| `MAX_EXP_INPUT_WAD` | `1.0e18` | Safe input for PRB-Math `exp` |
 
-### Gas & Performance
+See [Safety Bounds & Parameters](../mechanism/safety-parameters.md) for the reasoning behind these numbers.
 
-| Parameter             | Value   | Description                             |
-| --------------------- | ------- | --------------------------------------- |
-| **Max Chunks Per TX** | 1000    | Limit on exponential computation chunks |
-| **Flush Threshold**   | 1e21    | Auto-flush limit for lazy segment tree  |
-| **Max Factor**        | 100e18  | Maximum multiplicative factor           |
-| **Min Factor**        | 0.01e18 | Minimum multiplicative factor           |
+## Access Control
 
-### Position Management
+| Role | Capabilities | Notes |
+| --- | --- | --- |
+| Owner (`Ownable`) | Market creation, settlement, pause/unpause, upgrades | Single account today |
+| Users | Open/increase/decrease/close positions, claim payouts | Permissionless |
 
-| Parameter              | Value    | Description                           |
-| ---------------------- | -------- | ------------------------------------- |
-| **Max Position Count** | 1000     | Maximum positions per user per market |
-| **Settlement Window**  | 24 hours | Time window for market settlement     |
-| **Claim Period**       | 90 days  | Time limit for claiming winnings      |
+No timelock or multisig wrapper is deployed yet; a future governance upgrade will document additional roles.
 
-## Precision & Rounding
+## Upgrade Process
 
-### Internal Arithmetic
+- Contracts use the UUPS proxy pattern. Upgrades require the owner to call `upgradeTo` on each proxy.
+- Storage gaps (`__gap`) are maintained in core contracts to keep layout compatibility.
+- Deployment manifests (`deployments/environments/*.json`) record every implementation address.
 
-| Parameter              | Value                             | Description                        |
-| ---------------------- | --------------------------------- | ---------------------------------- |
-| **Internal Precision** | 18 decimals (WAD)                 | All calculations use WAD precision |
-| **External Precision** | 6 decimals (SUSD)                 | User-facing amounts in SUSD        |
-| **Rounding Policy**    | Ceil for costs, Floor for payouts | Prevents rounding arbitrage        |
+See [Governance & Upgrades](upgrades.md) for the operational checklist.
 
-## Security Parameters
+## Economic Policy
 
-### Access Control
-
-| Role         | Permissions                           | Description                 |
-| ------------ | ------------------------------------- | --------------------------- |
-| **Owner**    | Market creation, settlement, upgrades | Full protocol control       |
-| **Operator** | Market settlement                     | Can resolve market outcomes |
-| **User**     | Position trading                      | Can open/close positions    |
-
-### Emergency Controls
-
-| Parameter             | Value         | Description                      |
-| --------------------- | ------------- | -------------------------------- |
-| **Pause Authority**   | Owner only    | Can pause trading in emergencies |
-| **Upgrade Timelock**  | 48 hours      | Minimum delay for upgrades       |
-| **Emergency Actions** | Pause/Unpause | Limited emergency capabilities   |
-
-## Economic Model
-
-### Settlement Currency
-
-- **Primary Token**: SUSD (6 decimals, USDC-style format)
-- **Payout Ratio**: 1 SUSD per winning share
-- **Transaction Fees**: Paid in cBTC (network native token)
-
-### Points System
-
-Points are awarded for:
-
-- Opening positions
-- Holding positions
-- Accurate predictions
-- Community participation
-
-_Note: Points are for engagement tracking and do not represent monetary value._
+The core CLMSR mechanism does not charge protocol fees. Any incentives (e.g., PointsGranter rewards) are handled off-chain or via auxiliary contracts. Fee programs, if introduced, will be documented here with explicit formulas rather than baked into the cost function.

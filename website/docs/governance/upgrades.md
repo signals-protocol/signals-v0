@@ -1,59 +1,38 @@
-# Protocol Upgrades and Governance
+# Governance & Upgrades
 
-The Signals protocol implements upgradeability through OpenZeppelin's UUPS (Universal Upgradeable Proxy Standard) pattern, enabling improvements while maintaining security and transparency. Understanding the upgrade mechanism helps users assess protocol evolution risks and opportunities.
+Signals contracts follow the UUPS pattern, so the upgrade surface is small but powerful. This page outlines the current governance model and the steps required to ship a new implementation.
 
-## Upgrade Authority and Process
+## Current Governance Model
 
-Protocol upgrades require authorization from the designated owner account, which holds administrative privileges for the core protocol contracts. This centralized approach prioritizes operational efficiency during the early development phase while acknowledging the trust assumptions involved.
+- **Owner**: A single account (EOA or admin contract) controls `CLMSRMarketCore`, `CLMSRPosition`, and `PointsGranter` via `Ownable`. There is no timelock or multisig live today.
+- **Scope**: The owner can upgrade implementations, create/settle markets, pause trading, and manage auxiliary contracts.
+- **Roadmap**: Introduce a timelock + multisig wrapper so upgrades and settlements can be supervised by multiple parties. Until that lands, deployments rely on operational discipline.
 
-The upgrade process involves deploying new implementation contracts that contain updated logic while preserving existing storage layouts and user data. Proxy contracts redirect function calls to new implementations seamlessly, maintaining continuity for existing positions and market state.
+## Upgrade Checklist
 
-Upgrade authorization includes built-in timelock mechanisms that create delays between upgrade initiation and execution. The current 48-hour minimum delay provides time for community review and response to proposed changes before they take effect.
+1. **Develop & test** the new implementation (`*.sol`) and ensure storage layout compatibility.
+2. **Deploy implementation** using Hardhat Ignition or a direct `deploy` script. Record the address.
+3. **Run unit + invariant tests** against the new bytecode, including gas snapshots.
+4. **Broadcast upgrade**:
+   ```bash
+   yarn upgrade:citrea:prod
+   ```
+   The dispatcher sets `MANIFEST_DEFAULT_DIR` and invokes `upgradeTo` on each proxy.
+5. **Verify** the new implementation source on the explorer (`scripts/verify-all.sh`).
+6. **Update manifests**: `deployments/environments/*.json` append a new entry with version, timestamp, and addresses.
+7. **Announce** the upgrade with a changelog entry summarising behavioural differences.
 
-## Implementation Safety Mechanisms
+## Rollback Procedure
 
-Storage layout preservation requirements prevent upgrades from corrupting existing data by accidentally modifying state variable positions. The protocol uses storage gaps and versioning to ensure compatibility between different implementation versions.
+- If an upgrade must be reverted, deploy the previous implementation and call `upgradeTo` with the old address.
+- Because state is preserved, ensure the old code is still storage-compatible before rolling back.
 
-Initialization logic in new implementations handles any data migration or state updates required for proper operation. This logic executes automatically during upgrade deployment and ensures that existing positions and markets continue functioning correctly.
+## Configuration Changes
 
-Function signature compatibility maintains external interface stability across upgrades when possible. Breaking changes to public interfaces require careful coordination with user interface applications and integration partners.
+Most parameter changes (OutcomeSpec, α) occur when creating a new market. If a live market needs adjustment, use `updateMarketTiming` for timing changes. Structural changes (fees, different price sources) require new contract logic and therefore follow the upgrade checklist above.
 
-## Emergency Response Capabilities
+## Transparency
 
-The protocol includes emergency pause functionality that can immediately halt trading operations if critical issues are discovered. Pause authority is restricted to the owner account and provides a safety mechanism for protecting user funds during incident response.
-
-Pause operations affect new position creation and modifications but do not prevent claiming of settled positions. This design ensures that users can always retrieve legitimate payouts while stopping potentially harmful activity.
-
-Emergency upgrades may bypass normal timelock delays when critical security issues require immediate remediation. Such expedited upgrades would be clearly communicated and require additional justification given their deviation from standard procedures.
-
-## Transparency and Communication
-
-Proposed upgrades are communicated through official channels before implementation to provide advance notice of changes. This communication includes technical details about modifications and potential impacts on existing positions or user workflows.
-
-Upgrade proposals include rationale for changes, testing procedures undertaken, and risk assessments for the modifications. This information helps users and integrators understand the implications of proposed changes.
-
-Post-upgrade monitoring tracks protocol performance and user experience to identify any issues requiring follow-up adjustments. Comprehensive testing before upgrades reduces the likelihood of problems but cannot eliminate all risks entirely.
-
-## Future Governance Evolution
-
-The current centralized upgrade authority may evolve toward more decentralized governance mechanisms as the protocol matures and the user community grows. Potential approaches include multi-signature schemes, token-based voting, or other distributed decision-making processes.
-
-Governance token introduction could enable community participation in upgrade decisions while maintaining operational efficiency for routine improvements. Such systems balance democratic participation against technical expertise requirements for evaluating complex protocol changes.
-
-Progressive decentralization approaches might transfer different types of decisions to community control at different rates based on their complexity and risk profile. Market parameter adjustments might decentralize before core mathematical algorithm changes, for example.
-
-## Technical Implementation Details
-
-The UUPS pattern stores upgrade logic within implementation contracts rather than proxy contracts, reducing gas costs and improving security compared to alternative upgrade patterns. This approach ensures that upgrade capabilities can themselves be modified through the standard upgrade process.
-
-Implementation contracts include explicit authorization checks that prevent unauthorized upgrades even if proxy ownership were somehow compromised. These checks provide defense-in-depth security for the upgrade mechanism itself.
-
-Version tracking maintains records of all implementation contracts and upgrade history for auditability and potential rollback scenarios. While rollbacks create their own complexities, this history provides valuable information for incident response.
-
-## Risk Assessment and Mitigation
-
-Upgrade risks include potential introduction of bugs, unintended behavior changes, or storage corruption that could affect user funds or protocol operation. Comprehensive testing and gradual rollout procedures help mitigate these risks while acknowledging they cannot be eliminated entirely.
-
-User protection measures include the timelock delay that provides opportunity to exit positions before upgrades take effect if users disagree with proposed changes. This exit option requires active monitoring of upgrade announcements but provides recourse for concerned users.
-
-Rollback capabilities exist in theory but create practical challenges around state consistency and user expectations. The design prioritizes getting upgrades right initially rather than relying on rollback procedures for error correction.
+- Release notes live in [`website/docs/changelog`](../changelog/index.md).
+- Deployment manifests are version-controlled and reviewed in pull requests.
+- Future governance layers (timelock/multisig) will publish their ops guide alongside the base process so integrators can adjust expectations.

@@ -1,40 +1,26 @@
-# Signals: Range-Based Bitcoin Prediction
+# Signals Overview
 
-Signals enables prediction markets on continuous outcomes rather than simple binary questions. Instead of betting whether Bitcoin will be above or below a specific price, you can express precise predictions by purchasing range securities that cover specific price intervals.
+Signals runs a daily Bitcoin range market backed by a Continuous LMSR (CLMSR). We built it because binary prediction markets and fragmented order books fail to keep liquidity and probabilities aligned. Here you will find everything from the high-level thesis to the trading playbook.
 
-## The Range Security Innovation
+## Why read this documentation?
 
-Traditional prediction markets limit you to yes-or-no questions such as "Will BTC exceed $50,000 by January 31st?" This binary approach fragments liquidity across many separate markets and fails to capture the nuanced nature of price movements. Signals solves this problem through range securities that allow you to bet on specific price intervals.
+- Understand the market structure that keeps prices normalized and maker loss bounded.
+- See how each daily market is scheduled, settled, and audited.
+- Learn how to participate responsibly with SUSD test liquidity on Citrea.
 
-When you purchase range securities for the interval $52,000 to $54,000, you are expressing your belief that Bitcoin will settle within that exact range. Each range security pays out 1 SUSD if the final settlement value falls within your chosen interval. The price you pay for these securities directly represents the market's estimated probability of that outcome occurring.
+## Where to start
 
-## How Price Discovery Works
+1. **Grasp the thesis** – Read [Why Signals Exists](./start/why-signals.md) to see how CLMSR fixes fragmented order books, then skim the [Market Flow Overview](./start/market-flow-overview.md).
+2. **Dive into the math** – Head to [How CLMSR Works](./mechanism/overview.md) and the follow-up pages for the potential, rounding rules, and risk envelope.
+3. **Check the protocol guarantees** – [Protocol Architecture](./protocol/architecture.md) and [Security & Testing](./security/audits.md) explain the states, invariants, and trust assumptions.
+4. **Trade the market** – Follow the [Quick Start](./quickstart/index.md), then use the [Trader Handbook](./user/positions-lifecycle.md) and [Settlement & Claims](./user/settlement.md) when you place your first range.
 
-The protocol implements a Continuous Logarithmic Market Scoring Rule that maintains a single unified liquidity pool across all possible outcome ranges. This design eliminates the liquidity fragmentation that plagues traditional binary prediction markets. When you purchase range securities, the cost is calculated using the formula `α × ln(sum_after / sum_before)`, where alpha represents the liquidity parameter and the sums represent the total exponential weights before and after your trade.
+## Signals in one glance
 
-The mathematical foundation ensures that prices always sum to 1 SUSD across all possible outcomes, creating an internally consistent probability distribution. If a range currently costs 0.25 SUSD, the market collectively estimates a 25% probability that the final outcome will fall within that range.
+- **Single market per day** – We list one BTC close range market, with $100 ticks across a configured price band.
+- **Continuous pricing** – Every trade flows through the CLMSR potential so probabilities add to 1 and react instantly.
+- **Transparent settlement** – CoinMarketCap's close is posted on-chain, batched events mark every position, and claims never expire.
 
-## Market Settlement and Payout
+Need deeper theory? Jump straight to the [Key Formulas Cheat Sheet](./mechanism/key-formulas.md) or download the [Signals CLMSR whitepaper](/whitepaper.pdf).
 
-Markets operate with predefined settlement criteria and timing. When a market reaches its settlement date, an authorized operator posts the final outcome value using 6-decimal precision. The protocol then determines winning ranges by checking which intervals contain the settlement tick, calculated as `floor(settlement_value / 1e6)`.
-
-Position holders whose ranges include the settlement tick can claim 1 SUSD per share they own. The claiming process is permissionless once settlement occurs, allowing position holders to retrieve their winnings at any time within the 90-day claim period.
-
-## Bitcoin Markets on Citrea
-
-Signals currently operates Bitcoin prediction markets on the Citrea testnet, providing a secure zkRollup environment that inherits Bitcoin's security guarantees while offering EVM compatibility. Transaction fees are paid in cBTC, Citrea's native token, while all trading and settlement occurs in SUSD, a 6-decimal token that follows USDC formatting conventions.
-
-The protocol's gas-efficient design uses a lazy multiplicative segment tree to handle range operations in O(log n) complexity, making it economical to support markets with hundreds of distinct price ranges. Safety mechanisms limit individual transactions to 1000 computational chunks and enforce bounds on multiplicative factors to prevent overflow conditions.
-
-## Getting Started
-
-To begin using Signals, you need a Web3 wallet configured for the Citrea testnet, some cBTC for transaction fees, and SUSD tokens for trading. The Quick Start guide provides detailed instructions for wallet setup and executing your first trade.
-
-The protocol documentation covers mathematical foundations, security considerations, and data access through GraphQL endpoints. Whether you are a trader seeking to express nuanced market views, a researcher analyzing prediction accuracy, or a developer building on top of the protocol, the documentation provides the context and technical details needed to engage effectively with Signals.
-
----
-
-**Network**: Citrea Testnet (Chain ID 5115)  
-**Settlement Token**: SUSD (6 decimals, USDC-style)  
-**Transaction Fees**: cBTC  
-**Contract Addresses**: [View deployment details →](/docs/addresses)
+Questions or feedback? Reach out via the Signals community channels or email `hello@signals.wtf`.
