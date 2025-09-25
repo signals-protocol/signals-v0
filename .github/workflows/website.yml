@@ -2,14 +2,14 @@ name: Docs
 
 on:
   push:
-    branches: [main]
+    branches: [docs-ci]
   pull_request:
+    branches: [docs-ci]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      NODE_ENV: production
       # Docusaurus가 리포 루트가 아닌 /website에 있을 때:
       WORKDIR: website
     steps:
@@ -51,7 +51,7 @@ jobs:
         working-directory: website
         run: |
           yarn install --frozen-lockfile
-          yarn build
+          NODE_ENV=production yarn build
 
       # 5) Pages 아티팩트 업로드
       - name: Upload artifact
@@ -72,4 +72,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
