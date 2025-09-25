@@ -123,7 +123,7 @@ const config: HardhatUserConfig = {
     outputDir: "../website/docs/contracts",
     pages: "items",
     exclude: ["mocks/**", "test/**"],
-    templates: "default",
+    theme: "markdown",
   },
 };
 
