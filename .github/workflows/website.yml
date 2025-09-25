@@ -18,26 +18,26 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: "npm"
+          cache: yarn
           cache-dependency-path: |
-            contracts/package-lock.json
-            clmsr-sdk/package-lock.json
-            website/package-lock.json
+            yarn.lock
+            clmsr-sdk/yarn.lock
+            website/yarn.lock
+
+      - name: Install root dependencies
+        run: yarn install --frozen-lockfile
 
       # 1) 컨트랙트 레퍼런스 생성
       - name: Build Solidity docs
-        working-directory: contracts
-        run: |
-          npm ci
-          npx hardhat docgen
+        run: yarn hardhat docgen
 
       # 2) TS SDK 레퍼런스(빌드 시 플러그인이 실행되지만,
       #    필요시 사전 타입체크/빌드)
       - name: Prepare SDK
         working-directory: clmsr-sdk
         run: |
-          npm ci
-          npm run build --if-present
+          yarn install --frozen-lockfile
+          yarn build
 
       # 3) OpenAPI → MDX 생성 (추후 설정 시 사용)
       # - name: Generate OpenAPI MDX
@@ -49,7 +49,9 @@ jobs:
       # 4) Docusaurus 빌드
       - name: Build site
         working-directory: website
-        run: npm ci && npm run build
+        run: |
+          yarn install --frozen-lockfile
+          yarn build
 
       # 5) Pages 아티팩트 업로드
       - name: Upload artifact
@@ -70,5 +72,4 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
 
