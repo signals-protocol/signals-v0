@@ -16,7 +16,7 @@
 
 - 매일 하나의 비트코인 종가 시장을 개설합니다.
 - 틱 설정: `minTick = 100_000`, `maxTick = 140_000`, `tickSpacing = 100` → $100 범위 400개.
-- 유동성 파라미터 `α`는 기본 1이며, `α × ln(numberOfBins)`으로 메이커 손실이 제한됩니다.
+- 유동성 파라미터 $\alpha$는 기본 1이며, 메이커 손실은 $\alpha \times \ln n$으로 제한됩니다. 여기서 $n$은 `numberOfBins`입니다.
 - 포지션은 ERC‑721 토큰으로 `marketId`, `lowerTick`, `upperTick`, `quantity`, `timestamps`를 저장합니다.
 
 ## 거래 라이프사이클

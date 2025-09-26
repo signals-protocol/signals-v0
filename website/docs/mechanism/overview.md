@@ -5,7 +5,7 @@ Signals’ user experience is simple—pick a $100 Bitcoin range and wait for th
 ## Role of the mechanism
 
 - **Surface probabilities** – the CLMSR potential guarantees that prices across all bands sum to 1 and adjust instantly when trades arrive.
-- **Bound maker loss** – the operator chooses a liquidity parameter `α`, capping potential loss at `α × ln n` where `n` is the number of bands.
+- **Bound maker loss** – the operator chooses a liquidity parameter $\alpha$, capping potential loss at $\alpha \times \ln n$ where $n$ is the number of bands.
 - **Enable atomic range trades** – buying or selling a band updates every tick in that band in one transaction, no stitching required.
 
 Although Signals currently runs only daily Bitcoin markets, the same mechanism can power any continuous outcome with discrete ticks.

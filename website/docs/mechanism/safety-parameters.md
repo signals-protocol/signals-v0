@@ -10,7 +10,7 @@ $$
 \text{Loss}_{\max} = \alpha \ln(n)
 $$
 
-where `α` is the liquidity parameter and `n` the number of bins. Choosing tighter tick spacing increases `n` and therefore the bound. Operators should set `α` to match their risk budget: `α = Loss_target / ln(n)`.
+where $\alpha$ is the liquidity parameter and $n$ the number of bins. Choosing tighter tick spacing increases $n$ and therefore the bound. Operators should set $\alpha$ to match their risk budget: $\alpha = \text{Loss}_{\text{target}} / \ln(n)$.
 
 ## Segment Tree Guards
 

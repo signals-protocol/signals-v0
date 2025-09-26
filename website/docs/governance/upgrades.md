@@ -29,7 +29,7 @@ Signals contracts follow the UUPS pattern, so the upgrade surface is small but p
 
 ## Configuration Changes
 
-Most parameter changes (OutcomeSpec, α) occur when creating a new market. If a live market needs adjustment, use `updateMarketTiming` for timing changes. Structural changes (fees, different price sources) require new contract logic and therefore follow the upgrade checklist above.
+Most parameter changes (OutcomeSpec, $\alpha$) occur when creating a new market. If a live market needs adjustment, use `updateMarketTiming` for timing changes. Structural changes (fees, different price sources) require new contract logic and therefore follow the upgrade checklist above.
 
 ## Transparency
 

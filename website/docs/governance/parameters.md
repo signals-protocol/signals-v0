@@ -7,14 +7,14 @@ This page catalogues configurable parameters and constants that govern Signals d
 | Parameter | Description | Source |
 | --- | --- | --- |
 | `OutcomeSpec = (L, U, s, d)` | Outcome bounds, tick spacing, and oracle decimals | Operator per market |
-| `α` (alpha) | Liquidity parameter controlling slippage and maker loss | Operator per market |
+| $\alpha$ (alpha) | Liquidity parameter controlling slippage and maker loss | Operator per market |
 | Trading window | `startTimestamp`, `endTimestamp`, optional `settlementTimestamp` | Operator per market |
 | Payment token | ERC-20 used for trades (SUSD, 6 decimals) | Deployment |
 
 ### Recommended Defaults
 
-- Minimum trade size `δ_min = 0.01 SUSD` (spec) — enforce in UI until contracts add the guard.
-- Choose `s` based on desired resolution; finer spacing increases gas and `α × ln n`.
+- Minimum trade size $\delta_{\min} = 0.01\ \text{SUSD}$ (spec) — enforce in UI until contracts add the guard.
+- Choose $s$ based on desired resolution; finer spacing increases gas and $\alpha \times \ln n$.
 
 ## Hard-Coded Constants
 

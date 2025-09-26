@@ -1,0 +1,8 @@
+{
+  "label": "보안",
+  "position": 8,
+  "link": {
+    "type": "generated-index",
+    "description": "보안 감사, 버그 바운티, 위험 평가"
+  }
+}

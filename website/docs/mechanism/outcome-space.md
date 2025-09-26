@@ -7,7 +7,7 @@
 Every market declares an `OutcomeSpec = (L, U, s, d)`:
 
 - `L`, `U`: inclusive lower and upper outcome bounds in raw oracle units.
-- `s`: tick spacing (strictly positive). The number of bins is `n = ceil((U - L) / s)`.
+- `s`: tick spacing (strictly positive). The number of bins is $n = \left\lceil \dfrac{U - L}{s} \right\rceil$.
 - `d`: metadata describing the oracle decimal scale (e.g. BTC price with 8 decimals).
 
 Oracle observations arrive as `OutcomeRaw` in raw units. We map them to a tick index by clamping into the $[0, n-1]$ range:
@@ -42,14 +42,14 @@ A valid position must satisfy:
 1. $\text{lowerTick} < \text{upperTick}$
 2. $\text{upperTick} - \text{lowerTick}$ is divisible by $\text{tickSpacing}$
 
-The whitepaper also recommends enforcing a **minimum trade size** `δ_min = 10^-2 U6` to avoid dust and ensure rounding guarantees. Implementation note: the current contracts still accept smaller quantities; this will be tightened to match the spec.
+The whitepaper also recommends enforcing a **minimum trade size** $\delta_{\min} = 10^{-2}\ U6$ to avoid dust and ensure rounding guarantees. Implementation note: the current contracts still accept smaller quantities; this will be tightened to match the spec.
 
 ## Implementation Status
 
 | Topic | Whitepaper | Contracts (current) |
 | --- | --- | --- |
 | Tick mapping | `[L + b·s, L + (b+1)·s)` | ✅ Matches spec |
-| Minimum trade size | `δ_min = 0.01 SUSD` | ⚠️ Not enforced yet |
+| Minimum trade size | $\delta_{\min} = 0.01\ \text{SUSD}$ | ⚠️ Not enforced yet |
 | Unit conversions | Multiply/divide by `1e12` | ✅ Matches spec |
 
 Until the minimum size guard lands on-chain, interfaces should surface the recommended minimum and warn users if they try to go below it.
