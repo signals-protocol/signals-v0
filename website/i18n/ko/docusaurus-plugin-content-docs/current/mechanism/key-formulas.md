@@ -4,15 +4,15 @@
 
 ## 잠재함수와 가격
 
-- 잠재함수: $C(q) = \alpha \ln \left( \sum_b e^{q_b / \alpha} \right)$, 여기서 `α`는 유동성 파라미터, `q_b`는 밴드 `b`의 재고입니다.
+- 잠재함수: $C(q) = \alpha \ln \left( \sum_b e^{q_b / \alpha} \right)$, 여기서 $\alpha$는 유동성 파라미터, $q_b$는 밴드 $b$의 재고입니다.
 - 밴드 가격: $p_b = \frac{e^{q_b / \alpha}}{\sum_j e^{q_j / \alpha}}$.
 - 최대 손실: $\text{Loss}_{\max} = \alpha \ln(n)$ (`n`은 시장의 밴드 수).
 
 ## 체결 시 업데이트
 
-- 밴드에 `δ`만큼 매수: 모든 가중치에 $\varphi = e^{\delta / \alpha}$를 곱합니다.
+- 밴드에 $\delta$만큼 매수: 모든 가중치에 $\varphi = e^{\delta / \alpha}$를 곱합니다.
 - 비용: $\Delta C = \alpha \ln\left(\Sigma_{\text{after}} / \Sigma_{\text{before}}\right)$.
-- 매도는 `δ` 부호만 반대입니다.
+- 매도는 $\delta$ 부호만 반대입니다.
 
 ## 틱 매핑
 
@@ -25,7 +25,7 @@
 - 라운딩 규칙:
   - 매수/증액: 올림(`fromWadRoundUp`).
   - 매도/청구: 내림(`fromWadFloor`).
-  - 최소 주문 크기: `δ_min = 0.01 SUSD`(UI에서 enforcing 중, 컨트랙트 가드 예정).
+  - 최소 주문 크기: $\delta_{\min} = 0.01\ \text{SUSD}$ (UI에서 enforcing 중, 컨트랙트 가드 예정).
 
 ## 세그먼트 트리 가드
 

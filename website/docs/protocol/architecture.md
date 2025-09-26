@@ -16,7 +16,7 @@ Signals is more than a trading UI—it is an on-chain CLMSR market, a daily oper
 
 - Daily market covering BTC closing price.
 - Tick configuration: `minTick = 100_000`, `maxTick = 140_000`, `tickSpacing = 100` (i.e. $100 increments covering $100,000–$140,000). The scripts create 401 ticks / 400 bands.
-- Liquidity parameter `α` defaults to 1 (can be overridden via `ALPHA`). Maker loss is bounded by `α × ln(numberOfBins)`.
+- Liquidity parameter $\alpha$ defaults to 1 (can be overridden via `ALPHA`). Maker loss is bounded by $\alpha \times \ln n$ where $n$ equals `numberOfBins`.
 - Positions are ERC‑721 tokens storing `marketId`, `lowerTick`, `upperTick`, `quantity`, and timestamps.
 
 ## Trade lifecycle

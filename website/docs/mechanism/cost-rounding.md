@@ -20,11 +20,11 @@ $$
 \Delta C = \alpha \ln\left( \frac{\Sigma_{\text{after}}}{\Sigma_{\text{before}}} \right).
 $$
 
-The same formula (with `δ` negated) yields sell proceeds.
+The same formula (with $\delta$ negated) yields sell proceeds.
 
 ## Chunking for Safety
 
-Exponentials are evaluated in chunks to stay within PRB-Math bounds. The spec defines `MAX_EXP_INPUT_WAD = 1.0e18` so each chunk satisfies `(chunk / α) ≤ 1`. The tree routines split large trades accordingly.
+Exponentials are evaluated in chunks to stay within PRB-Math bounds. The spec defines `MAX_EXP_INPUT_WAD = 1.0e18` so each chunk satisfies $(\text{chunk} / \alpha) \le 1$. The tree routines split large trades accordingly.
 
 ## Asymmetric Rounding
 
@@ -40,7 +40,7 @@ The whitepaper mandates a single conversion per trade, with direction fixed per 
 
 ## Minimum Cost Guarantee
 
-Because of ceiling rounding on buys and `δ_min`, every successful trade debits at least `1` micro unit of SUSD. This removes the zero-cost vector described in the security analysis (§8).
+Because of ceiling rounding on buys and $\delta_{\min}$, every successful trade debits at least `1` micro unit of SUSD. This removes the zero-cost vector described in the security analysis (§8).
 
 ## References
 

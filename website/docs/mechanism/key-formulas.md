@@ -12,7 +12,7 @@ Use this page as a quick reference when you need the core CLMSR equations withou
 
 - Buy $\delta$ shares of a band: multiply each weight by $\varphi = e^{\delta / \alpha}$.
 - Cost: $\Delta C = \alpha \ln(\Sigma_{\text{after}} / \Sigma_{\text{before}})$.
-- Sell actions use the same formula with `δ` negated.
+- Sell actions use the same formula with $\delta$ negated.
 
 ## Tick mapping
 
@@ -25,7 +25,7 @@ Use this page as a quick reference when you need the core CLMSR equations withou
 - Rounding policy:
   - Buys/increases: round up (`fromWadRoundUp`).
   - Sells/claims: round down (`fromWadFloor`).
-  - Minimum trade size: `δ_min = 0.01 SUSD` (UI enforced until the contract guard lands).
+  - Minimum trade size: $\delta_{\min} = 0.01\ \text{SUSD}$ (UI enforced until the contract guard lands).
 
 ## Segment tree guards
 

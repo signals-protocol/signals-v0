@@ -10,7 +10,7 @@
 
 **SUSD** — The 6-decimal token used for staking and payouts on Signals.
 
-**Stake** — The SUSD amount you risk on a band. Winning bands return stake × 1.
+**Stake** — The SUSD amount you risk on a band. Winning bands return stake $\times 1$.
 
 **Timer** — The countdown to the end of trading (23:59:59 UTC on the target date).
 
