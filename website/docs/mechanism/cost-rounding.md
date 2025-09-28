@@ -1,49 +1,55 @@
 # Cost Function & Rounding
 
-> Reference: Signals CLMSR Whitepaper v1.0 — §4–§8
+> Reference: Signals CLMSR Whitepaper v1.0 -- §4-§8
 
-## Convex Potential
+This chapter explains how Signals prices every trade and why rounding rules matter. If you are auditing the contracts, walk through each section alongside LazyMulSegmentTree.sol and the helpers in FixedPointMath.sol--the on-chain implementation matches the structure outlined here.
 
-CLMSR maintains a single potential over tick shares $q_b$:
+## One potential for all bands
+
+CLMSR keeps a single convex potential over tick shares $q_b$:
 
 $$
 C(q) = \alpha \ln \left( \sum_b e^{q_b / \alpha} \right)
 $$
 
-- $\alpha$ is the market’s liquidity parameter (stored internally in WAD).
-- $w_b = e^{q_b / \alpha}$ are the exponential weights.
-- Prices are the gradient $p_b = w_b / \sum_j w_j$, so prices always sum to 1.
-
-Buying $\delta$ shares of range $B$ multiplies each weight in the range by $\varphi = e^{\delta / \alpha}$ and charges
+The liquidity parameter $\alpha$ is stored as a WAD value. Exponential weights $w_b = e^{q_b/\alpha}$ drive the gradient, and prices follow directly from
 
 $$
-\Delta C = \alpha \ln\left( \frac{\Sigma_{\text{after}}}{\Sigma_{\text{before}}} \right).
+p_b = \frac{w_b}{\sum_j w_j}
 $$
 
-The same formula (with $\delta$ negated) yields sell proceeds.
+so the sum of probabilities remains 1 even as trades accumulate. Buying $\delta$ shares of a band multiplies each weight inside that band by $\varphi = e^{\delta/\alpha}$ and charges the change in potential:
 
-## Chunking for Safety
+$$
+\Delta C = \alpha \ln\left(\frac{\Sigma_\text{after}}{\Sigma_\text{before}}\right)
+$$
 
-Exponentials are evaluated in chunks to stay within PRB-Math bounds. The spec defines `MAX_EXP_INPUT_WAD = 1.0e18` so each chunk satisfies $(\text{chunk} / \alpha) \le 1$. The tree routines split large trades accordingly.
+Selling inverts the exponent--it is the same expression with $\delta$ negated.
 
-## Asymmetric Rounding
+## Keeping exponentials safe
 
-The whitepaper mandates a single conversion per trade, with direction fixed per action:
+Exponentials are evaluated in chunks to respect PRB-Math limits. The implementation caps each exponent input at `MAX_EXP_INPUT_WAD = 1e18`, effectively ensuring that `(chunk/alpha) <= 1`. Large trades are split automatically by the lazy segment tree so a single call never exceeds precision or gas bounds.
+
+## Asymmetric rounding
+
+The whitepaper insists on one conversion per action, with direction fixed to close the “free trade” loophole:
 
 | Action | Conversion | Helper |
 | --- | --- | --- |
-| Buy / Increase | Round **up** to prevent zero-cost attacks | `fromWadRoundUp` |
-| Sell / Decrease / Close | Round **down** | `fromWadFloor` |
-| Settlement payout | Round **down** | `fromWadFloor` |
+| Buy / Increase | Round **up** | fromWadRoundUp |
+| Sell / Decrease / Close | Round **down** | fromWadFloor |
+| Settlement payout | Round **down** | fromWadFloor |
 
-**Implementation status:** buys already use `fromWadRoundUp`, but sells and payouts still round up in the current Solidity. The contracts will be updated to follow the spec; until then, dashboards should display the expected post-update behaviour and note that live payouts may be slightly higher than specified.
+**Implementation status:** buys already round up. Sells and payouts currently round up in production contracts but are slated to switch to floor rounding to match the spec. Until that ships, dashboards should note that live proceeds may be marginally higher than the post-update expectation.
 
-## Minimum Cost Guarantee
+## Minimum cost guarantee
 
-Because of ceiling rounding on buys and $\delta_{\min}$, every successful trade debits at least `1` micro unit of SUSD. This removes the zero-cost vector described in the security analysis (§8).
+Ceiling rounding on buys plus the minimum trade size $\delta_{\min}$ guarantee that every successful trade removes at least one micro unit of SUSD. Attackers cannot leave zero-cost dust positions on the books, and auditors can assume that every position reflects real capital at risk.
 
-## References
+## Where to look in code
 
-- Whitepaper §4 — weight definitions and potential.
-- Whitepaper §5 — range updates via lazy segment tree.
-- Whitepaper §8 — rounding helpers and single-conversion rule.
+- LazyMulSegmentTree.sol implements the chunking logic and exponential weight updates.
+- FixedPointMath.sol houses the rounding helpers (fromWadRoundUp, fromWadFloor).
+- Tests under test/unit/libraries/** cover both rounding directions and chunk-splitting edge cases.
+
+For the bounds that ensure these routines remain safe, continue to [Safety Bounds & Parameters](safety-parameters.md).

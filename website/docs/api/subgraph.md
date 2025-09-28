@@ -1,144 +1,49 @@
 # Subgraph API
 
-Signals publishes a Goldsky subgraph that mirrors the on-chain CLMSR state. Use it to query markets, distributions, trades, and points without calling the contracts directly.
+Signals exposes a Goldsky-hosted subgraph that tracks the CLMSR market in real time. This page shows the endpoints, key entities, and typical queries so you can build analytics, dashboards, or automation without hitting the contracts directly.
 
 ## Endpoints
 
 | Environment | URL |
 | --- | --- |
-| Production (Citrea) | `https://api.goldsky.com/api/public/project_cme6kru6aowuy01tb4c9xbdrj/subgraphs/signals-v0-citrea-prod/latest/gn` |
-| Development (Citrea) | `https://api.goldsky.com/api/public/project_cme6kru6aowuy01tb4c9xbdrj/subgraphs/signals-v0-citrea-dev/latest/gn` |
+| Production | `https://api.goldsky.com/api/public/project_cme6kru6aowuy01tb4c9xbdrj/subgraphs/signals-v0-citrea-prod/latest/gn` |
+| Development | `https://api.goldsky.com/api/public/project_cme6kru6aowuy01tb4c9xbdrj/subgraphs/signals-v0-citrea-dev/latest/gn` |
 
-The schema is sourced from `clmsr-subgraph/schema.graphql`. Key entities are summarised below.
+All numbers maintain contract-native scales: factors are 18-decimal WAD values, monetary amounts are 6-decimal integers. The schema lives in `clmsr-subgraph/schema.graphql` if you need the full definition.
 
-## Core Entities
+## Core entities
 
-### Market
+- **Market** — configuration and lifecycle of each daily market (`marketId`, `minTick`, `maxTick`, `isSettled`, `settlementTick`).
+- **MarketDistribution** — segment tree snapshot for pricing; includes `totalSum`, `binFactors`, `tickRanges`, and metadata hashes so the SDK can detect updates.
+- **BinState** — per-bin factors and volumes, useful for charts.
+- **UserPosition** — ERC-721 range position with derived metrics such as `currentQuantity`, `totalCostBasis`, `realizedPnL`, `outcome`, and points counters.
+- **Trade** — every OPEN/INCREASE/DECREASE/CLOSE/SETTLE action, including gas data and points awarded.
+- **UserStats / MarketStats** — aggregated totals (volume, winRate, realised PnL, unique traders, price extremes).
+- **PositionSettled / PositionEventsProgress** — settlement batches and payouts; watch `PositionEventsProgress.isComplete` to know when claims unlock.
 
-```graphql
-type Market {
-  id: String!
-  marketId: BigInt!
-  minTick: BigInt!
-  maxTick: BigInt!
-  tickSpacing: BigInt!
-  startTimestamp: BigInt!
-  endTimestamp: BigInt!
-  settlementTimestamp: BigInt
-  numBins: BigInt!
-  liquidityParameter: BigInt!
-  isSettled: Boolean!
-  settlementValue: BigInt
-  settlementTick: BigInt
-  lastUpdated: BigInt!
-  bins: [BinState!]!
-}
-```
+## Useful queries
 
-### BinState
-
-Tracks the exponential factors per tick.
+### Market distribution
 
 ```graphql
-type BinState {
-  id: String!
-  market: Market!
-  binIndex: BigInt!
-  lowerTick: BigInt!
-  upperTick: BigInt!
-  currentFactor: BigInt!
-  lastUpdated: BigInt!
-  updateCount: BigInt!
-  totalVolume: BigInt!
-}
-```
-
-### UserPosition
-
-```graphql
-type UserPosition {
-  id: String!
-  positionId: BigInt!
-  user: Bytes!
-  stats: UserStats!
-  market: Market!
-  lowerTick: BigInt!
-  upperTick: BigInt!
-  currentQuantity: BigInt!
-  totalCostBasis: BigInt!
-  averageEntryPrice: BigInt!
-  totalQuantityBought: BigInt!
-  totalQuantitySold: BigInt!
-  totalProceeds: BigInt!
-  realizedPnL: BigInt!
-  outcome: PositionOutcome!
-  isClaimed: Boolean!
-  createdAt: BigInt!
-  lastUpdated: BigInt!
-  activityRemaining: BigInt!
-  weightedEntryTime: BigInt!
-}
-```
-
-### Trade
-
-Represents OPEN/INCREASE/DECREASE/CLOSE/SETTLE events. Includes per-trade points.
-
-### UserStats & MarketStats
-
-Aggregate per-user and per-market metrics (totals, win rates, points, PnL, gas usage, etc.). Common fields include:
-
-| Entity.field | Description |
-| --- | --- |
-| `MarketStats.unclaimedPayout` | Outstanding SUSD after settlement batches. |
-| `MarketStats.totalVolume` | Aggregate traded quantity (6 decimals). |
-| `UserStats.realizedPnL` | Settled profit or loss per trader (6 decimals). |
-| `UserStats.performancePt` | Lifetime performance points granted by `PointsGranter`. |
-
-## Example Queries
-
-**Fetch a market snapshot with distribution and recent trades:**
-
-```graphql
-query GetMarket($marketId: String!) {
-  market(id: $marketId) {
-    marketId
-    minTick
-    maxTick
-    tickSpacing
-    isSettled
-    settlementTick
-    liquidityParameter
-    bins(first: 10, orderBy: binIndex) {
-      binIndex
-      lowerTick
-      upperTick
-      currentFactor
-    }
-  }
-  trades(first: 20, orderBy: timestamp, orderDirection: desc, where: { market: $marketId }) {
-    id
-    type
-    quantity
-    costOrProceeds
-    activityPt
-    performancePt
-    riskBonusPt
-    timestamp
+query Distribution($marketId: String!) {
+  marketDistribution(id: $marketId) {
+    totalSum
+    binFactors
+    binVolumes
+    tickRanges
   }
 }
 ```
 
-**List active positions for a user:**
+Feed the result into `mapDistribution` from the SDK to price trades.
+
+### Active positions for a user
 
 ```graphql
-query GetPositions($user: Bytes!) {
+query Positions($user: Bytes!) {
   userPositions(where: { user: $user, outcome: OPEN }) {
     positionId
-    market {
-      marketId
-      isSettled
-    }
     lowerTick
     upperTick
     currentQuantity
@@ -148,11 +53,53 @@ query GetPositions($user: Bytes!) {
 }
 ```
 
-## Usage Tips
+### Trade history within a market
 
-- All monetary values are raw 6-decimal integers. Convert using the helpers in the SDK (`toWAD`, `fromWadRoundUp`).
-- Bin factors are WAD values. Divide by `1e18` to display or feed into the SDK.
-- `MarketStats.unclaimedPayout` shows how much remains to be claimed after settlement batches run.
-- The `PositionSettled` entity (derived from events) is useful for reconciling claims and settlement progress.
+```graphql
+query UserMarketTrades($user: Bytes!, $market: String!) {
+  trades(
+    where: { user: $user, market: $market }
+    orderBy: timestamp
+    orderDirection: desc
+  ) {
+    id
+    type
+    quantity
+    costOrProceeds
+    timestamp
+  }
+}
+```
 
-The Goldsky dashboard offers built-in playgrounds for the endpoints above. For local testing, run `yarn workspace clmsr-subgraph codegen` to generate TypeScript bindings from the same schema.
+### Settlement progress
+
+```graphql
+query SettlementProgress($marketId: BigInt!) {
+  positionEventsProgresses(
+    where: { marketId: $marketId }
+    orderBy: blockNumber
+    orderDirection: desc
+    first: 1
+  ) {
+    fromIndex
+    toIndex
+    isComplete
+  }
+}
+```
+
+## Working with raw scales
+
+- Divide WAD values (`binFactors`, `totalSum`) by `1e18` for display.
+- Divide SUSD amounts (`quantity`, `costOrProceeds`, `totalVolume`) by `1e6` to show tokens.
+- Percentages (`winRate`, `priceChange24h`) are decimals; multiply by 100 for human-readable percentages.
+
+The SDK expects raw values, so only convert when rendering UI.
+
+## Monitoring tips
+
+- Compare the subgraph’s latest block with the Citrea explorer to detect lag.
+- After settlement, poll `PositionEventsProgress` until `isComplete = true` before prompting users to claim.
+- Queries every 3–5 seconds are usually sufficient; for heavier workloads consider batching requests.
+
+For deeper schema exploration use Goldsky’s GraphQL playground or inspect the generated TypeScript bindings (`yarn workspace clmsr-subgraph codegen`).

@@ -1,17 +1,19 @@
 # 용어집
 
-**Band(밴드)** — `[lower, upper)` 형태의 $100 폭 범위. 정산 틱이 범위 안에 들어오면 1 SUSD당 1 SUSD를 돌려받습니다.
+시그널스에서 자주 등장하는 용어를 실제 사용 맥락과 함께 정리했습니다. 트레이더, 운영자, 통합 개발자가 같은 언어를 쓰기 위해 필요한 최소 구성을 담았습니다.
 
-**Closing tick** — CoinMarketCap BTC/USD 종가를 100으로 나눈 뒤 내림(floor)한 값.
+**Band(밴드)** - CLMSR에서 사고파는 $100 폭의 반열린 범위 `[lower, upper)`입니다. 정산 틱이 범위 안에 들어오면 스테이크 1 SUSD당 1 SUSD가 돌아오며, 인접 밴드를 조합해 더 넓은 견해를 표현할 수도 있습니다.
 
-**CLMSR** — Continuous Logarithmic Market Scoring Rule. 모든 범위 가격을 하나의 잠재함수로 관리하는 AMM.
+**Closing tick** - CoinMarketCap BTC/USD 일일 종가에서 계산한 정수 틱 값 `tick = floor(price / 100)`입니다. 정산 시 설정된 경계 안으로 클램프되고 승리 밴드를 결정합니다.
 
-**Points** — 리더보드에 표시되는 참여 포인트. 배당금에는 영향을 주지 않습니다.
+**CLMSR** - Continuous Logarithmic Market Scoring Rule. 하나의 잠재함수로 모든 밴드를 연결해 확률 총합을 1로 유지하고, 유동성 파라미터 $\alpha$로 메이커 손실을 제한합니다.
 
-**SUSD** — 시그널스가 사용하는 6자리 소수 스테이블 토큰.
+**Points** - `PointsGranter` 컨트랙트가 발행하는 참여 보상입니다. 리더보드와 분석에서 사용되며 SUSD 지급에는 영향을 주지 않습니다. 온체인으로 사유가 기록됩니다(1 = Activity, 2 = Performance, 3 = Risk Bonus).
 
-**Stake** — 범위에 거는 SUSD 수량. 승리하면 동일한 금액을 수령합니다.
+**SUSD** - 시그널스의 스테이킹·정산 토큰으로 소수점 6자리까지 지원합니다. 테스트넷에서는 퍼싯이나 스크립트로 발행하며 모든 거래와 청구가 SUSD로 이뤄집니다.
 
-**Timer** — 해당 시장의 거래 종료까지 남은 시간(UTC 23:59:59 기준).
+**Stake** - 밴드에 투입하는 SUSD 금액입니다. 거래 시 지갑에서 빠져나와 풀에 잠기고, 포지션을 청산하거나 정산될 때까지 유지됩니다. 승리 시 스테이크와 페이아웃이 함께 돌아옵니다.
 
-더 깊은 기술 용어가 필요하면 [Mechanism 섹션](/docs/mechanism/overview)을 참고하세요.
+**Timer** - 앱에 표시되는 UTC 23:59:59까지의 카운트다운입니다. 0이 되면 거래가 멈추고 운영자가 CoinMarketCap 가격을 검증해 정산을 시작합니다.
+
+추가 용어는 [메커니즘 사양](../mechanism/overview.md)과 [프로토콜 아키텍처](../protocol/architecture.md) 문서에서 자세히 다룹니다.

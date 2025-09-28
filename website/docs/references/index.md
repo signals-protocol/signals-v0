@@ -1,9 +1,9 @@
 # Reference Overview
 
-Use this section to find primary source material and supporting research for Signals.
+Use this section when you need primary sources or deeper theory behind the Signals CLMSR market.
 
-- For the full mathematical treatment, open the [Signals CLMSR Whitepaper](./whitepaper.md).
-- For academic context on market scoring rules, check [Further Reading](./bibliography.md).
-- For implementation history across releases, see the [Changelog](../changelog/index.md).
+- **Whitepaper** — The full mathematical specification lives in the [Signals CLMSR Whitepaper](./whitepaper.md).
+- **Further reading** — Academic papers and background material are collected in [Bibliography](./bibliography.md).
+- **Operations & upgrades** — Pair these references with the practical guides throughout the docs: [Protocol Architecture](../protocol/architecture.md), [Security & Testing](../security/audits.md), and the [Changelog](../changelog/index.md).
 
-If you need deployment addresses or manifests, head back to the [Protocol](../protocol/architecture.md) and [Network Information](../networks/supported-networks.md) pages.
+If you need addresses or manifests, head to [Deployment Addresses](../addresses/index.md). For SDK and integration examples, the developer docs under `docs/` (repo root) provide detailed scaffolding.

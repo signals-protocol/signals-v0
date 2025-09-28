@@ -1,25 +1,21 @@
 # Ways to Use Signals
 
-Signals focuses on one asset—Bitcoin—but the range mechanic fits many strategies. Here are a few patterns we see:
+Signals trades a single asset--Bitcoin--but a continuous range market opens more playbooks than a simple bullish or bearish bet. The same primitives that let you back tonight's close can help you fine-tune risk, extract information, or run programs for a community. The sections below walk through several approaches we see live on the venue.
 
-## Short-term speculation
+## Intraday speculation
 
-- Fade or follow momentum by backing bands above or below the current spot price.
-- Scale into multiple adjacent ranges as conviction changes through the day.
+A discretionary trader can treat each $100 band as a statement about where the candle ends. When momentum builds, buying a ladder of bands above spot lets you express increasingly aggressive targets while paying the CLMSR cost that matches the shift in probability. If the move fades, you can close or rotate into lower bands in a single transaction, keeping the position path-independent. Because probabilities always normalise to 1, you see instantly how the crowd reprices your thesis after every trade.
 
-## Hedging & treasury ops
+## Hedging and treasury work
 
-- Lock in exposure around a key level if you manage BTC-denominated liabilities.
-- Combine ranges to approximate collars or digital spreads on daily closes.
+Teams that hold BTC-denominated liabilities use Signals to pin risk around a budget level. Selecting a cluster of bands around the required close effectively caps next-day exposure without negotiating bespoke OTC trades. Treasurers can also approximate collars or digitals by holding offsetting bands above and below a strike, letting the CLMSR pool replicate payoff shapes that would otherwise require multiple venues. The ability to unwind or roll ranges intraday keeps the hedge aligned as markets move.
 
-## Market intelligence
+## Market intelligence and research
 
-- Watch the probability surface to monitor sentiment leading into macro events.
-- Track leaderboard activity to see which ranges attract the smartest capital.
+Analysts follow the probability surface to understand how traders absorb upcoming data releases. Instead of scraping fragmented order books, they observe one continuous curve and log shifts in the implied close. Leaderboard activity and settlement batches provide a public, timestamped trail, so research teams can backtest how specific wallets behaved around CPI prints, ETF flows, or halving milestones. The dataset is on-chain, making it easy to plug into notebooks or dashboards.
 
-## Community engagement
+## Community and product programs
 
-- Run prediction challenges around daily closes and award points or prizes to winners.
-- Use the settled data as a transparent record for research, newsletters, or social content.
+Communities run nightly prediction challenges on top of Signals because results settle transparently. Event organisers pre-announce the target market, track entrants through the subgraph, and award points or prizes after settlement without manual reconciliation. Product teams embed the same data into newsletters or social recaps--readers see which ranges cleared, how probabilities evolved, and what that says about sentiment heading into the next session.
 
-Ready to play? Follow the [Quick Start](/docs/quickstart) and place a range in today’s market.
+Ready to try one of these approaches? Follow the [Quick Start](/docs/quickstart) to connect your wallet, then pick a band in today's market and iterate from there.

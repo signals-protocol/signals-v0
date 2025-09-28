@@ -1,40 +1,33 @@
 # Security & Testing Overview
 
-Signals applies layered safeguards across mechanism design, contract implementation, and operational practice. This document summarises what is in place today and what is planned next.
+Signals protects traders by layering defenses across the mechanism, the Solidity codebase, and daily operations. Use this guide to understand what is live today, how we validate it, and which improvements are coming next.
 
-## Contract security
+## Mechanism and contract safeguards
 
-- **Mechanism fidelity** — Contracts implement the CLMSR potential from the [whitepaper](/whitepaper.pdf), guaranteeing normalized probabilities and bounded maker loss.
-- **Access control** — `Ownable` plus Hardhat scripts centralise upgrade, market creation, and settlement powers in a single operator account (timelock/multisig planned).
-- **Reentrancy & pausing** — External entrypoints use `nonReentrant`, and emergency pause/unpause hooks exist for critical incidents.
-- **Input validation** — Tick ranges, factors, and liquidity parameters revert with explicit errors when out of bounds.
-- **Chunk guards** — Exponential operations respect `MAX_EXP_INPUT_WAD` and `MAX_CHUNKS_PER_TX` to keep gas usage and precision stable.
+The CLMSR contracts implement the whitepaper’s potential exactly, enforcing normalized probabilities and the $\alpha \ln n$ maker loss bound. Entry points are guarded by `nonReentrant`, emergency pause hooks, and explicit input checks on tick ranges, liquidity factors, and oracle values. Lazy segment tree operations respect hard limits (`MAX_EXP_INPUT_WAD`, `MAX_CHUNKS_PER_TX`, `MIN_FACTOR`, `MAX_FACTOR`) so no trade can blow past precision or gas constraints. All external authority remains with a single `Ownable` owner today, but dispatcher scripts encapsulate upgrades and daily operations to reduce human error while timelock and multisig wrappers are prepared.
 
-## Testing coverage
+## Testing strategy
 
-- Unit tests for math libraries, segment tree operations, and error handling.
-- Integration / E2E suites covering market creation, trading flows, settlement, and claims.
-- Invariant tests that confirm price normalization and bounded loss.
-- Gas benchmarks that track chunking behaviour and settlement batching costs.
+Automated tests exercise the system at multiple levels:
+- Unit suites cover math libraries, fixed-point helpers, and segment tree mutations.
+- Integration and end-to-end scenarios run through market creation, trading, settlement, and claims to ensure the contracts and scripts stay aligned.
+- Invariant tests confirm price normalization and bounded loss across randomized trade sequences.
+- Gas benchmarks track the cost of chunked exponentials, batched settlement, and typical trading paths so regressions are caught before deployment.
 
-## Operational security
+Every pull request runs in CI, and nightly jobs replay longer trade traces to detect non-deterministic edge cases.
 
-- **Deployment manifests** track every implementation address and version across environments.
-- **Dispatcher scripts** remove manual command risk when deploying, upgrading, or operating markets.
-- **Monitoring** via the Goldsky subgraph and verification scripts catches divergence between expected and actual state.
+## Operational controls
 
-## Roadmap
+Deployment manifests under `deployments/environments/` log each implementation address, making it easy to audit which bytecode is live. Dispatcher scripts issue upgrades, create markets, submit settlements, and emit batches with reproducible CLI commands. Goldsky subgraphs and verification scripts compare on-chain balances with CLMSR expectations, raising alerts if unclaimed payouts or tree sums drift from the model. If CoinMarketCap data is delayed, the pipeline pauses settlement until a verifiable close is available; funds always remain locked in the pool.
 
-- Add a timelock + multisig wrapper around the owner role.
-- Finalise rounding updates (floor rounding on sell/claim) and enforce the `0.01 SUSD` minimum order on-chain.
-- Commission external audits once the rounding/minimum-order changes ship.
+## Roadmap and upcoming work
 
-## Reporting vulnerabilities
+- Ship the remaining rounding updates (floor rounding for sells and claims) and enforce the $0.01$ SUSD minimum trade size on-chain.
+- Introduce a timelock plus multisig wrapper for the owner role so upgrades and settlements require multiple approvals.
+- Commission an external audit once the rounding and minimum-order changes land, producing a public report alongside remediation notes.
 
-Responsible disclosure keeps the community safe:
+## Responsible disclosure
 
-- Email `security@signals-protocol.com` with a clear reproduction path and impact assessment.
-- Do **not** post critical issues on public channels or GitHub issues.
-- Coordinate disclosure so fixes can be deployed before details are public.
+Security researchers can reach the team at `security@signals-protocol.com`. Include a clear reproduction path, expected impact, and suggested mitigations. Please avoid posting critical findings on public channels or GitHub issues; coordinate timing so fixes can roll out before details are shared broadly.
 
-Brush up on protocol limits in [Safety Bounds & Parameters](../mechanism/safety-parameters.md) and operational procedures in the [Settlement Pipeline](../market/settlement-pipeline.md).
+For deeper background, review the [Safety Bounds & Parameters](../mechanism/safety-parameters.md) reference and the operational detail in the [Settlement Pipeline](../market/settlement-pipeline.md).

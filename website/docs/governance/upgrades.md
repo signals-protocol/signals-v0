@@ -1,38 +1,36 @@
 # Governance & Upgrades
 
-Signals contracts follow the UUPS pattern, so the upgrade surface is small but powerful. This page outlines the current governance model and the steps required to ship a new implementation.
+Signals contracts run behind a lightweight governance model today, but upgrades still demand discipline. Use this guide as the canonical checklist when you change bytecode or hand off control to a new operator.
 
-## Current Governance Model
+## 1. Current authority model
 
-- **Owner**: A single account (EOA or admin contract) controls `CLMSRMarketCore`, `CLMSRPosition`, and `PointsGranter` via `Ownable`. There is no timelock or multisig live today.
-- **Scope**: The owner can upgrade implementations, create/settle markets, pause trading, and manage auxiliary contracts.
-- **Roadmap**: Introduce a timelock + multisig wrapper so upgrades and settlements can be supervised by multiple parties. Until that lands, deployments rely on operational discipline.
+A single `Ownable` owner controls `CLMSRMarketCore`, `CLMSRPosition`, and `PointsGranter`. That account (EOA or admin contract) can create markets, pause or unpause trading, settle outcomes, and upgrade proxies. No timelock or multisig is live yet, so operational safeguards depend on dispatcher scripts, peer review, and deployment manifests. The roadmap introduces a timelock + multisig wrapper so multiple signers approve upgrades and settlements.
 
-## Upgrade Checklist
+## 2. Preparing an upgrade
 
-1. **Develop & test** the new implementation (`*.sol`) and ensure storage layout compatibility.
-2. **Deploy implementation** using Hardhat Ignition or a direct `deploy` script. Record the address.
-3. **Run unit + invariant tests** against the new bytecode, including gas snapshots.
-4. **Broadcast upgrade**:
+1. Develop and test the new implementation. Run unit, integration, invariant, and gas suites against the compiled bytecode to confirm storage compatibility.
+2. Deploy the implementation with Hardhat Ignition or the provided `deploy` scripts and record the address.
+3. Update dispatcher configuration (`MANIFEST_DEFAULT_DIR`, environment files) so `yarn upgrade:<env>` points at the new build.
+
+## 3. Executing the upgrade
+
+1. Run the dispatcher, for example:
    ```bash
-   yarn upgrade:citrea:prod
+yarn upgrade:citrea:prod
    ```
-   The dispatcher sets `MANIFEST_DEFAULT_DIR` and invokes `upgradeTo` on each proxy.
-5. **Verify** the new implementation source on the explorer (`scripts/verify-all.sh`).
-6. **Update manifests**: `deployments/environments/*.json` append a new entry with version, timestamp, and addresses.
-7. **Announce** the upgrade with a changelog entry summarising behavioural differences.
+   This calls `upgradeTo` on each proxy (core, position, points) using the freshly deployed implementation. Watch the transaction receipts to confirm success.
+2. Verify the source on the block explorer using `scripts/verify-all.sh` so auditors can inspect the bytecode.
+3. Append the new implementation address, version, and timestamp to `deployments/environments/*.json`. These manifests are the ground truth for which bytecode is live.
+4. Publish release notes in `website/docs/changelog` highlighting behavioural changes and migration considerations.
 
-## Rollback Procedure
+## 4. Rolling back
 
-- If an upgrade must be reverted, deploy the previous implementation and call `upgradeTo` with the old address.
-- Because state is preserved, ensure the old code is still storage-compatible before rolling back.
+If an upgrade must be reverted, redeploy the previous implementation (if it is no longer available) and call `upgradeTo` with the old address. Storage remains intact, but you must ensure the previous code is layout-compatible before reverting. Update the manifest and changelog to document the rollback.
 
-## Configuration Changes
+## 5. Configuration versus upgrades
 
-Most parameter changes (OutcomeSpec, $\alpha$) occur when creating a new market. If a live market needs adjustment, use `updateMarketTiming` for timing changes. Structural changes (fees, different price sources) require new contract logic and therefore follow the upgrade checklist above.
+Most day-to-day adjustments—OutcomeSpec, liquidity parameter $\alpha$, or trading windows—happen when creating the next market. Use `updateMarketTiming` only if the current market’s timestamps require a nudge. Structural changes such as fees, alternative price sources, or new payout logic require a contract upgrade and must follow the full checklist above.
 
-## Transparency
+## 6. Toward stronger governance
 
-- Release notes live in [`website/docs/changelog`](../changelog/index.md).
-- Deployment manifests are version-controlled and reviewed in pull requests.
-- Future governance layers (timelock/multisig) will publish their ops guide alongside the base process so integrators can adjust expectations.
+Timelock and multisig wrappers are planned so different teams can own upgrades, settlements, and emergency pauses. When those components land, additional guides will document signer roles, queue/cancel flows, and emergency procedures. Until then, treat dispatcher scripts, manifests, and changelog entries as mandatory artefacts for every change.

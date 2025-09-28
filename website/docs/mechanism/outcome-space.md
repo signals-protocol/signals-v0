@@ -1,55 +1,57 @@
 # Outcome Space & Units
 
-> Reference: Signals CLMSR Whitepaper v1.0 — §3 (Units and Ticks)
+Understanding Signals starts with the outcome grid the CLMSR operates on. This page explains how a market encodes its price range, how oracle observations map into ticks, and why the protocol insists on keeping outcome math separate from settlement currency.
 
-## OutcomeSpec
+## Defining the outcome grid
 
-Every market declares an `OutcomeSpec = (L, U, s, d)`:
-
-- `L`, `U`: inclusive lower and upper outcome bounds in raw oracle units.
-- `s`: tick spacing (strictly positive). The number of bins is $n = \left\lceil \dfrac{U - L}{s} \right\rceil$.
-- `d`: metadata describing the oracle decimal scale (e.g. BTC price with 8 decimals).
-
-Oracle observations arrive as `OutcomeRaw` in raw units. We map them to a tick index by clamping into the $[0, n-1]$ range:
+Each market publishes an `OutcomeSpec = (L, U, s, d)` before trading begins. The lower bound `L` and upper bound `U` live in raw oracle units (for the Bitcoin close that means 8 decimal places). Tick spacing `s` sets the resolution: the number of available bands is
 
 $$
-b = \mathrm{clamp}\left( \left\lfloor \frac{\text{OutcomeRaw} - L}{s} \right\rfloor,\ 0,\ n-1 \right)
+n = \left\lceil \frac{U - L}{s} \right\rceil.
 $$
 
-Half-open intervals `[L + b·s, L + (b+1)·s)` avoid overlap; only the top edge is exclusive.
+Metadata `d` records how the oracle scales its outputs so integrators know which factors to apply when decoding events.
 
-## Unit Separation
+When an oracle observation `OutcomeRaw` arrives, Signals clamps it into the configured grid:
 
-The protocol uses two unit systems:
+$$
+b = \mathrm{clamp}\left( \left\lfloor \frac{\text{OutcomeRaw} - L}{s} \right\rfloor, 0, n-1 \right).
+$$
 
-- **CurrencyUnit (`U6`)**: external settlement unit with 6 decimals (SUSD). All debits, credits, and liquidity budgets are denominated here.
-- **OutcomeUnit**: raw oracle scale used only to interpret ticks.
+Every band is a half-open interval `[L + b s, L + (b+1) s)`. The open upper edge prevents overlap, while the clamp protects the pool from a stray oracle value that would otherwise fall outside the configured window.
 
-Internal arithmetic (shares `q_b`, weights `w_b`, cached sums `Z`) uses WAD precision (18 decimals). Conversion between user amounts and internal values multiplies or divides by `10^12`.
+## Why units stay separate
+
+The CLMSR math operates in WAD precision (18 decimals) even though users trade with 6-decimal SUSD. Signals enforces a clean boundary between the two systems:
+
+- **Currency unit (`U6`)** covers SUSD debits, credits, and liquidity budgets.
+- **Outcome unit** mirrors the raw oracle scale and is only used when mapping ticks or emitting settlement data.
+
+Conversions multiply or divide by `10^12` so that 6-decimal inputs become 18-decimal values inside the contracts:
 
 ```solidity
 uint256 constant SCALE_DIFF = 1e12;
-wad = amount6 * SCALE_DIFF;
-amount6 = wad / SCALE_DIFF;
+wadAmount = amount6 * SCALE_DIFF;
+amount6 = wadAmount / SCALE_DIFF;
 ```
 
-Maintaining strict separation keeps the LMSR algebra numerically stable and lets front ends display familiar 6-decimal values.
+This separation keeps the LMSR algebra numerically stable and lets front ends display familiar decimal formats without leaking precision errors back into the pool.
 
-## Minimum Range Semantics
+## Valid range constraints
 
-A valid position must satisfy:
+Positions must satisfy two simple rules:
 
-1. $\text{lowerTick} < \text{upperTick}$
-2. $\text{upperTick} - \text{lowerTick}$ is divisible by $\text{tickSpacing}$
+1. `lowerTick < upperTick` (no zero-width ranges).
+2. `(upperTick - lowerTick)` is an integer multiple of `tickSpacing`.
 
-The whitepaper also recommends enforcing a **minimum trade size** $\delta_{\min} = 10^{-2}\ U6$ to avoid dust and ensure rounding guarantees. Implementation note: the current contracts still accept smaller quantities; this will be tightened to match the spec.
+The whitepaper also recommends a minimum order size of $\delta_{\min} = 0.01$ SUSD so rounding guarantees remain meaningful. Current contracts still allow smaller quantities, so interfaces warn traders when they attempt to submit dust-sized orders.
 
-## Implementation Status
+## Implementation status
 
-| Topic | Whitepaper | Contracts (current) |
+| Topic | Whitepaper | Contracts today |
 | --- | --- | --- |
-| Tick mapping | `[L + b·s, L + (b+1)·s)` | ✅ Matches spec |
-| Minimum trade size | $\delta_{\min} = 0.01\ \text{SUSD}$ | ⚠️ Not enforced yet |
+| Tick intervals | `[L + b s, L + (b+1) s)` | ✅ Matches spec |
 | Unit conversions | Multiply/divide by `1e12` | ✅ Matches spec |
+| Minimum order | $\delta_{\min} = 0.01$ SUSD | ⚠️ Not enforced on-chain yet |
 
-Until the minimum size guard lands on-chain, interfaces should surface the recommended minimum and warn users if they try to go below it.
+Until the minimum guard lands in Solidity, treat $0.01$ SUSD as the practical floor and surface it in every UI or script that builds positions.

@@ -1,43 +1,38 @@
 # 변경 이력
 
-signals-v0에 가해진 주요 변경 사항을 정리합니다.
+Signals는 컨트랙트 업그레이드와 문서 개정을 투명하게 기록합니다. 아래 기록은 사용자에 영향을 주는 주요 변경 사항과 운영 메모를 요약한 것입니다. 실제 주소 이력은 `deployments/environments/*.json` manifest에서 확인하세요.
 
-## [1.1.0] - 2025-08-21
+## 1.1.0 — 2025-08-21
 
-### 변경
+**변경 사항**
+- `LazyMulSegmentTree` 라이브러리를 업그레이드해 가스 사용량을 줄이고 추가 가드를 도입했습니다.
+- `CLMSRMarketCore` 구현을 교체해 정산 배치가 더 안정적으로 실행되도록 했습니다.
+- `CLMSRPosition` 이벤트를 정리해 서브그래프 동기화 속도를 개선했습니다.
+- `PointsGranter`의 포인트 산정 로직을 조정했습니다.
 
-- 가스 효율 개선을 위해 `LazyMulSegmentTree` 라이브러리를 업그레이드했습니다.
-- 성능 향상을 위해 `CLMSRMarketCore` 구현을 갱신했습니다.
-- 사용자 경험을 개선하도록 `CLMSRPosition` 컨트랙트를 최적화했습니다.
-- `PointsGranter` 구현을 강화했습니다.
+**영향**
+- 대규모 시장에서도 정산 배치가 실패 없이 완료될 가능성이 높아졌습니다.
+- 서브그래프 데이터가 더 빠르게 업데이트돼 대시보드 지연이 줄었습니다.
 
-### 컨트랙트 주소 (Citrea)
+**Citrea 프로덕션 주소**
+- `CLMSRMarketCore` 프록시 `0xE480ca1C63B6dd929af1EeA4D3de1073942F3cEf` → 구현 `0xb86c5f8b5b59e3f4dde9b13758ee3de3ef0f2fca`
+- `CLMSRPosition` 프록시 `0xB4c33Df898F8139D784ADE1aDCa9B5979898fE03` → 구현 `0x799c0f18c004498e10f1e47631ba48055762c972`
+- `PointsGranter` 프록시 `0x9E1265677B628A22b9C1d6f0FeCEb6241eA5268d` → 구현 `0x210fbc9b14b222bf0097f9862da0d4f8662084f4`
 
-- `CLMSRMarketCore`: `0xE480ca1C63B6dd929af1EeA4D3de1073942F3cEf`
-- `CLMSRPosition`: `0xB4c33Df898F8139D784ADE1aDCa9B5979898fE03`
-- `PointsGranter`: `0x9E1265677B628A22b9C1d6f0FeCEb6241eA5268d`
+## 1.0.0 — 2025-08-14
 
-## [1.0.0] - 2025-08-14
+**초기 출시**
+- Citrea Testnet(체인 ID 5115)에 CLMSR 범위 시장을 최초 배포했습니다.
+- Lazy Multiplicative Segment Tree 기반의 ERC 721 포지션 시스템과 포인트 프로그램을 도입했습니다.
 
-### 추가
+**특징**
+- 연속 Outcome 시장: 가격 범위에 베팅할 수 있으며, 메이커 손실은 $\alpha \ln n$으로 제한됩니다.
+- UUPS 프록시 패턴을 사용해 업그레이드 가능하며, Pause/Unpause 같은 비상 제어를 지원합니다.
 
-- signals-v0 프로토콜을 Citrea에 최초 배포했습니다.
-- CLMSR(Continuous Logarithmic Market Scoring Rule) 구현을 도입했습니다.
-- 범위 기반 예측 시장을 런칭했습니다.
-- ERC-721 포지션 토큰을 발행했습니다.
-- 사용자 참여 포인트 시스템을 추가했습니다.
-- 범위 연산 최적화를 위한 Lazy multiplicative segment tree를 적용했습니다.
-
-### 기능
-
-- **연속 Outcome 시장**: 이진 베팅 대신 가격 범위에 베팅할 수 있습니다.
-- **한정된 위험**: 이론적으로 보장된 최대 손실 한계를 제공합니다.
-- **가스 효율**: 범위 업데이트가 $O(\log n)$ 복잡도로 수행됩니다.
-- **업그레이드 가능**: OpenZeppelin UUPS 프록시 패턴을 사용합니다.
-- **비상 제어**: Pause/Unpause 기능을 지원합니다.
-
-### 초기 배포 정보
-
-- 네트워크: Citrea (Chain ID: 5115)
+**배포 정보**
 - 배포 계정: `0xe0785a8cDc92bAe49Ae7aA6C99B602e3CC43F7eD`
 - 시작 블록: 14,176,879
+
+---
+
+자세한 변경 이력을 확인하려면 manifest diff를 함께 살펴보고, 업그레이드 절차는 [거버넌스 & 업그레이드](../governance/upgrades.md) 문서에서 확인하세요.

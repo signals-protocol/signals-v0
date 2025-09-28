@@ -1,67 +1,36 @@
 # Signals Protocol Architecture
 
-Signals is more than a trading UI—it is an on-chain CLMSR market, a daily operations pipeline, and a data layer that powers the front end and analytics. This page ties those pieces together so you can understand how the service actually runs.
+Signals behaves like a simple prediction app on the surface, yet every slider movement triggers a coordinated system of contracts, scripts, and data services. This document walks through the stack from the on-chain core to the analytics layer so you can see how the pieces stay in sync each day.
 
-## Components at a glance
+## 1. Core contracts: the CLMSR engine
 
-| Layer | What it does | Notes |
-| --- | --- | --- |
-| Smart contracts | Execute CLMSR trades, mint/burn range NFTs, settle markets, emit batched events | Core contracts live under `contracts/core/` and `contracts/points/`. |
-| Operations pipeline | Create daily markets, submit settlement prices, emit settlement batches, run health checks | Currently driven by CLI jobs that call the core contract methods; oracle automation is on the roadmap. |
-| Price ingestion | Fetch CoinMarketCap’s BTC/USD daily close and feed it to `settleMarket` | Operator verifies the close before broadcasting; timestamps remain on-chain. |
-| Data & analytics | Mirror on-chain events, compute user stats, leaderboards, PnL and points | Goldsky-hosted subgraph plus verification scripts maintain parity with chain state. |
-| Front end | Shows the live BTC market: chart, range selector, rules, leaderboards, wallet actions | The Signals app consumes the subgraph and contracts via ethers.js. |
+At the heart of Signals sits the CLMSR core (`CLMSRMarketCore.sol`) and its position manager (`CLMSRPosition.sol`). They maintain the lazy multiplicative segment tree that stores band weights, mint ERC 721 position tokens, and expose entrypoints for opening, adjusting, and closing ranges. The contracts enforce unit conversions, rounding, and safety bounds, ensuring that every trade respects the math described in the whitepaper. Auxiliary modules such as `PointsGranter` emit engagement rewards without touching settlement funds, while upgradeable proxies keep storage layout stable across releases.
 
-## Markets & ticks
+## 2. Daily operations pipeline
 
-- Daily market covering BTC closing price.
-- Tick configuration: `minTick = 100_000`, `maxTick = 140_000`, `tickSpacing = 100` (i.e. $100 increments covering $100,000–$140,000). The scripts create 401 ticks / 400 bands.
-- Liquidity parameter $\alpha$ defaults to 1 (can be overridden via `ALPHA`). Maker loss is bounded by $\alpha \times \ln n$ where $n$ equals `numberOfBins`.
-- Positions are ERC‑721 tokens storing `marketId`, `lowerTick`, `upperTick`, `quantity`, and timestamps.
+A small operations job creates one market per UTC day. It submits the tick window, timestamps, and liquidity parameter, then monitors invariants throughout the session. After the CoinMarketCap BTC/USD close is verified, the same pipeline calls `settleMarket` and iterates `emitPositionSettledBatch(limit)` until every position is marked. Dispatcher scripts and deployment manifests remove manual steps and record which implementation handled each action, making audits reproducible.
 
-## Trade lifecycle
+## 3. Oracle ingestion and data surface
 
-1. **Open / increase** – `openPosition` and `increasePosition` charge SUSD (6 decimals) using `fromWadRoundUp`, eliminating zero-cost attacks.
-2. **Decrease / close** – return SUSD based on current weights (proceeds rounding is switching to floor in the next release).
-3. **Range data structure** – a lazy multiplicative segment tree keeps exponential weights for every band (`LazyMulSegmentTree.sol`).
-4. **Events** – all trades emit structured events consumed by the subgraph (`PositionOpened`, `PositionIncreased`, etc.).
+Price ingestion is intentionally conservative. Operators fetch the daily close from CoinMarketCap, clamp it into the configured tick range, and broadcast it on-chain with timestamped proof. Goldsky-hosted subgraphs (`clmsr-subgraph`) mirror every `MarketCreated`, `Position*`, and settlement event. They expose entities such as `MarketStats`, `UserPosition`, `Trade`, `PositionSettled`, and `PositionClaimed`, letting analytics jobs compute PnL, unclaimed balances, and leaderboard standings. Verification scripts in `verification/` cross-check chain balances against CLMSR expectations to catch drift.
 
-## Daily operations
+## 4. Front-end and client applications
 
-- **Create Market** – The operator submits the day’s tick bounds, timestamps, and liquidity parameter; the core contract auto-increments `marketId` and initialises the segment tree.
-- **Monitor** – Health-check scripts interrogate tree sums, pause status, and invariants to ensure markets remain in a safe state.
-- **Settle** – Once the CoinMarketCap close is confirmed, the operator calls `settleMarket` with the price in micro SUSD (`settlementValue`).
-- **Batch events** – Follow-up jobs iterate `emitPositionSettledBatch(limit)` until the contract signals completion via `PositionEventsProgress(..., done = true)`.
+The Signals front end consumes both the contracts and the subgraph through ethers.js. `MainProvider` composes hooks (`useBTCState`, `useChart`, `usePrediction`, `useAction`) so the chart, range selector, and modals share a single state store. After trades settle, UI components refresh directly from the subgraph entities, while success modals reuse the same probability math implemented on-chain. External clients can replicate this pattern: call the contracts for writes, subscribe to the subgraph for reads.
 
-Roadmap: automate CMC ingestion and wire an oracle so settlement can be trust-minimised.
+## 5. How information flows each day
 
-## Data surface
+1. Users submit trades through the app; transactions hit the CLMSR core and emit structured events.
+2. Operations scripts create and settle markets, keeping the contract state aligned with the real-world schedule.
+3. The subgraph ingests both trading and operational events, exposing normalized views for analytics, leaderboards, and monitoring.
+4. Dashboards and the front end render those views, giving the community immediate insight into flow, settlement status, and points.
 
-- **Subgraph** – Goldsky hosts dev/prod deployments (`clmsr-subgraph`). Key entities include:
-  - `Market`, `BinState`, `MarketStats` – per-market configuration, current factors, PnL, and unclaimed payout.
-  - `UserPosition`, `Trade`, `UserStats` – trader-level stats, realized PnL, and gas spend.
-  - `PositionSettled`, `PositionClaimed` – used to drive settlement banners and claim status.
-- **Points system** – `PointsGranter` emits events (reasons 1=Activity, 2=Performance, 3=Risk Bonus). The subgraph enforces per-day activity limits (3 per day) and computes risk bonuses when positions are held for ≥1 hour.
+## 6. Extensibility and roadmap
 
-## Front end state flow
-
-From `signals-app/src/components/features/main` (see `complete_codebase_app.md`):
-
-- `MainProvider` composes `useBTCState`, `useChart`, `usePrediction`, and `useAction` hooks so the range selector, chart, and modals share a single store.
-- The UI layout mirrors the app: title/countdown, probability chart, rules, range descriptor, input widget, leaderboards, and “My Positions”.
-- After a successful prediction, `PredictionSuccessModal` surfaces payout info and multipliers, referencing the same probability math as the contracts.
-
-## How the pieces talk to each other
-
-1. Users interact with the web app → `signals-app` calls the CLMSR core via ethers.js and tracks balances via the subgraph.
-2. Operations CLI scripts (run by Signals) create and settle markets, keeping the on-chain state current.
-3. The subgraph ingests events from both trading and operations, populating the leaderboard, points, and analytics.
-4. Leaderboards/points data are rendered in the app (`components/features/main/view/leaderboards`), giving the community instant feedback.
+The current stack already runs unattended for daily markets, but improvements are in flight: automated oracle ingestion, timelock or multisig controls for the owner role, and contract updates that enforce the minimum trade size and rounding rules specified in the whitepaper. Because the architecture keeps each layer loosely coupled, these upgrades can roll out without rewriting the entire system.
 
 ## Further reading
 
-- [Mechanism Spec](../mechanism/overview.md) – maths behind CLMSR execution and rounding.
-- [Security & Testing](../security/audits.md) – guardrails, test suites, and upcoming improvements.
-- [Governance](../governance/parameters.md) – current owner powers and upgrade process.
-
-Have questions about this architecture? Ping the Signals team—we’re happy to walk through the scripts, contracts, or subgraph in more detail.
+- [Mechanism Overview](../mechanism/overview.md) for the CLMSR math and rounding guarantees.
+- [Security & Testing](../security/audits.md) for defenses, test coverage, and roadmap.
+- [Governance & Upgrades](../governance/upgrades.md) for the operational checklist behind deployments.

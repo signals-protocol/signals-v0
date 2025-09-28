@@ -1,34 +1,30 @@
 # Trader Guide
 
-Everything you need to manage a Signals position—from opening a range to adjusting exposure during the day.
+This guide follows a Signals position from the moment you sketch a thesis to the instant you claim your payout. Use it alongside the live app so each action on-screen matches the contract calls happening under the hood.
 
-## Opening a range
+## Framing your trade
 
-1. **Pick the band**: select lower and upper prices in $100 increments. The interface enforces the correct tick alignment.
-2. **Set your stake**: enter the SUSD amount you want to risk. A 1 SUSD stake pays 1 SUSD if your band wins.
-3. **Review odds**: the panel shows the current win probability, implied price, and potential payout.
-4. **Confirm**: submit the transaction. Costs round up to the nearest micro SUSD.
+Start by deciding where the CoinMarketCap close is most likely to land. The interface lets you drag or type $100-spaced ticks, which map directly to on-chain bands. Because the range is half-open, the settlement tick must be greater than or equal to the lower bound and strictly less than the upper bound. Before you confirm, the UI reads the CLMSR potential and shows the exact probability, price impact, and payout so you understand what the pool is charging.
 
-## Adjusting exposure
+## Funding the position
 
-| Action | Use when | What happens |
-| --- | --- | --- |
-| Increase | You want more size in the same band | Adds quantity at the current probability |
-| Decrease | Take partial profit or cut risk | Returns SUSD at the current probability |
-| Close | Exit completely before settlement | Burns the position once quantity hits zero |
+Submitting the transaction transfers SUSD (6 decimals) from your wallet into the pool and mints an ERC-721 position token that records market, bounds, and quantity. Costs are rounded up by at least one micro SUSD, which keeps dust trades from existing for free. Your stake stays locked until you unwind the band or settlement completes, and you retain full custody of the position token in the meantime.
 
-All operations are path-independent: the order of trades doesn’t change final economics because the CLMSR cost function depends only on cumulative quantity ([see the mechanism spec](../mechanism/cost-rounding.md)).
+## Managing exposure during the day
+
+From market creation until 23:59:59 UTC, you can increase, decrease, or close the position as often as needed. Increasing multiplies the underlying exponential weights inside the band; decreasing unwinds part of that exposure and returns SUSD at the current probability; closing drives quantity to zero and burns the position NFT. Because the CLMSR cost function depends only on cumulative quantity, the order of these adjustments never changes the final economics--you can ladder in, scale out, or rotate bands without worrying about path dependence.
 
 ## Reading the interface
 
-- **Probability chart**: orange price line + histogram of outstanding odds.
-- **Recent bets**: see live fills to gauge sentiment shifts.
-- **Points leaderboard**: optional engagement layer showing top performers.
+Three panes keep you oriented while you trade:
+- The probability chart overlays the live price line with the distribution of outstanding bands so you can see how sentiment shifts after large orders.
+- Recent trades stream fills as they happen, giving a real-time sense of which ranges are attracting flow.
+- The leaderboard surfaces wallets earning points, useful when you want to track consistent performers or community programs.
 
-## Pre-settlement checklist
+## Preparing for settlement
 
-- Confirm the countdown timer so you know when trading ends.
-- Capture your thesis (e.g. “Range-bound around $112k”) to evaluate after settlement.
-- Monitor the feed: if a large trade moves the probability surface, reassess your range.
+As the countdown nears zero, double-check that your thesis still holds. Capture a note about why you entered the band so you can evaluate it after settlement. If monitoring scripts or operators pause the market, the interface displays the state and blocks additional trades until the issue is resolved. Otherwise, let the timer hit zero and watch for the settlement banner.
 
-Next, see [Settlement & Claims](./settlement.md) to learn what happens after the market resolves.
+## After the close
+
+When `settleMarket` posts the official tick, follow-up batches mark each position. As soon as your band is flagged as settled, open “My Positions” and click **Claim** to withdraw stake plus payout; claims never expire, but claiming promptly keeps your balances clear. For a deep dive into what happens behind the scenes, read [Settlement & Claims](./settlement.md) and the [Settlement Pipeline](../market/settlement-pipeline.md).
