@@ -1,50 +1,29 @@
 # Protocol Parameters
 
-This page catalogues configurable parameters and constants that govern Signals deployments. Values come from the CLMSR whitepaper and the current Solidity contracts; when they differ, the whitepaper entry describes the intended change.
+Signals keeps most policy choices simple: operators configure markets up front, while the contracts enforce hard safety bounds. This page summarises the knobs you can turn when deploying or operating a market and the constants that should not change without a protocol upgrade.
 
-## Market Configuration
+## Market-level choices
 
-| Parameter | Description | Source |
-| --- | --- | --- |
-| `OutcomeSpec = (L, U, s, d)` | Outcome bounds, tick spacing, and oracle decimals | Operator per market |
-| $\alpha$ (alpha) | Liquidity parameter controlling slippage and maker loss | Operator per market |
-| Trading window | `startTimestamp`, `endTimestamp`, optional `settlementTimestamp` | Operator per market |
-| Payment token | ERC-20 used for trades (SUSD, 6 decimals) | Deployment |
+Each daily market begins with an `OutcomeSpec = (L, U, s, d)` describing the oracle bounds, tick spacing, and decimal scale. Operators pair that spec with a liquidity parameter $\alpha$, the trading window (`startTimestamp`, `endTimestamp`, optional `settlementTimestamp`), and the settlement token (currently 6-decimal SUSD). These inputs determine how fine the outcome grid is, how volatile the probability surface can become, and how much loss the maker is willing to tolerate. The whitepaper recommends a minimum order size of $0.01$ SUSD; until the contracts enforce it, interfaces should warn or reject smaller orders.
 
-### Recommended Defaults
+## Hard-coded safeguards
 
-- Minimum trade size $\delta_{\min} = 0.01\ \text{SUSD}$ (spec) — enforce in UI until contracts add the guard.
-- Choose $s$ based on desired resolution; finer spacing increases gas and $\alpha \times \ln n$.
+Several constants live directly in the Solidity libraries and should remain untouched unless the mechanism itself evolves:
 
-## Hard-Coded Constants
+- `MAX_TICK_COUNT = 1_000_000` keeps the segment tree manageable.
+- `MAX_CHUNKS_PER_TX = 1_000`, `MAX_EXP_INPUT_WAD = 1.0e18`, and `MIN_FACTOR`/`MAX_FACTOR = 0.01e18 / 100e18` bound the lazy exponential updates.
+- `FLUSH_THRESHOLD = 1e21` forces deferred factors to propagate before they accumulate risk.
 
-| Constant | Value | Purpose |
-| --- | --- | --- |
-| `MAX_TICK_COUNT` | `1_000_000` | Prevents excessive tree depth |
-| `MAX_CHUNKS_PER_TX` | `1_000` | Caps exponential chunking loops |
-| `MIN_FACTOR` / `MAX_FACTOR` | `0.01e18` / `100e18` | Bounds lazy multipliers |
-| `FLUSH_THRESHOLD` | `1e21` | Forces propagation of large pending factors |
-| `MAX_EXP_INPUT_WAD` | `1.0e18` | Safe input for PRB-Math `exp` |
+The rationale behind these numbers is detailed in [Safety Bounds & Parameters](../mechanism/safety-parameters.md).
 
-See [Safety Bounds & Parameters](../mechanism/safety-parameters.md) for the reasoning behind these numbers.
+## Access and governance
 
-## Access Control
+Today the protocol relies on a single `Ownable` owner to create markets, pause or unpause trading, settle outcomes, and upgrade proxies. Users interact permissionlessly: they open, adjust, and close ranges and claim payouts whenever they like. Timelock and multisig wrappers are planned, and when they ship this section will expand to document additional roles.
 
-| Role | Capabilities | Notes |
-| --- | --- | --- |
-| Owner (`Ownable`) | Market creation, settlement, pause/unpause, upgrades | Single account today |
-| Users | Open/increase/decrease/close positions, claim payouts | Permissionless |
+## Upgrade process
 
-No timelock or multisig wrapper is deployed yet; a future governance upgrade will document additional roles.
+Signals uses the UUPS proxy pattern. Upgrades require the owner to deploy a new implementation, verify it, and call `upgradeTo` on each proxy. Storage gaps (`__gap`) in core contracts preserve layout compatibility, while deployment manifests (`deployments/environments/*.json`) log every implementation hash and timestamp so auditors can trace history. For the operational checklist, see [Governance & Upgrades](upgrades.md).
 
-## Upgrade Process
+## Economic policy
 
-- Contracts use the UUPS proxy pattern. Upgrades require the owner to call `upgradeTo` on each proxy.
-- Storage gaps (`__gap`) are maintained in core contracts to keep layout compatibility.
-- Deployment manifests (`deployments/environments/*.json`) record every implementation address.
-
-See [Governance & Upgrades](upgrades.md) for the operational checklist.
-
-## Economic Policy
-
-The core CLMSR mechanism does not charge protocol fees. Any incentives (e.g., PointsGranter rewards) are handled off-chain or via auxiliary contracts. Fee programs, if introduced, will be documented here with explicit formulas rather than baked into the cost function.
+The base CLMSR mechanism charges no protocol fee. Incentive programs run through auxiliary contracts such as `PointsGranter` or entirely off-chain systems. Should a fee or reward scheme move on-chain, it will be documented here with explicit formulas and governance controls instead of being baked into the CLMSR cost function.

@@ -1,27 +1,17 @@
 # Why Signals Exists
 
-Signals is our response to structural flaws in crypto prediction venues. We believe the right way to bet on Bitcoin's daily close is through a continuous, range-based market powered by CLMSR. This page summarises the problems we observed and the design principles that guide the protocol.
+Signals grew out of first-hand frustration with order-book style prediction venues. We wanted a place to express a daily Bitcoin thesis without stitching half a dozen YES/NO contracts together or guessing which abandoned strike would distort the odds. The answer was a continuous, range-based market where every trade shares the same potential--exactly what the Continuous LMSR (CLMSR) delivers.
 
 ## Order book failure modes
 
-- **Liquidity fragmentation** – Order-book prediction markets split flow across dozens of independent YES/NO strikes. Depth concentrates around round numbers and evaporates elsewhere, making it expensive to size a nuanced view.
-- **Replication friction** – To express "between $112k and $113k" a trader must stitch multiple orders and babysit partial fills. Slippage compounds and you end up managing inventory rather than a single thesis.
-- **Signal dilution** – When liquidity is scattered, implied probabilities no longer line up. Observers cannot trust the odds because a single abandoned strike can skew the surface.
+Traditional order books fracture liquidity. Depth piles up at round numbers, dries up everywhere else, and leaves traders rationing size instead of stating a view. Trying to cover a $112k-$113k window meant juggling separate orders, partial fills, and the inventory that comes with them. Worse, the surface stopped communicating information at all: a single empty strike could freeze an implied probability even while the market moved.
 
 ## Requirements for continuous outcomes
 
-We needed a market mechanism that:
-
-1. Maintains a single potential so prices across all bands always sum to 1.
-2. Guarantees bounded loss for the maker even as the number of bands grows.
-3. Allows trades to update entire ranges atomically in one transaction.
-4. Handles precision and rounding consistently so dust trades cannot attack the system.
+Fixing those shortcomings demanded a different mechanism. Prices across every band had to share one potential so they always normalised to 1. Maker loss needed a predictable ceiling even as we increased the number of bands. Trades had to update entire ranges in a single transaction so positions stayed atomic. Precision and rounding had to follow one rule so adversaries could not slip dust trades through the cracks.
 
 ## CLMSR design principles
 
-- **Single pool** – A Continuous LMSR keeps every tick linked. One trade reshapes the whole surface.
-- **Range-native UX** – The front end speaks in $100 bands and probability percentages, mirroring how traders think about the close.
-- **Deterministic settlement** – Official CoinMarketCap closes feed into `settleMarket`, and batched events mark every position so analytics remain trustworthy.
-- **Transparency first** – Deployment manifests, verification scripts, and the public subgraph make it easy to audit every market.
+CLMSR satisfies those requirements by construction. A single pool of exponential weights links every tick, so one trade reshapes the whole surface instead of leaving liquidity marooned. The interface stays native to ranges--$100 bands, win probabilities, and payouts--so the math and the UI speak the same language. Settlement remains deterministic: the CoinMarketCap close feeds into `settleMarket`, batched events mark every position, and the public subgraph mirrors the progress so analytics keep up. Transparency underwrites the whole loop; manifests, verification scripts, and on-chain data make each market audit-friendly from creation through claims.
 
-Want the math? Continue to [How CLMSR Works](../mechanism/overview.md). Ready to see the daily cadence? Read the [Market Flow Overview](./market-flow-overview.md) or the deeper [How Signals Works](./how-it-works.md).
+If you want the formal specification, continue to [How CLMSR Works](../mechanism/overview.md). To see the daily cadence from creation to claims, read the [Market Flow Overview](./market-flow-overview.md) and the more detailed [How Signals Works](./how-it-works.md).

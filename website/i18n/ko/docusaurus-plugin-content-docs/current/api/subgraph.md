@@ -1,141 +1,49 @@
 # 서브그래프 API
 
-Signals는 온체인 CLMSR 상태를 그대로 반영하는 Goldsky 서브그래프를 운영합니다. 시장, 분포, 거래, 포인트 데이터를 컨트랙트를 직접 호출하지 않고도 조회할 수 있습니다.
+Signals는 Goldsky 서브그래프를 통해 CLMSR 시장 데이터를 실시간으로 제공합니다. 컨트랙트 호출 없이 시장 분포, 포지션, 포인트, 통계를 조회하려면 아래 엔드포인트와 엔티티를 참고하세요.
 
 ## 엔드포인트
 
 | 환경 | URL |
 | --- | --- |
-| 프로덕션 (Citrea) | `https://api.goldsky.com/api/public/project_cme6kru6aowuy01tb4c9xbdrj/subgraphs/signals-v0-citrea-prod/latest/gn` |
-| 개발 (Citrea) | `https://api.goldsky.com/api/public/project_cme6kru6aowuy01tb4c9xbdrj/subgraphs/signals-v0-citrea-dev/latest/gn` |
+| 프로덕션 | `https://api.goldsky.com/api/public/project_cme6kru6aowuy01tb4c9xbdrj/subgraphs/signals-v0-citrea-prod/latest/gn` |
+| 개발 | `https://api.goldsky.com/api/public/project_cme6kru6aowuy01tb4c9xbdrj/subgraphs/signals-v0-citrea-dev/latest/gn` |
 
-스키마는 `clmsr-subgraph/schema.graphql`에서 가져오며, 핵심 엔티티는 아래와 같습니다.
+모든 값은 온체인 스케일 그대로 유지됩니다. 지수 가중치는 18자리 WAD, 금액은 6자리 정수이며, 스키마는 `clmsr-subgraph/schema.graphql`에서 확인할 수 있습니다.
 
 ## 핵심 엔티티
 
-### Market
+- **Market** — 일일 시장의 구성과 정산 상태.
+- **MarketDistribution** — SDK가 사용해 가격을 계산하는 세그먼트 트리 스냅샷 (`binFactors`, `tickRanges` 등).
+- **BinState** — 틱별 가중치와 거래량. 차트나 히트맵에 활용.
+- **UserPosition** — ERC-721 포지션과 파생 지표(`currentQuantity`, `realizedPnL`, `outcome`, 포인트 카운터 등).
+- **Trade** — OPEN/INCREASE/DECREASE/CLOSE/SETTLE 이벤트. 가스 정보와 포인트 지급 내역 포함.
+- **UserStats / MarketStats** — 거래량, 손익, 승률, 고유 트레이더 수 같은 집계 지표.
+- **PositionSettled / PositionEventsProgress** — 배치 정산 진행 상황과 지급액을 추적. `isComplete`가 `true`가 되면 청구가 열립니다.
 
-시장 구성과 정산 상태를 추적합니다.
+## 자주 쓰는 쿼리
 
-```graphql
-type Market {
-  id: String!
-  marketId: BigInt!
-  minTick: BigInt!
-  maxTick: BigInt!
-  tickSpacing: BigInt!
-  startTimestamp: BigInt!
-  endTimestamp: BigInt!
-  settlementTimestamp: BigInt
-  numBins: BigInt!
-  liquidityParameter: BigInt!
-  isSettled: Boolean!
-  settlementValue: BigInt
-  settlementTick: BigInt
-  lastUpdated: BigInt!
-  bins: [BinState!]!
-}
-```
-
-### BinState
-
-틱별 지수 팩터와 거래량을 저장합니다.
+### 시장 분포
 
 ```graphql
-type BinState {
-  id: String!
-  market: Market!
-  binIndex: BigInt!
-  lowerTick: BigInt!
-  upperTick: BigInt!
-  currentFactor: BigInt!
-  lastUpdated: BigInt!
-  updateCount: BigInt!
-  totalVolume: BigInt!
-}
-```
-
-### UserPosition
-
-사용자 포지션과 비용/수익 합계를 제공합니다.
-
-```graphql
-type UserPosition {
-  id: String!
-  positionId: BigInt!
-  user: Bytes!
-  stats: UserStats!
-  market: Market!
-  lowerTick: BigInt!
-  upperTick: BigInt!
-  currentQuantity: BigInt!
-  totalCostBasis: BigInt!
-  averageEntryPrice: BigInt!
-  totalQuantityBought: BigInt!
-  totalQuantitySold: BigInt!
-  totalProceeds: BigInt!
-  realizedPnL: BigInt!
-  outcome: PositionOutcome!
-  isClaimed: Boolean!
-  createdAt: BigInt!
-  lastUpdated: BigInt!
-  activityRemaining: BigInt!
-  weightedEntryTime: BigInt!
-}
-```
-
-### Trade / UserStats / MarketStats
-
-- `Trade`는 OPEN/INCREASE/DECREASE/CLOSE/SETTLE 이벤트를 하나의 엔티티로 정규화하며, 거래별 포인트를 포함합니다.
-- `UserStats`, `MarketStats`는 누적 수익률, 포인트, 미청구 금액 등을 집계합니다.
-
-| 필드 | 설명 |
-| --- | --- |
-| `MarketStats.unclaimedPayout` | 정산 배치 이후 남아 있는 SUSD 금액 |
-| `MarketStats.totalVolume` | 누적 거래량 (6 소수) |
-| `UserStats.realizedPnL` | 정산된 손익 (6 소수) |
-| `UserStats.performancePt` | `PointsGranter`가 부여한 성과 포인트 합계 |
-
-## 예시 쿼리
-
-```graphql
-query GetMarket($marketId: String!) {
-  market(id: $marketId) {
-    marketId
-    minTick
-    maxTick
-    tickSpacing
-    isSettled
-    settlementTick
-    liquidityParameter
-    bins(first: 10, orderBy: binIndex) {
-      binIndex
-      lowerTick
-      upperTick
-      currentFactor
-    }
-  }
-  trades(first: 20, orderBy: timestamp, orderDirection: desc, where: { market: $marketId }) {
-    id
-    type
-    quantity
-    costOrProceeds
-    activityPt
-    performancePt
-    riskBonusPt
-    timestamp
+query Distribution($marketId: String!) {
+  marketDistribution(id: $marketId) {
+    totalSum
+    binFactors
+    binVolumes
+    tickRanges
   }
 }
 ```
 
+결과 객체를 그대로 `mapDistribution`(SDK) 함수에 전달하면 비용/확률 계산이 가능합니다.
+
+### 사용자 활성 포지션
+
 ```graphql
-query GetPositions($user: Bytes!) {
+query Positions($user: Bytes!) {
   userPositions(where: { user: $user, outcome: OPEN }) {
     positionId
-    market {
-      marketId
-      isSettled
-    }
     lowerTick
     upperTick
     currentQuantity
@@ -145,11 +53,53 @@ query GetPositions($user: Bytes!) {
 }
 ```
 
-## 활용 팁
+### 특정 시장의 거래 내역
 
-- 금액 관련 필드는 모두 6소수 정수입니다. SDK 헬퍼(`toWAD`, `fromWadRoundUp`)로 변환하세요.
-- Bin 팩터는 WAD(18소수) 값이므로 `1e18`로 나눈 뒤 사용합니다.
-- `MarketStats.unclaimedPayout`으로 정산 후 미청구 잔액을 추적할 수 있습니다.
-- `PositionSettled` 데이터는 청구 진행상황을 조정할 때 유용합니다.
+```graphql
+query UserMarketTrades($user: Bytes!, $market: String!) {
+  trades(
+    where: { user: $user, market: $market }
+    orderBy: timestamp
+    orderDirection: desc
+  ) {
+    id
+    type
+    quantity
+    costOrProceeds
+    timestamp
+  }
+}
+```
 
-Goldsky 대시보드에서 위 엔드포인트를 바로 테스트할 수 있으며, 로컬 개발 시 `yarn workspace clmsr-subgraph codegen`으로 동일 스키마의 TypeScript 바인딩을 생성할 수 있습니다.
+### 정산 진행 상황
+
+```graphql
+query SettlementProgress($marketId: BigInt!) {
+  positionEventsProgresses(
+    where: { marketId: $marketId }
+    orderBy: blockNumber
+    orderDirection: desc
+    first: 1
+  ) {
+    fromIndex
+    toIndex
+    isComplete
+  }
+}
+```
+
+## 스케일 변환 요령
+
+- 가중치(`binFactors`, `totalSum`)는 18자리 WAD → 표시할 때 `1e18`로 나눕니다.
+- 금액(`quantity`, `costOrProceeds`, `totalVolume`)은 6자리 정수 → `1e6`으로 나눠 SUSD로 보여 줍니다.
+- 비율(`winRate`, `priceChange24h`)은 소수 → 100을 곱해 퍼센트로 변환합니다.
+
+SDK는 원본 값을 그대로 기대하므로 UI에 표시할 때만 변환하세요.
+
+## 모니터링 팁
+
+- 서브그래프 최신 블록과 Citrea 익스플로러 블록 높이를 비교해 지연 여부를 확인하세요.
+- 정산 후에는 `PositionEventsProgress.isComplete`가 `true`인지 확인한 뒤 사용자에게 청구를 안내하세요.
+- 대부분의 자동화 작업은 3~5초 간격 폴링이면 충분하며, 트래픽이 많다면 요청을 배치 처리하세요.
+
+자세한 스키마는 Goldsky GraphQL 플레이그라운드 또는 `yarn workspace clmsr-subgraph codegen`으로 생성되는 TypeScript 바인딩에서 확인할 수 있습니다.

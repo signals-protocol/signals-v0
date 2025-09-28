@@ -1,9 +1,14 @@
 # Further Reading
 
-These references provide broader context on market scoring rules and automated market makers.
+Looking to dive deeper into market scoring rules, bounded-loss automated market makers, or the history behind CLMSR? Start with these cornerstone papers.
 
-- **Hanson, Robin (2003)** – *Combinatorial Information Market Design*. Introduces the Logarithmic Market Scoring Rule (LMSR) used as the foundation for CLMSR.
-- **Abernethy, Jacob; Chen, Yiling; Vaughan, Jennifer (2013)** – *Efficient Market Making via Convex Optimization*. Analyses cost-function market makers and bounded loss.
-- **Othman, Abraham; Sandholm, Tuomas (2012)** – *Market Making via Smoothing*. Explores practical considerations for automated market makers under limited liquidity.
+- **Robin Hanson (2003) — *Combinatorial Information Market Design***  
+  Introduces the Logarithmic Market Scoring Rule (LMSR) that Signals extends into a continuous range setting. Read this to understand why maintaining a single convex potential keeps probabilities normalised.
 
-Pair these with the [Key Formulas Cheat Sheet](../mechanism/key-formulas.md) if you want a concise Signals-specific summary.
+- **Jacob Abernethy, Yiling Chen, Jennifer Vaughan (2013) — *Efficient Market Making via Convex Optimization***  
+  Formalises cost-function market makers, bounding maker loss and analysing liquidity parameters. Handy when you want the proof behind the $\alpha \ln n$ limit.
+
+- **Abraham Othman, Tuomas Sandholm (2012) — *Market Making via Smoothing***  
+  Discusses practical considerations—limited liquidity, smoothing techniques, and how to keep markets stable—which inspired parts of the Signals operational tooling.
+
+Pair these with our [Key Formulas Cheat Sheet](../mechanism/key-formulas.md) and the [Signals CLMSR Whitepaper](./whitepaper.md) for Signals-specific notation and implementation details.

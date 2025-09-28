@@ -1,10 +1,9 @@
-# 참조 자료
+# 참조 자료 개요
 
-Signals 프로토콜을 더 깊이 이해하려면 아래 문서를 확인하세요.
+Signals CLMSR 시장의 배경 이론과 1차 자료가 필요할 때 이 섹션을 참고하세요.
 
-- [프로토콜 아키텍처](../protocol/architecture): 컨트랙트 간 계층, 상태 흐름, 운영 경로.
-- [보안 & 테스트 개요](../security/audits): 테스트 범위와 운영 통제 요약.
-- [백서](./whitepaper): CLMSR 수학과 시장 설계를 정식으로 정리한 PDF.
-- [참고 문헌](./bibliography): 연구 논문과 외부 자료 목록.
+- **백서** — 정식 수학 명세는 [Signals CLMSR 백서](./whitepaper.md)에서 확인할 수 있습니다.
+- **추가 참고 문헌** — 연구 논문과 배경 자료는 [참고 문헌](./bibliography.md)에 정리돼 있습니다.
+- **운영 가이드** — 이론 자료를 읽을 때 [프로토콜 아키텍처](../protocol/architecture.md), [보안 & 테스트](../security/audits.md), [변경 이력](../changelog/index.md) 문서와 함께 보면 실제 배포 흐름을 이해하기 쉽습니다.
 
-도움이 필요한 경우 [Discord](https://discord.gg/signals-protocol) 또는 `support@signals-protocol.com`으로 문의하세요.
+배포 주소와 manifest는 [배포 주소](../addresses/index.md)에서 확인하고, SDK/통합 예제는 루트 `docs/` 폴더의 개발자 문서를 참고하세요.

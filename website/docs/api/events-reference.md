@@ -1,44 +1,39 @@
 # Events Reference
 
-Signals emits structured events for every market lifecycle step. Use this guide when building indexers, analytics, or monitoring jobs.
+Signals emits structured events at every step of the market lifecycle. This guide explains what each event represents, when it fires, and how indexers or analytics pipelines can consume the data safely.
 
 ## Core market events
 
-| Event | Emitted by | Purpose |
-| --- | --- | --- |
-| `MarketCreated(uint256 marketId, int256 minTick, int256 maxTick, int256 tickSpacing, uint256 alpha, uint64 startTimestamp, uint64 endTimestamp)` | `CLMSRMarketCore` | Announces a new daily market and its configuration. |
-| `MarketSettled(uint256 marketId, int256 settlementTick, uint256 settlementValue)` | `CLMSRMarketCore` | Records the settlement value submitted from CoinMarketCap. |
-| `PositionEventsProgress(uint256 marketId, uint256 processed, uint256 total, bool done)` | `CLMSRMarketCore` | Reports progress during batched settlement emission. |
+- **`MarketCreated(uint256 marketId, int256 minTick, int256 maxTick, int256 tickSpacing, uint256 alpha, uint64 startTimestamp, uint64 endTimestamp)`** — emitted when the daily market is created. It records the outcome grid and trading window so indexers can prepare derived entities before trades arrive.
+- **`MarketSettled(uint256 marketId, int256 settlementTick, uint256 settlementValue)`** — broadcast after the CoinMarketCap close is verified and submitted. The value is clamped inside the configured tick range; downstream services can recompute payouts from the tick alone.
+- **`PositionEventsProgress(uint256 marketId, uint256 processed, uint256 total, bool done)`** — emitted during batched settlement. Use the `done` flag to know when all positions in a market have been marked.
 
 ## Position lifecycle events
 
-| Event | Trigger | Notes |
-| --- | --- | --- |
-| `PositionOpened(uint256 positionId, address owner, uint256 marketId, int256 lowerTick, int256 upperTick, uint256 quantity, uint256 cost)` | `openPosition` | Issued once per new position token. Cost is rounded up per CLMSR rules. |
-| `PositionIncreased(uint256 positionId, uint256 quantity, uint256 cost)` | `increasePosition` | Adds size at current probabilities. |
-| `PositionDecreased(uint256 positionId, uint256 quantity, uint256 proceeds)` | `decreasePosition` | Returns SUSD at current probabilities (future update will round down). |
-| `PositionClosed(uint256 positionId, uint256 proceeds)` | `closePosition` | Final exit before settlement; burns the token once quantity hits zero. |
-| `PositionSettled(uint256 positionId, uint256 payout, bool won)` | `emitPositionSettledBatch` | Marks whether the range won and records the claim amount (current contracts round payout up; upcoming releases will switch to floor per the CLMSR spec). |
-| `PositionClaimed(uint256 positionId, address owner, uint256 payout)` | `claimPosition` | Transfers SUSD back to the owner and burns the token. |
+- **`PositionOpened(uint256 positionId, address owner, uint256 marketId, int256 lowerTick, int256 upperTick, uint256 quantity, uint256 cost)`** — minted once per new ERC 721 position token. Costs are rounded up per CLMSR rules so every position carries non-zero stake.
+- **`PositionIncreased(uint256 positionId, uint256 quantity, uint256 cost)`** — adds exposure at the current probability surface. Quantity and cost values respect the same rounding as the open event.
+- **`PositionDecreased(uint256 positionId, uint256 quantity, uint256 proceeds)`** — partially unwinds exposure and returns SUSD at current probabilities. Upcoming releases will floor-round proceeds to match the whitepaper.
+- **`PositionClosed(uint256 positionId, uint256 proceeds)`** — final exit before settlement; once quantity hits zero the token burns.
+- **`PositionSettled(uint256 positionId, uint256 payout, bool won)`** — emitted inside `emitPositionSettledBatch`. It records whether the band won and the exact claimable amount.
+- **`PositionClaimed(uint256 positionId, address owner, uint256 payout)`** — emitted when the owner calls `claimPayout`. The contract transfers SUSD back and burns the token.
 
-## Points layer events
+## Points and incentives
 
-| Event | Meaning |
-| --- | --- |
-| `PointsGranted(address account, uint8 reason, uint128 amount)` | Emitted by `PointsGranter`. `reason` codes: 1 Activity, 2 Performance, 3 Risk Bonus. |
+- **`PointsGranted(address account, uint8 reason, uint128 amount)`** — emitted by `PointsGranter`. `reason` codes: 1 = Activity, 2 = Performance, 3 = Risk Bonus. Off-chain programs can aggregate these events to run leaderboards or rewards.
 
-## Working with the subgraph
+## Subgraph alignment
 
-The Goldsky-hosted subgraph mirrors all events above:
+Goldsky-hosted subgraphs index every event above. Notable entities include:
+- `Market`, `BinState`, `MarketStats` for per-market configuration and health metrics.
+- `UserPosition`, `Trade`, `UserStats` for trader-level analytics.
+- `PositionSettled` and `PositionClaimed` to monitor outstanding claims; combine them with `MarketStats.unclaimedPayout` to track liabilities.
 
-- Endpoints listed in the [Subgraph API guide](./subgraph.md).
-- Entities worth highlighting: `Market`, `BinState`, `UserPosition`, `Trade`, `PositionSettled`, `MarketStats`, `UserStats`.
-- `MarketStats.unclaimedPayout` helps monitor post-settlement obligations, while `PositionSettled` plus `PositionClaimed` reveal who still needs to claim.
+Follow the [Subgraph API guide](./subgraph.md) for endpoints and query examples. When replaying history, paginate by `marketId` and `positionId` to avoid missing events in large batches.
 
-## Best practices
+## Processing tips
 
-- Handle potential reorgs by monitoring `PositionEventsProgress.done`. Stop emitting batches only after the flag is `true`.
-- Derive probabilities and PnL using the SDK helpers (`clmsr-sdk/src/utils/math.ts`) to stay aligned with CLMSR rounding rules.
-- When running archival jobs, paginate by `marketId` and `positionId` to avoid missing events in large batches.
+- Watch `PositionEventsProgress.done` before treating a market as fully settled; reorg-safe consumers should re-fetch batches if the flag is false.
+- Derive probabilities or payouts using the SDK helpers (`clmsr-sdk/src/utils/math.ts`) to remain consistent with on-chain rounding.
+- Label events with the block timestamp and number when storing analytics data—this makes it easy to reconcile with manifests and dispatcher logs.
 
-Need the underlying math? Revisit [Key Formulas](../mechanism/key-formulas.md). For a trader-focused view, see [Settlement & Claims](../user/settlement.md).
+Need the formulas behind these values? Open the [Key Formulas cheat sheet](../mechanism/key-formulas.md). For a trader-facing explanation, see [Settlement & Claims](../user/settlement.md).
