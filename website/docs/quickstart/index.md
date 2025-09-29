@@ -18,7 +18,7 @@ After adding the network, switch your wallet to Citrea so transactions route to 
 
 ## Step 2 - Fund with test assets
 
-You need two assets: cBTC for gas and SUSD for staking. Request cBTC from the [Citrea faucet](https://faucet.testnet.citrea.xyz/). For SUSD, either use the Signals faucet advertised in the community Discord or mint it locally with Hardhat:
+You need two assets: cBTC for gas and SUSD for trading. Request cBTC from the [Citrea faucet](https://faucet.testnet.citrea.xyz/). For SUSD, either use the Signals faucet advertised in the community Discord or mint it locally with Hardhat:
 
 ```bash
 npx hardhat run scripts/mint-susd.ts --network <env>
@@ -32,15 +32,15 @@ Open the Signals app. The home screen highlights the active “Bitcoin Closing P
 
 ## Step 4 - Place your first range
 
-Choose the lower and upper ticks using the $100 increment inputs so they match the on-chain spacing. Enter the amount of SUSD you want to risk, confirm the displayed win probability and payout, and approve the transaction. The CLMSR pool debits your stake as soon as the transaction finalises and mints an ERC-721 position token to your wallet.
+Choose the lower and upper ticks using the market’s configured spacing. Enter the amount of SUSD you want to risk, confirm the displayed win probability and payout, and approve the transaction. The CLMSR pool debits your payment as soon as the transaction finalises and mints an ERC-721 position token to your wallet.
 
 ## Step 5 - Monitor through settlement
 
-Until the countdown expires you can increase, decrease, or close the position in single clicks. The probability chart and recent trades stream show how other participants are moving the surface, helping you decide whether to hold or rotate ranges. If operations ever pause the market, the UI displays the status and the contract prevents new trades.
+Until the countdown reaches the configured cutoff you can increase, decrease, or close the position in single clicks. The probability chart and recent trades stream show how other participants are moving the surface, helping you decide whether to hold or rotate ranges. If operations ever pause the market, the UI displays the status and the contract prevents new trades.
 
 ## Step 6 - Claim the payout
 
-After 23:59:59 UTC the operator settles the market with the CoinMarketCap BTC/USD close and emits batched settlement events. When the interface shows “Settlement events complete,” open the “My Positions” tab and click **Claim** beside any winning range. Claims have no expiration, but completing them right away keeps your balances tidy.
+After the trading window closes, the operator settles the market with the designated reference value. Once `settleMarket` lands on-chain, open the “My Positions” tab and click **Claim** beside any winning range. Claims have no expiration, but completing them right away keeps your balances tidy.
 
 ## Where to go next
 

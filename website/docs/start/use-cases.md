@@ -12,7 +12,7 @@ Teams that hold BTC-denominated liabilities use Signals to pin risk around a bud
 
 ## Market intelligence and research
 
-Analysts follow the probability surface to understand how traders absorb upcoming data releases. Instead of scraping fragmented order books, they observe one continuous curve and log shifts in the implied close. Leaderboard activity and settlement batches provide a public, timestamped trail, so research teams can backtest how specific wallets behaved around CPI prints, ETF flows, or halving milestones. The dataset is on-chain, making it easy to plug into notebooks or dashboards.
+Analysts follow the probability surface to understand how traders absorb upcoming data releases. Instead of scraping fragmented order books, they observe one continuous curve and log shifts in the implied close. Leaderboard activity and settlement records provide a public, timestamped trail, so research teams can backtest how specific wallets behaved around CPI prints, ETF flows, or halving milestones. The dataset is on-chain, making it easy to plug into notebooks or dashboards.
 
 ## Community and product programs
 

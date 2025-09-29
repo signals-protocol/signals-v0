@@ -33,7 +33,7 @@ Lazy multiplication works because a set of conservative constants keeps exponent
 
 - `settleMarket` only executes after `block.timestamp` reaches the configured `settlementTimestamp` (or `endTimestamp` when no override exists).
 - Submitted settlement values are clamped into `[minTick, maxTick]`, protecting the pool from outlier prints.
-- Positions settle through `emitPositionSettledBatch`, keeping gas bounded even when thousands of bands remain open.
+- Settlement emits per-position results deterministically, keeping gas bounded even when thousands of bands remain open.
 
 ## Implementation status
 

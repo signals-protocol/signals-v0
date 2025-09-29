@@ -4,9 +4,9 @@ This FAQ expands on the questions we hear most often so you understand not just 
 
 ## Daily market basics
 
-**What market is live each day?** Signals lists one Bitcoin closing-price market per UTC day. A single `marketId` opens with $100-wide bands; if the settlement tick lands inside your half-open range `[lower, upper)`, you earn 1 SUSD for every 1 SUSD staked.
+**What market is live each day?** Signals lists one Bitcoin closing-price market per UTC day. A single `marketId` opens with bands defined by the configured tick spacing; if the settlement tick lands inside your half-open range `[lower, upper)`, you earn 1 SUSD for every 1 SUSD you committed.
 
-**Where does the settlement price come from?** The operator verifies CoinMarketCap's BTC/USD daily close (UTC 00:00-23:59) and records it with `settleMarket`. Both the transaction and value live on-chain, so explorers and the Goldsky subgraph provide an auditable record at any time.
+**Where does the settlement price come from?** The operator verifies the market’s designated reference value and records it with `settleMarket`. Both the transaction and value live on-chain, so explorers and the Goldsky subgraph provide an auditable record at any time.
 
 ## Preparing to trade
 
@@ -18,7 +18,7 @@ This FAQ expands on the questions we hear most often so you understand not just 
 
 ## After settlement
 
-**Is there a deadline to claim winnings?** Winning positions never expire. Call `claimPayout` whenever you are ready; the contract returns stake plus payout while burning the position NFT. We still recommend claiming soon after settlement so balances stay tidy.
+**Is there a deadline to claim winnings?** Winning positions never expire. Call `claimPayout` whenever you are ready; the contract returns principal plus payout while burning the position NFT. We still recommend claiming soon after settlement so balances stay tidy.
 
 **What happens if the front end disappears?** Funds and settlement logic reside in the smart contracts. Even without the Signals app, you can interact directly with the contracts--addresses and ABIs are published in the repo--to manage positions or withdraw funds.
 

@@ -6,13 +6,13 @@ Signals tracks every contract and documentation release so integrators can audit
 
 **What changed**
 - Upgraded `LazyMulSegmentTree` with gas optimisations and additional guards
-- Shipped a new `CLMSRMarketCore` implementation tuned for faster settlement batching
+- Shipped a new `CLMSRMarketCore` implementation tuned for faster settlement automation
 - Refined `CLMSRPosition` events to improve subgraph performance
 - Updated `PointsGranter` emission logic
 
 **Impact**
 - Lower gas usage during heavy trading and settlement
-- More predictable settlement batches (fewer retries for large markets)
+- More predictable settlement automation (fewer retries for large markets)
 - Cleaner subgraph mirrors (fewer null fields)
 
 **Addresses (Citrea prod)**

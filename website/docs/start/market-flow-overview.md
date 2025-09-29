@@ -8,24 +8,24 @@ Early each afternoon (UTC) the operations dispatcher submits `createMarket` with
 
 ## During the trading window
 
-From the block that confirms `createMarket` until 23:59:59 UTC, every trade passes through the CLMSR potential. Because all bands draw from one pool of exponential weights, opening, increasing, or rotating a range is a single transaction whose cost reflects the collective state of outstanding positions. Front-end components poll both the contracts and the subgraph: they read live probabilities for quotes, consume `Position*` events for leaderboards, and surface alerts when liquidity or activity shifts materially. If monitoring scripts detect an invariant violation, an oracle delay, or abnormal gas usage, operators can pause the market with a single call; otherwise trading continues uninterrupted.
+From the block that confirms `createMarket` until the configured trading cutoff, every trade passes through the CLMSR potential. Because all bands draw from one pool of exponential weights, opening, increasing, or rotating a range is a single transaction whose cost reflects the collective state of outstanding positions. Front-end components poll both the contracts and the subgraph: they read live probabilities for quotes, consume `Position*` events for leaderboards, and surface alerts when liquidity or activity shifts materially. If monitoring scripts detect an invariant violation, an oracle delay, or abnormal gas usage, operators can pause the market with a single call; otherwise trading continues uninterrupted.
 
 ## Closing the book
 
-Exactly at midnight UTC the UI flips into “closed” mode and suppresses new orders. The operator verifies CoinMarketCap’s BTC/USD daily close, clamps it into the configured tick range, and submits `settleMarket(marketId, value)`. This call records the canonical settlement tick and timestamp on-chain, emits `MarketSettled`, and freezes the probability surface in preparation for payouts. No SUSD moves yet—settlement establishes the outcome and hands control to the batching jobs.
+Ahead of the daily settlement window the UI flips into “closed” mode and suppresses new orders. The operator verifies the designated reference value, clamps it into the configured tick range, and submits `settleMarket(marketId, value)`. This call records the canonical settlement tick and timestamp on-chain and freezes the probability surface in preparation for payouts. No SUSD moves yet—settlement establishes the outcome that everyone can audit later.
 
-## Settling in batches
+## Publishing settlement results
 
-Large markets can hold thousands of tokens, so payouts are unlocked through deterministic batches. Automation drives `emitPositionSettledBatch(limit)`, walking slices of the position list until the contract reports `done = true`. Each pass emits `PositionSettled` and `PositionEventsProgress` events with the processed range, making it transparent which positions are already marked and which remain in the queue. Because batches are idempotent, reruns after a network hiccup never double-count; the subgraph indexes every breadcrumb so explorers and analytics can replay progress block by block.
+Large markets can hold thousands of tokens, so the settlement run focuses on updating contract state rather than manual bookkeeping. Automation simply confirms that `settleMarket` completed and that every open token now reflects its terminal state. The process is deterministic and idempotent, which keeps retries safe and makes reconciliation straightforward through the subgraph.
 
 ## After settlement
 
-Once the final batch lands, winning positions are claimable indefinitely. Traders call `claimPayout`, receive stake plus winnings, and the position NFT burns in the same transaction. Risk desks and community teams rely on the very same events to update dashboards, reconcile treasuries, or publish nightly recaps. Meanwhile, the dispatcher has usually staged the following day’s market, so the loop restarts without downtime.
+Once settlement finalizes, winning positions are claimable indefinitely. Traders call `claimPayout`, receive their principal plus winnings, and the position NFT burns in the same transaction. Risk desks and community teams rely on the same on-chain data to update dashboards, reconcile treasuries, or publish nightly recaps. Meanwhile, the dispatcher has usually staged the following day’s market, so the loop restarts without downtime.
 
 ## Roles at a glance
 
-- **Operators** configure markets, verify the oracle close, and keep batching scripts healthy. Their transactions are fully auditable via manifests and explorer links.
-- **Automation** enforces cadence: it monitors invariants, retries settlement batches, and raises alerts if `done = true` never arrives.
+- **Operators** configure markets, verify the designated reference value, and make sure settlement automation stays healthy. Their transactions are fully auditable via manifests and explorer links.
+- **Automation** enforces cadence: it monitors invariants, replays settlement submissions when necessary, and raises alerts if progress stalls.
 - **Traders and integrators** consume the app or subgraph, trade during the window, and claim payouts later; many mirror the data into internal research notebooks.
 
-For a minute-by-minute breakdown of user and operator actions, continue to [How Signals Works](./how-it-works.md). To see how settlement batching is implemented, read the [Settlement Pipeline](../market/settlement-pipeline.md). If you are preparing to place a range yourself, start with the [Quick Start](../quickstart/index.md) and keep the [Trader Guide](../user/positions-lifecycle.md) nearby.
+For a minute-by-minute breakdown of user and operator actions, continue to [How Signals Works](./how-it-works.md). To see how the operator playbook runs, read the [Settlement Pipeline](../market/settlement-pipeline.md). If you are preparing to place a range yourself, start with the [Quick Start](../quickstart/index.md) and keep the [Trader Guide](../user/positions-lifecycle.md) nearby.

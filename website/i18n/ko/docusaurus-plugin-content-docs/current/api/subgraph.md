@@ -19,7 +19,7 @@ Signals는 Goldsky 서브그래프를 통해 CLMSR 시장 데이터를 실시간
 - **UserPosition** — ERC-721 포지션과 파생 지표(`currentQuantity`, `realizedPnL`, `outcome`, 포인트 카운터 등).
 - **Trade** — OPEN/INCREASE/DECREASE/CLOSE/SETTLE 이벤트. 가스 정보와 포인트 지급 내역 포함.
 - **UserStats / MarketStats** — 거래량, 손익, 승률, 고유 트레이더 수 같은 집계 지표.
-- **PositionSettled / PositionEventsProgress** — 배치 정산 진행 상황과 지급액을 추적. `isComplete`가 `true`가 되면 청구가 열립니다.
+- **PositionSettled / PositionClaimed** — 정산 결과와 청구 기록을 추적해 미지급 금액을 재현할 수 있습니다.
 
 ## 자주 쓰는 쿼리
 
@@ -71,23 +71,6 @@ query UserMarketTrades($user: Bytes!, $market: String!) {
 }
 ```
 
-### 정산 진행 상황
-
-```graphql
-query SettlementProgress($marketId: BigInt!) {
-  positionEventsProgresses(
-    where: { marketId: $marketId }
-    orderBy: blockNumber
-    orderDirection: desc
-    first: 1
-  ) {
-    fromIndex
-    toIndex
-    isComplete
-  }
-}
-```
-
 ## 스케일 변환 요령
 
 - 가중치(`binFactors`, `totalSum`)는 18자리 WAD → 표시할 때 `1e18`로 나눕니다.
@@ -99,7 +82,6 @@ SDK는 원본 값을 그대로 기대하므로 UI에 표시할 때만 변환하�
 ## 모니터링 팁
 
 - 서브그래프 최신 블록과 Citrea 익스플로러 블록 높이를 비교해 지연 여부를 확인하세요.
-- 정산 후에는 `PositionEventsProgress.isComplete`가 `true`인지 확인한 뒤 사용자에게 청구를 안내하세요.
 - 대부분의 자동화 작업은 3~5초 간격 폴링이면 충분하며, 트래픽이 많다면 요청을 배치 처리하세요.
 
 자세한 스키마는 Goldsky GraphQL 플레이그라운드 또는 `yarn workspace clmsr-subgraph codegen`으로 생성되는 TypeScript 바인딩에서 확인할 수 있습니다.
