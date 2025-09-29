@@ -19,7 +19,7 @@ All numbers maintain contract-native scales: factors are 18-decimal WAD values, 
 - **UserPosition** — ERC-721 range position with derived metrics such as `currentQuantity`, `totalCostBasis`, `realizedPnL`, `outcome`, and points counters.
 - **Trade** — every OPEN/INCREASE/DECREASE/CLOSE/SETTLE action, including gas data and points awarded.
 - **UserStats / MarketStats** — aggregated totals (volume, winRate, realised PnL, unique traders, price extremes).
-- **PositionSettled / PositionEventsProgress** — settlement batches and payouts; watch `PositionEventsProgress.isComplete` to know when claims unlock.
+- **PositionSettled / PositionClaimed** — per-position results and claim records; useful for reconciling liabilities and verifying that automation finished cleanly.
 
 ## Useful queries
 
@@ -71,23 +71,6 @@ query UserMarketTrades($user: Bytes!, $market: String!) {
 }
 ```
 
-### Settlement progress
-
-```graphql
-query SettlementProgress($marketId: BigInt!) {
-  positionEventsProgresses(
-    where: { marketId: $marketId }
-    orderBy: blockNumber
-    orderDirection: desc
-    first: 1
-  ) {
-    fromIndex
-    toIndex
-    isComplete
-  }
-}
-```
-
 ## Working with raw scales
 
 - Divide WAD values (`binFactors`, `totalSum`) by `1e18` for display.
@@ -99,7 +82,6 @@ The SDK expects raw values, so only convert when rendering UI.
 ## Monitoring tips
 
 - Compare the subgraph’s latest block with the Citrea explorer to detect lag.
-- After settlement, poll `PositionEventsProgress` until `isComplete = true` before prompting users to claim.
 - Queries every 3–5 seconds are usually sufficient; for heavier workloads consider batching requests.
 
 For deeper schema exploration use Goldsky’s GraphQL playground or inspect the generated TypeScript bindings (`yarn workspace clmsr-subgraph codegen`).

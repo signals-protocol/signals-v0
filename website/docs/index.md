@@ -4,9 +4,9 @@ Signals is a daily Bitcoin range market built on a Continuous LMSR (CLMSR). We c
 
 ## What Signals solves
 
-Every market we list covers a single UTC date. Operators publish the tick bounds, traders choose $100-wide ranges, and the CLMSR potential recalculates probabilities after every trade. Because all ranges sit in one pool, inventory never fragments into abandoned strikes and the maker's loss stays bounded by the chosen liquidity parameter. The result is a market that reacts instantly to flow while keeping the economic guarantees you expect from the LMSR family.
+Every market we list covers a single UTC date. Operators publish the tick bounds and spacing, traders choose ranges that fit their thesis, and the CLMSR potential recalculates probabilities after every trade. Because all ranges sit in one pool, inventory never fragments into abandoned strikes and the maker's loss stays bounded by the chosen liquidity parameter. The result is a market that reacts instantly to flow while keeping the economic guarantees you expect from the LMSR family.
 
-Settlement is deterministic. When the CoinMarketCap daily close is confirmed, the operator calls `settleMarket`, emits batches so every position receives a settlement event, and leaves claims open indefinitely. All of those actions are visible on-chain and mirrored through the Goldsky subgraph, so auditors can replay the day without trusting the front end.
+Settlement is deterministic. When the designated reference value is confirmed, the operator calls `settleMarket`, the contracts lock in the outcome, and claims remain open indefinitely. All of those actions are visible on-chain and mirrored through the Goldsky subgraph, so auditors can replay the day without trusting the front end.
 
 ## How to use this documentation
 
@@ -14,7 +14,7 @@ If you want the story of *why* Signals exists and what design principles shaped 
 
 ## Snapshot of the daily loop
 
-A Signals day opens with market creation: the operator sets tick bounds, timestamps, and the liquidity parameter. Traders then adjust ranges throughout the session, and every order mutates the CLMSR weights so probabilities stay normalized. After the close, settlement writes the CoinMarketCap price on-chain, emits batched events until every position is marked, and leaves a verifiable trail that the subgraph and analytics jobs consume. This same loop repeats every day, giving integrators a predictable surface to monitor and extend.
+A Signals day opens with market creation: the operator sets tick bounds, spacing, timestamps, and the liquidity parameter. Traders then adjust ranges throughout the session, and every order mutates the CLMSR weights so probabilities stay normalized. After the close, settlement records the reference price on-chain, leaves a verifiable trail for the subgraph and analytics jobs, and immediately enables claims. This same loop repeats every day, giving integrators a predictable surface to monitor and extend.
 
 Need a deeper mathematical reference? Consult the [Key Formulas Cheat Sheet](./mechanism/key-formulas.md) or download the full [Signals CLMSR whitepaper](/whitepaper.pdf).
 

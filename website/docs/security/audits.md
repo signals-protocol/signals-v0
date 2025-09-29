@@ -12,13 +12,13 @@ Automated tests exercise the system at multiple levels:
 - Unit suites cover math libraries, fixed-point helpers, and segment tree mutations.
 - Integration and end-to-end scenarios run through market creation, trading, settlement, and claims to ensure the contracts and scripts stay aligned.
 - Invariant tests confirm price normalization and bounded loss across randomized trade sequences.
-- Gas benchmarks track the cost of chunked exponentials, batched settlement, and typical trading paths so regressions are caught before deployment.
+- Gas benchmarks track the cost of chunked exponentials, settlement state transitions, and typical trading paths so regressions are caught before deployment.
 
 Every pull request runs in CI, and nightly jobs replay longer trade traces to detect non-deterministic edge cases.
 
 ## Operational controls
 
-Deployment manifests under `deployments/environments/` log each implementation address, making it easy to audit which bytecode is live. Dispatcher scripts issue upgrades, create markets, submit settlements, and emit batches with reproducible CLI commands. Goldsky subgraphs and verification scripts compare on-chain balances with CLMSR expectations, raising alerts if unclaimed payouts or tree sums drift from the model. If CoinMarketCap data is delayed, the pipeline pauses settlement until a verifiable close is available; funds always remain locked in the pool.
+Deployment manifests under `deployments/environments/` log each implementation address, making it easy to audit which bytecode is live. Dispatcher scripts issue upgrades, create markets, submit settlements, and monitor settlement health with reproducible CLI commands. Goldsky subgraphs and verification scripts compare on-chain balances with CLMSR expectations, raising alerts if unclaimed payouts or tree sums drift from the model. If the reference feed is delayed, the pipeline pauses settlement until a verifiable close is available; funds always remain locked in the pool.
 
 ## Roadmap and upcoming work
 

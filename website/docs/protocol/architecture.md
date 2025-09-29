@@ -8,11 +8,11 @@ At the heart of Signals sits the CLMSR core (`CLMSRMarketCore.sol`) and its posi
 
 ## 2. Daily operations pipeline
 
-A small operations job creates one market per UTC day. It submits the tick window, timestamps, and liquidity parameter, then monitors invariants throughout the session. After the CoinMarketCap BTC/USD close is verified, the same pipeline calls `settleMarket` and iterates `emitPositionSettledBatch(limit)` until every position is marked. Dispatcher scripts and deployment manifests remove manual steps and record which implementation handled each action, making audits reproducible.
+A small operations job creates one market per UTC day. It submits the tick window, timestamps, and liquidity parameter, then monitors invariants throughout the session. After the designated reference value is verified, the same pipeline calls `settleMarket` and confirms that every position has flipped into its terminal state. Dispatcher scripts and deployment manifests remove manual steps and record which implementation handled each action, making audits reproducible.
 
 ## 3. Oracle ingestion and data surface
 
-Price ingestion is intentionally conservative. Operators fetch the daily close from CoinMarketCap, clamp it into the configured tick range, and broadcast it on-chain with timestamped proof. Goldsky-hosted subgraphs (`clmsr-subgraph`) mirror every `MarketCreated`, `Position*`, and settlement event. They expose entities such as `MarketStats`, `UserPosition`, `Trade`, `PositionSettled`, and `PositionClaimed`, letting analytics jobs compute PnL, unclaimed balances, and leaderboard standings. Verification scripts in `verification/` cross-check chain balances against CLMSR expectations to catch drift.
+Price ingestion is intentionally conservative. Operators fetch the daily reference value from the configured source, clamp it into the tick range, and broadcast it on-chain with timestamped proof. Goldsky-hosted subgraphs (`clmsr-subgraph`) mirror every `MarketCreated`, `Position*`, and settlement-related state change. They expose entities such as `MarketStats`, `UserPosition`, `Trade`, `PositionSettled`, and `PositionClaimed`, letting analytics jobs compute PnL, unclaimed balances, and leaderboard standings. Verification scripts in `verification/` cross-check chain balances against CLMSR expectations to catch drift.
 
 ## 4. Front-end and client applications
 

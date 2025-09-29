@@ -54,7 +54,7 @@ chain_id = 5115
 ## Operational notes
 
 - RPC latency can spike during chain upgrades. Dispatcher scripts retry automatically, but interactive sessions should plan for transient failures.
-- Keep a buffer of cBTC in the operations wallet so settlement batches can proceed even during congestion.
+- Keep a buffer of cBTC in the operations wallet so settlement runs can proceed even during congestion.
 - Use the Goldsky subgraph to detect network divergence—if RPC responses stall, compare subgraph block heights to the explorer.
 
 Signals will announce major Citrea maintenance windows in the community channels. If you plan to automate settlement or trading, subscribe to those updates so you can pause jobs proactively.

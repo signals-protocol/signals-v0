@@ -8,11 +8,11 @@ Signals의 중심에는 CLMSR 코어(`CLMSRMarketCore.sol`)와 포지션 매니�
 
 ## 2. 일일 운영 파이프라인
 
-운영 스크립트는 UTC 기준 하루에 한 번 새 시장을 만듭니다. 틱 범위, 타임스탬프, 유동성 파라미터를 제출하고, 세션 동안 불변식을 모니터링합니다. CoinMarketCap BTC/USD 종가가 검증되면 `settleMarket`을 호출하고 `emitPositionSettledBatch(limit)`를 반복해 모든 포지션에 정산 이벤트를 붙입니다. Dispatcher 스크립트와 배포 manifest는 수동 단계를 제거하고, 어떤 구현이 어떤 작업을 처리했는지 기록해 감사를 쉽게 합니다.
+운영 스크립트는 UTC 기준 하루에 한 번 새 시장을 만듭니다. 틱 범위와 간격, 타임스탬프, 유동성 파라미터를 제출하고, 세션 동안 불변식을 모니터링합니다. 지정된 기준 값이 검증되면 `settleMarket`을 호출하고 모든 포지션이 최종 상태로 전환됐는지 확인합니다. Dispatcher 스크립트와 배포 manifest는 수동 단계를 제거하고, 어떤 구현이 어떤 작업을 처리했는지 기록해 감사를 쉽게 합니다.
 
 ## 3. 오라클 입력과 데이터 서피스
 
-가격 수집은 보수적으로 진행됩니다. 운영자가 CoinMarketCap 종가를 가져와 설정된 틱 범위로 클램프한 뒤 타임스탬프와 함께 온체인에 게시합니다. Goldsky가 호스팅하는 서브그래프(`clmsr-subgraph`)는 `MarketCreated`, `Position*`, 정산 이벤트를 모두 미러링하고 `MarketStats`, `UserPosition`, `Trade`, `PositionSettled`, `PositionClaimed` 등 엔티티를 노출합니다. `verification/` 디렉터리의 스크립트는 체인 잔액을 CLMSR 기대치와 비교해 이상을 조기에 포착합니다.
+가격 수집은 보수적으로 진행됩니다. 운영자가 지정된 기준 값을 가져와 설정된 틱 범위로 클램프한 뒤 타임스탬프와 함께 온체인에 게시합니다. Goldsky가 호스팅하는 서브그래프(`clmsr-subgraph`)는 `MarketCreated`, `Position*`, 정산 관련 상태를 모두 미러링하고 `MarketStats`, `UserPosition`, `Trade`, `PositionSettled`, `PositionClaimed` 등 엔티티를 노출합니다. `verification/` 디렉터리의 스크립트는 체인 잔액을 CLMSR 기대치와 비교해 이상을 조기에 포착합니다.
 
 ## 4. 프런트엔드와 클라이언트 애플리케이션
 

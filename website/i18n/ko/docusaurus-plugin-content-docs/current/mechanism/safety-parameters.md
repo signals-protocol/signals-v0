@@ -33,7 +33,7 @@ $$
 
 - `settleMarket`는 `block.timestamp`가 설정된 `settlementTimestamp`(또는 별도 지정이 없다면 `endTimestamp`)에 도달하기 전에는 실행되지 않습니다.
 - 제출된 정산 값은 `[minTick, maxTick]` 범위로 클램프돼 이상값에서 풀을 보호합니다.
-- 포지션 정산은 `emitPositionSettledBatch`를 통해 진행되어 수천 개의 밴드가 남아 있어도 가스 한도를 유지합니다.
+- 정산은 포지션별 결과를 결정적으로 발행해 수천 개의 밴드가 남아 있어도 가스 한도를 유지합니다.
 
 ## 구현 현황
 
