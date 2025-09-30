@@ -1,114 +1,119 @@
 # Why Signals Exists
 
-Imagine wanting to bet that Bitcoin will close between \$112,000 and \$113,000 tomorrow. In traditional prediction markets, you'd face a frustrating choice: buy dozens of separate YES/NO contracts and pray the right strikes have liquidity, or settle for a crude "above/below" bet that doesn't capture your actual thesis. Neither approach works well, and both leave money on the table.
+Imagine wanting to bet that Bitcoin will close between \$111,000 and \$117,000 tomorrow. In traditional prediction markets, you face a structural problem. Most platforms create separate range markets at \$2,000 intervals: [\$110k-\$112k], [\$112k-\$114k], [\$114k-\$116k], [\$116k-\$118k], each with its own order book. To express your \$111k-\$117k view, you must buy positions in four separate markets, over-purchasing \$110k-\$111k and \$117k-\$118k that you don't actually want. Each market has different liquidity and slippage.
 
-Signals solves this by letting you select any price range as a single trade. Want to back \$112k-\$113k? Just highlight that band, pay one cost, and watch probabilities update in real-time as other traders react. The answer lies in a breakthrough market mechanism called Continuous Logarithmic Market Scoring Rule (CLMSR)—a system that makes range-based prediction markets finally work.
+Why don't platforms just offer \$100 spacing? Each range market needs its own order book with paired issuance. Creating 20x finer spacing would fragment the same total liquidity across 20x more order books—most would sit empty. Traditional markets face a structural constraint: maintain tradeable liquidity with coarse ranges, or offer precision and fragment liquidity into unusable books.
 
-## The prediction market problem
+Signals solves this using CLMSR (Continuous Logarithmic Market Scoring Rule), an LMSR-family mechanism extended for continuous outcomes. Instead of separate order books per range, a single shared potential function prices all ranges simultaneously. Select \$111k-\$117k, pay one cost, get one position—no over-buying; all ranges update off the same potential; liquidity is concentrated rather than fragmented.
 
-Traditional prediction venues fail because they fragment markets into isolated pieces. Consider what happens when you try to express a nuanced Bitcoin view:
+## How traditional prediction markets handle continuous outcomes
 
-**Order book fragmentation**: Each strike price becomes its own separate market. Liquidity pools at round numbers like \$110k or \$115k while abandoning the precise ranges traders actually care about. A sophisticated thesis requiring exposure across multiple strikes forces you to manage dozens of separate positions, each with different fill rates and slippage.
+Traditional prediction markets excel at binary questions: "Will X happen? YES or NO." For continuous outcomes like Bitcoin's closing price, platforms create **separate range markets**: [\$110k-\$112k], [\$112k-\$114k], [\$114k-\$116k], [\$116k-\$118k], etc. On venues like Polymarket, each range is its own YES/NO contract with an isolated order book.
 
-**Broken probability surfaces**: When strikes trade independently, the implied probabilities stop adding up to 100%. You might see Bitcoin having a 40% chance of closing above \$112k and a 45% chance of closing above \$113k—mathematically impossible, but common in fragmented markets.
+**Why not one multi-outcome market?** You might ask: "Why not create a single market with outcomes [\$110k-\$112k, \$112k-\$114k, \$114k-\$116k, \$116k-\$118k] where traders bet on ranges directly?"
 
-**Information loss**: Empty order books at specific strikes create dead zones where price discovery stops working. A single abandoned strike can freeze the implied probability for that range, even as the broader market moves and new information arrives.
+**The constraint: order-book clearing requires multi-leg counterparty matching and/or house inventory/margin management across complements, which is operationally brittle as outcomes increase.** Traditional order books rely on **paired issuance**—when you buy a range, the platform mints your token and complementary tokens for counterparties, always summing to \$1.00.
 
-**Complexity vs. precision trade-off**: The more precise your view, the more separate contracts you need to buy, creating operational overhead that discourages the nuanced predictions that make markets most valuable.
+For binary outcomes (2 results), this works:
 
-## How CLMSR changes the game
+- You buy "YES" for \$0.60 → Platform mints [YES: \$0.60] + [NO: \$0.40] = \$1.00
+- Exactly 2 tokens, simple pairing
 
-Signals uses CLMSR to solve these problems by design. Instead of separate markets for each strike, every possible price range draws from one shared liquidity pool governed by a single mathematical function.
+For multi-outcome markets (4+ ranges), simultaneous pairing becomes impractical:
 
-**One trade, any range**: Select \$112k-\$113k and pay a single cost that reflects the exact probability and risk of that specific range. No stitching contracts together, no partial fills across strikes, no inventory management complexity.
+- You want [\$112k-\$114k] for \$0.30
+- Complement = [\$110k-\$112k] + [\$114k-\$116k] + [\$116k-\$118k] (3 other ranges totaling \$0.70)
+- Platform must mint 4 tokens: yours (\$0.30) + three complementary tokens (\$0.25 + \$0.25 + \$0.20)
+- **Who takes those three tokens?** Every trade requires finding counterparties for all complement ranges at those exact prices simultaneously.
 
-**Always-normalized probabilities**: Because all ranges share the same underlying mathematical potential, probabilities automatically sum to 100% after every trade. The market stays internally consistent even as thousands of different ranges trade simultaneously.
+Order book-based paired issuance with 3+ outcomes requires matching multiple complementary positions per trade—matching and risk management become combinatorially brittle (superlinear coordination cost), and liquidity fragmentation makes sustainable operation impractical.
 
-**Instant price discovery**: When someone buys \$115k-\$120k exposure, the math instantly updates probabilities for \$112k-\$113k, \$110k-\$115k, and every other possible range. Information flows through the entire price surface in a single transaction.
+**So platforms create separate range markets**: Each range ([\$110k-\$112k], [\$112k-\$114k], etc.) becomes an independent binary market (YES/NO) with its own book. To bet \$111k-\$117k, you buy across 4 separate markets:
 
-**Bounded risk for market makers**: The liquidity parameter α caps potential losses at α ln(n), where n is the number of possible outcomes. This mathematical guarantee lets market operators offer deep liquidity across thousands of price points without unlimited downside risk.
+1. [\$110k-\$112k] market → over-buys \$110k-\$111k
+2. [\$112k-\$114k] market → matches thesis
+3. [\$114k-\$116k] market → matches thesis
+4. [\$116k-\$118k] market → over-buys \$117k-\$118k
 
-## Why this works here but not elsewhere
+**This creates three core problems**:
 
-The magic happens because of CLMSR's **potential function**: `C(q) = α ln(Σ e^(q_b/α))`. This single equation governs every possible price band simultaneously.
+1. **Liquidity fragmentation**: Each range market needs its own order book. \$2k spacing → ~10 markets. Finer \$100 spacing → 20x more markets, fragmenting liquidity across hundreds of thin books where most sit empty and untradeable.
 
-**Traditional prediction markets can't do this because**:
+2. **Implied probabilities don't normalize**: Independent range markets aren't constrained to partition-based normalization. Implied probabilities inferred from different ranges often sum to >100% (e.g., 30% for \$100k-\$110k + 35% for \$110k-\$120k + 40% for \$120k+ = 105%). Even when a venue lists non-overlapping bins as separate books, cross-book consistency and exact Σ=1 are not enforced without a shared pricing function or active arbitrage.
 
-- **Separate contracts = separate math**: Each YES/NO contract has its own isolated pricing mechanism. There's no mathematical connection forcing Bitcoin above \$112k and Bitcoin above \$113k to have coherent probabilities.
-- **No shared state**: When you buy "BTC > \$112k" on Polymarket, that transaction doesn't automatically update the price of "BTC > \$113k" because they're completely separate markets with separate order books.
-- **Arbitrage delays**: Even when arbitrageurs try to keep related strikes aligned, it takes multiple transactions across multiple venues, creating windows where probabilities don't add up to 100%.
+3. **No atomic custom ranges**: Every precise range bet requires managing multiple positions across different markets, each with different liquidity, slippage, and over-buying at the edges.
 
-**AMMs like Uniswap can't do this because**:
+## How Signals solves this with CLMSR
 
-- **Binary design**: Most AMMs are built for binary outcomes (A vs B), not continuous ranges with thousands of possible bands.
-- **No probability constraints**: Nothing forces Uniswap pool prices to sum to 100% across different assets—each pool operates independently.
-- **Liquidity fragmentation**: Creating separate pools for each price range fragments liquidity exactly like traditional order books.
+Signals uses **CLMSR**, an LMSR-family potential function extended for continuous outcomes through discrete ticks. Instead of separate order books per range, a single shared potential governs pricing for all ranges simultaneously.
 
-**CLMSR works differently**:
+**Core mechanism**: `C(q) = α ln(Σ e^(q_b/α))` where b indexes atomic ticks (price intervals).
 
-- **Single shared state**: All bands read from the same `q_b` (quantity) values in the potential function. When you buy \$115k-\$120k, it increases `q_b` for those bands, which instantly recalculates prices for every other band through the same formula.
-- **Mathematical guarantee**: The potential function's exponential structure `e^(q_b/α)` ensures that band prices `p_b = e^(q_b/α) / Σ e^(q_j/α)` always sum to exactly 1, no matter how many trades happen.
-- **Atomic updates**: The lazy segment tree updates thousands of tick weights in a single transaction, so there's never a moment when probabilities are inconsistent.
+- **Clarifying assumption — Partition.** Normalization claims refer to **disjoint & exhaustive atomic ticks within a single CLMSR market**. Threshold or overlapping ranges are **not** a partition, so sums need not equal 1.
 
-## The granularity problem: why precise ranges are impossible elsewhere
+> **Intuition.** Thresholds quote tails of the CDF (e.g., P(>110k)), bins are CDF differences (e.g., P(110k-112k)=P(>110k)-P(>112k)). Independent books don't enforce these identities; CLMSR does by construction.
 
-Consider a real scenario: Bitcoin trades at \$102,350 and you believe it will close between \$102,800 and \$103,200 (+0.4% to +0.8%). This kind of precise, narrow-range thesis is exactly what sophisticated traders want to express.
+- **Shared liquidity pool**: All ranges draw from one potential. When you buy \$111k-\$117k, the transaction updates `q_b` values, which instantly recalculates prices for \$110k-\$115k, \$112k-\$113k, and every other range through the same formula. No separate order books → no liquidity fragmentation.
 
-**Traditional prediction markets fail because of coarse granularity**:
+- **Automatic normalization**: The exponential structure ensures tick probabilities `p_b = e^(q_b/α) / Σ e^(q_j/α)` always sum to exactly 1. The market maintains internal consistency across all ranges after every trade.
 
-Most platforms only offer strikes at \$1,000 or \$2,000 intervals. So your options are:
+- **Atomic custom range positions**: One trade prices your exact \$111k-\$117k range as a single position. No need for paired complements or simultaneous counterparty matching across multiple ranges.
 
-- "BTC > \$102k" vs "BTC > \$103k" (too wide, covers \$102k-\$103k = entire 1k range)
-- "BTC > \$103k" vs "BTC > \$104k" (completely wrong range, \$103k-\$104k)
+- **Bounded operator risk**: The liquidity parameter α caps maximum loss at `α ln(n)` where n = number of active atomic ticks in the market's partition. Example: α=\$10k, n=1,500 → max loss ≈ \$73k. This bound enables liquidity provision across thousands of ticks with predictable risk.
 
-**The over-buying problem**: To approximate your \$102.8k-\$103.2k thesis, you're forced to:
+**Why traditional markets can't replicate this**: Each independent range market has separate pricing with no mathematical connection. Buying [\$112k-\$114k] on a traditional platform doesn't update [\$114k-\$116k] or any other range—they're completely separate order books.
 
-1. Buy "BTC > \$102k" (gives you exposure to \$102k-\$∞, way more than you want)
-2. Sell "BTC > \$103k" (removes exposure above \$103k)
-3. **Result**: You end up with \$102k-\$103k exposure instead of \$102.8k-\$103.2k
+## The granularity-liquidity tradeoff
 
-You've "over-bought" by 2.5x: your position covers a \$1,000 range when you only wanted \$400. This dilutes your thesis and forces you to risk more capital than necessary.
+**Scenario**: Bitcoin trades at \$102,350. You believe it will close between \$111,000 and \$117,000 based on technical levels.
 
-**Why order books can't solve this**: Creating strikes every \$100 would fragment liquidity across 10x more markets. Most would be empty, making trading impossible. The fundamental problem is that each strike needs its own separate order book.
+**Traditional markets (\$2k spacing)**: Platforms offer range markets [\$110k-\$112k], [\$112k-\$114k], [\$114k-\$116k], [\$116k-\$118k], each with separate order books. To capture \$111k-\$117k:
 
-**CLMSR solves this with configurable tick spacing**:
+1. Buy [\$110k-\$112k] → over-buys \$110k-\$111k (don't want)
+2. Buy [\$112k-\$114k] → matches thesis
+3. Buy [\$114k-\$116k] → matches thesis
+4. Buy [\$116k-\$118k] → over-buys \$117k-\$118k (don't want)
 
-Signals markets can use any tick spacing - say \$100 intervals for Bitcoin. Now you can express exactly what you want:
+**Result**: 4 separate positions, different liquidity/slippage each, over-bought at edges.
 
-1. Select range [\$102,800, \$103,200) on the UI
-2. The potential function calculates: "This range currently represents 15% probability"
-3. Pay one cost (say \$0.15) for a position that pays \$1.00 if BTC closes in that exact 0.4% range
-4. **No over-buying**: You get precisely the exposure you wanted, nothing more
+**Why not \$100 spacing?** Platforms could create 20x more range markets ([\$110.0k-\$110.1k], [\$110.1k-\$110.2k], ...). But each range needs its own order book with its own liquidity providers. The same liquidity that creates one tradeable [\$110k-\$120k] market now fragments across 100 shallow books—most would sit empty with no bids or offers. **The core constraint: separate order books cannot share liquidity.**
 
-**Why this works**: The tick spacing `s = $100` creates bands `[102,800, 102,900)`, `[102,900, 103,000)`, etc. Your range covers exactly 4 ticks: `[102,800, 103,200)`. The CLMSR potential function `C(q) = α ln(Σ e^(q_b/α))` prices this 4-tick range as a single atomic position.
+**With CLMSR (\$100 tick spacing)**: All 1,000+ ticks from \$50k to \$200k share one potential function:
 
-**Granularity comparison**:
+- **\$111k-\$117k**: Select range, pay one cost, get one position (60 ticks)
+- **\$110.4k-\$117.5k**: Select range, pay one cost, get one position (71 ticks)
+- No over-buying, no multiple positions, all ranges tradeable
 
-- **Traditional**: Limited to ~10-20 strikes across the entire price spectrum (insufficient granularity)
-- **CLMSR**: Can support 100,000+ ticks with \$100 spacing from \$50k to \$200k (precise granularity)
+**Comparison**:
 
-The mathematical difference is that CLMSR uses one shared potential function across all ticks, while traditional markets need separate order books for each strike. This lets CLMSR offer 1000x finer granularity without fragmenting liquidity.
+- Traditional (\$2k): ~10 range markets → \$111k-\$117k requires 4 positions with over-buying.
+- Traditional (\$100, theoretical): 1,000 range markets → liquidity fragments, most untradeable.
+- CLMSR (\$100): 1,000 ticks, shared pool → any custom range becomes one position; liquidity is concentrated, not fragmented.
 
-## Why this matters for Bitcoin markets
+## Why this matters for Bitcoin
 
-Bitcoin's volatility makes it the perfect testing ground for continuous range markets. Traditional daily prediction markets force crude bets: "above \$100k" or "below \$100k." But Bitcoin routinely moves \$2k-5k per day, making the interesting action happen in the ranges between obvious levels.
+Bitcoin's daily volatility (\$2k-\$5k moves) makes coarse range markets insufficient. Traditional platforms force crude bets across wide ranges or over-buying across multiple markets.
 
-With Signals, you can express views like:
+With Signals, traders can express precise views:
 
-- "Bitcoin will close between current price +2% and +5%" (momentum continuation)
-- "Bitcoin will end the day within 1% of current levels" (mean reversion)
-- "Bitcoin will close above the key psychological level of \$120k" (breakout thesis)
+- "BTC closes +2% to +5% from current" (momentum continuation)
+- "BTC closes within ±1% of current" (mean reversion)
+- "BTC closes \$110.5k-\$117.2k" (technical level thesis)
 
-Each represents a different market view that traditional YES/NO contracts can't capture efficiently.
+Each represents a specific market view that traditional independent range markets can't capture efficiently without over-buying or managing multiple positions.
 
-## Built for transparency and trust
+## Verifiability and settlement
 
-Beyond the mathematical improvements, Signals prioritizes verifiability. Every market parameter, trade, and settlement outcome lives on-chain where anyone can audit it. The Goldsky subgraph mirrors all contract events, making it easy to replay any day's trading for research or compliance purposes.
+Every market parameter, trade, and settlement lives on-chain for public auditability. The Goldsky subgraph mirrors all contract events.
 
-Settlement uses a designated reference price source that all participants know in advance. When the UTC day ends, operators submit the closing price to `settleMarket()`, the contracts automatically determine winners and losers, and claims remain open indefinitely. No human judgment calls, no discretionary interpretation—just math and public data.
+**Settlement**: Operators submit the closing price from a pre-announced reference oracle to `settleMarket()`. Contracts automatically determine payouts. Claims remain open indefinitely. No discretionary interpretation—deterministic math and public data.
 
 ## What's next
 
-CLMSR works for any continuous outcome that can be discretized into ticks. Today's deployment focuses on Bitcoin's daily close, but the same mechanism could power markets for interest rates, commodity prices, election polling, or any other measurable continuous variable.
+CLMSR applies to any continuous outcome discretizable into ticks. Current deployment: Bitcoin daily close. Same mechanism extends to interest rates, commodity prices, election polling, or other measurable continuous variables.
 
-The sections below explore these concepts in detail. For the mathematical foundation, continue to [How CLMSR Works](../mechanism/overview.md). To understand the daily operational flow, read the [Market Flow Overview](./market-flow-overview.md) and [How Signals Works](./how-it-works.md). Ready to try it yourself? Start with the [Quick Start](../quickstart/index.md).
+**Further reading**:
+
+- Mathematical foundation: [How CLMSR Works](../mechanism/overview.md)
+- Operational flow: [Market Flow Overview](./market-flow-overview.md), [How Signals Works](./how-it-works.md)
+- Get started: [Quick Start](../quickstart/index.md)

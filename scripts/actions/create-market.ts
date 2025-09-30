@@ -23,7 +23,7 @@ export async function createMarketAction(
     addresses.CLMSRMarketCoreProxy
   );
 
-  // 마켓 파라미터 설정 (marketId는 자동 생성)
+  // BTC Daily 2025.09.29 마켓 파라미터 설정
   const minTick = 100000;
   const maxTick = 140000;
   const tickSpacing = 100;
@@ -32,13 +32,26 @@ export async function createMarketAction(
   const numBins = (maxTick - minTick) / tickSpacing; // 400개의 bin
   const numValidTicks = numBins + 1; // 401개의 유효한 틱 포인트
 
-  const nowSec = Math.floor(Date.now() / 1000);
-  const startTimestamp = nowSec - 60; // 바로 활성화
-  const endTimestamp = nowSec + 24 * 60 * 60; // +1일
-  const liquidityParameter = parseEther(process.env.ALPHA ?? "1"); // 알파 기본값 1
+  // BTC Daily 마켓 타임스탬프 설정
+  // openTime: 2025-09-28 23:00:00 UTC
+  // closeTime: 2025-09-29 23:00:00 UTC
+  // settlementTime: 2025-09-30 00:00:00 UTC
+  const startTimestamp = Math.floor(
+    new Date("2025-09-28T23:00:00Z").getTime() / 1000
+  );
+  const endTimestamp = Math.floor(
+    new Date("2025-09-29T23:00:00Z").getTime() / 1000
+  );
+  const settlementTimestamp = Math.floor(
+    new Date("2025-09-30T00:00:00Z").getTime() / 1000
+  );
 
-  console.log("\n📊 새로운 틱 시스템 마켓 설정:");
+  // liquidityParameter: 100000000000000000000000 (100,000 ETH)
+  const liquidityParameter = parseEther("100000");
+
+  console.log("\n📊 BTC Daily 2025.09.29 마켓 설정:");
   console.log("  - 마켓 ID: 자동 생성됨");
+  console.log("  - 마켓 이름: BTC Daily 2025.09.29");
   console.log("  - 최소 틱:", minTick.toLocaleString());
   console.log("  - 최대 틱:", maxTick.toLocaleString(), "(상한 불포함)");
   console.log("  - 틱 간격:", tickSpacing);
@@ -46,12 +59,23 @@ export async function createMarketAction(
   console.log("  - Bin 개수 (Range):", numBins.toLocaleString(), "개");
   console.log(
     "  - 시작 시간:",
-    new Date(startTimestamp * 1000).toLocaleString()
+    new Date(startTimestamp * 1000).toLocaleString() +
+      " (2025-09-28 23:00:00 UTC)"
   );
-  console.log("  - 종료 시간:", new Date(endTimestamp * 1000).toLocaleString());
+  console.log(
+    "  - 종료 시간:",
+    new Date(endTimestamp * 1000).toLocaleString() +
+      " (2025-09-29 23:00:00 UTC)"
+  );
+  console.log(
+    "  - 정산 시간:",
+    new Date(settlementTimestamp * 1000).toLocaleString() +
+      " (2025-09-30 00:00:00 UTC)"
+  );
   console.log(
     "  - 유동성 파라미터 (α):",
-    ethers.formatEther(liquidityParameter)
+    ethers.formatEther(liquidityParameter),
+    "ETH"
   );
 
   try {
@@ -62,6 +86,7 @@ export async function createMarketAction(
       tickSpacing,
       startTimestamp,
       endTimestamp,
+      settlementTimestamp,
       liquidityParameter
     );
 
