@@ -9,7 +9,7 @@ import type * as Preset from "@docusaurus/preset-classic";
 const config: Config = {
   title: "Signals",
   tagline: "Range-Based Bitcoin Prediction on Citrea",
-  favicon: "img/favicon.ico",
+  favicon: "img/logo.svg",
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {
@@ -80,13 +80,15 @@ const config: Config = {
 
   themeConfig: {
     // Replace with your project's social card
-    image: "img/docusaurus-social-card.jpg",
+    image: "img/signals-social-card.png",
     navbar: {
       title: "Signals",
       logo: {
-        alt: "Signals wordmark",
-        src: "img/logo.png",
-        srcDark: "img/logo.png",
+        alt: "Signals logo",
+        src: "img/logo.svg",
+        srcDark: "img/logo.svg",
+        height: 28,
+        width: 28,
       },
       items: [
         {
