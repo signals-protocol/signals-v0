@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 import Link from "@docusaurus/Link";
 import useDocusaurusContext from "@docusaurus/useDocusaurusContext";
+import useBaseUrl from "@docusaurus/useBaseUrl";
 import Layout from "@theme/Layout";
 import HomepageFeatures from "@site/src/components/HomepageFeatures";
-import heroLogo from "@site/static/img/logo-with-name.png";
 import metrics from "@site/static/data/metrics.json";
 
 type Metrics = {
@@ -20,18 +20,23 @@ const stats = metrics as Metrics;
 const numberFormatter = new Intl.NumberFormat("en-US");
 
 function HomepageHeader(): ReactNode {
-  const { siteConfig } = useDocusaurusContext();
   const { marketCount, totalPositions } = stats;
+  const heroLogoIconUrl = useBaseUrl("img/logo.svg");
   return (
     <header className={styles.hero}>
       <div className="container">
         <div className={styles.heroGrid}>
           <div className={styles.heroCopy}>
-            <span className={styles.heroKicker}>Continuous Markets on Citrea</span>
-            <h1 className={styles.heroTitle}>Signals makes Bitcoin range trading fluid.</h1>
+            <span className={styles.heroKicker}>
+              Continuous Markets on Citrea
+            </span>
+            <h1 className={styles.heroTitle}>
+              Signals makes Bitcoin range trading fluid.
+            </h1>
             <p className={styles.heroSubtitle}>
-              A single CLMSR pool keeps odds accurate, maker loss bounded, and settlement
-              verifiable. Trade the daily close with transparent math and instant claims.
+              A single CLMSR pool keeps odds accurate, maker loss bounded, and
+              settlement verifiable. Trade the daily close with transparent math
+              and instant claims.
             </p>
             <div className={styles.ctaRow}>
               <Link className={styles.primaryCta} to="/docs/quickstart">
@@ -58,14 +63,22 @@ function HomepageHeader(): ReactNode {
           </div>
           <div className={styles.heroVisual}>
             <div className={styles.heroCard}>
-              <img src={heroLogo} alt="Signals wordmark" className={styles.heroLogo} />
+              <div className={styles.heroBrand}>
+                <span className={styles.heroBrandIcon}>
+                  <img src={heroLogoIconUrl} alt="Signals mark" />
+                </span>
+                <span className={styles.heroBrandName}>Signals</span>
+              </div>
               <p className={styles.heroCardText}>
-                Continuous LMSR keeps the probability surface smooth. Every trade updates
-                the entire range, so the orange curve you see in the app is always coherent.
+                Continuous LMSR keeps the probability surface smooth. Every
+                trade updates the entire range, so the orange curve you see in
+                the app is always coherent.
               </p>
               <div className={styles.heroBadges}>
                 <span className={styles.badgePositive}>Bounded loss</span>
-                <span className={styles.badgeSecondary}>On-chain settlement</span>
+                <span className={styles.badgeSecondary}>
+                  On-chain settlement
+                </span>
               </div>
             </div>
           </div>
