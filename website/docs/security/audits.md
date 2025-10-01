@@ -4,7 +4,7 @@ Signals protects traders by layering defenses across the mechanism, the Solidity
 
 ## Mechanism and contract safeguards
 
-The CLMSR contracts implement the whitepaper’s potential exactly, enforcing normalized probabilities and the $\alpha \ln n$ maker loss bound. Entry points are guarded by `nonReentrant`, emergency pause hooks, and explicit input checks on tick ranges, liquidity factors, and oracle values. Lazy segment tree operations respect hard limits (`MAX_EXP_INPUT_WAD`, `MAX_CHUNKS_PER_TX`, `MIN_FACTOR`, `MAX_FACTOR`) so no trade can blow past precision or gas constraints. All external authority remains with a single `Ownable` owner today, but dispatcher scripts encapsulate upgrades and daily operations to reduce human error while timelock and multisig wrappers are prepared.
+The CLMSR contracts implement the whitepaper’s potential exactly, enforcing normalized probabilities and the $\alpha \ln n$ maker loss bound. Entry points are guarded by `nonReentrant`, emergency pause hooks, and explicit input checks on tick ranges, liquidity factors, and oracle values. Lazy segment tree operations respect hard limits (`MAX_EXP_INPUT_WAD`, `MAX_CHUNKS_PER_TX`, `MIN_FACTOR`, `MAX_FACTOR`) so no trade can blow past precision or gas constraints. All external authority remains with a single `Ownable` owner today, but the automation pipeline encapsulates upgrades and daily operations to reduce human error while timelock and multisig wrappers are prepared.
 
 ## Testing strategy
 
@@ -18,7 +18,7 @@ Every pull request runs in CI, and nightly jobs replay longer trade traces to de
 
 ## Operational controls
 
-Deployment manifests under `deployments/environments/` log each implementation address, making it easy to audit which bytecode is live. Dispatcher scripts issue upgrades, create markets, submit settlements, and monitor settlement health with reproducible CLI commands. Goldsky subgraphs and verification scripts compare on-chain balances with CLMSR expectations, raising alerts if unclaimed payouts or tree sums drift from the model. If the reference feed is delayed, the pipeline pauses settlement until a verifiable close is available; funds always remain locked in the pool.
+Deployment manifests maintained by the operations team log each implementation address, making it easy to audit which bytecode is live. The automation pipeline issues upgrades, creates markets, submits settlements, and monitors settlement health with reproducible commands. External indexers and verification scripts compare on-chain balances with CLMSR expectations, raising alerts if unclaimed payouts or tree sums drift from the model. If the reference feed is delayed, the pipeline pauses settlement until a verifiable close is available; funds always remain locked in the pool.
 
 ## Roadmap and upcoming work
 

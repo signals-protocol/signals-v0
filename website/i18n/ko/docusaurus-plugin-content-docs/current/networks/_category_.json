@@ -1,8 +1,0 @@
-{
-  "label": "네트워크",
-  "position": 9,
-  "link": {
-    "type": "generated-index",
-    "description": "네트워크 구성, RPC 엔드포인트, 요구 사항"
-  }
-}

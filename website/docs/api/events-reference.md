@@ -13,25 +13,19 @@ Signals emits structured events at every step of the market lifecycle. This guid
 - **`PositionIncreased(uint256 positionId, uint256 quantity, uint256 cost)`** — adds exposure at the current probability surface. Quantity and cost values respect the same rounding as the open event.
 - **`PositionDecreased(uint256 positionId, uint256 quantity, uint256 proceeds)`** — partially unwinds exposure and returns SUSD at current probabilities. Upcoming releases will floor-round proceeds to match the whitepaper.
 - **`PositionClosed(uint256 positionId, uint256 proceeds)`** — final exit before settlement; once quantity hits zero the token burns.
-- **`PositionSettled(uint256 positionId, uint256 payout, bool won)`** — emitted when settlement finalises. It records whether the band won and the exact claimable amount.
+- **`PositionSettled(uint256 positionId, uint256 payout, bool won)`** — emitted when settlement finalises. It records whether the range won and the exact claimable amount.
 - **`PositionClaimed(uint256 positionId, address owner, uint256 payout)`** — emitted when the owner calls `claimPayout`. The contract transfers SUSD back and burns the token.
 
-## Points and incentives
+## Indexing notes
 
-- **`PointsGranted(address account, uint8 reason, uint128 amount)`** — emitted by `PointsGranter`. `reason` codes: 1 = Activity, 2 = Performance, 3 = Risk Bonus. Off-chain programs can aggregate these events to run leaderboards or rewards.
-
-## Subgraph alignment
-
-Goldsky-hosted subgraphs index every event above. Notable entities include:
-- `Market`, `BinState`, `MarketStats` for per-market configuration and health metrics.
-- `UserPosition`, `Trade`, `UserStats` for trader-level analytics.
-- `PositionSettled` and `PositionClaimed` to monitor outstanding claims; combine them with `MarketStats.unclaimedPayout` to track liabilities.
-
-Follow the [Subgraph API guide](./subgraph.md) for endpoints and query examples. When replaying history, paginate by `marketId` and `positionId` to avoid missing events across long replays.
+Event consumers should index the entire lifecycle for reliable analytics:
+- Track `Market`, `BinState`, and `MarketStats` style aggregates to monitor configuration and health.
+- Capture `UserPosition`, `Trade`, `PositionSettled`, and `PositionClaimed` so liabilities and payouts reconcile cleanly.
+- Paginate by `marketId` and `positionId` when replaying history to avoid gaps during long-running ingestions.
 
 ## Processing tips
 
-- Derive probabilities or payouts using the SDK helpers (`clmsr-sdk/src/utils/math.ts`) to remain consistent with on-chain rounding.
-- Label events with the block timestamp and number when storing analytics data—this makes it easy to reconcile with manifests and dispatcher logs.
+- Derive probabilities or payouts using the formulas in the [Key Formulas cheat sheet](../mechanism/key-formulas.md) to remain consistent with on-chain rounding.
+- Label events with the block timestamp and number when storing analytics data—this makes it easy to reconcile with manifests and operations logs.
 
 Need the formulas behind these values? Open the [Key Formulas cheat sheet](../mechanism/key-formulas.md). For a trader-facing explanation, see [Settlement & Claims](../user/settlement.md).

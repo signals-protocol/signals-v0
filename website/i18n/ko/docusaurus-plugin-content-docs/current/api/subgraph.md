@@ -1,23 +1,22 @@
 # 서브그래프 API
 
-Signals는 Goldsky 서브그래프를 통해 CLMSR 시장 데이터를 실시간으로 제공합니다. 컨트랙트 호출 없이 시장 분포, 포지션, 포인트, 통계를 조회하려면 아래 엔드포인트와 엔티티를 참고하세요.
+Signals는 Goldsky 서브그래프를 통해 CLMSR 시장 데이터를 실시간으로 제공합니다. 컨트랙트 호출 없이 시장 분포와 포지션 통계를 조회하려면 아래 엔드포인트와 엔티티를 참고하세요.
 
 ## 엔드포인트
 
 | 환경 | URL |
 | --- | --- |
-| 프로덕션 | `https://api.goldsky.com/api/public/project_cme6kru6aowuy01tb4c9xbdrj/subgraphs/signals-v0-citrea-prod/latest/gn` |
-| 개발 | `https://api.goldsky.com/api/public/project_cme6kru6aowuy01tb4c9xbdrj/subgraphs/signals-v0-citrea-dev/latest/gn` |
+| 배포본 | `https://api.goldsky.com/api/public/project_cme6kru6aowuy01tb4c9xbdrj/subgraphs/signals-v0-citrea-prod/latest/gn` |
 
-모든 값은 온체인 스케일 그대로 유지됩니다. 지수 가중치는 18자리 WAD, 금액은 6자리 정수이며, 스키마는 `clmsr-subgraph/schema.graphql`에서 확인할 수 있습니다.
+모든 값은 온체인 스케일 그대로 유지됩니다. 지수 가중치는 18자리 WAD, 금액은 6자리 정수입니다.
 
 ## 핵심 엔티티
 
 - **Market** — 일일 시장의 구성과 정산 상태.
 - **MarketDistribution** — SDK가 사용해 가격을 계산하는 세그먼트 트리 스냅샷 (`binFactors`, `tickRanges` 등).
 - **BinState** — 틱별 가중치와 거래량. 차트나 히트맵에 활용.
-- **UserPosition** — ERC-721 포지션과 파생 지표(`currentQuantity`, `realizedPnL`, `outcome`, 포인트 카운터 등).
-- **Trade** — OPEN/INCREASE/DECREASE/CLOSE/SETTLE 이벤트. 가스 정보와 포인트 지급 내역 포함.
+- **UserPosition** — ERC-721 포지션과 파생 지표(`currentQuantity`, `realizedPnL`, `outcome`).
+- **Trade** — OPEN/INCREASE/DECREASE/CLOSE/SETTLE 이벤트. 가스 정보가 포함됩니다.
 - **UserStats / MarketStats** — 거래량, 손익, 승률, 고유 트레이더 수 같은 집계 지표.
 - **PositionSettled / PositionClaimed** — 정산 결과와 청구 기록을 추적해 미지급 금액을 재현할 수 있습니다.
 

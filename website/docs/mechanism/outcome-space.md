@@ -4,7 +4,7 @@ Understanding Signals starts with the outcome grid the CLMSR operates on. This p
 
 ## Defining the outcome grid
 
-Each market publishes an `OutcomeSpec = (L, U, s, d)` before trading begins. The lower bound `L` and upper bound `U` live in raw oracle units (for the Bitcoin close that means 8 decimal places). Tick spacing `s` sets the resolution: the number of available bands is
+Each market publishes an `OutcomeSpec = (L, U, s, d)` before trading begins. The lower bound `L` and upper bound `U` live in raw oracle units (for the Bitcoin close that means 8 decimal places). Tick spacing `s` sets the resolution: the number of available bins is
 
 $$
 n = \left\lceil \frac{U - L}{s} \right\rceil.
@@ -18,7 +18,7 @@ $$
 b = \mathrm{clamp}\left( \left\lfloor \frac{\text{OutcomeRaw} - L}{s} \right\rfloor, 0, n-1 \right).
 $$
 
-Every band is a half-open interval `[L + b s, L + (b+1) s)`. The open upper edge prevents overlap, while the clamp protects the pool from a stray oracle value that would otherwise fall outside the configured window.
+Every bin is a half-open interval `[L + b s, L + (b+1) s)`. The open upper edge prevents overlap, while the clamp protects the pool from a stray oracle value that would otherwise fall outside the configured window.
 
 ## Why units stay separate
 

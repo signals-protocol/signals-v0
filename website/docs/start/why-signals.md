@@ -104,7 +104,7 @@ Each represents a specific market view that traditional independent range market
 
 ## Verifiability and settlement
 
-Every market parameter, trade, and settlement lives on-chain for public auditability. The Goldsky subgraph mirrors all contract events.
+Every market parameter, trade, and settlement lives on-chain for public auditability, giving anyone the ability to replay activity without relying on the app.
 
 **Settlement**: Operators submit the closing price from a pre-announced reference oracle to `settleMarket()`. Contracts automatically determine payouts. Claims remain open indefinitely. No discretionary interpretation—deterministic math and public data.
 

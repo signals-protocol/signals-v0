@@ -12,7 +12,7 @@ $$
 \text{Loss}_{\max} = \alpha \ln(n)
 $$
 
-여기서 $\alpha$는 유동성 파라미터, $n$은 밴드 수입니다. 틱 간격을 좁혀 밴드를 늘리면 한계가 커지므로, 운영자는 `alpha = Loss_target / ln(n)` 값을 선택해 재무 한도에 맞춰야 합니다. 손실 공식이 $\alpha$와 $n$만 바라보므로 시장을 배포하기 전에 상한선을 예측할 수 있습니다.
+여기서 $\alpha$는 유동성 파라미터, $n$은 빈의 수입니다. 틱 간격을 좁혀 빈을 늘리면 한계가 커지므로, 운영자는 `alpha = Loss_target / ln(n)` 값을 선택해 재무 한도에 맞춰야 합니다. 손실 공식이 $\alpha$와 $n$만 바라보므로 시장을 배포하기 전에 상한선을 예측할 수 있습니다.
 
 ## Lazy segment tree 내부 가드
 
@@ -24,7 +24,7 @@ $$
 | `MIN_FACTOR` | 업데이트 시 허용되는 최소 곱셈 계수 | `0.01e18` |
 | `MAX_FACTOR` | 업데이트 시 허용되는 최대 곱셈 계수 | `100e18` |
 | `FLUSH_THRESHOLD` | 대기 중 계수를 강제 전파하는 임계치 | `1e21` |
-| `MAX_TICK_COUNT` | 지원 가능한 최대 밴드 수 | `1,000,000` |
+| `MAX_TICK_COUNT` | 지원 가능한 최대 빈 수 | `1,000,000` |
 | `MAX_CHUNKS_PER_TX` | 호출당 지수 청크 상한 | `1,000` |
 
 `LazyMulSegmentTree.sol`은 백서와 동일한 값을 강제합니다. 범위를 벗어나면 `CE.InvalidFactor`, `CE.BinCountExceedsLimit` 같은 명시적 오류와 함께 즉시 revert되므로 문제를 추적하기 쉽습니다.
@@ -33,7 +33,7 @@ $$
 
 - `settleMarket`는 `block.timestamp`가 설정된 `settlementTimestamp`(또는 별도 지정이 없다면 `endTimestamp`)에 도달하기 전에는 실행되지 않습니다.
 - 제출된 정산 값은 `[minTick, maxTick]` 범위로 클램프돼 이상값에서 풀을 보호합니다.
-- 정산은 포지션별 결과를 결정적으로 발행해 수천 개의 밴드가 남아 있어도 가스 한도를 유지합니다.
+- 정산은 포지션별 결과를 결정적으로 발행해 수천 개의 범위가 남아 있어도 가스 한도를 유지합니다.
 
 ## 구현 현황
 

@@ -138,8 +138,8 @@ const config: Config = {
               to: "/docs/mechanism/overview",
             },
             {
-              label: "Contract Addresses",
-              to: "/docs/addresses",
+              label: "Network & Addresses",
+              to: "/docs/operations/citrea",
             },
           ],
         },

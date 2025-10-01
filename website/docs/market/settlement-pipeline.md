@@ -16,12 +16,11 @@ Once the closing price is locked in, the core contracts expose the settled state
 
 ## Enabling claims
 
-As soon as settlement finishes, each winning position is immediately claimable. Owners can call `claimPayout` to receive principal plus winnings (rounded according to the CLMSR spec) and burn the position NFT. There is no expiry window, but keeping claims current helps analytics and treasury reconciliation.
+As soon as settlement finishes, each winning position is immediately claimable. Owners can call `claimPayout` to receive their payout (rounded according to the CLMSR spec) and burn the position NFT. There is no expiry window, but keeping claims current helps analytics and treasury reconciliation.
 
 ## Transparency and monitoring
 
-- Deployment manifests under `deployments/environments/` show every contract address involved in settlement.
-- Verification tools such as `verification/check-market-pnl.ts` and the public subgraph reconcile payouts against the CLMSR model.
-- Incident response playbooks require pausing the market if the oracle feed is unavailable or inconsistent; traders remain safe because funds never leave the pool without a verifiable close.
+- Settlement transactions and `claimPayout` events remain on-chain, giving the community a permanent audit trail.
+- If the oracle feed is unavailable or inconsistent, operations pause the market so funds stay inside the pool until a verifiable close arrives.
 
 For the trader-facing walkthrough, see [Settlement & Claims](../user/settlement.md). For the mechanism guarantees that bound maker loss, review [Safety Bounds & Parameters](../mechanism/safety-parameters.md).
