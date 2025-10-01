@@ -7,7 +7,7 @@ import type * as Preset from "@docusaurus/preset-classic";
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
 const config: Config = {
-  title: "Signals",
+  title: "Signals Protocol",
   tagline: "Range-Based Bitcoin Prediction on Citrea",
   favicon: "img/logo.svg",
 
@@ -82,7 +82,7 @@ const config: Config = {
     // Replace with your project's social card
     image: "img/signals-social-card.png",
     navbar: {
-      title: "Signals",
+      title: "Signals Protocol",
       logo: {
         alt: "Signals logo",
         src: "img/logo.svg",
