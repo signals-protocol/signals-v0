@@ -2,18 +2,16 @@
 
 Signals uses a tight vocabulary so traders, operators, and integrators stay aligned. Each entry below explains what the word means in practice and where you will encounter it.
 
-**Band** - A half-open range `[lower, upper)` you buy or sell in the CLMSR. Band width is set by the market’s tick spacing, and adjacent bands can be combined to express wider views.
+**Bin** - A single half-open tick interval `[lower, upper)` determined by the market’s spacing. Every price level on the outcome grid maps to exactly one bin.
 
-**Closing tick** - The integer tick derived from the designated reference value. The price is mapped onto the configured grid, clamped into bounds during settlement, and determines which bands win.
+**Range** - One or more consecutive bins that share the same position. Traders specify a lower and upper tick to define their range; a single bin is therefore a valid range.
 
-**CLMSR** - The Continuous Logarithmic Market Scoring Rule, implemented in Solidity to keep every band connected through a single potential. It ensures probabilities across bands always sum to 1 and that maker loss is capped by the liquidity parameter $\alpha$.
+**Closing tick** - The integer tick derived from the designated reference value. The price is mapped onto the configured grid, clamped into bounds during settlement, and determines which ranges win.
 
-**Points** - Engagement rewards emitted by `PointsGranter`. They feed the leaderboard UI and analytics but never change SUSD payouts. Reasons are logged on-chain (1 = Activity, 2 = Performance, 3 = Risk Bonus).
+**CLMSR** - The Continuous Logarithmic Market Scoring Rule, implemented in Solidity to keep every bin connected through a single potential. It ensures probabilities across bins always sum to 1 and that maker loss is capped by the liquidity parameter $\alpha$.
 
-**SUSD** - The 6-decimal token used for trades and payouts on Signals. Testnet users mint it via the provided script or faucet; all trades and claims settle in SUSD.
+**SUSD** - The 6-decimal token used for trades and payouts on Signals. New wallets receive 100 SUSD automatically in-app, and another 1,000 SUSD is available through the [Signals Discord](https://discord.gg/tUyGDDz8Kt); all trades and claims settle in SUSD.
 
-**Committed amount** - The SUSD you pay to enter a band. It debits from your wallet when the trade executes, remains locked until you close or settle, and returns with payout if you win.
+**Committed amount** - The SUSD you pay to enter a range. It debits from your wallet when the trade executes, remains locked until you close or settle, and if the range wins the pool pays the quoted payout.
 
 **Timer** - The countdown to the market’s trading cutoff. When it hits zero, trading freezes, the operator verifies the reference price, and settlement begins.
-
-Need more terminology? The [mechanism spec](../mechanism/overview.md) and [protocol architecture](../protocol/architecture.md) drill into the full contract model.

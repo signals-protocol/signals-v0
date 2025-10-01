@@ -1,8 +1,0 @@
-{
-  "label": "주소",
-  "position": 7,
-  "link": {
-    "type": "generated-index",
-    "description": "컨트랙트 주소와 배포 정보를 정리합니다"
-  }
-}

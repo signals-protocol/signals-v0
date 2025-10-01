@@ -4,11 +4,11 @@ Signals trades a single asset--Bitcoin--but a continuous range market opens more
 
 ## Intraday speculation
 
-A discretionary trader can treat each $100 band as a statement about where the candle ends. When momentum builds, buying a ladder of bands above spot lets you express increasingly aggressive targets while paying the CLMSR cost that matches the shift in probability. If the move fades, you can close or rotate into lower bands in a single transaction, keeping the position path-independent. Because probabilities always normalise to 1, you see instantly how the crowd reprices your thesis after every trade.
+A discretionary trader can treat each $100 bin as a statement about where the candle ends. When momentum builds, buying a ladder of ranges above spot lets you express increasingly aggressive targets while paying the CLMSR cost that matches the shift in probability. If the move fades, you can close or rotate into lower ranges in a single transaction, keeping the position path-independent. Because probabilities always normalise to 1, you see instantly how the crowd reprices your thesis after every trade.
 
 ## Hedging and treasury work
 
-Teams that hold BTC-denominated liabilities use Signals to pin risk around a budget level. Selecting a cluster of bands around the required close effectively caps next-day exposure without negotiating bespoke OTC trades. Treasurers can also approximate collars or digitals by holding offsetting bands above and below a strike, letting the CLMSR pool replicate payoff shapes that would otherwise require multiple venues. The ability to unwind or roll ranges intraday keeps the hedge aligned as markets move.
+Teams that hold BTC-denominated liabilities use Signals to pin risk around a budget level. Selecting a cluster of ranges around the required close effectively caps next-day exposure without negotiating bespoke OTC trades. Treasurers can also approximate collars or digitals by holding offsetting ranges above and below a strike, letting the CLMSR pool replicate payoff shapes that would otherwise require multiple venues. The ability to unwind or roll ranges intraday keeps the hedge aligned as markets move.
 
 ## Market intelligence and research
 
@@ -16,6 +16,6 @@ Analysts follow the probability surface to understand how traders absorb upcomin
 
 ## Community and product programs
 
-Communities run nightly prediction challenges on top of Signals because results settle transparently. Event organisers pre-announce the target market, track entrants through the subgraph, and award points or prizes after settlement without manual reconciliation. Product teams embed the same data into newsletters or social recaps--readers see which ranges cleared, how probabilities evolved, and what that says about sentiment heading into the next session.
+Communities run nightly prediction challenges on top of Signals because results settle transparently. Event organisers pre-announce the target market, track entrants directly from the on-chain record, and award prizes after settlement without manual reconciliation. Product teams embed the same data into newsletters or social recaps—readers see which ranges cleared, how probabilities evolved, and what that says about sentiment heading into the next session.
 
-Ready to try one of these approaches? Follow the [Quick Start](/docs/quickstart) to connect your wallet, then pick a band in today's market and iterate from there.
+Ready to try one of these approaches? Follow the [Quick Start](/docs/quickstart) to connect your wallet, then pick a range in today's market and iterate from there.

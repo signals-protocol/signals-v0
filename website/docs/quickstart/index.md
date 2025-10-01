@@ -1,6 +1,6 @@
 # Quick Start
 
-Follow this path to go from zero to your first claimed range on Signals. You'll prepare a wallet, secure test liquidity, place a band in the live market, and watch the settlement play out.
+Follow this path to go from zero to your first claimed range on Signals. You'll prepare a wallet, secure test liquidity, choose a range in the live market, and watch the settlement play out.
 
 ## Step 1 - Prepare your wallet
 
@@ -18,17 +18,11 @@ After adding the network, switch your wallet to Citrea so transactions route to 
 
 ## Step 2 - Fund with test assets
 
-You need two assets: cBTC for gas and SUSD for trading. Request cBTC from the [Citrea faucet](https://faucet.testnet.citrea.xyz/). For SUSD, either use the Signals faucet advertised in the community Discord or mint it locally with Hardhat:
-
-```bash
-npx hardhat run scripts/mint-susd.ts --network <env>
-```
-
-Use `citrea-dev` to target the development deployment or `citrea-prod` for the production test market. Confirm balances in your wallet before proceeding.
+You need two assets: cBTC for gas and SUSD for trading. Request cBTC from the [Citrea faucet](https://faucet.testnet.citrea.xyz/). Every new wallet that signs into the Signals app automatically receives **100 SUSD** to get started. For more balance, join the [Signals Discord](https://discord.gg/tUyGDDz8Kt) and follow the pinned instructions to receive an additional **1,000 SUSD** top-up. Confirm balances in your wallet before proceeding.
 
 ## Step 3 - Load today's market
 
-Open the Signals app. The home screen highlights the active “Bitcoin Closing Price on …” card with countdown, chart, and leaderboards. Connect your wallet; the trade panel immediately reflects your SUSD balance and the market's configured tick band.
+Open the Signals app. The home screen highlights the active “Bitcoin Closing Price on …” card with countdown, chart, and leaderboards. Connect your wallet; the trade panel immediately reflects your SUSD balance and the market's configured tick spacing.
 
 ## Step 4 - Place your first range
 

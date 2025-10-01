@@ -1,31 +1,33 @@
 # Market Flow Overview
 
-Signals launches one Bitcoin range market per UTC day. Behind the simple interface sits a repeatable rhythm: operators stage the next market while the current one trades, automation watches invariants, and analytics mirror every event through the subgraph. Walk through the stages below to understand who does what and which data surfaces update along the way.
+Signals runs one Bitcoin range market per UTC day. Trading follows a tight loop: the active market closes at 23:00 UTC, the reference price for that day is fixed at midnight, and the market resolves at 00:15 UTC once the price feed is confirmed. This overview walks through that cycle so you always know which stage you are in.
 
-## Before trading opens
+## Daily timeline
 
-Early each afternoon (UTC) the operations dispatcher submits `createMarket` with the next day’s parameters: the outcome spec `(L, U, s, d)`, the liquidity budget $\alpha$, and the intended trading window. The transaction does three things at once. First, it initialises a fresh lazy segment tree so the CLMSR potential can price trades immediately. Second, it emits a `MarketCreated` event that the Goldsky subgraph ingests, priming dashboards and the app to show the upcoming card. Third, it locks the configuration into the manifest history so auditors know exactly which bounds were advertised. Traders can inspect the chart, tick spacing, and liquidity before risking any capital, and integrators often archive these parameters for research or treasury planning.
+- **UTC 23:00:** the live market stops accepting new orders and the next day’s market opens immediately, keeping trading continuous.
+- **UTC 00:00:** the designated reference candle for the closing market is set; everyone now waits for the official close price.
+- **UTC 00:15:** operations resolve the closed market with `settleMarket`, using the fetched close value; claims unlock, and the new market continues trading toward the next cutoff.
 
-## During the trading window
+## Trading during the window
 
-From the block that confirms `createMarket` until the configured trading cutoff, every trade passes through the CLMSR potential. Because all bands draw from one pool of exponential weights, opening, increasing, or rotating a range is a single transaction whose cost reflects the collective state of outstanding positions. Front-end components poll both the contracts and the subgraph: they read live probabilities for quotes, consume `Position*` events for leaderboards, and surface alerts when liquidity or activity shifts materially. If monitoring scripts detect an invariant violation, an oracle delay, or abnormal gas usage, operators can pause the market with a single call; otherwise trading continues uninterrupted.
+From just after settlement at 00:15 UTC until the next cutoff at 23:00 UTC, every order runs through the shared CLMSR liquidity pool. Traders can open new ranges, adjust size on existing positions, or rotate ranges as their thesis changes. Live quotes, fills, and leaderboard updates in the app mirror on-chain data so the interface always matches contract state.
 
-## Closing the book
+## Cutoff and the next market launch
 
-Ahead of the daily settlement window the UI flips into “closed” mode and suppresses new orders. The operator verifies the designated reference value, clamps it into the configured tick range, and submits `settleMarket(marketId, value)`. This call records the canonical settlement tick and timestamp on-chain and freezes the probability surface in preparation for payouts. No SUSD moves yet—settlement establishes the outcome that everyone can audit later.
+Exactly at 23:00 UTC, the interface flips to a closed state for the expiring market. No new orders are accepted, and positions remain frozen. Operations immediately call `createMarket` for the next day, and the fresh market card appears in the same block so trading can start on the new bounds right away while the expiring market awaits resolution.
 
-## Publishing settlement results
+## Reference price and resolution window
 
-Large markets can hold thousands of tokens, so the settlement run focuses on updating contract state rather than manual bookkeeping. Automation simply confirms that `settleMarket` completed and that every open token now reflects its terminal state. The process is deterministic and idempotent, which keeps retries safe and makes reconciliation straightforward through the subgraph.
+At UTC 00:00 the market’s designated price window ends. Fifteen minutes later—at UTC 00:15—automation fetches the Bitcoin daily close for the target date from CoinMarketCap. If that request fails, CoinGecko is queried instead. Should both feeds fail within 24 hours, the market is canceled. Only these sources are valid for resolution, and orders must use whole-dollar bounds. Once a price is obtained, operators submit `settleMarket(marketId, settlementValue)`, locking the canonical outcome on-chain and emitting events that analytics pipelines mirror.
 
 ## After settlement
 
-Once settlement finalizes, winning positions are claimable indefinitely. Traders call `claimPayout`, receive their principal plus winnings, and the position NFT burns in the same transaction. Risk desks and community teams rely on the same on-chain data to update dashboards, reconcile treasuries, or publish nightly recaps. Meanwhile, the dispatcher has usually staged the following day’s market, so the loop restarts without downtime.
+When settlement is recorded, each winning position becomes claimable indefinitely. Calling `claimPayout` collects your payout and burns the position NFT. Risk desks, community teams, and integrators rely on the same on-chain data to reconcile balances, publish recaps, or archive the day’s parameters. The next market has already been live since the cutoff, so trading continues toward the following day’s cycle.
 
 ## Roles at a glance
 
-- **Operators** configure markets, verify the designated reference value, and make sure settlement automation stays healthy. Their transactions are fully auditable via manifests and explorer links.
-- **Automation** enforces cadence: it monitors invariants, replays settlement submissions when necessary, and raises alerts if progress stalls.
-- **Traders and integrators** consume the app or subgraph, trade during the window, and claim payouts later; many mirror the data into internal research notebooks.
+- **Operators** run the cutoff, launch the next market with `createMarket`, verify the fetched close, and submit settlement at 00:15 UTC.
+- **Automation** monitors health checks, fetches the reference price from supported sources, alerts on oracle failures, and retries settlement transactions if needed.
+- **Traders and integrators** trade during the window, mirror data into their own systems, and claim payouts once settlement locks.
 
-For a minute-by-minute breakdown of user and operator actions, continue to [How Signals Works](./how-it-works.md). To see how the operator playbook runs, read the [Settlement Pipeline](../market/settlement-pipeline.md). If you are preparing to place a range yourself, start with the [Quick Start](../quickstart/index.md) and keep the [Trader Guide](../user/positions-lifecycle.md) nearby.
+Keep exploring with [How Signals Works](./how-it-works.md), the [Quick Start](../quickstart/index.md), the [Trader Guide](../user/positions-lifecycle.md), or the operator-focused [Settlement Pipeline](../market/settlement-pipeline.md).

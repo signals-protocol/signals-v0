@@ -8,18 +8,18 @@ Trading stops at the market’s configured cutoff ahead of the target date. Oper
 
 ## How your position gets marked
 
-After settlement is locked in, on-chain state immediately reflects the final outcome for every open token. The process is deterministic and idempotent, meaning retries after any hiccup leave the ledger unchanged—you only need to confirm that the UI or subgraph now shows your position as settled.
+After settlement is locked in, on-chain state immediately reflects the final outcome for every open token. The process is deterministic and idempotent, meaning retries after any hiccup leave the ledger unchanged—you only need to confirm that the UI or an explorer now shows your position as settled.
 
 ## Winning criteria
 
-Your band pays out when `lowerTick ≤ settlementTick < upperTick`. With configurable spacing this simply means the reference price, mapped onto the market’s tick grid, falls inside your half-open range. If the tick lands outside, the capital you committed remains in the pool and no claim becomes available.
+Your range pays out when `lowerTick ≤ settlementTick < upperTick`. With configurable spacing this simply means the reference price, mapped onto the market’s tick grid, falls inside your half-open range. If the tick lands outside, the capital you committed remains in the pool and no claim becomes available.
 
 ## Claiming your payout
 
-Once the UI shows that settlement is complete, open “My Positions” and click **Claim** beside any winning band. The contract checks the settled flag, transfers SUSD equal to your remaining quantity (rounded per the CLMSR spec), and burns the position NFT. Claims never expire, so you can return later if needed, but claiming promptly keeps analytics accurate and frees up mental bandwidth.
+Once the UI shows that settlement is complete, open “My Positions” and click **Claim** beside any winning range. The contract checks the settled flag, transfers SUSD equal to your remaining quantity (rounded per the CLMSR spec), and burns the position NFT. Claims never expire, so you can return later if needed, but claiming promptly keeps analytics accurate and frees up mental bandwidth.
 
 ## Auditing the process
 
-Every settlement transaction and claim sits on-chain with full data. Verification scripts such as `verification/check-market-pnl.ts` reconcile the totals against CLMSR expectations, and the Goldsky subgraph mirrors status so dashboards and community recaps stay in sync. If you suspect an anomaly, you can replay the day using these sources without relying on the front end.
+Every settlement transaction and claim sits on-chain with full data. If you suspect an anomaly, you can replay the day directly from the chain without relying on the front end.
 
 Still have questions? Revisit the [Market Flow Overview](../start/market-flow-overview.md) for the daily timeline or read the [Settlement Pipeline](../market/settlement-pipeline.md) for the operator runbook.

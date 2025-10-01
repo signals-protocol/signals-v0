@@ -1,23 +1,22 @@
 # Subgraph API
 
-Signals exposes a Goldsky-hosted subgraph that tracks the CLMSR market in real time. This page shows the endpoints, key entities, and typical queries so you can build analytics, dashboards, or automation without hitting the contracts directly.
+Signals exposes a Goldsky-hosted subgraph that tracks the CLMSR market in real time. This page shows the endpoint, key entities, and typical queries so you can build analytics, dashboards, or automation without hitting the contracts directly.
 
 ## Endpoints
 
 | Environment | URL |
 | --- | --- |
-| Production | `https://api.goldsky.com/api/public/project_cme6kru6aowuy01tb4c9xbdrj/subgraphs/signals-v0-citrea-prod/latest/gn` |
-| Development | `https://api.goldsky.com/api/public/project_cme6kru6aowuy01tb4c9xbdrj/subgraphs/signals-v0-citrea-dev/latest/gn` |
+| Deployed | `https://api.goldsky.com/api/public/project_cme6kru6aowuy01tb4c9xbdrj/subgraphs/signals-v0-citrea-prod/latest/gn` |
 
-All numbers maintain contract-native scales: factors are 18-decimal WAD values, monetary amounts are 6-decimal integers. The schema lives in `clmsr-subgraph/schema.graphql` if you need the full definition.
+All numbers maintain contract-native scales: factors are 18-decimal WAD values, monetary amounts are 6-decimal integers.
 
 ## Core entities
 
 - **Market** — configuration and lifecycle of each daily market (`marketId`, `minTick`, `maxTick`, `isSettled`, `settlementTick`).
 - **MarketDistribution** — segment tree snapshot for pricing; includes `totalSum`, `binFactors`, `tickRanges`, and metadata hashes so the SDK can detect updates.
 - **BinState** — per-bin factors and volumes, useful for charts.
-- **UserPosition** — ERC-721 range position with derived metrics such as `currentQuantity`, `totalCostBasis`, `realizedPnL`, `outcome`, and points counters.
-- **Trade** — every OPEN/INCREASE/DECREASE/CLOSE/SETTLE action, including gas data and points awarded.
+- **UserPosition** — ERC-721 range position with derived metrics such as `currentQuantity`, `totalCostBasis`, `realizedPnL`, and `outcome`.
+- **Trade** — every OPEN/INCREASE/DECREASE/CLOSE/SETTLE action, including gas data for auditing.
 - **UserStats / MarketStats** — aggregated totals (volume, winRate, realised PnL, unique traders, price extremes).
 - **PositionSettled / PositionClaimed** — per-position results and claim records; useful for reconciling liabilities and verifying that automation finished cleanly.
 

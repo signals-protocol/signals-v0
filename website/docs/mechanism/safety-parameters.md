@@ -12,7 +12,7 @@ $$
 \text{Loss}_{\max} = \alpha \ln(n)
 $$
 
-where $\alpha$ is the liquidity parameter and $n$ the number of bands. Narrower tick spacing increases $n$ and therefore the bound, so operators should size $\alpha$ according to their tolerance: choose `alpha = Loss_target / ln(n)` to align the model with the treasury budget. Because the loss formula depends only on $\alpha$ and $n$, you can predict the bound before deploying a market.
+where $\alpha$ is the liquidity parameter and $n$ the number of bins. Narrower tick spacing increases $n$ and therefore the bound, so operators should size $\alpha$ according to their tolerance: choose `alpha = Loss_target / ln(n)` to align the model with the treasury budget. Because the loss formula depends only on $\alpha$ and $n$, you can predict the bound before deploying a market.
 
 ## Guards inside the lazy segment tree
 
@@ -33,7 +33,7 @@ Lazy multiplication works because a set of conservative constants keeps exponent
 
 - `settleMarket` only executes after `block.timestamp` reaches the configured `settlementTimestamp` (or `endTimestamp` when no override exists).
 - Submitted settlement values are clamped into `[minTick, maxTick]`, protecting the pool from outlier prints.
-- Settlement emits per-position results deterministically, keeping gas bounded even when thousands of bands remain open.
+- Settlement emits per-position results deterministically, keeping gas bounded even when thousands of ranges remain open.
 
 ## Implementation status
 

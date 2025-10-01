@@ -27,22 +27,12 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: "category",
-      label: "Protocol",
-      items: [
-        "protocol/architecture",
-        "security/audits",
-        "governance/parameters",
-        "governance/upgrades",
-        "networks/supported-networks",
-        "addresses/index",
-      ],
-    },
-    {
-      type: "category",
       label: "Operations",
       items: [
+        "operations/citrea",
         "start/how-it-works",
         "market/settlement-pipeline",
+        "security/audits",
       ],
     },
     {

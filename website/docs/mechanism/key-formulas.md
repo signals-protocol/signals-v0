@@ -5,19 +5,19 @@ Keep this page handy when you need the CLMSR math without re-reading the entire 
 ## Potential, prices, and loss bound
 
 - **Potential**: $C(q) = \alpha \ln \left( \sum_b e^{q_b / \alpha} \right)$ governs the entire surface. The share inventory $q_b$ and liquidity parameter $\alpha$ live in WAD precision.
-- **Band price**: $p_b = e^{q_b / \alpha} / \sum_j e^{q_j / \alpha}$. Because every band shares the same potential, the prices always sum to 1.
-- **Maker loss bound**: $\text{Loss}_{\max} = \alpha \ln(n)$ where $n$ is the number of bands. Adjusting the tick spacing or liquidity parameter alters the bound predictably.
+- **Bin price**: $p_b = e^{q_b / \alpha} / \sum_j e^{q_j / \alpha}$. Because every bin shares the same potential, the prices always sum to 1.
+- **Maker loss bound**: $\text{Loss}_{\max} = \alpha \ln(n)$ where $n$ is the number of bins. Adjusting the tick spacing or liquidity parameter alters the bound predictably.
 
-## Trading a band
+## Trading a range
 
-- **Weight update**: buying $\delta$ shares multiplies the weights inside the band by $\varphi = e^{\delta / \alpha}; selling flips the sign of $\delta$.
+- **Weight update**: buying $\delta$ shares multiplies the weights inside each bin of the range by $\varphi = e^{\delta / \alpha}; selling flips the sign of $\delta$.
 - **Cost**: $\Delta C = \alpha \ln(\Sigma_{\text{after}} / \Sigma_{\text{before}})$, where the sigma terms are the summed weights before and after applying $\varphi$.
 - **Chunking rule**: exponents are evaluated in chunks no larger than `MAX_EXP_INPUT_WAD = 1e18`, keeping `(chunk/alpha) <= 1`.
 
 ## Outcome and tick mapping
 
 - **Tick index**: $b = \mathrm{clamp}(\lfloor (\text{OutcomeRaw} - L)/s \rfloor, 0, n-1)$.
-- **Band interval**: `[L + b s, L + (b+1) s)` with the upper edge open to prevent overlap.
+- **Bin interval**: `[L + b s, L + (b+1) s)` with the upper edge open to prevent overlap.
 
 ## Precision and rounding
 
