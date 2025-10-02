@@ -82,7 +82,7 @@ const config: Config = {
     // Replace with your project's social card
     image: "img/signals-social-card.png",
     navbar: {
-      title: "Signals Protocol",
+      title: "Signals",
       logo: {
         alt: "Signals logo",
         src: "img/logo.svg",

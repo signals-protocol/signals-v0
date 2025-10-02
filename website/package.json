@@ -7,7 +7,7 @@
     "start": "docusaurus start",
     "start:ko": "docusaurus start --locale ko --port 3001",
     "fetch:stats": "node ./scripts/fetch-stats.mjs",
-    "build": "yarn fetch:stats && docusaurus build",
+    "build": "docusaurus build",
     "swizzle": "docusaurus swizzle",
     "deploy": "docusaurus deploy",
     "clear": "docusaurus clear",

@@ -1,21 +1,117 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "@docusaurus/Link";
 import useDocusaurusContext from "@docusaurus/useDocusaurusContext";
 import useBaseUrl from "@docusaurus/useBaseUrl";
 import Layout from "@theme/Layout";
 import HomepageFeatures from "@site/src/components/HomepageFeatures";
-import metrics from "@site/static/data/metrics.json";
 
 type Metrics = {
   marketCount: number;
-  openPositionCount: number;
   totalPositions: number;
-  generatedAt: string;
 };
 
 import styles from "./index.module.css";
 
-const stats = metrics as Metrics;
+const SUBGRAPH_URL =
+  "https://api.goldsky.com/api/public/project_cme6kru6aowuy01tb4c9xbdrj/subgraphs/signals-v0-citrea-prod/latest/gn";
+
+type GraphError = {
+  message: string;
+};
+
+type GraphResponse<T> = {
+  data?: T;
+  errors?: GraphError[];
+};
+
+async function fetchEntitiesCount(entity: string, where?: string): Promise<number> {
+  const pageSize = 1000;
+  let skip = 0;
+  let total = 0;
+
+  while (true) {
+    const query = `
+      query ($skip: Int!, $first: Int!) {
+        ${entity}(first: $first, skip: $skip${where ? `, where: ${where}` : ""}) {
+          id
+        }
+      }
+    `;
+
+    const response = await fetch(SUBGRAPH_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ query, variables: { skip, first: pageSize } }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch ${entity}: ${response.status} ${response.statusText}`);
+    }
+
+    const json = (await response.json()) as GraphResponse<Record<string, Array<{ id: string }>>>;
+
+    if (json.errors?.length) {
+      throw new Error(
+        `GraphQL error for ${entity}: ${json.errors.map((error) => error.message).join(", ")}`
+      );
+    }
+
+    const items = json.data?.[entity] ?? [];
+    total += items.length;
+
+    if (items.length < pageSize) {
+      break;
+    }
+
+    skip += pageSize;
+  }
+
+  return total;
+}
+
+async function fetchLatestPositionId(): Promise<number> {
+  const query = `
+    query {
+      userPositions(first: 1, orderBy: positionId, orderDirection: desc) {
+        positionId
+      }
+    }
+  `;
+
+  const response = await fetch(SUBGRAPH_URL, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ query }),
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to fetch latest position id: ${response.status} ${response.statusText}`
+    );
+  }
+
+  const json = (await response.json()) as GraphResponse<{
+    userPositions: Array<{ positionId: string }>;
+  }>;
+
+  if (json.errors?.length) {
+    throw new Error(
+      `GraphQL error for userPositions: ${json.errors.map((error) => error.message).join(", ")}`
+    );
+  }
+
+  const value = json.data?.userPositions?.[0]?.positionId ?? "0";
+  return Number(value);
+}
+
+async function fetchMetrics(): Promise<Metrics> {
+  const [marketCount, totalPositions] = await Promise.all([
+    fetchEntitiesCount("markets"),
+    fetchLatestPositionId(),
+  ]);
+
+  return { marketCount, totalPositions };
+}
 
 const numberFormatter = new Intl.NumberFormat("en-US");
 
@@ -52,8 +148,15 @@ const heroCopy = {
 
 type LocaleKey = keyof typeof heroCopy;
 
-function HomepageHeader({ locale }: { locale: LocaleKey }): ReactNode {
-  const { marketCount, totalPositions } = stats;
+function HomepageHeader({
+  locale,
+  stats,
+}: {
+  locale: LocaleKey;
+  stats: Metrics | null;
+}): ReactNode {
+  const marketCount = stats?.marketCount;
+  const totalPositions = stats?.totalPositions;
   const heroLogoIconUrl = useBaseUrl("img/logo.svg");
   const strings = heroCopy[locale] ?? heroCopy.en;
   return (
@@ -77,11 +180,19 @@ function HomepageHeader({ locale }: { locale: LocaleKey }): ReactNode {
             <dl className={styles.heroStats}>
               <div>
                 <dt>{strings.statMarkets}</dt>
-                <dd>{numberFormatter.format(marketCount)}</dd>
+                <dd>
+                  {typeof marketCount === "number"
+                    ? numberFormatter.format(marketCount)
+                    : "—"}
+                </dd>
               </div>
               <div>
                 <dt>{strings.statPositions}</dt>
-                <dd>{numberFormatter.format(totalPositions)}</dd>
+                <dd>
+                  {typeof totalPositions === "number"
+                    ? numberFormatter.format(totalPositions)
+                    : "—"}
+                </dd>
               </div>
               <div>
                 <dt>Liquidity parameter</dt>
@@ -113,12 +224,35 @@ function HomepageHeader({ locale }: { locale: LocaleKey }): ReactNode {
 export default function Home(): ReactNode {
   const { siteConfig, i18n } = useDocusaurusContext();
   const locale = (i18n?.currentLocale as LocaleKey) ?? "en";
+  const [stats, setStats] = useState<Metrics | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadMetrics(): Promise<void> {
+      try {
+        const nextStats = await fetchMetrics();
+        if (!cancelled) {
+          setStats(nextStats);
+        }
+      } catch (error) {
+        console.error("Failed to fetch metrics", error);
+      }
+    }
+
+    void loadMetrics();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <Layout
       title={siteConfig.title}
       description="Signals documentation — learn why the Continuous LMSR powers our Bitcoin range markets, how the protocol is built, and how to trade responsibly."
     >
-      <HomepageHeader locale={locale} />
+      <HomepageHeader locale={locale} stats={stats} />
       <main>
         <HomepageFeatures locale={locale} />
       </main>
