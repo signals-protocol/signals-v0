@@ -90,30 +90,6 @@ Signals uses **CLMSR**, an LMSR-family potential function extended for continuou
 - Traditional (\$100, theoretical): 1,000 range markets → liquidity fragments, most untradeable.
 - CLMSR (\$100): 1,000 ticks, shared pool → any custom range becomes one position; liquidity is concentrated, not fragmented.
 
-## Why this matters for Bitcoin
+Signals collapses that tradeoff. You can back a +2% momentum view, a ±1% consolidation, or a bespoke \$110.5k-\$117.2k band with a single position; every trade updates the shared curve, and settlement events remain on-chain so anyone can audit the close.
 
-Bitcoin's daily volatility (\$2k-\$5k moves) makes coarse range markets insufficient. Traditional platforms force crude bets across wide ranges or over-buying across multiple markets.
-
-With Signals, traders can express precise views:
-
-- "BTC closes +2% to +5% from current" (momentum continuation)
-- "BTC closes within ±1% of current" (mean reversion)
-- "BTC closes \$110.5k-\$117.2k" (technical level thesis)
-
-Each represents a specific market view that traditional independent range markets can't capture efficiently without over-buying or managing multiple positions.
-
-## Verifiability and settlement
-
-Every market parameter, trade, and settlement lives on-chain for public auditability, giving anyone the ability to replay activity without relying on the app.
-
-**Settlement**: Operators submit the closing price from a pre-announced reference oracle to `settleMarket()`. Contracts automatically determine payouts. Claims remain open indefinitely. No discretionary interpretation—deterministic math and public data.
-
-## What's next
-
-CLMSR applies to any continuous outcome discretizable into ticks. Current deployment: Bitcoin daily close. Same mechanism extends to interest rates, commodity prices, election polling, or other measurable continuous variables.
-
-**Further reading**:
-
-- Mathematical foundation: [How CLMSR Works](../mechanism/overview.md)
-- Operational flow: [Market Flow Overview](./market-flow-overview.md), [How Signals Works](./how-it-works.md)
-- Get started: [Quick Start](../quickstart/index.md)
+Ready to explore it yourself? Jump into the [Quick Start](../quickstart/index.md) or skim the [Market Flow Overview](./market-flow-overview.md) for the daily cadence.
