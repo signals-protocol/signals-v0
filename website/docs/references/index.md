@@ -1,9 +1,9 @@
 # Reference Overview
 
-Use this section to find primary source material and supporting research for Signals.
+Use this section when you need primary sources or deeper theory behind the Signals CLMSR market.
 
-- For the full mathematical treatment, open the [Signals CLMSR Whitepaper](./whitepaper.md).
-- For academic context on market scoring rules, check [Further Reading](./bibliography.md).
-- For implementation history across releases, see the [Changelog](../changelog/index.md).
+- **Whitepaper** — The full mathematical specification lives in the [Signals CLMSR Whitepaper](./whitepaper.md).
+- **Further reading** — Academic papers and background material are collected in [Bibliography](./bibliography.md).
+- **Operations & upgrades** — Pair these references with the practical guides throughout the docs: [Citrea Deployment Notes](../operations/citrea.md), [Security & Testing](../security/audits.md), and the [Changelog](../changelog/index.md).
 
-If you need deployment addresses or manifests, head back to the [Protocol](../protocol/architecture.md) and [Network Information](../networks/supported-networks.md) pages.
+If you need network details or proxy addresses, head to [Citrea Deployment Notes](../operations/citrea.md). For SDK and integration examples, refer to the publicly shared developer guides.

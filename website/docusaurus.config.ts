@@ -7,9 +7,9 @@ import type * as Preset from "@docusaurus/preset-classic";
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
 const config: Config = {
-  title: "Signals",
+  title: "Signals Protocol",
   tagline: "Range-Based Bitcoin Prediction on Citrea",
-  favicon: "img/favicon.ico",
+  favicon: "img/logo.svg",
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {
@@ -20,7 +20,7 @@ const config: Config = {
   url: "https://signals-protocol.github.io",
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
-  baseUrl: "/signals-v0/",
+  baseUrl: "/",
 
   // GitHub pages deployment config.
   organizationName: "signals-protocol", // Usually your GitHub org/user name.
@@ -80,13 +80,15 @@ const config: Config = {
 
   themeConfig: {
     // Replace with your project's social card
-    image: "img/docusaurus-social-card.jpg",
+    image: "img/signals-social-card.png",
     navbar: {
       title: "Signals",
       logo: {
-        alt: "Signals wordmark",
-        src: "img/logo.png",
-        srcDark: "img/logo.png",
+        alt: "Signals logo",
+        src: "img/logo.svg",
+        srcDark: "img/logo.svg",
+        height: 28,
+        width: 28,
       },
       items: [
         {
@@ -136,8 +138,8 @@ const config: Config = {
               to: "/docs/mechanism/overview",
             },
             {
-              label: "Contract Addresses",
-              to: "/docs/addresses",
+              label: "Network & Addresses",
+              to: "/docs/operations/citrea",
             },
           ],
         },

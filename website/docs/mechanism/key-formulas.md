@@ -1,37 +1,37 @@
 # Key Formulas Cheat Sheet
 
-Use this page as a quick reference when you need the core CLMSR equations without re-reading the full spec.
+Keep this page handy when you need the CLMSR math without re-reading the entire specification. Each block lists the formula, explains when it applies, and points to the contracts that enforce it.
 
-## Potential and prices
+## Potential, prices, and loss bound
 
-- Potential: $C(q) = \alpha \ln \left( \sum_b e^{q_b / \alpha} \right)$ (where $\alpha$ is the liquidity parameter and $q_b$ the share inventory for band $b$).
-- Price of band $b$: $p_b = \dfrac{e^{q_b / \alpha}}{\sum_j e^{q_j / \alpha}}$.
-- Bounded loss: $\text{Loss}_{\max} = \alpha \ln(n)$ where $n$ is the number of bands in the market.
+- **Potential**: $C(q) = \alpha \ln \left( \sum_b e^{q_b / \alpha} \right)$ governs the entire surface. The share inventory $q_b$ and liquidity parameter $\alpha$ live in WAD precision.
+- **Bin price**: $p_b = e^{q_b / \alpha} / \sum_j e^{q_j / \alpha}$. Because every bin shares the same potential, the prices always sum to 1.
+- **Maker loss bound**: $\text{Loss}_{\max} = \alpha \ln(n)$ where $n$ is the number of bins. Adjusting the tick spacing or liquidity parameter alters the bound predictably.
 
-## Trade updates
+## Trading a range
 
-- Buy $\delta$ shares of a band: multiply each weight by $\varphi = e^{\delta / \alpha}$.
-- Cost: $\Delta C = \alpha \ln(\Sigma_{\text{after}} / \Sigma_{\text{before}})$.
-- Sell actions use the same formula with `δ` negated.
+- **Weight update**: buying $\delta$ shares multiplies the weights inside each bin of the range by $\varphi = e^{\delta / \alpha}; selling flips the sign of $\delta$.
+- **Cost**: $\Delta C = \alpha \ln(\Sigma_{\text{after}} / \Sigma_{\text{before}})$, where the sigma terms are the summed weights before and after applying $\varphi$.
+- **Chunking rule**: exponents are evaluated in chunks no larger than `MAX_EXP_INPUT_WAD = 1e18`, keeping `(chunk/alpha) <= 1`.
 
-## Tick mapping
+## Outcome and tick mapping
 
-- Outcome tick: $b = \mathrm{clamp}(\lfloor (\text{OutcomeRaw} - L)/s \rfloor, 0, n-1)$.
-- Half-open intervals $[L + b s,\, L + (b+1)s)$ guarantee non-overlapping bands.
+- **Tick index**: $b = \mathrm{clamp}(\lfloor (\text{OutcomeRaw} - L)/s \rfloor, 0, n-1)$.
+- **Bin interval**: `[L + b s, L + (b+1) s)` with the upper edge open to prevent overlap.
 
 ## Precision and rounding
 
-- Currency conversion: multiply or divide by `10^12` between 6-decimal SUSD and WAD (18 decimals).
-- Rounding policy:
-  - Buys/increases: round up (`fromWadRoundUp`).
-  - Sells/claims: round down (`fromWadFloor`).
-  - Minimum trade size: `δ_min = 0.01 SUSD` (UI enforced until the contract guard lands).
+- **Currency to WAD**: multiply SUSD amounts by `10^12`; divide by the same factor to convert back.
+- **Rounding policy**:
+  - Buys and increases: round up (`fromWadRoundUp`).
+  - Sells, decreases, closes, and payouts: round down (`fromWadFloor`).
+  - Recommended minimum trade size: $\delta_{\min} = 0.01$ SUSD (UI enforced until the Solidity guard ships).
 
-## Segment tree guards
+## Guard rails
 
 - `MAX_EXP_INPUT_WAD = 1.0e18`
 - `MIN_FACTOR = 0.01e18`, `MAX_FACTOR = 100e18`
 - `MAX_TICK_COUNT = 1_000_000`
 - `MAX_CHUNKS_PER_TX = 1_000`
 
-Need deeper context? Jump back to [Mechanism Overview](overview.md) or [Safety Bounds & Parameters](safety-parameters.md).
+Need the longer story? Step back to the [Mechanism Overview](overview.md) or jump into the detailed discussions in [Cost Function & Rounding](cost-rounding.md) and [Safety Bounds & Parameters](safety-parameters.md).

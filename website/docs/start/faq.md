@@ -1,25 +1,27 @@
 # Frequently Asked Questions
 
-### What market is live today?
-Signals runs one market at a time: Bitcoin’s daily closing price for a specific UTC date. All ranges are $100 wide. If the closing candle lands inside your band, you receive a 1:1 SUSD payout.
+This FAQ expands on the questions we hear most often so you understand not just the answer, but the rationale behind it.
 
-### Where does the settlement price come from?
-We use CoinMarketCap’s BTC/USD daily close (UTC 00:00–23:59). The settlement transaction is published on-chain so anyone can audit it.
+## Daily market basics
 
-### How do I get SUSD and gas?
-On Citrea Testnet you can request cBTC (gas) from the official faucet and SUSD from the Signals faucet or CLI script. The [Quick Start](/docs/quickstart) walks you through the steps.
+**What market is live each day?** Signals lists one Bitcoin closing-price market per UTC day. A single `marketId` opens with bins defined by the configured tick spacing; if the settlement tick lands inside your half-open range `[lower, upper)`, you earn 1 SUSD for every 1 SUSD you committed.
 
-### Can I change my mind after entering a range?
-Yes. Before settlement you can increase, decrease, or close a position at any time. Every adjustment executes at the current probability.
+**Where does the settlement price come from?** The operator verifies the market’s designated reference value and records it with `settleMarket`. Both the transaction and value live on-chain, so explorers provide an auditable record at any time.
 
-### Are there trading fees?
-No protocol fee is charged. You only pay network gas for each transaction.
+## Preparing to trade
 
-### Is there a deadline to claim winnings?
-No. Claims never expire. We still recommend claiming soon after settlement so you don’t forget about unclaimed funds.
+**How do I secure SUSD and gas?** On Citrea Testnet, request cBTC (gas) from the [official faucet](https://faucet.testnet.citrea.xyz/). When you first sign into the Signals app your wallet is automatically credited with **100 SUSD**. Join the [Signals Discord](https://discord.gg/tUyGDDz8Kt) and follow the directions in the welcome channel to unlock an additional **1,000 SUSD** trading balance. No manual minting is required.
 
-### What if Signals disappears?
-Funds and settlement logic live in smart contracts. Signals provides the market interface and submits settlement data, but users can always interact directly with the contracts to withdraw balances.
+**Can I adjust or exit a range after opening it?** Yes. Until the market closes you can increase, decrease, or close the position, and every adjustment executes at the live CLMSR probability. Because the cost function depends only on cumulative quantity, the order of trades never changes the final economics.
 
-### Where can I learn more about the mechanism?
-Check out the [Mechanism Spec](../mechanism/overview.md) and the [Signals CLMSR whitepaper](/whitepaper.pdf) for the maths and design details.
+**Are protocol fees charged?** No protocol fee applies today. You only pay the network gas required to submit transactions.
+
+## After settlement
+
+**Is there a deadline to claim winnings?** Winning positions never expire. Call `claimPayout` whenever you are ready; the contract transfers your payout and burns the position NFT. We still recommend claiming soon after settlement so balances stay tidy.
+
+**What happens if the front end disappears?** Funds and settlement logic reside in the smart contracts. Even without the Signals app, you can use an explorer or wallet to interact with the contracts and manage positions.
+
+## Learn more
+
+Dive deeper into the protocol by reading the [CLMSR overview](../mechanism/overview.md), the detailed notes on [cost and rounding](../mechanism/cost-rounding.md), and the full [Signals CLMSR whitepaper](/whitepaper.pdf). Operational plumbing is covered in the [Settlement Pipeline](/docs/market/settlement-pipeline).

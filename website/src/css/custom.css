@@ -22,7 +22,7 @@
   --docusaurus-highlighted-code-line-bg: rgba(20, 68, 194, 0.08);
 }
 
-[data-theme='dark'] {
+[data-theme="dark"] {
   --ifm-color-primary: #7da5ff;
   --ifm-color-primary-dark: #678cff;
   --ifm-color-primary-darker: #5476f3;
@@ -42,14 +42,42 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
 
-[data-theme='light'] .navbar {
+[data-theme="light"] .navbar {
   background: rgba(252, 253, 255, 0.88);
   border-bottom: 1px solid rgba(20, 68, 194, 0.08);
 }
 
-.navbar__title,
+.navbar__title {
+  display: flex;
+  align-items: center;
+  font-weight: 700;
+  color: var(--ifm-color-primary);
+  font-size: 1.32rem;
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+}
+
 .navbar__item {
   font-weight: 600;
+  font-size: 0.92rem;
+  line-height: 1.25;
+  margin-left: 0.2rem;
+}
+
+.navbar__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.12rem;
+  margin-right: 0.04rem;
+}
+
+.navbar__items--left .navbar__item,
+.navbar__items--right .navbar__item {
+  padding: 0.1rem 0.3rem;
+}
+
+.navbar__items--left > :first-child {
+  margin-left: 0.08rem !important;
 }
 
 .button.button--secondary:not(.secondaryCta) {
@@ -69,4 +97,17 @@
 .badge--danger {
   background: rgba(255, 67, 67, 0.18);
   color: var(--signals-negative);
+}
+
+/* 로고 크기 조정 */
+.navbar__logo {
+  display: inline-flex;
+  align-items: center;
+}
+
+.navbar__logo img {
+  height: 22px !important;
+  width: auto !important;
+  max-height: 22px !important;
+  transform: translateY(1px);
 }

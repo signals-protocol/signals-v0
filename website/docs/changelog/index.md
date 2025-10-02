@@ -1,43 +1,39 @@
 # Changelog
 
-All notable changes to signals-v0 will be documented in this file.
+Signals tracks every contract and documentation release so integrators can audit what changed and when. This log highlights user-visible behaviour, contract upgrades, and key operational notes. Check the latest manifest distributed by the operations team for the authoritative address history.
 
-## [1.1.0] - 2025-08-21
+## 1.1.0 — 2025-08-21
 
-### Changed
+**What changed**
+- Upgraded `LazyMulSegmentTree` with gas optimisations and additional guards
+- Shipped a new `CLMSRMarketCore` implementation tuned for faster settlement automation
+- Refined `CLMSRPosition` events to improve indexing performance
 
-- Upgraded LazyMulSegmentTree library for improved gas efficiency
-- Updated CLMSRMarketCore implementation for enhanced performance
-- Optimized CLMSRPosition contract for better user experience
-- Enhanced PointsGranter implementation
+**Impact**
+- Lower gas usage during heavy trading and settlement
+- More predictable settlement automation (fewer retries for large markets)
+- Cleaner downstream mirrors (fewer null fields)
 
-### Contract Addresses (Citrea)
+**Addresses (deployed Citrea)**
+- `CLMSRMarketCore` proxy `0xE480ca1C63B6dd929af1EeA4D3de1073942F3cEf` → implementation `0xb86c5f8b5b59e3f4dde9b13758ee3de3ef0f2fca`
+- `CLMSRPosition` proxy `0xB4c33Df898F8139D784ADE1aDCa9B5979898fE03` → implementation `0x799c0f18c004498e10f1e47631ba48055762c972`
 
-- CLMSRMarketCore: `0xE480ca1C63B6dd929af1EeA4D3de1073942F3cEf`
-- CLMSRPosition: `0xB4c33Df898F8139D784ADE1aDCa9B5979898fE03`
-- PointsGranter: `0x9E1265677B628A22b9C1d6f0FeCEb6241eA5268d`
+## 1.0.0 — 2025-08-14
 
-## [1.0.0] - 2025-08-14
+**Initial launch**
+- Deployed the CLMSR range market on Citrea Testnet (chain id 5115)
+- Released ERC 721 position tokens with lazy segment tree powered pricing
+- Rolled out automation tooling for daily operations
 
-### Added
+**Highlights**
+- Continuous outcome markets with bounded maker loss (`alpha * ln n`)
+- Upgradeable via UUPS proxies with manifests for every environment
+- Emergency pause/unpause controls baked into core contracts
 
-- Initial deployment of signals-v0 protocol on Citrea
-- CLMSR (Continuous Logarithmic Market Scoring Rule) implementation
-- Range-based prediction markets
-- ERC-721 position tokens
-- Points system for user engagement
-- Lazy multiplicative segment tree for efficient range operations
-
-### Features
-
-- **Continuous Outcome Markets**: Bet on price ranges instead of binary outcomes
-- **Bounded Risk**: Mathematical guarantees on maximum losses
-- **Gas Efficient**: O(log n) complexity for range updates
-- **Upgradeability**: OpenZeppelin UUPS proxy pattern
-- **Emergency Controls**: Pause/unpause functionality
-
-### Initial Deployment
-
-- Network: Citrea (Chain ID: 5115)
+**Deployment info**
 - Deployer: `0xe0785a8cDc92bAe49Ae7aA6C99B602e3CC43F7eD`
-- Start Block: 14,176,879
+- Genesis block: 14,176,879
+
+---
+
+Need more detail? Review the relevant manifest diff alongside this log entry and consult operations notes for the latest deployment procedures.

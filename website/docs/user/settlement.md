@@ -1,28 +1,25 @@
 # Settlement & Claims
 
-Signals resolves each market using CoinMarketCap’s Bitcoin daily close for the targeted date. Here’s what you should expect once trading stops.
+When the countdown hits zero, the trading UI goes quiet but the protocol keeps working. This guide explains what happens from the final tick to the moment you withdraw your payout so you can follow along with confidence.
 
-## Timeline
+## From close to settlement
 
-1. **Trading ends** at 23:59:59 UTC on the stated date.
-2. **Settlement** – Signals submits the official close to the CLMSR contract shortly after the candle finalises.
-3. **Batch events** – we emit `PositionSettled` events in chunks until every position has been marked.
-4. **Claim window** – winning traders can claim immediately; there is no deadline.
+Trading stops at the market’s configured cutoff ahead of the target date. Operations confirm the designated reference value—if data is delayed, the market remains frozen until a verifiable number is available—then call `settleMarket(marketId, settlementValue)`. The transaction records the settlement tick and timestamp on-chain without touching individual positions yet.
+
+## How your position gets marked
+
+After settlement is locked in, on-chain state immediately reflects the final outcome for every open token. The process is deterministic and idempotent, meaning retries after any hiccup leave the ledger unchanged—you only need to confirm that the UI or an explorer now shows your position as settled.
 
 ## Winning criteria
 
-- Your range wins if `lowerTick ≤ settlementTick < upperTick`.
-- `settlementTick` is simply the closed price divided by 100 (for $100 bands), floored to the nearest tick.
+Your range pays out when `lowerTick ≤ settlementTick < upperTick`. With configurable spacing this simply means the reference price, mapped onto the market’s tick grid, falls inside your half-open range. If the tick lands outside, the capital you committed remains in the pool and no claim becomes available.
 
-## Claiming payout
+## Claiming your payout
 
-- Once the UI shows “Claims ready”, click **Claim** beside your position.
-- The contract sends SUSD equal to your staked quantity and burns the position NFT.
-- Missed a claim? No problem. Claims remain valid forever, though we recommend claiming promptly to keep analytics clean.
+Once the UI shows that settlement is complete, open “My Positions” and click **Claim** beside any winning range. The contract checks the settled flag, transfers SUSD equal to your remaining quantity (rounded per the CLMSR spec), and burns the position NFT. Claims never expire, so you can return later if needed, but claiming promptly keeps analytics accurate and frees up mental bandwidth.
 
-## Behind the scenes
+## Auditing the process
 
-- Every settlement transaction is visible on-chain with a timestamp and the submitted price.
-- Verification scripts (`verification/check-market-pnl.ts`) and the public subgraph mirror the final tally so you can audit the outcome.
+Every settlement transaction and claim sits on-chain with full data. If you suspect an anomaly, you can replay the day directly from the chain without relying on the front end.
 
-Questions about fairness or data sources? Check the [Rules section](../start/how-it-works.md) or reach out via the Signals support channels.
+Still have questions? Revisit the [Market Flow Overview](../start/market-flow-overview.md) for the daily timeline or read the [Settlement Pipeline](../market/settlement-pipeline.md) for the operator runbook.

@@ -1,0 +1,8 @@
+{
+  "label": "API",
+  "position": 5,
+  "link": {
+    "type": "generated-index",
+    "description": "API 문서와 GraphQL 엔드포인트 안내"
+  }
+}
