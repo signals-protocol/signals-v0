@@ -1,36 +1,25 @@
 # How Signals Works
 
-This is the step-by-step reference for the daily market. If you only need the quick narrative, start with the [Market Flow Overview](./market-flow-overview.md); otherwise keep reading for the detailed timeline from market creation through claims.
+This guide follows a single market from configuration to final claims so you can see how the contracts, operators, and traders interact over a day. If you only want the high-level cadence, start with the [Market Flow Overview](./market-flow-overview.md); otherwise keep reading for the detailed path every position takes.
 
-Signals focuses on one product: daily Bitcoin closing-price markets. Here’s the full loop from opening a position to claiming payouts.
+## 1. Scheduling the market
 
-## 1. Market schedule
+The loop begins when the operator submits daily parameters to `createMarket`. The transaction locks in the target UTC date, lower and upper ticks, the configured tick spacing, and the liquidity parameter $\alpha$. As soon as it lands, the resulting `marketId` is visible in the app, and a tree of exponential weights is initialized so trades can arrive immediately.
 
-- Each market targets a specific calendar date.
-- Trading stays open until 23:59:59 UTC on that date.
-- The settlement price is CoinMarketCap’s BTC/USD daily close for that window.
+## 2. Choosing a range
 
-## 2. Choosing your range
+Traders express a thesis by highlighting a half-open range `[lower, upper)`—one or more consecutive bins—where they believe the designated reference value will land. Inputs move in increments that match the market’s tick spacing, and the UI shows the live win probability and potential payout by reading the CLMSR potential. Because every range draws from the same pool, the quoted odds already reflect all other open ranges.
 
-- Bounds step in **$100 increments** (e.g. $112,000–$112,100).
-- Ranges are half-open: `[lower, upper)` wins if the settlement tick is ≥ lower and < upper.
-- The slider and number inputs update win probability and expected payout in real time.
+## 3. Paying for exposure
 
-## 3. Staking SUSD
+Opening or increasing a position debits SUSD (6 decimals) from the trader's wallet and records the exposure inside the pool. The contracts round costs up by at least one micro SUSD to keep “free” positions out of the system, and the paid amount remains at risk until the position is closed or settlement completes. Traders can size a thesis in a single bin or spread exposure across wider ranges without juggling separate assets.
 
-- The stake is denominated in SUSD (6 decimals). It stays in the pool until settlement or until you close early.
-- Costs round **up** by at least 1 micro SUSD, so every position has skin in the game.
+## 4. Watching and adjusting
 
-## 4. Watching the market
+Throughout the configured trading window—open until the market’s cutoff ahead of settlement—every adjustment calls the same CLMSR machinery. Increasing a range multiplies the underlying weights, decreasing or closing unwinds them, and the order of operations never affects the final economics because the cost function depends solely on cumulative quantity. The app surfaces the probability chart, recent fills, and leaderboards so traders can react to shifting sentiment without leaving the interface.
 
-- The probability chart shows how odds shift as trades arrive.
-- Leaderboards surface active traders and the most recent ranges.
-- You can increase, decrease, or close a position at any time before settlement.
+## 5. Settlement and claims
 
-## 5. Settlement and payouts
+After the window closes, the operator records the designated reference value via `settleMarket`. That call locks in the outcome on-chain and immediately makes every position claimable according to the CLMSR rules. Winning traders can call `claimPayout` whenever they like—there is no expiry—and the contract transfers the payout while burning the position token.
 
-- Once the candle closes, we call `settleMarket` with the official price.
-- Settlement events are emitted in batches, updating the subgraph and UI.
-- Winning positions can immediately call `claimPayout`; there’s **no expiry** window.
-
-Ready to try it yourself? Head to the [Quick Start](/docs/quickstart) for the wallet and token setup, then explore today’s market.
+Ready to run the full flow yourself? Follow the [Quick Start](/docs/quickstart) to set up your wallet and test liquidity, then explore today's market.

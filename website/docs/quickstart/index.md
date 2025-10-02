@@ -1,51 +1,43 @@
 # Quick Start
 
-Trade the daily Bitcoin market in minutes. This guide walks you from wallet setup to placing and claiming your first range.
+Follow this path to go from zero to your first claimed range on Signals. You'll prepare a wallet, secure test liquidity, choose a range in the live market, and watch the settlement play out.
 
-## 1. Connect wallet & network
+## Step 1 - Prepare your wallet
 
-1. Install MetaMask (or any EVM wallet).
-2. Add **Citrea Tangerine Testnet**:
-   ```text
-   Network Name: Citrea Testnet
-   RPC URL:      https://rpc.testnet.citrea.xyz
-   Chain ID:     5115
-   Currency:     cBTC
-   Explorer:     https://explorer.testnet.citrea.xyz/
-   ```
-3. Switch your wallet to Citrea.
+Install MetaMask or any EVM-compatible wallet and add the **Citrea Tangerine Testnet** configuration. The values below match the current deployment:
 
-## 2. Get test tokens
+```text
+Network Name: Citrea Testnet
+RPC URL:      https://rpc.testnet.citrea.xyz
+Chain ID:     5115
+Currency:     cBTC
+Explorer:     https://explorer.testnet.citrea.xyz/
+```
 
-- Request cBTC from the [Citrea faucet](https://faucet.testnet.citrea.xyz/) for gas.
-- Mint or request SUSD test tokens via the Signals faucet (see community Discord) or by running `npx hardhat run scripts/mint-susd.ts --network <env>`.
-  - Use `citrea-dev` for the development deployment or `citrea-prod` for the production test market.
+After adding the network, switch your wallet to Citrea so transactions route to the correct chain.
 
-## 3. Enter today’s market
+## Step 2 - Fund with test assets
 
-1. Open the Signals app. You’ll see the active “Bitcoin Closing Price on …” card with timer, chart, and leaderboards.
-2. Connect your wallet; your SUSD balance appears in the trade panel.
+You need two assets: cBTC for gas and SUSD for trading. Request cBTC from the [Citrea faucet](https://faucet.testnet.citrea.xyz/). Every new wallet that signs into the Signals app automatically receives **100 SUSD** to get started. For more balance, join the [Signals Discord](https://discord.gg/tUyGDDz8Kt) and follow the pinned instructions to receive an additional **1,000 SUSD** top-up. Confirm balances in your wallet before proceeding.
 
-## 4. Pick a range and stake
+## Step 3 - Load today's market
 
-1. Select the minimum and maximum prices using the $100-increment inputs.
-2. Enter the amount of SUSD you want to stake.
-3. Review the displayed **win probability** and **payout**.
-4. Confirm the transaction. The AMM debits your stake immediately.
+Open the Signals app. The home screen highlights the active “Bitcoin Closing Price on …” card with countdown, chart, and leaderboards. Connect your wallet; the trade panel immediately reflects your SUSD balance and the market's configured tick spacing.
 
-## 5. Manage until settlement
+## Step 4 - Place your first range
 
-- Increase or decrease your range whenever you like before the countdown ends.
-- Use the probability chart and recent trades list to stay informed.
+Choose the lower and upper ticks using the market’s configured spacing. Enter the amount of SUSD you want to risk, confirm the displayed win probability and payout, and approve the transaction. The CLMSR pool debits your payment as soon as the transaction finalises and mints an ERC-721 position token to your wallet.
 
-## 6. Settlement & claim
+## Step 5 - Monitor through settlement
 
-1. After the daily close, the Signals operator settles the market using the official CoinMarketCap price.
-2. Once the “Settlement events complete” banner appears, click **Claim** next to each winning position.
-3. SUSD payouts transfer instantly; there is **no expiration** on claims.
+Until the countdown reaches the configured cutoff you can increase, decrease, or close the position in single clicks. The probability chart and recent trades stream show how other participants are moving the surface, helping you decide whether to hold or rotate ranges. If operations ever pause the market, the UI displays the status and the contract prevents new trades.
 
-## What next?
+## Step 6 - Claim the payout
 
-- Learn tactics in the [Trader Guide](../user/positions-lifecycle.md).
-- Understand the settlement flow in [Settlement & Claims](../user/settlement.md).
-- Explore the underlying mechanism in the [Mechanism Spec](../mechanism/overview.md).
+After the trading window closes, the operator settles the market with the designated reference value. Once `settleMarket` lands on-chain, open the “My Positions” tab and click **Claim** beside any winning range. Claims have no expiration, but completing them right away keeps your balances tidy.
+
+## Where to go next
+
+- Learn deeper tactics in the [Trader Guide](../user/positions-lifecycle.md).
+- Understand the back-office flow in [Settlement & Claims](../user/settlement.md).
+- Dive into the mechanism details in the [CLMSR spec](../mechanism/overview.md).

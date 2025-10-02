@@ -1,17 +1,17 @@
 # Glossary
 
-**Band** — A $100-wide range `[lower, upper)` that pays 1 SUSD per share if the closing tick lands inside.
+Signals uses a tight vocabulary so traders, operators, and integrators stay aligned. Each entry below explains what the word means in practice and where you will encounter it.
 
-**Closing tick** — The integer tick computed from CoinMarketCap’s BTC/USD daily close: `tick = floor(price / 100)`.
+**Bin** - A single half-open tick interval `[lower, upper)` determined by the market’s spacing. Every price level on the outcome grid maps to exactly one bin.
 
-**CLMSR** — Continuous Logarithmic Market Scoring Rule. The AMM that keeps prices normalized and allows arbitrary range trades.
+**Range** - One or more consecutive bins that share the same position. Traders specify a lower and upper tick to define their range; a single bin is therefore a valid range.
 
-**Points** — Engagement rewards displayed on the leaderboard. They do not affect payouts.
+**Closing tick** - The integer tick derived from the designated reference value. The price is mapped onto the configured grid, clamped into bounds during settlement, and determines which ranges win.
 
-**SUSD** — The 6-decimal token used for staking and payouts on Signals.
+**CLMSR** - The Continuous Logarithmic Market Scoring Rule, implemented in Solidity to keep every bin connected through a single potential. It ensures probabilities across bins always sum to 1 and that maker loss is capped by the liquidity parameter $\alpha$.
 
-**Stake** — The SUSD amount you risk on a band. Winning bands return stake × 1.
+**SUSD** - The 6-decimal token used for trades and payouts on Signals. New wallets receive 100 SUSD automatically in-app, and another 1,000 SUSD is available through the [Signals Discord](https://discord.gg/tUyGDDz8Kt); all trades and claims settle in SUSD.
 
-**Timer** — The countdown to the end of trading (23:59:59 UTC on the target date).
+**Committed amount** - The SUSD you pay to enter a range. It debits from your wallet when the trade executes, remains locked until you close or settle, and if the range wins the pool pays the quoted payout.
 
-Need deeper technical terminology? See the [Mechanism Spec](../mechanism/overview.md).
+**Timer** - The countdown to the market’s trading cutoff. When it hits zero, trading freezes, the operator verifies the reference price, and settlement begins.

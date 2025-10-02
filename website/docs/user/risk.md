@@ -1,29 +1,28 @@
 # Risk Guide
 
-Signals is a live trading product—treat it with the same respect you give any venue that holds funds and settles against market data.
+Trading a daily CLMSR market is simple, but it is still real capital reacting to volatile data. Use this guide to understand the major risk categories, how they surface inside Signals, and the habits that keep your account safe.
 
-## Trading risk
+## Market and trading risk
 
-- **Outcome uncertainty**: even a strong thesis can miss the settlement band by $100. Size responsibly.
-- **Volatility**: large intraday moves can swing probabilities; consider diversifying across multiple ranges.
-- **Liquidity shifts**: the AMM rebalances instantly, but big trades can still move the odds. Watch the chart before committing size.
+Every position is a thesis about a range at the daily close. Even a well-reasoned view can miss by one tick if the candle wicks outside your range or if the final price prints at the edge of the interval. Intraday volatility can also reshape probabilities within minutes; when momentum shifts, one range may no longer fit your thesis. Consider spreading exposure across adjacent ranges or scaling size gradually instead of sizing a single bet all at once.
 
-## Operational risk
+Liquidity comes from the CLMSR pool, so odds adjust instantly, but large trades still move the surface. Always glance at the probability chart and recent trades before committing size so you are not surprised by a freshly reshaped distribution.
 
-- **Data source**: settlement uses CoinMarketCap’s BTC/USD close. If CMC or our ingest pipeline fails, settlement may be delayed until the official price is verified.
-- **Operator trust**: Signals runs the markets and submits settlement values. All transactions are on-chain and auditable, but you rely on us to execute honestly (see [Security & Testing](../security/audits.md) for the current safeguards and roadmap).
-- **Batch completion**: claims only unlock after settlement batches finish. We highlight progress in the UI and subgraph.
+## Operational and oracle risk
+
+Signals settles with a designated reference price for each market. If that feed or the ingest pipeline stalls, settlement pauses until an auditable value is available. Your funds remain on-chain, but claims are delayed. The same operations team that creates markets also submits settlement values and maintains the automation pipeline; our actions are fully visible on-chain, yet you rely on us to execute honestly and promptly. Monitor the [Security & Testing](../security/audits.md) page for updates on multisig controls and automation—those changes reduce trust in a single operator.
+
+Settlement automation introduces another operational edge case: claims unlock only after the settlement transaction propagates and the network reflects the final state. Until that happens, the UI may show winnings as “pending.” This is expected behaviour; wait for the completion banner or confirm the outcome on an explorer before worrying about missing payouts.
 
 ## Technical risk
 
-- **Smart contracts**: the CLMSR implementation is open-source but, like any protocol, could have undiscovered bugs.
-- **Network**: running on Citrea Testnet means RPC hiccups or chain upgrades can momentarily disrupt trading.
-- **Gas costs**: extreme congestion can raise gas prices, especially during settlement.
+Signals’ contracts are audited internally and open-sourced, but every protocol carries the possibility of undiscovered bugs. Because the deployment runs on Citrea Testnet today, RPC outages, chain upgrades, or gas spikes can temporarily disrupt trading or settlement. Heavy congestion can also raise gas costs at the exact moment you want to claim or adjust exposure. Keep a small buffer of cBTC for gas and plan around known maintenance windows announced in community channels.
 
 ## Best practices
 
-- Start with small stakes until you understand the flow.
-- Keep a record of your trades and outcomes to calibrate future decisions.
-- Claim winnings promptly and verify settlement data if anything looks off.
+- Start small until you have experienced a full open → settle → claim cycle.
+- Record your trade ideas, entry ranges, and outcomes so you can calibrate future position sizes.
+- Watch community announcements or on-chain data if settlement is slower than usual.
+- Claim winnings promptly once settlement completes, both to tidy balances and to verify everything processed as expected.
 
-See [Security & Testing](../security/audits.md) for more detail on how we run the protocol safely.
+For deeper detail on the safeguards in place or upcoming trust-minimisation work, review [Security & Testing](../security/audits.md) and the [Settlement Pipeline](../market/settlement-pipeline.md).

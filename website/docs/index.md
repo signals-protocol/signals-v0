@@ -1,26 +1,21 @@
 # Signals Overview
 
-Signals runs a daily Bitcoin range market backed by a Continuous LMSR (CLMSR). We built it because binary prediction markets and fragmented order books fail to keep liquidity and probabilities aligned. Here you will find everything from the high-level thesis to the trading playbook.
+Signals is a daily Bitcoin range market built on a Continuous LMSR (CLMSR). We created it after watching order-book prediction venues collapse under thin liquidity: prices drifted away from reality, traders stitched together dozens of YES/NO legs, and no one could tell whether the odds meant anything. This documentation explains how Signals addresses that failure, how the on-chain system operates each day, and how you can interact with it safely.
 
-## Why read this documentation?
+## What Signals solves
 
-- Understand the market structure that keeps prices normalized and maker loss bounded.
-- See how each daily market is scheduled, settled, and audited.
-- Learn how to participate responsibly with SUSD test liquidity on Citrea.
+Every market we list covers a single UTC date. Operators publish the tick bounds and spacing, traders choose ranges that fit their thesis, and the CLMSR potential recalculates probabilities after every trade. Because all ranges sit in one pool, inventory doesn't fragment across separate strike books and the maker's loss stays bounded by the chosen liquidity parameter. The result is a market that reacts instantly to flow while keeping the economic guarantees you expect from the LMSR family.
 
-## Where to start
+Settlement is deterministic. When the designated reference value is confirmed, the operator calls `settleMarket`, the contracts lock in the outcome, and claims remain open indefinitely. Every step remains visible on-chain, allowing anyone to replay the day without relying on the front end.
 
-1. **Grasp the thesis** – Read [Why Signals Exists](./start/why-signals.md) to see how CLMSR fixes fragmented order books, then skim the [Market Flow Overview](./start/market-flow-overview.md).
-2. **Dive into the math** – Head to [How CLMSR Works](./mechanism/overview.md) and the follow-up pages for the potential, rounding rules, and risk envelope.
-3. **Check the protocol guarantees** – [Protocol Architecture](./protocol/architecture.md) and [Security & Testing](./security/audits.md) explain the states, invariants, and trust assumptions.
-4. **Trade the market** – Follow the [Quick Start](./quickstart/index.md), then use the [Trader Handbook](./user/positions-lifecycle.md) and [Settlement & Claims](./user/settlement.md) when you place your first range.
+## How to use this documentation
 
-## Signals in one glance
+If you want the story of *why* Signals exists and what design principles shaped it, start with [Why Signals Exists](./start/why-signals.md) and the [Market Flow Overview](./start/market-flow-overview.md). Readers who need the formal mechanism can move straight into [How CLMSR Works](./mechanism/overview.md), followed by the specific notes on [Cost & Rounding](./mechanism/cost-rounding.md) and [Safety Parameters](./mechanism/safety-parameters.md). When you are ready to trade, follow the [Quick Start](./quickstart/index.md), then keep the [Trader Guide](./user/positions-lifecycle.md) and [Settlement & Claims](./user/settlement.md) nearby for day-to-day decisions.
 
-- **Single market per day** – We list one BTC close range market, with $100 ticks across a configured price band.
-- **Continuous pricing** – Every trade flows through the CLMSR potential so probabilities add to 1 and react instantly.
-- **Transparent settlement** – CoinMarketCap's close is posted on-chain, batched events mark every position, and claims never expire.
+## Snapshot of the daily loop
 
-Need deeper theory? Jump straight to the [Key Formulas Cheat Sheet](./mechanism/key-formulas.md) or download the [Signals CLMSR whitepaper](/whitepaper.pdf).
+A Signals day opens with market creation: the operator sets tick bounds, spacing, timestamps, and the liquidity parameter. Traders then adjust ranges throughout the session, and every order mutates the CLMSR weights so probabilities stay normalized. After the close, settlement records the reference price on-chain, leaves an immutable trail for auditors, and immediately enables claims. This same loop repeats every day, giving integrators a predictable surface to monitor and extend.
 
-Questions or feedback? Reach out via the Signals community channels or email `hello@signals.wtf`.
+Need a deeper mathematical reference? Consult the [Key Formulas Cheat Sheet](./mechanism/key-formulas.md) or download the full [Signals CLMSR whitepaper](/whitepaper.pdf).
+
+Questions or feedback are always welcome via the Signals community channels or `hello@signals.wtf`.
