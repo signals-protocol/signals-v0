@@ -2,6 +2,7 @@
 pragma solidity ^0.8.30;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
@@ -120,6 +121,9 @@ contract CLMSRMarketCore is
         __Pausable_init();
         __ReentrancyGuard_init();
         
+        uint8 tokenDecimals = IERC20Metadata(_paymentToken).decimals();
+        require(tokenDecimals == 6, CE.InvalidTokenDecimals(tokenDecimals, 6));
+
         paymentToken = IERC20(_paymentToken);
         positionContract = ICLMSRPosition(_positionContract);    
         

@@ -12,15 +12,10 @@ describe(`${UNIT_TAG} LazyMulSegmentTree - Edge Cases & Stress Tests`, function 
   const MAX_FACTOR = ethers.parseEther("100");
 
   async function deployFixture() {
-    const { lazyMulSegmentTree } = await unitFixture();
+    await unitFixture();
 
     const LazyMulSegmentTreeTest = await ethers.getContractFactory(
-      "LazyMulSegmentTreeTest",
-      {
-        libraries: {
-          LazyMulSegmentTree: await lazyMulSegmentTree.getAddress(),
-        },
-      }
+      "LazyMulSegmentTreeTest"
     );
     const test = await LazyMulSegmentTreeTest.deploy();
     await test.waitForDeployment();

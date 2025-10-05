@@ -10,15 +10,10 @@ describe(`${UNIT_TAG} LazyMulSegmentTree - Update Operations`, function () {
   const HALF_WAD = ethers.parseEther("0.5");
 
   async function deployFixture() {
-    const { lazyMulSegmentTree } = await unitFixture();
+    await unitFixture();
 
     const LazyMulSegmentTreeTest = await ethers.getContractFactory(
-      "LazyMulSegmentTreeTest",
-      {
-        libraries: {
-          LazyMulSegmentTree: await lazyMulSegmentTree.getAddress(),
-        },
-      }
+      "LazyMulSegmentTreeTest"
     );
     const test = await LazyMulSegmentTreeTest.deploy();
     await test.waitForDeployment();

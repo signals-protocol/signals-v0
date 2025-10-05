@@ -2,6 +2,9 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import {
+  positionFixture,
+  positionMarketFixture,
+  createTestPosition,
   activePositionFixture,
   activePositionMarketFixture,
   createRealTestPosition,
@@ -92,7 +95,7 @@ describe(`${UNIT_TAG} Position ERC721 Standard`, function () {
     });
 
     it("should revert balanceOf for zero address", async function () {
-      const { position } = await loadFixture(activePositionFixture);
+      const { position } = await loadFixture(positionFixture);
 
       await expect(
         position.balanceOf(ethers.ZeroAddress)
@@ -100,7 +103,7 @@ describe(`${UNIT_TAG} Position ERC721 Standard`, function () {
     });
 
     it("should revert ownerOf for non-existent token", async function () {
-      const { position } = await loadFixture(activePositionFixture);
+      const { position } = await loadFixture(positionFixture);
 
       await expect(position.ownerOf(999)).to.be.revertedWithCustomError(
         position,
@@ -111,10 +114,10 @@ describe(`${UNIT_TAG} Position ERC721 Standard`, function () {
 
   describe("ERC721 Transfers", function () {
     it("should transfer position correctly", async function () {
-      const contracts = await loadFixture(activePositionMarketFixture);
+      const contracts = await loadFixture(positionMarketFixture);
       const { position, alice, bob, marketId } = contracts;
 
-      const { positionId } = await createRealTestPosition(
+      const { positionId } = await createTestPosition(
         contracts,
         alice,
         marketId
@@ -131,10 +134,10 @@ describe(`${UNIT_TAG} Position ERC721 Standard`, function () {
     });
 
     it("should update owner token tracking on transfer", async function () {
-      const contracts = await loadFixture(activePositionMarketFixture);
+      const contracts = await loadFixture(positionMarketFixture);
       const { position, alice, bob, marketId } = contracts;
 
-      const { positionId } = await createRealTestPosition(
+      const { positionId } = await createTestPosition(
         contracts,
         alice,
         marketId
@@ -161,10 +164,10 @@ describe(`${UNIT_TAG} Position ERC721 Standard`, function () {
     });
 
     it("should handle safe transfers", async function () {
-      const contracts = await loadFixture(activePositionMarketFixture);
+      const contracts = await loadFixture(positionMarketFixture);
       const { position, alice, bob, marketId } = contracts;
 
-      const { positionId } = await createRealTestPosition(
+      const { positionId } = await createTestPosition(
         contracts,
         alice,
         marketId
@@ -183,10 +186,10 @@ describe(`${UNIT_TAG} Position ERC721 Standard`, function () {
     });
 
     it("should revert transfer from non-owner", async function () {
-      const contracts = await loadFixture(activePositionMarketFixture);
+      const contracts = await loadFixture(positionMarketFixture);
       const { position, alice, bob, charlie, marketId } = contracts;
 
-      const { positionId } = await createRealTestPosition(
+      const { positionId } = await createTestPosition(
         contracts,
         alice,
         marketId
@@ -202,10 +205,10 @@ describe(`${UNIT_TAG} Position ERC721 Standard`, function () {
 
   describe("ERC721 Approvals", function () {
     it("should approve and transfer", async function () {
-      const contracts = await loadFixture(activePositionMarketFixture);
+      const contracts = await loadFixture(positionMarketFixture);
       const { position, alice, bob, charlie, marketId } = contracts;
 
-      const { positionId } = await createRealTestPosition(
+      const { positionId } = await createTestPosition(
         contracts,
         alice,
         marketId
@@ -224,10 +227,10 @@ describe(`${UNIT_TAG} Position ERC721 Standard`, function () {
     });
 
     it("should set approval for all", async function () {
-      const contracts = await loadFixture(activePositionMarketFixture);
+      const contracts = await loadFixture(positionMarketFixture);
       const { position, alice, bob, charlie, marketId } = contracts;
 
-      const { positionId } = await createRealTestPosition(
+      const { positionId } = await createTestPosition(
         contracts,
         alice,
         marketId
@@ -247,10 +250,10 @@ describe(`${UNIT_TAG} Position ERC721 Standard`, function () {
     });
 
     it("should clear approval on transfer", async function () {
-      const contracts = await loadFixture(activePositionMarketFixture);
+      const contracts = await loadFixture(positionMarketFixture);
       const { position, alice, bob, charlie, marketId } = contracts;
 
-      const { positionId } = await createRealTestPosition(
+      const { positionId } = await createTestPosition(
         contracts,
         alice,
         marketId
@@ -275,14 +278,10 @@ describe(`${UNIT_TAG} Position ERC721 Standard`, function () {
     it("should support required interfaces", async function () {
       const { position } = await loadFixture(activePositionFixture);
 
-      // ERC165
-      expect(await position.supportsInterface("0x01ffc9a7")).to.be.true;
-      // ERC721
-      expect(await position.supportsInterface("0x80ac58cd")).to.be.true;
-      // ERC721Metadata
-      expect(await position.supportsInterface("0x5b5e139f")).to.be.true;
-      // ERC721Enumerable is not supported (we use custom enumeration)
-      expect(await position.supportsInterface("0x780e9d63")).to.be.false;
+      expect(await position.supportsInterface("0x01ffc9a7")).to.be.true; // ERC165
+      expect(await position.supportsInterface("0x80ac58cd")).to.be.true; // ERC721
+      expect(await position.supportsInterface("0x5b5e139f")).to.be.true; // ERC721Metadata
+      expect(await position.supportsInterface("0x780e9d63")).to.be.false; // No enumerable support
     });
   });
 });

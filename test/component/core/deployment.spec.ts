@@ -2,7 +2,11 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { COMPONENT_TAG } from "../../helpers/tags";
-import { createActiveMarketFixture } from "../../helpers/fixtures/core";
+import {
+  createActiveMarketFixture,
+  unitFixture,
+  TICK_COUNT,
+} from "../../helpers/fixtures/core";
 
 describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, function () {
   const WAD = ethers.parseEther("1");
@@ -39,34 +43,67 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
       expect(await core.getPositionContract()).to.equal(
         await mockPosition.getAddress()
       );
-      expect(await core.getManagerContract()).to.equal(keeper.address);
+      expect(await core.owner()).to.equal(keeper.address);
       expect(await core.isPaused()).to.be.false;
     });
 
-    it("Should revert deployment with zero addresses", async function () {
+    it("Should revert initialization with zero addresses", async function () {
+      const { fixedPointMathU, lazyMulSegmentTree } = await loadFixture(
+        unitFixture
+      );
+
       const CLMSRMarketCoreFactory = await ethers.getContractFactory(
         "CLMSRMarketCore",
         {
           libraries: {
-            FixedPointMathU: ethers.ZeroAddress,
-            LazyMulSegmentTree: ethers.ZeroAddress,
+            FixedPointMathU: await fixedPointMathU.getAddress(),
+            LazyMulSegmentTree: await lazyMulSegmentTree.getAddress(),
           },
         }
       );
 
+      const core = await CLMSRMarketCoreFactory.deploy();
+
       await expect(
-        CLMSRMarketCoreFactory.deploy(
-          ethers.ZeroAddress,
-          ethers.ZeroAddress,
-          ethers.ZeroAddress
-        )
-      ).to.be.revertedWithCustomError(CLMSRMarketCoreFactory, "ZeroAddress");
+        core.initialize(ethers.ZeroAddress, ethers.ZeroAddress)
+      ).to.be.revertedWithCustomError(core, "ZeroAddress");
+    });
+
+    it("Should reject payment tokens with non-6 decimals", async function () {
+      const { fixedPointMathU, lazyMulSegmentTree } = await loadFixture(
+        unitFixture
+      );
+
+      const CLMSRMarketCoreFactory = await ethers.getContractFactory(
+        "CLMSRMarketCore",
+        {
+          libraries: {
+            FixedPointMathU: await fixedPointMathU.getAddress(),
+            LazyMulSegmentTree: await lazyMulSegmentTree.getAddress(),
+          },
+        }
+      );
+      const MockERC20Factory = await ethers.getContractFactory("MockERC20");
+      const MockPositionFactory = await ethers.getContractFactory("MockPosition");
+
+      const weirdToken = await MockERC20Factory.deploy("Weird USD", "WUSD", 18);
+      await weirdToken.waitForDeployment();
+      const mockPosition = await MockPositionFactory.deploy();
+      await mockPosition.waitForDeployment();
+
+      const core = await CLMSRMarketCoreFactory.deploy();
+      await core.waitForDeployment();
+
+      await expect(
+        core.initialize(await weirdToken.getAddress(), await mockPosition.getAddress())
+      )
+        .to.be.revertedWithCustomError(core, "InvalidTokenDecimals")
+        .withArgs(18, 6);
     });
 
     it("Should verify contract state after deployment", async function () {
-      const { core, paymentToken } = await loadFixture(
-        createActiveMarketFixture
-      );
+      const { core, paymentToken, marketId, startTime, endTime } =
+        await loadFixture(createActiveMarketFixture);
 
       // Check basic state
       expect(await core.getPaymentToken()).to.equal(
@@ -74,21 +111,32 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
       );
       expect(await core.isPaused()).to.be.false;
 
-      // Check no markets exist initially
-      await expect(core.getMarket(1)).to.be.revertedWithCustomError(
+      const market = await core.getMarket(marketId);
+      expect(market.isActive).to.be.true;
+      expect(market.startTimestamp).to.equal(BigInt(startTime));
+      expect(market.endTimestamp).to.equal(BigInt(endTime));
+      expect(market.minTick).to.equal(BigInt(100000));
+      expect(market.maxTick).to.equal(
+        BigInt(100000 + (TICK_COUNT - 1) * 10)
+      );
+
+      // Next market should not exist yet
+      await expect(core.getMarket(marketId + 1)).to.be.revertedWithCustomError(
         core,
         "MarketNotFound"
       );
     });
 
     it("Should handle proper library linking verification", async function () {
-      const { core } = await loadFixture(createActiveMarketFixture);
+      const { core, marketId } = await loadFixture(createActiveMarketFixture);
 
-      // Verify libraries are properly linked by calling library-dependent functions
-      await expect(core.getMarket(1)).to.be.revertedWithCustomError(
-        core,
-        "MarketNotFound"
+      const cost = await core.calculateOpenCost(
+        marketId,
+        100000,
+        100010,
+        ethers.parseUnits("0.01", 6)
       );
+      expect(cost).to.be.greaterThan(0n);
 
       // This would fail if libraries aren't properly linked
       const code = await ethers.provider.getCode(await core.getAddress());
@@ -151,7 +199,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
     it("Should set keeper as manager", async function () {
       const { core, keeper } = await loadFixture(createActiveMarketFixture);
 
-      expect(await core.getManagerContract()).to.equal(keeper.address);
+      expect(await core.owner()).to.equal(keeper.address);
     });
 
     it("Should verify initial paused state", async function () {
@@ -175,12 +223,13 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
 
       await expect(
         core.connect(alice).pause("Unauthorized")
-      ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
+      )
+        .to.be.revertedWithCustomError(core, "OwnableUnauthorizedAccount")
+        .withArgs(alice.address);
 
-      await expect(core.connect(alice).unpause()).to.be.revertedWithCustomError(
-        core,
-        "UnauthorizedCaller"
-      );
+      await expect(core.connect(alice).unpause())
+        .to.be.revertedWithCustomError(core, "OwnableUnauthorizedAccount")
+        .withArgs(alice.address);
     });
   });
 
@@ -235,10 +284,10 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
         "MarketNotFound"
       );
 
-      // Invalid tick value (market doesn't exist)
-      await expect(core.getTickValue(1, 0)).to.be.revertedWithCustomError(
+      // Invalid tick value on existing market
+      await expect(core.getRangeSum(1, 0, 10)).to.be.revertedWithCustomError(
         core,
-        "MarketNotFound"
+        "InvalidTick"
       );
     });
   });
@@ -328,7 +377,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
       expect(await core.getPositionContract()).to.equal(
         await mockPosition.getAddress()
       );
-      expect(await core.getManagerContract()).to.equal(keeper.address);
+      expect(await core.owner()).to.equal(keeper.address);
       expect(await core.isPaused()).to.be.false;
     });
 

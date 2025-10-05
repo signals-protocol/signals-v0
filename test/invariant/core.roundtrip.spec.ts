@@ -4,6 +4,7 @@ import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import {
   coreFixture,
   createActiveMarketFixture,
+  getTickValue,
 } from "../helpers/fixtures/core";
 import { INVARIANT_TAG } from "../helpers/tags";
 
@@ -34,7 +35,6 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       const buyTx = await core
         .connect(alice)
         .openPosition(
-          alice.address,
           marketId,
           100450,
           100550,
@@ -153,7 +153,6 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           marketId,
           100400,
           100600,
@@ -188,7 +187,6 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           marketId,
           100450,
           100550,
@@ -268,7 +266,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       // Get initial tick values for multiple ticks
       const tickValues: bigint[] = [];
       for (let i = 0; i < 10; i++) {
-        const value = await core.getTickValue(marketId, 100000 + i * 100);
+        const value = await getTickValue(core, marketId, 100000 + i * 100);
         tickValues.push(value);
         expect(value).to.be.gte(WAD); // Should be at least WAD initially
       }
@@ -277,7 +275,6 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           marketId,
           100450,
           100550,
@@ -287,12 +284,12 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
       // Check that tick values in the affected range increased
       for (let i = 1; i < 8; i++) {
-        const newValue = await core.getTickValue(marketId, 100000 + i * 100);
+        const newValue = await getTickValue(core, marketId, 100000 + i * 100);
         expect(newValue).to.be.gte(tickValues[i]); // Should increase or stay same
       }
 
       // Ticks outside the range should be unchanged
-      const valueOutside = await core.getTickValue(marketId, 100900);
+      const valueOutside = await getTickValue(core, marketId, 100900);
       expect(valueOutside).to.equal(tickValues[9]);
     });
 
@@ -316,7 +313,6 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
         await core
           .connect(alice)
           .openPosition(
-            alice.address,
             marketId,
             ticks[0],
             ticks[1],
@@ -365,7 +361,6 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             marketId,
             100450,
             100550,
@@ -378,30 +373,36 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
     it("Should handle large quantity operations without overflow", async function () {
       const { core, marketId } = await loadFixture(createActiveMarketFixture);
 
-      // Test with large quantities within mathematical limits
-      const largeQuantity = ethers.parseUnits("20", 6); // 20 USDC - within safe chunk limits
+      const WAD = 1_000_000_000_000_000_000n;
+      const SCALE_DIFF = 1_000_000_000_000n; // 1e12 to convert WAD → 6 decimals
+      const MAX_CHUNKS_PER_TX = 1_000n;
+      const MAX_EXP_INPUT_WAD = 1_000_000_000_000_000_000n;
 
-      try {
-        const cost = await core.calculateOpenCost(
-          marketId,
-          100000,
-          100990,
-          largeQuantity
-        );
-        expect(cost).to.be.gt(0);
-        expect(cost).to.be.lt(ethers.parseUnits("1000000", 6)); // Sanity check
-      } catch (error: any) {
-        // Handle InvalidQuantity gracefully - this is expected for extreme quantities
-        if (error.message.includes("InvalidQuantity")) {
-          console.log(
-            "Hit quantity limit (expected behavior for large quantities)"
-          );
-          // Test passes - the system correctly prevents overflow
-          expect(true).to.be.true;
-        } else {
-          throw error;
-        }
-      }
+      const market = await core.getMarket(marketId);
+      const alpha: bigint = market.liquidityParameter;
+
+      // Derive safe chunk size in 6-decimal quantity space
+      const maxPerChunkWad = (alpha * MAX_EXP_INPUT_WAD) / WAD - 1n;
+      const maxPerChunkQuantity = maxPerChunkWad / SCALE_DIFF;
+
+      const safeChunks = 10n;
+      const safeQuantity =
+        maxPerChunkQuantity > 0n ? maxPerChunkQuantity * safeChunks : 10n;
+      const overflowQuantity = maxPerChunkQuantity * (MAX_CHUNKS_PER_TX + 1n);
+
+      // Sanity: safe quantity should execute successfully
+      const safeCost = await core.calculateOpenCost(
+        marketId,
+        100000,
+        100990,
+        safeQuantity
+      );
+      expect(safeCost).to.be.gt(0);
+
+      // Quantity exceeding the chunk limit must revert deterministically
+      await expect(
+        core.calculateOpenCost(marketId, 100000, 100990, overflowQuantity)
+      ).to.be.revertedWithCustomError(core, "ChunkLimitExceeded");
     });
 
     it("Should maintain calculation consistency across multiple calls", async function () {
@@ -429,7 +430,6 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           marketId,
           100300,
           100700,
@@ -438,9 +438,8 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
         );
 
       await core
-        .connect(alice)
+        .connect(bob)
         .openPosition(
-          bob.address,
           marketId,
           100400,
           100600,
@@ -456,7 +455,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
       // Both should be able to close independently
       await core.connect(alice).closePosition(alicePositions[0], 0);
-      await core.connect(alice).closePosition(bobPositions[0], 0);
+      await core.connect(bob).closePosition(bobPositions[0], 0);
 
       // Market should still be in valid state
       const market = await core.getMarket(marketId);
@@ -473,20 +472,24 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       const currentTime = await time.latest();
       const startTime = currentTime + 2000; // Large buffer for invariant tests
       const endTime = startTime + 86400;
-      const marketId = Math.floor(Math.random() * 1000000) + 1;
+      const createArgs: [number, number, number, number, number, number, bigint] = [
+        100000,
+        100990,
+        10,
+        startTime,
+        endTime,
+        endTime + 3600,
+        ethers.parseEther("1"),
+      ];
 
-      await core
+      const marketIdBig = await core
         .connect(keeper)
-        .createMarket(
-          marketId,
-          100000,
-          100990,
-          10,
-          startTime,
-          endTime,
-          ethers.parseEther("1")
-        );
+        .createMarket.staticCall(...createArgs);
+
+      await core.connect(keeper).createMarket(...createArgs);
       await time.increaseTo(startTime + 1);
+
+      const marketId = Number(marketIdBig);
 
       // Test with minimal quantities that trigger rounding edge cases
       const testQuantities = [1, 2, 3, 5, 7, 11]; // Small prime numbers
@@ -504,7 +507,6 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
         await core
           .connect(alice)
           .openPosition(
-            alice.address,
             marketId,
             100400,
             100600,
@@ -542,20 +544,24 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       const currentTime = await time.latest();
       const startTime = currentTime + 2000; // Large buffer for invariant tests
       const endTime = startTime + 86400;
-      const marketId = 2;
+      const createArgs: [number, number, number, number, number, number, bigint] = [
+        100000,
+        100990,
+        10,
+        startTime,
+        endTime,
+        endTime + 3600,
+        ethers.parseEther("1"),
+      ];
 
-      await core
+      const marketIdBig = await core
         .connect(keeper)
-        .createMarket(
-          marketId,
-          100000,
-          100990,
-          10,
-          startTime,
-          endTime,
-          ethers.parseEther("1")
-        );
+        .createMarket.staticCall(...createArgs);
+
+      await core.connect(keeper).createMarket(...createArgs);
       await time.increaseTo(startTime + 1);
+
+      const marketId = Number(marketIdBig);
 
       // Track net deltas for multiple round-trip trades
       const deltas: bigint[] = [];
@@ -568,7 +574,6 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
         await core
           .connect(alice)
           .openPosition(
-            alice.address,
             marketId,
             100300,
             100700,
@@ -616,20 +621,32 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       const currentTime = await time.latest();
       const startTime = currentTime + 2000; // Large buffer for invariant tests
       const endTime = startTime + 86400;
-      const marketId = 3;
-
-      await core
+      const createdMarketId = await core
         .connect(keeper)
-        .createMarket(
-          marketId,
+        .createMarket.staticCall(
           100000,
           100990,
           10,
           startTime,
           endTime,
+          endTime + 3600,
+          smallAlpha
+        );
+
+      await core
+        .connect(keeper)
+        .createMarket(
+          100000,
+          100990,
+          10,
+          startTime,
+          endTime,
+          endTime + 3600,
           smallAlpha
         );
       await time.increaseTo(startTime + 1);
+
+      const marketId = Number(createdMarketId);
 
       // Try minimal quantity that might result in near-zero cost
       const minimalQuantity = 1; // 1 micro USDC
@@ -662,20 +679,32 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       const currentTime = await time.latest();
       const startTime = currentTime + 2000; // Large buffer for invariant tests
       const endTime = startTime + 86400;
-      const marketId = 4;
-
-      await core
+      const createdMarketId = await core
         .connect(keeper)
-        .createMarket(
-          marketId,
+        .createMarket.staticCall(
           100000,
           100990,
           10,
           startTime,
           endTime,
+          endTime + 3600,
+          ethers.parseEther("1")
+        );
+
+      await core
+        .connect(keeper)
+        .createMarket(
+          100000,
+          100990,
+          10,
+          startTime,
+          endTime,
+          endTime + 3600,
           ethers.parseEther("1")
         );
       await time.increaseTo(startTime + 1);
+
+      const marketId = Number(createdMarketId);
 
       const testQuantity = 5;
 
@@ -692,7 +721,6 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           marketId,
           100100,
           100200,

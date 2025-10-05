@@ -26,6 +26,7 @@ interface CLMSRErrors {
 
     /* ───────────────────── Misc / config ────────────────────── */
     error ZeroAddress();
+    error InvalidTokenDecimals(uint8 provided, uint8 expected);
     error BinCountExceedsLimit(uint32 requested, uint32 maxAllowed);
     error InvalidLiquidityParameter();
     error ZeroLimit();

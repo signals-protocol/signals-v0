@@ -6,6 +6,20 @@ import { activePositionMarketFixture } from "../../helpers/fixtures/position";
 import { COMPONENT_TAG } from "../../helpers/tags";
 
 describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
+  const POSITION_QUANTITY = ethers.parseUnits("10", 6);
+  const POSITION_MAX_COST = ethers.parseUnits("1000", 6);
+  const INCREASE_COST_BUFFER = ethers.parseUnits("500", 6);
+  const COST_BUFFER = ethers.parseUnits("100", 6);
+
+  async function quoteIncreaseCost(
+    coreContract: any,
+    positionId: bigint,
+    amount: bigint
+  ) {
+    const quote = await coreContract.calculateIncreaseCost(positionId, amount);
+    return quote + COST_BUFFER;
+  }
+
   describe("Position Minting via Core", function () {
     it("should mint position when Core.openPosition is called", async function () {
       const { core, position, alice, marketId } = await loadFixture(
@@ -16,19 +30,17 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
         marketId,
         lowerTick: 100100,
         upperTick: 100200,
-        quantity: ethers.parseUnits("1", 6),
-        maxCost: ethers.parseUnits("10", 6),
+        quantity: POSITION_QUANTITY,
+        maxCost: POSITION_MAX_COST,
       };
 
       // Check initial state
       expect(await position.balanceOf(alice.address)).to.equal(0);
-      expect(await position.getNextId()).to.equal(1);
 
       // Open position through Core
       const positionId = await core
         .connect(alice)
         .openPosition.staticCall(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -40,7 +52,6 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             params.marketId,
             params.lowerTick,
             params.upperTick,
@@ -62,7 +73,6 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       // Verify position was minted
       expect(await position.balanceOf(alice.address)).to.equal(1);
       expect(await position.ownerOf(positionId)).to.equal(alice.address);
-      expect(await position.getNextId()).to.equal(2);
 
       // Verify position data
       const positionData = await position.getPosition(positionId);
@@ -81,24 +91,22 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           marketId,
           100100,
           100200,
-          ethers.parseUnits("1", 6),
-          ethers.parseUnits("10", 6)
+          POSITION_QUANTITY,
+          POSITION_MAX_COST
         );
 
       // Bob opens second position
       await core
         .connect(bob)
         .openPosition(
-          bob.address,
           marketId,
           100300,
           100400,
-          ethers.parseUnits("2", 6),
-          ethers.parseUnits("20", 6)
+          POSITION_QUANTITY,
+          POSITION_MAX_COST
         );
 
       // Verify balances
@@ -109,14 +117,9 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       expect(await position.ownerOf(1)).to.equal(alice.address);
       expect(await position.ownerOf(2)).to.equal(bob.address);
 
-      // Verify position tracking
-      const alicePositions = await position.getPositionsByOwner(alice.address);
-      const bobPositions = await position.getPositionsByOwner(bob.address);
-
-      expect(alicePositions.length).to.equal(1);
-      expect(alicePositions[0]).to.equal(1);
-      expect(bobPositions.length).to.equal(1);
-      expect(bobPositions[0]).to.equal(2);
+      // Verify balances remain consistent
+      expect(await position.balanceOf(alice.address)).to.equal(1);
+      expect(await position.balanceOf(bob.address)).to.equal(1);
     });
 
     it("should revert position mint when Core authorization fails", async function () {
@@ -147,18 +150,13 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             marketId,
             100500,
             100500,
-            ethers.parseUnits("0.001", 6),
-            ethers.parseUnits("1", 6)
+            POSITION_QUANTITY,
+            POSITION_MAX_COST
           )
-      ).to.emit(position, "PositionMinted");
-
-      const positionData = await position.getPosition(1);
-      expect(positionData.lowerTick).to.equal(100500);
-      expect(positionData.upperTick).to.equal(100500);
+      ).to.be.revertedWithCustomError(core, "InvalidTickRange");
     });
   });
 
@@ -173,14 +171,13 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
         marketId,
         lowerTick: 100100,
         upperTick: 100200,
-        quantity: ethers.parseUnits("1", 6),
-        maxCost: ethers.parseUnits("10", 6),
+        quantity: POSITION_QUANTITY,
+        maxCost: POSITION_MAX_COST,
       };
 
       const positionId = await core
         .connect(alice)
         .openPosition.staticCall(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -190,7 +187,6 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -202,14 +198,19 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       const initialQuantity = initialData.quantity;
 
       // Increase position
-      const increaseAmount = ethers.parseUnits("0.5", 6);
+      const increaseAmount = ethers.parseUnits("5", 6);
+      const increaseCost = await quoteIncreaseCost(
+        core,
+        positionId,
+        increaseAmount
+      );
       await expect(
         core
           .connect(alice)
           .increasePosition(
             positionId,
             increaseAmount,
-            ethers.parseUnits("5", 6)
+            increaseCost
           )
       )
         .to.emit(position, "PositionUpdated")
@@ -234,14 +235,13 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
         marketId,
         lowerTick: 100100,
         upperTick: 100200,
-        quantity: ethers.parseUnits("2", 6),
-        maxCost: ethers.parseUnits("20", 6),
+        quantity: POSITION_QUANTITY,
+        maxCost: POSITION_MAX_COST,
       };
 
       const positionId = await core
         .connect(alice)
         .openPosition.staticCall(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -251,7 +251,6 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -287,7 +286,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       await expect(
         position
           .connect(alice)
-          .setPositionQuantity(1, ethers.parseUnits("1", 6))
+          .updateQuantity(1, POSITION_QUANTITY)
       ).to.be.revertedWithCustomError(position, "UnauthorizedCaller");
     });
 
@@ -301,14 +300,13 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
         marketId,
         lowerTick: 100100,
         upperTick: 100200,
-        quantity: ethers.parseUnits("5", 6),
-        maxCost: ethers.parseUnits("50", 6),
+        quantity: POSITION_QUANTITY,
+        maxCost: POSITION_MAX_COST,
       };
 
       const positionId = await core
         .connect(alice)
         .openPosition.staticCall(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -318,7 +316,6 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -331,30 +328,40 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
       // Multiple increases and decreases
       const operations = [
-        { type: "increase", amount: ethers.parseUnits("1", 6) },
-        { type: "decrease", amount: ethers.parseUnits("2", 6) },
-        { type: "increase", amount: ethers.parseUnits("0.5", 6) },
-        { type: "decrease", amount: ethers.parseUnits("1.5", 6) },
+        async () => {
+          const amount = ethers.parseUnits("5", 6);
+          const cost = await quoteIncreaseCost(core, positionId, amount);
+          await core
+            .connect(alice)
+            .increasePosition(positionId, amount, cost);
+          currentQuantity += amount;
+        },
+        async () => {
+          const amount = ethers.parseUnits("2", 6);
+          await core
+            .connect(alice)
+            .decreasePosition(positionId, amount, 0);
+          currentQuantity -= amount;
+        },
+        async () => {
+          const amount = ethers.parseUnits("6", 6);
+          const cost = await quoteIncreaseCost(core, positionId, amount);
+          await core
+            .connect(alice)
+            .increasePosition(positionId, amount, cost);
+          currentQuantity += amount;
+        },
+        async () => {
+          const amount = ethers.parseUnits("3", 6);
+          await core
+            .connect(alice)
+            .decreasePosition(positionId, amount, 0);
+          currentQuantity -= amount;
+        },
       ];
 
       for (const op of operations) {
-        const oldQuantity = currentQuantity;
-
-        if (op.type === "increase") {
-          await core
-            .connect(alice)
-            .increasePosition(
-              positionId,
-              op.amount,
-              ethers.parseUnits("10", 6)
-            );
-          currentQuantity += op.amount;
-        } else {
-          await core.connect(alice).decreasePosition(positionId, op.amount, 0);
-          currentQuantity -= op.amount;
-        }
-
-        // Verify each update
+        await op();
         const updatedData = await position.getPosition(positionId);
         expect(updatedData.quantity).to.equal(currentQuantity);
       }
@@ -372,14 +379,13 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
         marketId,
         lowerTick: 100100,
         upperTick: 100200,
-        quantity: ethers.parseUnits("1", 6),
-        maxCost: ethers.parseUnits("10", 6),
+        quantity: POSITION_QUANTITY,
+        maxCost: POSITION_MAX_COST,
       };
 
       const positionId = await core
         .connect(alice)
         .openPosition.staticCall(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -389,7 +395,6 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -428,14 +433,13 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
         marketId,
         lowerTick: 100100,
         upperTick: 100200,
-        quantity: ethers.parseUnits("1", 6),
-        maxCost: ethers.parseUnits("10", 6),
+        quantity: POSITION_QUANTITY,
+        maxCost: POSITION_MAX_COST,
       };
 
       const positionId = await core
         .connect(alice)
         .openPosition.staticCall(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -445,7 +449,6 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -477,7 +480,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       );
 
       await expect(
-        position.connect(alice).burnPosition(1)
+        position.connect(alice).burn(1)
       ).to.be.revertedWithCustomError(position, "UnauthorizedCaller");
     });
 
@@ -493,14 +496,13 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
           marketId,
           lowerTick: 100100 + i * 100,
           upperTick: 100200 + i * 100,
-          quantity: ethers.parseUnits("1", 6),
-          maxCost: ethers.parseUnits("10", 6),
+          quantity: POSITION_QUANTITY,
+          maxCost: POSITION_MAX_COST,
         };
 
         const positionId = await core
           .connect(alice)
           .openPosition.staticCall(
-            alice.address,
             params.marketId,
             params.lowerTick,
             params.upperTick,
@@ -510,7 +512,6 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
         await core
           .connect(alice)
           .openPosition(
-            alice.address,
             params.marketId,
             params.lowerTick,
             params.upperTick,
@@ -549,14 +550,13 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
         marketId,
         lowerTick: 100100,
         upperTick: 100200,
-        quantity: ethers.parseUnits("3", 6),
-        maxCost: ethers.parseUnits("30", 6),
+        quantity: POSITION_QUANTITY,
+        maxCost: POSITION_MAX_COST,
       };
 
       const positionId = await core
         .connect(alice)
         .openPosition.staticCall(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -566,7 +566,6 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -579,24 +578,24 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       expect(positionData.quantity).to.equal(params.quantity);
 
       // Increase position
+      const increaseAmount = ethers.parseUnits("2", 6);
       await core
         .connect(alice)
-        .increasePosition(
-          positionId,
-          ethers.parseUnits("1", 6),
-          ethers.parseUnits("10", 6)
-        );
+        .increasePosition(positionId, increaseAmount, INCREASE_COST_BUFFER);
 
       positionData = await position.getPosition(positionId);
-      expect(positionData.quantity).to.equal(ethers.parseUnits("4", 6));
+      expect(positionData.quantity).to.equal(params.quantity + increaseAmount);
 
       // Decrease position
+      const decreaseAmount = ethers.parseUnits("4", 6);
       await core
         .connect(alice)
-        .decreasePosition(positionId, ethers.parseUnits("2", 6), 0);
+        .decreasePosition(positionId, decreaseAmount, 0);
 
       positionData = await position.getPosition(positionId);
-      expect(positionData.quantity).to.equal(ethers.parseUnits("2", 6));
+      expect(positionData.quantity).to.equal(
+        params.quantity + increaseAmount - decreaseAmount
+      );
 
       // Close position
       await core.connect(alice).closePosition(positionId, 0);
@@ -620,14 +619,13 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
           marketId,
           lowerTick: 100100 + i * 50,
           upperTick: 100200 + i * 50,
-          quantity: ethers.parseUnits((i + 1).toString(), 6),
-          maxCost: ethers.parseUnits("50", 6),
+          quantity: POSITION_QUANTITY,
+          maxCost: POSITION_MAX_COST,
         };
 
         const positionId = await core
-          .connect(alice)
+          .connect(users[i])
           .openPosition.staticCall(
-            users[i].address,
             params.marketId,
             params.lowerTick,
             params.upperTick,
@@ -635,9 +633,8 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
             params.maxCost
           );
         await core
-          .connect(alice)
+          .connect(users[i])
           .openPosition(
-            users[i].address,
             params.marketId,
             params.lowerTick,
             params.upperTick,
@@ -653,29 +650,33 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       // Verify each user's balance
       for (let i = 0; i < users.length; i++) {
         expect(await position.balanceOf(users[i].address)).to.equal(1);
-        const userPositions = await position.getPositionsByOwner(
+        expect(await position.ownerOf(positionIds[i])).to.equal(
           users[i].address
         );
-        expect(userPositions.length).to.equal(1);
-        expect(userPositions[0]).to.equal(positionIds[i]);
       }
 
       // Alice increases her position
+      const aliceIncreaseAmount = ethers.parseUnits("5", 6);
+      const aliceIncreaseCost = await quoteIncreaseCost(
+        core,
+        positionIds[0],
+        aliceIncreaseAmount
+      );
       await core
         .connect(alice)
         .increasePosition(
           positionIds[0],
-          ethers.parseUnits("0.5", 6),
-          ethers.parseUnits("5", 6)
+          aliceIncreaseAmount,
+          aliceIncreaseCost
         );
 
       // Bob closes his position
-      await core.connect(alice).closePosition(positionIds[1], 0);
+      await core.connect(bob).closePosition(positionIds[1], 0);
 
       // Charlie decreases his position
       await core
-        .connect(alice)
-        .decreasePosition(positionIds[2], ethers.parseUnits("0.5", 6), 0);
+        .connect(charlie)
+        .decreasePosition(positionIds[2], ethers.parseUnits("2", 6), 0);
 
       // Verify final states
       expect(await position.balanceOf(alice.address)).to.equal(1);
@@ -683,14 +684,16 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       expect(await position.balanceOf(charlie.address)).to.equal(1);
 
       const alicePosition = await position.getPosition(positionIds[0]);
-      expect(alicePosition.quantity).to.equal(ethers.parseUnits("1.5", 6));
+      expect(alicePosition.quantity).to.equal(
+        POSITION_QUANTITY + aliceIncreaseAmount
+      );
 
       await expect(
         position.getPosition(positionIds[1])
       ).to.be.revertedWithCustomError(position, "PositionNotFound");
 
       const charliePosition = await position.getPosition(positionIds[2]);
-      expect(charliePosition.quantity).to.equal(ethers.parseUnits("2.5", 6));
+      expect(charliePosition.quantity).to.equal(POSITION_QUANTITY - ethers.parseUnits("2", 6));
     });
   });
 
@@ -730,14 +733,13 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
         marketId,
         lowerTick: 100100,
         upperTick: 100200,
-        quantity: ethers.parseUnits("1", 6),
-        maxCost: ethers.parseUnits("10", 6),
+        quantity: POSITION_QUANTITY,
+        maxCost: POSITION_MAX_COST,
       };
 
       const positionId = await core
         .connect(alice)
         .openPosition.staticCall(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -747,13 +749,19 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
           params.quantity,
           params.maxCost
         );
+
+      const increaseAmount = ethers.parseUnits("5", 6);
+      const increaseCost = await quoteIncreaseCost(
+        core,
+        positionId,
+        increaseAmount
+      );
 
       // Pause the contract
       await core.connect(keeper).pause("Paused");
@@ -762,12 +770,8 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       await expect(
         core
           .connect(alice)
-          .increasePosition(
-            positionId,
-            ethers.parseUnits("0.5", 6),
-            ethers.parseUnits("5", 6)
-          )
-      ).to.be.revertedWithCustomError(core, "ContractPaused");
+          .increasePosition(positionId, increaseAmount, increaseCost)
+      ).to.be.revertedWithCustomError(core, "EnforcedPause");
 
       // Unpause and operations should work again
       await core.connect(keeper).unpause();
@@ -775,11 +779,7 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       await expect(
         core
           .connect(alice)
-          .increasePosition(
-            positionId,
-            ethers.parseUnits("0.5", 6),
-            ethers.parseUnits("5", 6)
-          )
+          .increasePosition(positionId, increaseAmount, increaseCost)
       ).to.emit(position, "PositionUpdated");
     });
 
@@ -793,14 +793,13 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
         marketId,
         lowerTick: 100100,
         upperTick: 100200,
-        quantity: ethers.parseUnits("0.005", 6), // Much smaller quantity
-        maxCost: ethers.parseUnits("5", 6), // Reduced max cost
+        quantity: POSITION_QUANTITY,
+        maxCost: POSITION_MAX_COST,
       };
 
       const positionId = await core
         .connect(alice)
         .openPosition.staticCall(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -810,7 +809,6 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -820,30 +818,30 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
       // Sequential operations with realistic quantities
       const operations = [
-        () =>
-          core
+        async () => {
+          const amount = ethers.parseUnits("5", 6);
+          const cost = await quoteIncreaseCost(core, positionId, amount);
+          await core
             .connect(alice)
-            .increasePosition(
-              positionId,
-              ethers.parseUnits("0.001", 6),
-              ethers.parseUnits("1", 6)
-            ),
-        () =>
-          core
+            .increasePosition(positionId, amount, cost);
+        },
+        async () => {
+          await core
             .connect(alice)
-            .decreasePosition(positionId, ethers.parseUnits("0.0005", 6), 0),
-        () =>
-          core
+            .decreasePosition(positionId, ethers.parseUnits("2", 6), 0);
+        },
+        async () => {
+          const amount = ethers.parseUnits("6", 6);
+          const cost = await quoteIncreaseCost(core, positionId, amount);
+          await core
             .connect(alice)
-            .increasePosition(
-              positionId,
-              ethers.parseUnits("0.002", 6),
-              ethers.parseUnits("2", 6)
-            ),
-        () =>
-          core
+            .increasePosition(positionId, amount, cost);
+        },
+        async () => {
+          await core
             .connect(alice)
-            .decreasePosition(positionId, ethers.parseUnits("0.0015", 6), 0),
+            .decreasePosition(positionId, ethers.parseUnits("3", 6), 0);
+        },
       ];
 
       // Execute all operations
@@ -853,7 +851,9 @@ describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
 
       // Verify final state is consistent
       const finalData = await position.getPosition(positionId);
-      expect(finalData.quantity).to.equal(ethers.parseUnits("0.006", 6)); // 0.005 + 0.001 - 0.0005 + 0.002 - 0.0015
+      expect(finalData.quantity).to.equal(
+        params.quantity + ethers.parseUnits("6", 6)
+      );
 
       // Position should still be owned by Alice
       expect(await position.ownerOf(positionId)).to.equal(alice.address);

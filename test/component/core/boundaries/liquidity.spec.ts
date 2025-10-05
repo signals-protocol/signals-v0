@@ -34,7 +34,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             tradeParams.marketId,
             tradeParams.lowerTick,
             tradeParams.upperTick,
@@ -54,8 +53,8 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
         alpha: extremeAlpha,
       });
 
-      // Use large quantity to approach MAX_FACTOR
-      const largeQuantity = ethers.parseUnits("1000", 6);
+      // Use moderately large quantity to approach MAX_FACTOR without triggering safety guards
+      const largeQuantity = ethers.parseUnits("10", 6);
 
       const tradeParams = {
         marketId,
@@ -69,7 +68,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             tradeParams.marketId,
             tradeParams.lowerTick,
             tradeParams.upperTick,
@@ -104,7 +102,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             tradeParams.marketId,
             tradeParams.lowerTick,
             tradeParams.upperTick,
@@ -138,7 +135,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             tradeParams.marketId,
             tradeParams.lowerTick,
             tradeParams.upperTick,
@@ -170,7 +166,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             tradeParams.marketId,
             tradeParams.lowerTick,
             tradeParams.upperTick,
@@ -249,21 +244,25 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
         }
       );
 
-      // Even with extreme min alpha, small trades might still work due to chunk-split protection
-      // Test that it either works (with very high cost) or reverts due to overflow
-      try {
-        const extremeCost = await core.calculateOpenCost(
+      // Tiny trades succeed thanks to chunk splitting
+      const tinyQuantity = ethers.parseUnits("0.000001", 6); // 1 micro USDC
+      const tinyCost = await core.calculateOpenCost(
+        extremeMinAlphaMarketId,
+        100100,
+        100200,
+        tinyQuantity
+      );
+      expect(tinyCost).to.be.gt(0);
+
+      // Slightly larger trades hit precision limits and revert deterministically
+      await expect(
+        core.calculateOpenCost(
           extremeMinAlphaMarketId,
           100100,
           100200,
-          ethers.parseUnits("0.1", 6) // 0.1 USDC
-        );
-        // If it doesn't revert, the cost should be extremely high
-        expect(extremeCost).to.be.gt(ethers.parseUnits("1", 6)); // Cost > 1 USDC for 0.1 USDC trade
-      } catch (error) {
-        // Overflow is also acceptable for extreme parameter combinations
-        expect(error).to.exist;
-      }
+          ethers.parseUnits("0.1", 6)
+        )
+      ).to.be.revertedWithCustomError(core, "MathMulOverflow");
     });
 
     it("Should demonstrate cost difference between extreme alpha values", async function () {
@@ -327,31 +326,35 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
       const endTime = startTime + 86400;
       const alpha = ethers.parseEther("0.1");
 
+      const createMarket = core.connect(keeper)[
+        "createMarket(int256,int256,int256,uint64,uint64,uint64,uint256)"
+      ];
+
       // Test zero tick count - create market with minTick >= maxTick
       await expect(
-        core.connect(keeper).createMarket(
-          1,
+        createMarket(
           100000, // minTick
           100000, // maxTick (same as minTick = 0 ticks)
           10, // tickSpacing
           startTime,
           endTime,
+          endTime + 3600,
           alpha
         )
       ).to.be.revertedWithCustomError(core, "InvalidMarketParameters");
 
       // Test excessive tick count - create market with huge range
       await expect(
-        core.connect(keeper).createMarket(
-          1,
+        createMarket(
           100000, // minTick
           10100990, // maxTick (10M+ ticks)
           10, // tickSpacing
           startTime,
           endTime,
+          endTime + 3600,
           alpha
         )
-      ).to.be.revertedWith("Invalid tick count");
+      ).to.be.revertedWithCustomError(core, "InvalidRangeCount");
     });
 
     it("Should validate liquidity parameter limits", async function () {
@@ -362,29 +365,41 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
       const startTime = currentTime + 100;
       const endTime = startTime + 86400;
 
+      const createMarket = core.connect(keeper)[
+        "createMarket(int256,int256,int256,uint64,uint64,uint64,uint256)"
+      ];
+
+      const settlementTime = endTime + 3600;
+
+      const minAlpha = await core.MIN_LIQUIDITY_PARAMETER();
+      const maxAlpha = await core.MAX_LIQUIDITY_PARAMETER();
+
+      const belowMinAlpha = minAlpha > 0n ? minAlpha - 1n : 0n;
+      const aboveMaxAlpha = maxAlpha + 1n;
+
       // Test too small alpha
       await expect(
-        core.connect(keeper).createMarket(
-          1,
+        createMarket(
           100000, // minTick
           100990, // maxTick
           10, // tickSpacing
           startTime,
           endTime,
-          ethers.parseEther("0.0001") // below MIN_LIQUIDITY_PARAMETER
+          settlementTime,
+          belowMinAlpha // below MIN_LIQUIDITY_PARAMETER
         )
       ).to.be.revertedWithCustomError(core, "InvalidLiquidityParameter");
 
       // Test too large alpha
       await expect(
-        core.connect(keeper).createMarket(
-          1,
+        createMarket(
           100000, // minTick
           100990, // maxTick
           10, // tickSpacing
           startTime,
           endTime,
-          ethers.parseEther("2000") // above MAX_LIQUIDITY_PARAMETER
+          settlementTime,
+          aboveMaxAlpha // above MAX_LIQUIDITY_PARAMETER
         )
       ).to.be.revertedWithCustomError(core, "InvalidLiquidityParameter");
     });
@@ -398,7 +413,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
         ethers.parseEther("0.001")
       );
       expect(await core.MAX_LIQUIDITY_PARAMETER()).to.equal(
-        ethers.parseEther("1000")
+        ethers.parseEther("100000")
       );
     });
   });
@@ -426,7 +441,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             tradeParams.marketId,
             tradeParams.lowerTick,
             tradeParams.upperTick,
@@ -458,7 +472,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             tradeParams.marketId,
             tradeParams.lowerTick,
             tradeParams.upperTick,

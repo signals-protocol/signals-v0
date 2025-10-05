@@ -2,14 +2,28 @@ import { expect } from "chai";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { ethers } from "hardhat";
 
-import { activePositionMarketFixture } from "../../helpers/fixtures/position";
+import { positionMarketFixture } from "../../helpers/fixtures/position";
 import { INVARIANT_TAG } from "../../helpers/tags";
+
+async function listMarketPositions(position: any, marketId: number) {
+  const length = Number(await position.getMarketTokenLength(marketId));
+  const tokens: bigint[] = [];
+  for (let i = 0; i < length; i++) {
+    const tokenId = await position.getMarketTokenAt(marketId, i);
+    if (tokenId !== 0n) {
+      tokens.push(tokenId);
+    }
+  }
+  return tokens;
+}
+
+const HIGH_COST = ethers.parseUnits("100000", 6);
 
 describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
   describe("Position Quantity Properties", function () {
     it("should satisfy: increase(x) then decrease(x) equals original state", async function () {
       const { core, position, alice, marketId } = await loadFixture(
-        activePositionMarketFixture
+        positionMarketFixture
       );
 
       // Create position with random initial quantity
@@ -19,13 +33,12 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
         lowerTick: 100100,
         upperTick: 100200,
         quantity: initialQuantity,
-        maxCost: ethers.parseUnits("10", 6), // Reduced from 500 to 10
+        maxCost: HIGH_COST, // Sufficient max cost for current pricing
       };
 
       const positionId = await core
         .connect(alice)
         .openPosition.staticCall(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -35,7 +48,6 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -60,7 +72,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
         // Increase then decrease by same amount
         await core
           .connect(alice)
-          .increasePosition(positionId, amount, ethers.parseUnits("10", 6)); // Reduced from 100 to 10
+          .increasePosition(positionId, amount, HIGH_COST); // Reduced from 100 to 10
 
         await core.connect(alice).decreasePosition(positionId, amount, 0);
 
@@ -75,7 +87,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
 
     it("should satisfy: sequence of operations is commutative for same net effect", async function () {
       const { core, position, alice, marketId } = await loadFixture(
-        activePositionMarketFixture
+        positionMarketFixture
       );
 
       // Create two identical positions
@@ -84,13 +96,12 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
         lowerTick: 100100,
         upperTick: 100200,
         quantity: ethers.parseUnits("0.01", 6), // Reduced from 100 to 0.01
-        maxCost: ethers.parseUnits("10", 6), // Reduced from 1000 to 10
+        maxCost: HIGH_COST, // Sufficient max cost for current pricing
       };
 
       const positionId1 = await core
         .connect(alice)
         .openPosition.staticCall(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -100,7 +111,6 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -111,7 +121,6 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
       const positionId2 = await core
         .connect(alice)
         .openPosition.staticCall(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -121,7 +130,6 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -134,7 +142,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
       await core.connect(alice).increasePosition(
         positionId1,
         ethers.parseUnits("0.001", 6), // Reduced from 10 to 0.001
-        ethers.parseUnits("10", 6) // Reduced from 100 to 10
+        HIGH_COST // Reduced from 100 to 10
       );
       await core
         .connect(alice)
@@ -142,7 +150,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
       await core.connect(alice).increasePosition(
         positionId1,
         ethers.parseUnits("0.0015", 6), // Reduced from 15 to 0.0015
-        ethers.parseUnits("10", 6) // Reduced from 150 to 10
+        HIGH_COST // Reduced from 150 to 10
       );
       await core
         .connect(alice)
@@ -152,12 +160,12 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
       await core.connect(alice).increasePosition(
         positionId2,
         ethers.parseUnits("0.0015", 6), // Reduced from 15 to 0.0015
-        ethers.parseUnits("10", 6) // Reduced from 150 to 10
+        HIGH_COST // Reduced from 150 to 10
       );
       await core.connect(alice).increasePosition(
         positionId2,
         ethers.parseUnits("0.001", 6), // Reduced from 10 to 0.001
-        ethers.parseUnits("10", 6) // Reduced from 100 to 10
+        HIGH_COST // Reduced from 100 to 10
       );
       await core
         .connect(alice)
@@ -176,7 +184,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
 
     it("should satisfy: quantity is always non-negative", async function () {
       const { core, position, alice, marketId } = await loadFixture(
-        activePositionMarketFixture
+        positionMarketFixture
       );
 
       const params = {
@@ -184,13 +192,12 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
         lowerTick: 100100,
         upperTick: 100200,
         quantity: ethers.parseUnits("0.01", 6), // Smaller quantity to ensure closeability
-        maxCost: ethers.parseUnits("10", 6), // Adjusted proportionally
+        maxCost: HIGH_COST, // Adjusted proportionally
       };
 
       const positionId = await core
         .connect(alice)
         .openPosition.staticCall(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -200,7 +207,6 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -222,7 +228,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
           await core.connect(alice).increasePosition(
             positionId,
             op.amount,
-            ethers.parseUnits("10", 6) // Reduced max cost
+            HIGH_COST // Reduced max cost
           );
         } else {
           await core.connect(alice).decreasePosition(positionId, op.amount, 0);
@@ -247,7 +253,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
 
     it("should satisfy: position burn occurs if and only if quantity reaches zero", async function () {
       const { core, position, alice, marketId } = await loadFixture(
-        activePositionMarketFixture
+        positionMarketFixture
       );
 
       // Test with various initial quantities - all small to avoid chunking
@@ -264,13 +270,12 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
           lowerTick: 100100,
           upperTick: 100200,
           quantity: initialQty,
-          maxCost: ethers.parseUnits("10", 6), // Reduced max cost
+          maxCost: HIGH_COST, // Sufficient max cost for current pricing
         };
 
         const positionId = await core
           .connect(alice)
           .openPosition.staticCall(
-            alice.address,
             params.marketId,
             params.lowerTick,
             params.upperTick,
@@ -280,7 +285,6 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
         await core
           .connect(alice)
           .openPosition(
-            alice.address,
             params.marketId,
             params.lowerTick,
             params.upperTick,
@@ -308,18 +312,17 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
 
   describe("Transfer Properties", function () {
     it("should satisfy: transfer preserves total supply", async function () {
-      const { position, alice, bob, charlie, marketId, core, router } =
-        await loadFixture(activePositionMarketFixture);
+      const { position, alice, bob, charlie, marketId, core } =
+        await loadFixture(positionMarketFixture);
 
       // Create multiple positions
-      const positionIds = [];
+      const positionIds: bigint[] = [];
       for (let i = 0; i < 5; i++) {
         const posId = await createTestPosition(
           alice,
           marketId,
           i + 1,
-          core,
-          router
+          core
         );
         positionIds.push(posId);
       }
@@ -357,11 +360,11 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
     });
 
     it("should satisfy: transfer preserves position data", async function () {
-      const { position, alice, bob, marketId } = await loadFixture(
-        activePositionMarketFixture
+      const { position, alice, bob, marketId, core } = await loadFixture(
+        positionMarketFixture
       );
 
-      const positionId = await createTestPosition(alice, marketId, 10);
+      const positionId = await createTestPosition(alice, marketId, 10, core);
 
       // Record initial position data
       const initialData = await position.getPosition(positionId);
@@ -383,18 +386,17 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
     });
 
     it("should satisfy: balance conservation during transfers", async function () {
-      const { position, alice, bob, charlie, marketId, core, router } =
-        await loadFixture(activePositionMarketFixture);
+      const { position, alice, bob, charlie, marketId, core } =
+        await loadFixture(positionMarketFixture);
 
       // Create positions for Alice
-      const positionIds = [];
+      const positionIds: bigint[] = [];
       for (let i = 0; i < 3; i++) {
         const posId = await createTestPosition(
           alice,
           marketId,
           i + 1,
-          core,
-          router
+          core
         );
         positionIds.push(posId);
       }
@@ -441,11 +443,11 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
     });
 
     it("should satisfy: approval is cleared after transfer", async function () {
-      const { position, alice, bob, charlie, marketId } = await loadFixture(
-        activePositionMarketFixture
+      const { position, alice, bob, charlie, marketId, core } = await loadFixture(
+        positionMarketFixture
       );
 
-      const positionId = await createTestPosition(alice, marketId, 5);
+      const positionId = await createTestPosition(alice, marketId, 5, core);
 
       // Alice approves Bob
       await position.connect(alice).approve(bob.address, positionId);
@@ -471,15 +473,15 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
   });
 
   describe("Market Tracking Properties", function () {
-    it.skip("should satisfy: position count per market equals actual positions", async function () {
-      const { position, alice, bob, charlie, marketId, core, router } =
-        await loadFixture(activePositionMarketFixture);
+    it("should satisfy: position count per market equals actual positions", async function () {
+      const { position, alice, bob, charlie, marketId, core } =
+        await loadFixture(positionMarketFixture);
 
       // Initially no positions
-      let marketPositions = await position.getMarketPositions(marketId);
+      let marketPositions = await listMarketPositions(position, marketId);
       expect(marketPositions.length).to.equal(0);
 
-      const createdPositions = [];
+      const createdPositions: Array<{ id: bigint; owner: any }> = [];
 
       // Create positions and verify count
       for (let i = 0; i < 7; i++) {
@@ -488,12 +490,11 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
           user,
           marketId,
           i + 1,
-          core,
-          router
+          core
         );
-        createdPositions.push(posId);
+        createdPositions.push({ id: posId, owner: user });
 
-        marketPositions = await position.getMarketPositions(marketId);
+        marketPositions = await listMarketPositions(position, marketId);
         expect(marketPositions.length).to.equal(i + 1);
         expect(marketPositions).to.include(posId);
       }
@@ -501,33 +502,36 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
       // Transfer positions - market count should remain same
       await position
         .connect(alice)
-        .transferFrom(alice.address, bob.address, createdPositions[0]);
+        .transferFrom(alice.address, bob.address, createdPositions[0].id);
+      createdPositions[0].owner = bob;
       await position
         .connect(charlie)
-        .transferFrom(charlie.address, alice.address, createdPositions[2]);
+        .transferFrom(charlie.address, alice.address, createdPositions[2].id);
+      createdPositions[2].owner = alice;
 
-      marketPositions = await position.getMarketPositions(marketId);
+      marketPositions = await listMarketPositions(position, marketId);
       expect(marketPositions.length).to.equal(7);
 
       // Close positions and verify count decreases
       for (let i = 0; i < createdPositions.length; i++) {
-        await closeTestPosition(createdPositions[i]);
+        const { id, owner } = createdPositions[i];
+        await closeTestPosition(id, core, owner);
 
-        marketPositions = await position.getMarketPositions(marketId);
+        marketPositions = await listMarketPositions(position, marketId);
         expect(marketPositions.length).to.equal(
           createdPositions.length - (i + 1)
         );
-        expect(marketPositions).to.not.include(createdPositions[i]);
+        expect(marketPositions).to.not.include(id);
       }
 
       // Final state
-      marketPositions = await position.getMarketPositions(marketId);
+      marketPositions = await listMarketPositions(position, marketId);
       expect(marketPositions.length).to.equal(0);
     });
 
     it("should satisfy: all positions in market list belong to that market", async function () {
       const { position, alice, bob, marketId, core, router } =
-        await loadFixture(activePositionMarketFixture);
+        await loadFixture(positionMarketFixture);
 
       // Create positions
       const positionIds = [];
@@ -544,7 +548,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
       }
 
       // Verify all positions in market list belong to the market
-      const marketPositions = await position.getMarketPositions(marketId);
+      const marketPositions = await listMarketPositions(position, marketId);
       expect(marketPositions.length).to.equal(5);
 
       for (const posId of marketPositions) {
@@ -560,7 +564,8 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
         .connect(bob)
         .transferFrom(bob.address, alice.address, positionIds[1]);
 
-      const marketPositionsAfterTransfer = await position.getMarketPositions(
+      const marketPositionsAfterTransfer = await listMarketPositions(
+        position,
         marketId
       );
       for (const posId of marketPositionsAfterTransfer) {
@@ -571,18 +576,18 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
   });
 
   describe("Owner Tracking Properties", function () {
-    it.skip("should satisfy: all positions in owner list are owned by that owner", async function () {
-      const { position, alice, bob, charlie, marketId } = await loadFixture(
-        activePositionMarketFixture
+    it("should satisfy: all positions in owner list are owned by that owner", async function () {
+      const { position, alice, bob, charlie, marketId, core } = await loadFixture(
+        positionMarketFixture
       );
 
       // Create positions for different users
-      const alicePositions = [];
-      const bobPositions = [];
+      const alicePositions: bigint[] = [];
+      const bobPositions: bigint[] = [];
 
       for (let i = 0; i < 3; i++) {
-        const alicePos = await createTestPosition(alice, marketId, i + 1);
-        const bobPos = await createTestPosition(bob, marketId, i + 4);
+        const alicePos = await createTestPosition(alice, marketId, i + 1, core);
+        const bobPos = await createTestPosition(bob, marketId, i + 4, core);
         alicePositions.push(alicePos);
         bobPositions.push(bobPos);
       }
@@ -639,9 +644,9 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
       }
     });
 
-    it.skip("should satisfy: owner balance equals length of owned positions list", async function () {
-      const { position, alice, bob, charlie, marketId } = await loadFixture(
-        activePositionMarketFixture
+    it("should satisfy: owner balance equals length of owned positions list", async function () {
+      const { position, alice, bob, charlie, marketId, core } = await loadFixture(
+        positionMarketFixture
       );
 
       const users = [alice, bob, charlie];
@@ -654,10 +659,10 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
       }
 
       // Create positions
-      const positionIds = [];
+      const positionIds: Array<{ id: bigint; owner: any }> = [];
       for (let i = 0; i < 9; i++) {
         const user = users[i % 3];
-        const posId = await createTestPosition(user, marketId, i + 1);
+        const posId = await createTestPosition(user, marketId, i + 1, core);
         positionIds.push({ id: posId, owner: user });
 
         // Verify invariant after each creation
@@ -698,7 +703,8 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
 
       // Close positions
       for (let i = 0; i < positionIds.length; i++) {
-        await closeTestPosition(positionIds[i].id);
+        const { id, owner } = positionIds[i];
+        await closeTestPosition(id, core, owner);
 
         // Verify invariant after each closure
         for (const user of users) {
@@ -724,26 +730,19 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
     user: any,
     marketId: any,
     quantityMultiplier: number = 1,
-    core?: any
+    core: any
   ) {
-    // If core is not provided, load it from fixture
-    if (!core) {
-      const fixture = await loadFixture(activePositionMarketFixture);
-      core = fixture.core;
-    }
-
     const params = {
       marketId,
       lowerTick: 100100,
       upperTick: 100200,
       quantity: ethers.parseUnits((quantityMultiplier * 0.01).toString(), 6), // Much smaller quantities
-      maxCost: ethers.parseUnits("10", 6), // Reduced max cost
+      maxCost: HIGH_COST, // Sufficient max cost for current pricing
     };
 
     const positionId = await core
       .connect(user)
       .openPosition.staticCall(
-        user.address,
         params.marketId,
         params.lowerTick,
         params.upperTick,
@@ -753,7 +752,6 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
     await core
       .connect(user)
       .openPosition(
-        user.address,
         params.marketId,
         params.lowerTick,
         params.upperTick,
@@ -764,13 +762,7 @@ describe(`${INVARIANT_TAG} Position Property-Based Tests`, function () {
     return positionId;
   }
 
-  async function closeTestPosition(positionId: any, core?: any, user?: any) {
-    // If core is not provided, load it from fixture
-    if (!core || !user) {
-      const fixture = await loadFixture(activePositionMarketFixture);
-      core = fixture.core;
-      user = fixture.alice; // Default user
-    }
+  async function closeTestPosition(positionId: bigint, core: any, user: any) {
     await core.connect(user).closePosition(positionId, 0);
   }
 });

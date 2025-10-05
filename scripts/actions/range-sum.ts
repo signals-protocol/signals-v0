@@ -84,7 +84,11 @@ export async function rangeSumAction(environment: Environment): Promise<void> {
 
     for (const tick of ticksInRange) {
       try {
-        const tickValue = await marketCore.getTickValue(CONFIG.marketId, tick);
+        const tickValue = await marketCore.getRangeSum(
+          CONFIG.marketId,
+          tick,
+          tick + Number(tickSpacing)
+        );
         const tickValueEth = Number(hre.ethers.formatEther(tickValue));
         const totalMarketSumEth = Number(
           hre.ethers.formatEther(totalMarketSum)

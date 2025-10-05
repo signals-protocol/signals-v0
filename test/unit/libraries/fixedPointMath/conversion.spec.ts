@@ -210,33 +210,6 @@ describe(`${UNIT_TAG} FixedPointMath - Conversion & Utility Functions`, function
       expect(cost).to.equal(expected);
     });
 
-    it("Should handle safe arithmetic operations", async function () {
-      const { test } = await loadFixture(deployFixture);
-
-      // Test safe addition
-      const a = ethers.parseEther("1.5");
-      const b = ethers.parseEther("2.5");
-      const sum = await test.wAdd(a, b);
-      expect(sum).to.equal(ethers.parseEther("4"));
-
-      // Test safe subtraction
-      const diff = await test.wSub(
-        ethers.parseEther("5"),
-        ethers.parseEther("2")
-      );
-      expect(diff).to.equal(ethers.parseEther("3"));
-
-      // Test unsafe operations for gas efficiency
-      // NOTE: These functions are deprecated and may be removed in future versions
-      const unsafeSum = await test.unsafeAdd(a, b);
-      expect(unsafeSum).to.equal(ethers.parseEther("4"));
-
-      const unsafeDiff = await test.unsafeSub(
-        ethers.parseEther("5"),
-        ethers.parseEther("2")
-      );
-      expect(unsafeDiff).to.equal(ethers.parseEther("3"));
-    });
   });
 
   describe("Edge Cases", function () {

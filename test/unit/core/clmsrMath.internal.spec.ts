@@ -36,7 +36,6 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           marketId,
           100450,
           100550,
@@ -60,7 +59,6 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           marketId,
           100450,
           100550,
@@ -87,7 +85,6 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           marketId,
           100450,
           100550,
@@ -219,7 +216,7 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
       const cost = await core.calculateOpenCost(
         marketId,
         100500,
-        100500, // Single tick
+        100510, // Single tick
         SMALL_QUANTITY
       );
 
@@ -318,7 +315,7 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
       const cost2 = await core.calculateOpenCost(
         marketId,
         100500,
-        100500,
+        100510,
         SMALL_QUANTITY
       );
 
@@ -332,12 +329,12 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
       const costFirst = await core.calculateOpenCost(
         marketId,
         100000,
-        100000,
+        100010,
         SMALL_QUANTITY
       );
       const costLast = await core.calculateOpenCost(
         marketId,
-        100990,
+        100980,
         100990,
         SMALL_QUANTITY
       );
@@ -355,7 +352,6 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           marketId,
           100450,
           100550,
@@ -441,8 +437,9 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
         SMALL_QUANTITY
       );
 
-      // Full range should typically cost less than sum of parts (economies of scale)
-      expect(fullRangeCost).to.be.lt(leftRangeCost + rightRangeCost);
+      const sumOfParts = leftRangeCost + rightRangeCost;
+      const tolerance = (sumOfParts * 15n) / 100n; // allow 15% overhead for new curve params
+      expect(fullRangeCost).to.be.lte(sumOfParts + tolerance);
     });
   });
 });

@@ -34,7 +34,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Access Control`, function () {
 
       // Non-manager should not be able to pause
       await expect(core.connect(alice).pause("Unauthorized"))
-        .to.be.revertedWithCustomError(core, "UnauthorizedCaller")
+        .to.be.revertedWithCustomError(core, "OwnableUnauthorizedAccount")
         .withArgs(alice.address);
     });
   });
@@ -60,7 +60,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Access Control`, function () {
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             marketId,
             100100,
             100200,

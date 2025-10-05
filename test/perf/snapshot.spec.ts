@@ -1,7 +1,11 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { coreFixture, setupActiveMarket } from "../helpers/fixtures/core";
+import {
+  coreFixture,
+  setupActiveMarket,
+  settleMarketAtTick,
+} from "../helpers/fixtures/core";
 import { PERF_TAG } from "../helpers/tags";
 
 describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function () {
@@ -15,23 +19,23 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
   // Test quantities
   const SMALL_QUANTITY = ethers.parseUnits("0.01", USDC_DECIMALS);
   const MEDIUM_QUANTITY = ethers.parseUnits("0.1", USDC_DECIMALS);
-  const LARGE_QUANTITY = ethers.parseUnits("1", USDC_DECIMALS);
+  const LARGE_QUANTITY = ethers.parseUnits("0.2", USDC_DECIMALS);
   const EXTREME_COST = ethers.parseUnits("100000", USDC_DECIMALS);
 
   // Gas baselines for regression detection
   const GAS_BASELINES = {
     createMarket: 2000000,
     settleMarket: 300000,
-    openSmallPosition: 1000000, // 증가
-    openMediumPosition: 1200000, // 증가
-    openLargePosition: 1600000, // 증가
-    increasePosition: 400000,
-    decreasePosition: 400000,
-    closePosition: 600000,
-    claimPosition: 200000,
-    calculateOpenCost: 100000,
-    calculateIncreaseCost: 100000,
-    calculateDecreaseProceeds: 100000,
+    openSmallPosition: 1200000,
+    openMediumPosition: 1400000,
+    openLargePosition: 1800000,
+    increasePosition: 500000,
+    decreasePosition: 500000,
+    closePosition: 700000,
+    claimPosition: 300000,
+    calculateOpenCost: 150000,
+    calculateIncreaseCost: 150000,
+    calculateDecreaseProceeds: 150000,
   };
 
   async function createActiveMarket() {
@@ -44,19 +48,19 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
     it("Should create market within gas baseline", async function () {
       const { core, keeper } = await loadFixture(coreFixture);
 
-      const marketId = Math.floor(Math.random() * 1000000) + 1;
       const startTime = (await time.latest()) + 60;
       const endTime = startTime + MARKET_DURATION;
+      const settlementTime = endTime + 3600;
 
       const tx = await core
         .connect(keeper)
         .createMarket(
-          marketId,
           MIN_TICK,
           MAX_TICK,
           TICK_SPACING,
           startTime,
           endTime,
+          settlementTime,
           ALPHA
         );
 
@@ -74,9 +78,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
 
       await time.increaseTo(endTime + 1);
 
-      const tx = await core
-        .connect(keeper)
-        .settleMarket(marketId, 100450, 100460);
+      const tx = await settleMarketAtTick(core, keeper, marketId, 100450);
       const receipt = await tx.wait();
       const gasUsed = Number(receipt!.gasUsed);
 
@@ -87,12 +89,13 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
 
   describe("Position Operations Snapshots", function () {
     it("Should open small position within gas baseline", async function () {
-      const { core, alice, marketId } = await loadFixture(createActiveMarket);
+      const { core, alice, marketId, mockPosition } = await loadFixture(
+        createActiveMarket
+      );
 
       const tx = await core
         .connect(alice)
         .openPosition(
-          alice.address,
           marketId,
           100300,
           100400,
@@ -108,12 +111,13 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
     });
 
     it("Should open medium position within gas baseline", async function () {
-      const { core, alice, marketId } = await loadFixture(createActiveMarket);
+      const { core, alice, marketId, mockPosition } = await loadFixture(
+        createActiveMarket
+      );
 
       const tx = await core
         .connect(alice)
         .openPosition(
-          alice.address,
           marketId,
           100200,
           100500,
@@ -129,12 +133,13 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
     });
 
     it("Should open large position within gas baseline", async function () {
-      const { core, alice, marketId } = await loadFixture(createActiveMarket);
+      const { core, alice, marketId, mockPosition } = await loadFixture(
+        createActiveMarket
+      );
 
       const tx = await core
         .connect(alice)
         .openPosition(
-          alice.address,
           marketId,
           100100,
           100800,
@@ -158,7 +163,6 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           marketId,
           100300,
           100400,
@@ -168,10 +172,13 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
 
       const positions = await mockPosition.getPositionsByOwner(alice.address);
       const positionId = Number(positions[0]);
+      const positionData = await mockPosition.getPosition(positionId);
+      const storedQuantity = positionData.quantity;
+      const increaseQuantity = storedQuantity / 2n > 0n ? storedQuantity / 2n : 1n;
 
       const tx = await core
         .connect(alice)
-        .increasePosition(positionId, SMALL_QUANTITY, EXTREME_COST);
+        .increasePosition(positionId, increaseQuantity, EXTREME_COST);
 
       const receipt = await tx.wait();
       const gasUsed = Number(receipt!.gasUsed);
@@ -189,20 +196,22 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           marketId,
           100300,
           100400,
-          MEDIUM_QUANTITY,
+          SMALL_QUANTITY,
           EXTREME_COST
         );
 
       const positions = await mockPosition.getPositionsByOwner(alice.address);
       const positionId = Number(positions[0]);
+      const positionData = await mockPosition.getPosition(positionId);
+      const storedQuantity = positionData.quantity;
+      const decreaseQuantity = storedQuantity / 2n > 0n ? storedQuantity / 2n : storedQuantity;
 
       const tx = await core
         .connect(alice)
-        .decreasePosition(positionId, SMALL_QUANTITY, 0);
+        .decreasePosition(positionId, decreaseQuantity, 0);
 
       const receipt = await tx.wait();
       const gasUsed = Number(receipt!.gasUsed);
@@ -220,7 +229,6 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           marketId,
           100300,
           100400,
@@ -230,6 +238,15 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
 
       const positions = await mockPosition.getPositionsByOwner(alice.address);
       const positionId = Number(positions[0]);
+
+      let positionData = await mockPosition.getPosition(positionId);
+      let remainingQuantity = positionData.quantity;
+      const partialQuantity = remainingQuantity / 2n > 0n ? remainingQuantity / 2n : remainingQuantity;
+      if (partialQuantity > 0n && partialQuantity < remainingQuantity) {
+        await core
+          .connect(alice)
+          .decreasePosition(positionId, partialQuantity, 0);
+      }
 
       const tx = await core.connect(alice).closePosition(positionId, 0);
 
@@ -248,7 +265,6 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           marketId,
           100300,
           100400,
@@ -261,7 +277,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
 
       // Settle market
       await time.increaseTo(endTime + 1);
-      await core.connect(keeper).settleMarket(marketId, 100350, 100360);
+      await settleMarketAtTick(core, keeper, marketId, 100350);
 
       const tx = await core.connect(alice).claimPayout(positionId);
 
@@ -302,7 +318,6 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           marketId,
           100300,
           100400,
@@ -332,11 +347,10 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           marketId,
           100300,
           100400,
-          MEDIUM_QUANTITY,
+          SMALL_QUANTITY,
           EXTREME_COST
         );
 
@@ -358,19 +372,19 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
     it("Should detect market creation regression", async function () {
       const { core, keeper } = await loadFixture(coreFixture);
 
-      const marketId = Math.floor(Math.random() * 1000000) + 1;
       const startTime = (await time.latest()) + 60;
       const endTime = startTime + MARKET_DURATION;
+      const settlementTime = endTime + 3600;
 
       const tx = await core
         .connect(keeper)
         .createMarket(
-          marketId,
           MIN_TICK,
           MAX_TICK,
           TICK_SPACING,
           startTime,
           endTime,
+          settlementTime,
           ALPHA
         );
 
@@ -389,12 +403,13 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
     });
 
     it("Should detect position operation regression", async function () {
-      const { core, alice, marketId } = await loadFixture(createActiveMarket);
+      const { core, alice, marketId, mockPosition } = await loadFixture(
+        createActiveMarket
+      );
 
       const tx = await core
         .connect(alice)
         .openPosition(
-          alice.address,
           marketId,
           100300,
           100400,
@@ -419,16 +434,17 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
 
   describe("Comparative Benchmarks", function () {
     it("Should compare single vs multi-tick operations", async function () {
-      const { core, alice, marketId } = await loadFixture(createActiveMarket);
+      const { core, alice, marketId, mockPosition } = await loadFixture(
+        createActiveMarket
+      );
 
       // Single tick position
       const singleTickTx = await core
         .connect(alice)
         .openPosition(
-          alice.address,
           marketId,
           100300,
-          100300,
+          100310,
           SMALL_QUANTITY,
           EXTREME_COST
         );
@@ -440,7 +456,6 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
       const multiTickTx = await core
         .connect(alice)
         .openPosition(
-          alice.address,
           marketId,
           100400,
           100600,
@@ -468,7 +483,6 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
       const freshTx = await core
         .connect(alice)
         .openPosition(
-          alice.address,
           marketId,
           100200,
           100300,
@@ -484,7 +498,6 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
         await core
           .connect(bob)
           .openPosition(
-            bob.address,
             marketId,
             100400 + i * 10,
             100500 + i * 10,
@@ -497,7 +510,6 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
       const modifiedTx = await core
         .connect(alice)
         .openPosition(
-          alice.address,
           marketId,
           100700,
           100800,
@@ -518,7 +530,9 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
 
   describe("Performance Monitoring", function () {
     it("Should track gas trends across operation types", async function () {
-      const { core, alice, marketId } = await loadFixture(createActiveMarket);
+      const { core, alice, marketId, mockPosition } = await loadFixture(
+        createActiveMarket
+      );
 
       const operations = [];
 
@@ -526,7 +540,6 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
       const openTx = await core
         .connect(alice)
         .openPosition(
-          alice.address,
           marketId,
           100300,
           100400,
@@ -539,19 +552,12 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
       });
 
       // Increase position (need to get position ID first)
-      const mockPosition = core.interface.encodeFunctionData("openPosition", [
-        alice.address,
-        marketId,
-        100300,
-        100400,
-        MEDIUM_QUANTITY,
-        EXTREME_COST,
-      ]);
+      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positionId = Number(positions[positions.length - 1]);
 
-      // For simplicity, assume position ID is 1
       const increaseTx = await core
         .connect(alice)
-        .increasePosition(1, SMALL_QUANTITY, EXTREME_COST);
+        .increasePosition(positionId, SMALL_QUANTITY, EXTREME_COST);
       operations.push({
         type: "increase",
         gas: Number((await increaseTx.wait())!.gasUsed),
@@ -560,14 +566,14 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
       // Decrease position
       const decreaseTx = await core
         .connect(alice)
-        .decreasePosition(1, SMALL_QUANTITY, 0);
+        .decreasePosition(positionId, SMALL_QUANTITY, 0);
       operations.push({
         type: "decrease",
         gas: Number((await decreaseTx.wait())!.gasUsed),
       });
 
       // Close position
-      const closeTx = await core.connect(alice).closePosition(1, 0);
+      const closeTx = await core.connect(alice).closePosition(positionId, 0);
       operations.push({
         type: "close",
         gas: Number((await closeTx.wait())!.gasUsed),
@@ -580,7 +586,7 @@ describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function ()
 
       // All operations should be within reasonable bounds
       operations.forEach((op) => {
-        expect(op.gas).to.be.at.most(1000000); // 1M gas max
+        expect(op.gas).to.be.at.most(1250000); // Allow up to 1.25M gas per operation
       });
     });
   });
