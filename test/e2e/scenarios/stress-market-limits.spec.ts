@@ -3,7 +3,8 @@ import { ethers } from "hardhat";
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import {
   coreFixture,
-  createActiveMarketFixture,
+  getTickValue,
+  settleMarketAtTick,
 } from "../../helpers/fixtures/core";
 import { E2E_TAG } from "../../helpers/tags";
 
@@ -13,26 +14,48 @@ describe(`${E2E_TAG} Market Limits and Stress Tests`, function () {
   const MARKET_DURATION = 7 * 24 * 60 * 60; // 7 days
 
   it("Should handle maximum tick count", async function () {
-    const { core, keeper } = await loadFixture(createActiveMarketFixture);
+    const { core, keeper } = await loadFixture(coreFixture);
 
     const currentTime = await time.latest();
     const startTime = currentTime + 3600;
     const endTime = startTime + MARKET_DURATION;
 
-    // This might be slow, so we test with a smaller but significant number
     const largeTicks = 50000;
     const minTick = 100000;
     const maxTick = minTick + (largeTicks - 1) * 10;
+    const tickSpacing = 10;
 
+    const marketIdBig = await core
+      .connect(keeper)
+      .createMarket.staticCall(
+        1,
+        minTick,
+        maxTick,
+        tickSpacing,
+        startTime,
+        endTime,
+        ALPHA
+      );
+    await core
+      .connect(keeper)
+      .createMarket(
+        1,
+        minTick,
+        maxTick,
+        tickSpacing,
+        startTime,
+        endTime,
+        ALPHA
+      );
+
+    const marketId = Number(marketIdBig);
     const market = await core.getMarket(marketId);
-    expect(market.numTicks).to.equal(largeTicks);
+    expect(Number(market.numBins)).to.equal(largeTicks - 1);
 
-    // Test settlement with large tick count
-    await core.connect(keeper).settleMarket(1, maxTick - 20, maxTick - 10);
+    await settleMarketAtTick(core, keeper, marketId, maxTick - 15);
 
-    const settledMarket = await core.getMarket(1);
-    expect(settledMarket.settlementLowerTick).to.equal(maxTick - 20);
-    expect(settledMarket.settlementUpperTick).to.equal(maxTick - 10);
+    const settledMarket = await core.getMarket(marketId);
+    expect(settledMarket.settlementTick).to.equal(BigInt(maxTick - 15));
   });
 
   it("Should handle rapid market creation and settlement", async function () {
@@ -61,14 +84,12 @@ describe(`${E2E_TAG} Market Limits and Stress Tests`, function () {
 
       const settlementLower = 100000 + (i % 100) * 10;
       const settlementUpper = settlementLower + 10;
-      await core
-        .connect(keeper)
-        .settleMarket(i, settlementLower, settlementUpper);
+      const settlementTick = (settlementLower + settlementUpper) / 2;
+      await settleMarketAtTick(core, keeper, i, settlementTick);
 
       const market = await core.getMarket(i);
       expect(market.settled).to.be.true;
-      expect(market.settlementLowerTick).to.equal(settlementLower);
-      expect(market.settlementUpperTick).to.equal(settlementUpper);
+      expect(market.settlementTick).to.equal(BigInt(settlementTick));
     }
   });
 
@@ -99,15 +120,17 @@ describe(`${E2E_TAG} Market Limits and Stress Tests`, function () {
       );
 
     const market = await core.getMarket(1);
-    expect(market.numTicks).to.equal(maxTickCount);
+    expect(market.numBins).to.equal(maxTickCount - 1n);
 
     // Sample a few tick values to ensure tree initialization
     const WAD = ethers.parseEther("1");
-    expect(await core.getTickValue(1, minTick)).to.equal(WAD);
-    expect(await core.getTickValue(1, minTick + 100000 * tickSpacing)).to.equal(
+    expect(await getTickValue(core, 1, minTick, tickSpacing)).to.equal(WAD);
+    expect(
+      await getTickValue(core, 1, minTick + 100000 * tickSpacing, tickSpacing)
+    ).to.equal(
       WAD
     );
-    expect(await core.getTickValue(1, maxTick)).to.equal(WAD);
+    expect(await getTickValue(core, 1, maxTick, tickSpacing)).to.equal(WAD);
   });
 
   it("Should validate time range correctly", async function () {
@@ -149,7 +172,7 @@ describe(`${E2E_TAG} Market Limits and Stress Tests`, function () {
     ).to.be.revertedWithCustomError(core, "InvalidTimeRange");
   });
 
-  it("Should prevent duplicate market creation", async function () {
+  it("Should auto-increment market IDs on creation", async function () {
     const { core, keeper } = await loadFixture(coreFixture);
 
     const currentTime = await time.latest();
@@ -159,7 +182,17 @@ describe(`${E2E_TAG} Market Limits and Stress Tests`, function () {
     const maxTick = 100990;
     const tickSpacing = 10;
 
-    // Create first market
+    const firstId = await core
+      .connect(keeper)
+      .createMarket.staticCall(
+        1,
+        minTick,
+        maxTick,
+        tickSpacing,
+        startTime,
+        endTime,
+        ALPHA
+      );
     await core
       .connect(keeper)
       .createMarket(
@@ -172,20 +205,35 @@ describe(`${E2E_TAG} Market Limits and Stress Tests`, function () {
         ALPHA
       );
 
-    // Try to create market with same ID
-    await expect(
-      core
-        .connect(keeper)
-        .createMarket(
-          1,
-          minTick,
-          maxTick,
-          tickSpacing,
-          startTime + 1000,
-          endTime + 1000,
-          ALPHA
-        )
-    ).to.be.revertedWithCustomError(core, "MarketAlreadyExists");
+    const secondId = await core
+      .connect(keeper)
+      .createMarket.staticCall(
+        1,
+        minTick,
+        maxTick,
+        tickSpacing,
+        endTime + 100,
+        endTime + 100 + MARKET_DURATION,
+        ALPHA
+      );
+    await core
+      .connect(keeper)
+      .createMarket(
+        1,
+        minTick,
+        maxTick,
+        tickSpacing,
+        endTime + 100,
+        endTime + 100 + MARKET_DURATION,
+        ALPHA
+      );
+
+    expect(secondId).to.equal(firstId + 1n);
+
+    const firstMarket = await core.getMarket(Number(firstId));
+    const secondMarket = await core.getMarket(Number(secondId));
+    expect(firstMarket.minTick).to.equal(minTick);
+    expect(secondMarket.minTick).to.equal(minTick);
   });
 
   it("Should validate liquidity parameter boundaries", async function () {

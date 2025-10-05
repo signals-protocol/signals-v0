@@ -8,6 +8,16 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
   const SMALL_QUANTITY = ethers.parseUnits("0.01", 6); // 0.01 USDC
   const MEDIUM_QUANTITY = ethers.parseUnits("0.05", 6); // 0.05 USDC
   const MEDIUM_COST = ethers.parseUnits("5", 6); // 5 USDC
+  const COST_BUFFER = ethers.parseUnits("100", 6);
+
+  async function quoteIncreaseCost(
+    coreContract: any,
+    positionId: bigint,
+    amount: bigint
+  ) {
+    const quote = await coreContract.calculateIncreaseCost(positionId, amount);
+    return quote + COST_BUFFER;
+  }
 
   it("Should increase position quantity successfully", async function () {
     const { core, alice, paymentToken, mockPosition, marketId } =
@@ -16,7 +26,6 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
     await core
       .connect(alice)
       .openPosition(
-        alice.address,
         marketId,
         100450,
         100550,
@@ -45,7 +54,9 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
   });
 
   it("Should revert increase of non-existent position", async function () {
-    const { core, alice } = await loadFixture(createActiveMarketFixture);
+    const { core, alice, mockPosition } = await loadFixture(
+      createActiveMarketFixture
+    );
 
     await expect(
       core.connect(alice).increasePosition(
@@ -53,7 +64,7 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
         SMALL_QUANTITY,
         MEDIUM_COST
       )
-    ).to.be.revertedWithCustomError(core, "PositionNotFound");
+    ).to.be.revertedWithCustomError(mockPosition, "PositionNotFound");
   });
 
   it("Should handle zero quantity increase", async function () {
@@ -65,7 +76,6 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
     await core
       .connect(alice)
       .openPosition(
-        alice.address,
         marketId,
         100450,
         100550,
@@ -90,7 +100,6 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
     await core
       .connect(alice)
       .openPosition(
-        alice.address,
         marketId,
         100450,
         100550,
@@ -122,7 +131,6 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
     await core
       .connect(alice)
       .openPosition(
-        alice.address,
         marketId,
         100450,
         100550,
@@ -133,14 +141,21 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
     const positions = await mockPosition.getPositionsByOwner(alice.address);
     const positionId = positions[0];
 
+    const increaseAmount = SMALL_QUANTITY;
+    const increaseCost = await quoteIncreaseCost(
+      core,
+      positionId,
+      increaseAmount
+    );
+
     // Pause the contract
     await core.connect(keeper).pause("Testing pause");
 
     await expect(
       core
         .connect(alice)
-        .increasePosition(positionId, SMALL_QUANTITY, MEDIUM_COST)
-    ).to.be.revertedWithCustomError(core, "ContractPaused");
+        .increasePosition(positionId, increaseAmount, increaseCost)
+    ).to.be.revertedWithCustomError(core, "EnforcedPause");
   });
 
   it("Should handle gas-efficient small adjustments", async function () {
@@ -150,7 +165,6 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
 
     // Create position
     await core.connect(alice).openPosition(
-      alice.address,
       marketId,
       100450,
       100550,
@@ -184,7 +198,6 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
     await core
       .connect(alice)
       .openPosition(
-        alice.address,
         tradeParams.marketId,
         tradeParams.lowerTick,
         tradeParams.upperTick,

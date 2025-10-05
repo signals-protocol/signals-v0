@@ -1,8 +1,56 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { coreFixture, setupCustomMarket } from "../../../helpers/fixtures/core";
+import {
+  coreFixture,
+  setupCustomMarket,
+  createMarketWithConfig,
+  toSettlementValue,
+} from "../../../helpers/fixtures/core";
 import { COMPONENT_TAG } from "../../../helpers/tags";
+
+async function createTimedMarket(
+  contracts: Awaited<ReturnType<typeof coreFixture>>,
+  options: {
+    minTick?: number;
+    maxTick?: number;
+    tickSpacing?: number;
+    startTime?: number;
+    endTime?: number;
+    settlementTime?: number;
+    startOffset?: number;
+    duration?: number;
+    settlementOffset?: number;
+    liquidity?: bigint;
+  } = {}
+) {
+  const {
+    minTick = 100000,
+    maxTick = 100990,
+    tickSpacing = 10,
+    startOffset = 100,
+    duration = 86400,
+    settlementOffset = 3600,
+    liquidity = ethers.parseEther("0.1"),
+  } = options;
+
+  const currentTime = Number(await time.latest());
+  const startTime = options.startTime ?? currentTime + startOffset;
+  const endTime = options.endTime ?? startTime + duration;
+  const settlementTime = options.settlementTime ?? endTime + settlementOffset;
+
+  const marketId = await createMarketWithConfig(contracts.core, contracts.keeper, {
+    minTick,
+    maxTick,
+    tickSpacing,
+    startTime,
+    endTime,
+    liquidityParameter: liquidity,
+    settlementTime,
+  });
+
+  return { marketId, startTime, endTime, settlementTime };
+}
 
 describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
   describe("Trade Timing Validation", function () {
@@ -27,7 +75,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             tradeParams.marketId,
             tradeParams.lowerTick,
             tradeParams.upperTick,
@@ -39,22 +86,13 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
     it("Should handle trade 1 second before market end", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, alice, keeper } = contracts;
+      const { core, alice } = contracts;
 
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const marketId = Math.floor(Math.random() * 1000000) + 1;
-
-      await core.connect(keeper).createMarket(
-        marketId,
-        100000, // minTick
-        100990, // maxTick
-        10, // tickSpacing
-        startTime,
-        endTime,
-        ethers.parseEther("0.1")
-      );
+      const { marketId, endTime } = await createTimedMarket(contracts, {
+        startOffset: 100,
+        duration: 86400,
+        liquidity: ethers.parseEther("0.1"),
+      });
 
       // Move to 1 second before end
       await time.setNextBlockTimestamp(endTime - 1);
@@ -71,7 +109,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             tradeParams.marketId,
             tradeParams.lowerTick,
             tradeParams.upperTick,
@@ -83,22 +120,13 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
     it("Should deactivate market when trading after end time", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, alice, keeper } = contracts;
+      const { core, alice } = contracts;
 
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const marketId = Math.floor(Math.random() * 1000000) + 1;
-
-      await core.connect(keeper).createMarket(
-        marketId,
-        100000, // minTick
-        100990, // maxTick
-        10, // tickSpacing
-        startTime,
-        endTime,
-        ethers.parseEther("0.1")
-      );
+      const { marketId, endTime } = await createTimedMarket(contracts, {
+        startOffset: 100,
+        duration: 86400,
+        liquidity: ethers.parseEther("0.1"),
+      });
 
       // Move past end time
       await time.setNextBlockTimestamp(endTime + 1);
@@ -115,7 +143,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             tradeParams.marketId,
             tradeParams.lowerTick,
             tradeParams.upperTick,
@@ -127,21 +154,16 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
     it("Should prevent trading before market start", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, keeper, alice } = contracts;
+      const { core, alice } = contracts;
 
-      const futureStart = (await time.latest()) + 3600; // 1 hour from now
+      const futureStart = Number(await time.latest()) + 3600; // 1 hour from now
       const futureEnd = futureStart + 86400; // 1 day duration
-      const marketId = Math.floor(Math.random() * 1000000) + 1;
 
-      await core.connect(keeper).createMarket(
-        marketId,
-        100000, // minTick
-        100990, // maxTick
-        10, // tickSpacing
-        futureStart,
-        futureEnd,
-        ethers.parseEther("0.1")
-      );
+      const { marketId } = await createTimedMarket(contracts, {
+        startTime: futureStart,
+        endTime: futureEnd,
+        liquidity: ethers.parseEther("0.1"),
+      });
 
       const tradeParams = {
         marketId,
@@ -155,7 +177,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             tradeParams.marketId,
             tradeParams.lowerTick,
             tradeParams.upperTick,
@@ -169,22 +190,13 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
   describe("Block Timestamp Edge Cases", function () {
     it("Should handle block timestamp jumps correctly", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, alice, keeper } = contracts;
+      const { core, alice } = contracts;
 
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const marketId = Math.floor(Math.random() * 1000000) + 1;
-
-      await core.connect(keeper).createMarket(
-        marketId,
-        100000, // minTick
-        100990, // maxTick
-        10, // tickSpacing
-        startTime,
-        endTime,
-        ethers.parseEther("0.1")
-      );
+      const { marketId, endTime } = await createTimedMarket(contracts, {
+        startOffset: 100,
+        duration: 86400,
+        liquidity: ethers.parseEther("0.1"),
+      });
 
       // Jump to near end time
       await time.setNextBlockTimestamp(endTime - 10);
@@ -201,7 +213,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             tradeParams.marketId,
             tradeParams.lowerTick,
             tradeParams.upperTick,
@@ -217,7 +228,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             tradeParams.marketId,
             tradeParams.lowerTick,
             tradeParams.upperTick,
@@ -229,48 +239,37 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
     it("Should handle extreme timestamp values", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, keeper } = contracts;
 
       // Test with very large timestamp values
-      const farFuture = 2147483647; // Max 32-bit timestamp
-      const farFutureEnd = farFuture + 86400;
-      const marketId = Math.floor(Math.random() * 1000000) + 1;
+      const farFuture = 2_147_483_647; // Max 32-bit timestamp
+      const farFutureEnd = farFuture + 86_400;
 
       await expect(
-        core.connect(keeper).createMarket(
-          marketId,
-          100000, // minTick
-          100990, // maxTick
-          10, // tickSpacing
-          farFuture,
-          farFutureEnd,
-          ethers.parseEther("0.1")
-        )
-      ).to.not.be.reverted;
+        createTimedMarket(contracts, {
+          startTime: farFuture,
+          endTime: farFutureEnd,
+          settlementTime: farFutureEnd + 3600,
+          liquidity: ethers.parseEther("0.1"),
+        })
+      ).to.be.fulfilled;
     });
   });
 
   describe("Market Expiry Operations", function () {
     it("Should handle market expiry edge cases during operations", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, keeper, alice } = contracts;
+      const { core, alice } = contracts;
 
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const marketId = Math.floor(Math.random() * 1000000) + 1;
-
-      await core.connect(keeper).createMarket(
-        marketId,
-        100000, // minTick
-        100990, // maxTick
-        10, // tickSpacing
-        startTime,
-        endTime,
-        ethers.parseEther("0.1")
+      const { marketId, startTime, endTime } = await createTimedMarket(
+        contracts,
+        {
+          startOffset: 100,
+          duration: 86400,
+          liquidity: ethers.parseEther("0.1"),
+        }
       );
 
-      await time.increaseTo(startTime + 1);
+      await time.setNextBlockTimestamp(startTime + 1);
 
       // Open position before expiry
       const openParams = {
@@ -284,7 +283,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           openParams.marketId,
           openParams.lowerTick,
           openParams.upperTick,
@@ -322,49 +320,33 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       const contracts = await loadFixture(coreFixture);
       const { core, keeper } = contracts;
 
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const marketId = Math.floor(Math.random() * 1000000) + 1;
+      const { marketId, settlementTime } = await createTimedMarket(contracts, {
+        startOffset: 100,
+        duration: 86400,
+      });
 
-      await core.connect(keeper).createMarket(
-        marketId,
-        100000, // minTick
-        100990, // maxTick
-        10, // tickSpacing
-        startTime,
-        endTime,
-        ethers.parseEther("0.1")
-      );
-
-      // Fast forward past market end time
-      await time.increaseTo(endTime + 1);
+      // Fast forward past settlement time
+      await time.increaseTo(settlementTime + 1);
 
       // Settlement should still work after expiry
-      await expect(core.connect(keeper).settleMarket(marketId, 49, 50)).to.not
-        .be.reverted;
+      const settlementTick = 100450;
+      await expect(
+        core
+          .connect(keeper)
+          .settleMarket(marketId, toSettlementValue(settlementTick))
+      ).to.not.be.reverted;
     });
   });
 
   describe("Extended Time Boundaries", function () {
     it("Should handle trade at exact market start time", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, alice, keeper } = contracts;
+      const { core, alice } = contracts;
 
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const marketId = Math.floor(Math.random() * 1000000) + 1;
-
-      await core.connect(keeper).createMarket(
-        marketId,
-        100000, // minTick
-        100990, // maxTick
-        10, // tickSpacing
-        startTime,
-        endTime,
-        ethers.parseEther("0.1")
-      );
+      const { marketId, startTime } = await createTimedMarket(contracts, {
+        startOffset: 100,
+        duration: 86400,
+      });
 
       // Move to exact start time
       await time.setNextBlockTimestamp(startTime);
@@ -381,7 +363,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             tradeParams.marketId,
             tradeParams.lowerTick,
             tradeParams.upperTick,
@@ -393,22 +374,12 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
     it("Should handle trade 1 second before market end", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, alice, keeper } = contracts;
+      const { core, alice } = contracts;
 
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const marketId = Math.floor(Math.random() * 1000000) + 1;
-
-      await core.connect(keeper).createMarket(
-        marketId,
-        100000, // minTick
-        100990, // maxTick
-        10, // tickSpacing
-        startTime,
-        endTime,
-        ethers.parseEther("0.1")
-      );
+      const { marketId, endTime } = await createTimedMarket(contracts, {
+        startOffset: 100,
+        duration: 86400,
+      });
 
       // Move to 1 second before end
       await time.setNextBlockTimestamp(endTime - 1);
@@ -425,7 +396,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             tradeParams.marketId,
             tradeParams.lowerTick,
             tradeParams.upperTick,
@@ -437,22 +407,12 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
     it("Should deactivate market when trading after end time", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, alice, keeper } = contracts;
+      const { core, alice } = contracts;
 
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const marketId = Math.floor(Math.random() * 1000000) + 1;
-
-      await core.connect(keeper).createMarket(
-        marketId,
-        100000, // minTick
-        100990, // maxTick
-        10, // tickSpacing
-        startTime,
-        endTime,
-        ethers.parseEther("0.1")
-      );
+      const { marketId, endTime } = await createTimedMarket(contracts, {
+        startOffset: 100,
+        duration: 86400,
+      });
 
       // Move past end time
       await time.setNextBlockTimestamp(endTime + 1);
@@ -469,7 +429,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             tradeParams.marketId,
             tradeParams.lowerTick,
             tradeParams.upperTick,
@@ -481,26 +440,17 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
     it("Should prevent trading before market start", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, keeper, alice } = contracts;
+      const { core, alice } = contracts;
 
-      const futureStart = (await time.latest()) + 3600; // 1 hour from now
-      const futureEnd = futureStart + 86400; // 1 day duration
-      const marketId = Math.floor(Math.random() * 1000000) + 1;
+      const futureStart = Number(await time.latest()) + 3600; // 1 hour from now
 
-      await core
-        .connect(keeper)
-        .createMarket(
-          2,
-          100000,
-          100990,
-          10,
-          futureStart,
-          futureEnd,
-          ethers.parseEther("0.1")
-        );
+      const { marketId } = await createTimedMarket(contracts, {
+        startTime: futureStart,
+        endTime: futureStart + 86400,
+      });
 
       const tradeParams = {
-        marketId: 2,
+        marketId,
         lowerTick: 100100,
         upperTick: 100200,
         quantity: ethers.parseUnits("0.01", 6),
@@ -511,7 +461,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             tradeParams.marketId,
             tradeParams.lowerTick,
             tradeParams.upperTick,
@@ -523,22 +472,12 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
     it("Should handle block timestamp jumps correctly", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, alice, keeper } = contracts;
+      const { core, alice } = contracts;
 
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const marketId = Math.floor(Math.random() * 1000000) + 1;
-
-      await core.connect(keeper).createMarket(
-        marketId,
-        100000, // minTick
-        100990, // maxTick
-        10, // tickSpacing
-        startTime,
-        endTime,
-        ethers.parseEther("0.1")
-      );
+      const { marketId, endTime } = await createTimedMarket(contracts, {
+        startOffset: 100,
+        duration: 86400,
+      });
 
       // Jump to near end time
       await time.setNextBlockTimestamp(endTime - 10);
@@ -555,7 +494,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             tradeParams.marketId,
             tradeParams.lowerTick,
             tradeParams.upperTick,
@@ -571,7 +509,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             tradeParams.marketId,
             tradeParams.lowerTick,
             tradeParams.upperTick,
@@ -605,24 +542,18 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
 
     it("Should handle market expiry edge cases during operations", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, alice, keeper } = contracts;
+      const { core, alice } = contracts;
 
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const marketId = Math.floor(Math.random() * 1000000) + 1;
-
-      await core.connect(keeper).createMarket(
-        marketId,
-        100000, // minTick
-        100990, // maxTick
-        10, // tickSpacing
-        startTime,
-        endTime,
-        ethers.parseEther("0.1")
+      const { marketId, startTime, endTime } = await createTimedMarket(
+        contracts,
+        {
+          startOffset: 100,
+          duration: 86400,
+          liquidity: ethers.parseEther("0.1"),
+        }
       );
 
-      await time.increaseTo(startTime + 1);
+      await time.setNextBlockTimestamp(startTime + 1);
 
       // Open position before expiry
       const openParams = {
@@ -636,7 +567,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           openParams.marketId,
           openParams.lowerTick,
           openParams.upperTick,
@@ -674,25 +604,14 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
   describe("Settlement Timestamp Features", function () {
     it("Should create market with settlement timestamp using createMarket", async function () {
       const contracts = await loadFixture(coreFixture);
-      const { core, keeper } = contracts;
+      const { core } = contracts;
 
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400; // 1 day later
-      const settlementTime = endTime + 3600; // 1 hour after end
-      const marketId = Math.floor(Math.random() * 1000000) + 1;
-
-      await expect(
-        core.connect(keeper).createMarket(
-          100000, // minTick
-          100990, // maxTick
-          10, // tickSpacing
-          startTime,
-          endTime,
-          settlementTime,
-          ethers.parseEther("0.1")
-        )
-      ).to.not.be.reverted;
+      const { marketId, startTime, endTime, settlementTime } =
+        await createTimedMarket(contracts, {
+          startOffset: 100,
+          duration: 86400,
+          settlementOffset: 3600,
+        });
 
       const market = await core.getMarket(marketId);
       expect(market.startTimestamp).to.equal(startTime);
@@ -704,79 +623,23 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       const contracts = await loadFixture(coreFixture);
       const { core, keeper } = contracts;
 
-      const currentTime = await time.latest();
+      const currentTime = Number(await time.latest());
       const startTime = currentTime + 100;
       const endTime = startTime + 86400;
-      const invalidSettlementTime = endTime - 100; // Before end time - invalid!
-
-      await expect(
-        core.connect(keeper).createMarket(
-          100000, // minTick
-          100990, // maxTick
-          10, // tickSpacing
-          startTime,
-          endTime,
-          invalidSettlementTime,
-          ethers.parseEther("0.1")
-        )
-      ).to.be.revertedWithCustomError(core, "InvalidTimeRange");
-    });
-
-    it("Should update settlement timestamp correctly", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, keeper } = contracts;
-
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const marketId = Math.floor(Math.random() * 1000000) + 1;
-
-      // Create market with legacy method (no settlement timestamp)
-      await core.connect(keeper).createMarket(
-        100000, // minTick
-        100990, // maxTick
-        10, // tickSpacing
-        startTime,
-        endTime,
-        ethers.parseEther("0.1")
-      );
-
-      const newSettlementTime = endTime + 3600; // 1 hour after end
+      const invalidSettlementTime = endTime - 100;
 
       await expect(
         core
           .connect(keeper)
-          .updateSettlementTimestamp(marketId, newSettlementTime)
-      ).to.not.be.reverted;
-
-      const market = await core.getMarket(marketId);
-      expect(market.settlementTimestamp).to.equal(newSettlementTime);
-    });
-
-    it("Should reject updateSettlementTimestamp with invalid time", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, keeper } = contracts;
-
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const marketId = Math.floor(Math.random() * 1000000) + 1;
-
-      await core.connect(keeper).createMarket(
-        100000, // minTick
-        100990, // maxTick
-        10, // tickSpacing
-        startTime,
-        endTime,
-        ethers.parseEther("0.1")
-      );
-
-      const invalidSettlementTime = endTime - 100; // Before end time
-
-      await expect(
-        core
-          .connect(keeper)
-          .updateSettlementTimestamp(marketId, invalidSettlementTime)
+          .createMarket(
+            100000,
+            100990,
+            10,
+            startTime,
+            endTime,
+            invalidSettlementTime,
+            ethers.parseEther("0.1")
+          )
       ).to.be.revertedWithCustomError(core, "InvalidTimeRange");
     });
 
@@ -784,163 +647,124 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       const contracts = await loadFixture(coreFixture);
       const { core, keeper } = contracts;
 
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const settlementTime = endTime + 3600; // 1 hour after end
-      const marketId = Math.floor(Math.random() * 1000000) + 1;
-
-      await core.connect(keeper).createMarket(
-        100000, // minTick
-        100990, // maxTick
-        10, // tickSpacing
-        startTime,
-        endTime,
-        settlementTime,
-        ethers.parseEther("0.1")
-      );
-
-      // Try to settle before settlement time (but after end time)
-      await time.setNextBlockTimestamp(endTime + 1800); // 30 minutes after end, but before settlement
+      const { marketId, settlementTime } = await createTimedMarket(contracts, {
+        startOffset: 100,
+        duration: 86400,
+        settlementOffset: 3600,
+      });
 
       await expect(
-        core.connect(keeper).settleMarket(marketId, 100000 * 1000000) // 100000 with 6 decimals
+        core
+          .connect(keeper)
+          .settleMarket(marketId, toSettlementValue(100450))
       ).to.be.revertedWithCustomError(core, "SettlementTooEarly");
 
-      // Settlement should work at or after settlement time
-      await time.setNextBlockTimestamp(settlementTime + 1);
-
+      await time.setNextBlockTimestamp(settlementTime);
       await expect(
-        core.connect(keeper).settleMarket(marketId, 100000 * 1000000)
+        core
+          .connect(keeper)
+          .settleMarket(marketId, toSettlementValue(100450))
       ).to.not.be.reverted;
     });
 
-    it("Should allow settlement after endTime for legacy markets (no settlementTimestamp)", async function () {
+    it("Should allow settlement after endTime when settlement equals end", async function () {
       const contracts = await loadFixture(coreFixture);
       const { core, keeper } = contracts;
 
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const marketId = Math.floor(Math.random() * 1000000) + 1;
-
-      // Create legacy market (no settlement timestamp)
-      await core.connect(keeper).createMarket(
-        100000, // minTick
-        100990, // maxTick
-        10, // tickSpacing
-        startTime,
-        endTime,
-        ethers.parseEther("0.1")
+      const { marketId, endTime, settlementTime } = await createTimedMarket(
+        contracts,
+        {
+          startOffset: 100,
+          duration: 86400,
+          settlementOffset: 1,
+        }
       );
 
-      // Move just after end time
-      await time.setNextBlockTimestamp(endTime + 1);
-
-      // Should work because settlementTimestamp is 0, so it falls back to endTimestamp
+      await time.setNextBlockTimestamp(settlementTime);
       await expect(
-        core.connect(keeper).settleMarket(marketId, 100000 * 1000000)
+        core
+          .connect(keeper)
+          .settleMarket(marketId, toSettlementValue(100500))
       ).to.not.be.reverted;
     });
 
-    it("Should enforce cross-constraint in updateMarketTiming when settlementTimestamp exists", async function () {
+    it("Should enforce cross-constraint in updateMarketTiming", async function () {
       const contracts = await loadFixture(coreFixture);
       const { core, keeper } = contracts;
 
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const settlementTime = endTime + 3600;
-      const marketId = Math.floor(Math.random() * 1000000) + 1;
+      const { marketId, startTime, endTime, settlementTime } =
+        await createTimedMarket(contracts, {
+          startOffset: 100,
+          duration: 86400,
+          settlementOffset: 3600,
+        });
 
-      await core.connect(keeper).createMarket(
-        100000, // minTick
-        100990, // maxTick
-        10, // tickSpacing
-        startTime,
-        endTime,
-        settlementTime,
-        ethers.parseEther("0.1")
-      );
-
-      const newStartTime = startTime + 1800; // 30 minutes later
-      const invalidNewEndTime = settlementTime + 100; // After settlement time - invalid!
+      const invalidEnd = endTime + 3600;
+      const invalidSettlement = settlementTime - 100;
 
       await expect(
         core
           .connect(keeper)
-          .updateMarketTiming(marketId, newStartTime, invalidNewEndTime)
+          .updateMarketTiming(
+            marketId,
+            startTime,
+            invalidEnd,
+            invalidSettlement
+          )
       ).to.be.revertedWithCustomError(core, "InvalidTimeRange");
+    });
 
-      // Valid update: new end time before settlement time
-      const validNewEndTime = settlementTime - 100;
+    it("Should allow updateMarketTiming with valid inputs", async function () {
+      const contracts = await loadFixture(coreFixture);
+      const { core, keeper } = contracts;
+
+      const { marketId, startTime, endTime, settlementTime } =
+        await createTimedMarket(contracts, {
+          startOffset: 100,
+          duration: 86400,
+          settlementOffset: 3600,
+        });
+
+      const newStart = startTime + 60;
+      const newEnd = endTime + 120;
+      const newSettlement = settlementTime + 300;
 
       await expect(
         core
           .connect(keeper)
-          .updateMarketTiming(marketId, newStartTime, validNewEndTime)
+          .updateMarketTiming(marketId, newStart, newEnd, newSettlement)
       ).to.not.be.reverted;
+
+      const market = await core.getMarket(marketId);
+      expect(market.startTimestamp).to.equal(newStart);
+      expect(market.endTimestamp).to.equal(newEnd);
+      expect(market.settlementTimestamp).to.equal(newSettlement);
     });
 
-    it("Should allow updateMarketTiming without cross-constraint for legacy markets", async function () {
+    it("Should prevent updateMarketTiming on settled market", async function () {
       const contracts = await loadFixture(coreFixture);
       const { core, keeper } = contracts;
 
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const marketId = Math.floor(Math.random() * 1000000) + 1;
+      const { marketId, settlementTime } = await createTimedMarket(contracts, {
+        startOffset: 100,
+        duration: 86400,
+        settlementOffset: 3600,
+      });
 
-      // Legacy market (no settlement timestamp)
-      await core.connect(keeper).createMarket(
-        100000, // minTick
-        100990, // maxTick
-        10, // tickSpacing
-        startTime,
-        endTime,
-        ethers.parseEther("0.1")
-      );
-
-      const newStartTime = startTime + 1800;
-      const newEndTime = endTime + 3600; // Extend end time
-
-      // Should work because there's no settlement timestamp constraint
-      await expect(
-        core
-          .connect(keeper)
-          .updateMarketTiming(marketId, newStartTime, newEndTime)
-      ).to.not.be.reverted;
-    });
-
-    it("Should prevent updateSettlementTimestamp on settled market", async function () {
-      const contracts = await loadFixture(coreFixture);
-      const { core, keeper } = contracts;
-
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const settlementTime = endTime + 3600;
-      const marketId = Math.floor(Math.random() * 1000000) + 1;
-
-      await core.connect(keeper).createMarket(
-        100000, // minTick
-        100990, // maxTick
-        10, // tickSpacing
-        startTime,
-        endTime,
-        settlementTime,
-        ethers.parseEther("0.1")
-      );
-
-      // Settle the market
       await time.setNextBlockTimestamp(settlementTime + 1);
-      await core.connect(keeper).settleMarket(marketId, 100000 * 1000000);
+      await core
+        .connect(keeper)
+        .settleMarket(marketId, toSettlementValue(100400));
 
-      // Try to update settlement timestamp after settlement
       await expect(
         core
           .connect(keeper)
-          .updateSettlementTimestamp(marketId, settlementTime + 3600)
+          .updateMarketTiming(
+            marketId,
+            settlementTime,
+            settlementTime + 3600,
+            settlementTime + 7200
+          )
       ).to.be.revertedWithCustomError(core, "MarketAlreadySettled");
     });
   });

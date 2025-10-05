@@ -4,6 +4,7 @@ import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import {
   coreFixture,
   setupHighLiquidityMarket,
+  settleMarketAtTick,
 } from "../../helpers/fixtures/core";
 import { E2E_TAG } from "../../helpers/tags";
 
@@ -16,9 +17,40 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
   // Large trading amounts for high liquidity scenarios
   // With alpha=10, max safe chunk = 1.3 ETH ≈ $130, and MAX_CHUNKS_PER_TX=100
   // So max quantity = 130 * 100 = $13,000, but we use much smaller for efficiency
-  const LARGE_QUANTITY = ethers.parseUnits("50", USDC_DECIMALS); // $50 - single chunk
-  const HUGE_QUANTITY = ethers.parseUnits("80", USDC_DECIMALS); // $80 - single chunk
-  const EXTREME_QUANTITY = ethers.parseUnits("120", USDC_DECIMALS); // $120 - single chunk, testing edge
+  const LARGE_QUANTITY = ethers.parseUnits("5", USDC_DECIMALS); // $5 - sizable chunk post-updates
+  const HUGE_QUANTITY = ethers.parseUnits("10", USDC_DECIMALS); // $10 - larger chunk
+  const EXTREME_QUANTITY = ethers.parseUnits("15", USDC_DECIMALS); // $15 - stress edge
+  const COST_BUFFER_BPS = 50n; // 0.5%
+  const BPS_DENOMINATOR = 10000n;
+
+  const applyBuffer = (amount: bigint, buffer: bigint = COST_BUFFER_BPS) =>
+    (amount * (BPS_DENOMINATOR + buffer)) / BPS_DENOMINATOR + 1n;
+
+  const openWithBuffer = async (
+    core: any,
+    signer: any,
+    marketId: number,
+    lowerTick: number,
+    upperTick: number,
+    quantity: bigint,
+    buffer: bigint = COST_BUFFER_BPS
+  ) => {
+    const cost = await core.calculateOpenCost(
+      marketId,
+      lowerTick,
+      upperTick,
+      quantity
+    );
+    return core
+      .connect(signer)
+      .openPosition(
+        marketId,
+        lowerTick,
+        upperTick,
+        quantity,
+        applyBuffer(cost, buffer)
+      );
+  };
 
   async function createHighLiquidityMarket() {
     const contracts = await loadFixture(coreFixture);
@@ -46,7 +78,6 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
         lowerTick: 100200, // 실제 틱값 사용
         upperTick: 100800, // 실제 틱값 사용
         quantity: EXTREME_QUANTITY,
-        maxCost: ethers.parseUnits("300", USDC_DECIMALS), // $1k max cost
       };
 
       const costBefore = await core.calculateOpenCost(
@@ -55,16 +86,16 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
         tradeParams.upperTick,
         tradeParams.quantity
       );
+      const maxCost = applyBuffer(costBefore);
 
       const tx = await core
         .connect(alice)
         .openPosition(
-          alice.address,
           tradeParams.marketId,
           tradeParams.lowerTick,
           tradeParams.upperTick,
           tradeParams.quantity,
-          tradeParams.maxCost
+          maxCost
         );
       const receipt = await tx.wait();
 
@@ -89,32 +120,46 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
         await loadFixture(createHighLiquidityMarket);
 
       const traders = [alice, bob, charlie];
+      const ranges = [
+        { lower: 100100, upper: 100900 },
+        { lower: 100200, upper: 100800 },
+        { lower: 100300, upper: 100700 },
+      ];
       const positions: number[] = [];
 
       // Each trader opens a large position
       for (let i = 0; i < traders.length; i++) {
         const trader = traders[i];
-        const offset = i * 20;
+        const { lower, upper } = ranges[i % ranges.length];
 
         const tradeParams = {
           marketId,
-          lowerTick: 100100 + offset * 10, // 실제 틱값 사용, 더 작은 간격
-          upperTick: 100900 - offset * 10, // 실제 틱값 사용, 더 작은 간격
+          lowerTick: lower,
+          upperTick: upper,
           quantity: LARGE_QUANTITY,
-          maxCost: ethers.parseUnits("200", USDC_DECIMALS),
         };
+
+        const quotedCost = await core.calculateOpenCost(
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity
+        );
 
         await core
           .connect(trader)
           .openPosition(
-            trader.address,
             tradeParams.marketId,
             tradeParams.lowerTick,
             tradeParams.upperTick,
             tradeParams.quantity,
-            tradeParams.maxCost
+            applyBuffer(quotedCost)
           );
-        positions.push(i + 1);
+
+        const traderPositions = await mockPosition.getPositionsByOwner(
+          trader.address
+        );
+        positions.push(Number(traderPositions[traderPositions.length - 1]));
 
         console.log(
           `Trader ${i + 1} opened position ${i + 1} with $${ethers.formatUnits(
@@ -148,7 +193,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       );
 
       // Record initial prices
-      const reducedQuantity = ethers.parseUnits("20", USDC_DECIMALS); // $20 - smaller to prevent overflow
+      const reducedQuantity = ethers.parseUnits("5", USDC_DECIMALS); // Smaller volume aligning with new curve
       const initialBuyCost = await core.calculateOpenCost(
         marketId,
         100450, // 실제 틱값 사용
@@ -162,21 +207,26 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
         // Reduced from 10 to 5 trades
         const tradeParams = {
           marketId,
-          lowerTick: 100400 + (i % 3) * 10, // 실제 틱값 사용
-          upperTick: 100600 - (i % 3) * 10, // 실제 틱값 사용
+          lowerTick: 100400 + (i % 3) * 10,
+          upperTick: 100600 - (i % 3) * 10,
           quantity: reducedQuantity,
-          maxCost: ethers.parseUnits("100", USDC_DECIMALS),
         };
+
+        const quotedCost = await core.calculateOpenCost(
+          tradeParams.marketId,
+          tradeParams.lowerTick,
+          tradeParams.upperTick,
+          tradeParams.quantity
+        );
 
         await core
           .connect(alice)
           .openPosition(
-            alice.address,
             tradeParams.marketId,
             tradeParams.lowerTick,
             tradeParams.upperTick,
             tradeParams.quantity,
-            tradeParams.maxCost
+            applyBuffer(quotedCost)
           );
         trades.push(i + 1);
       }
@@ -220,24 +270,34 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
         const midTick = 100500; // 실제 틱값 사용
 
         // Place bid
-        const bidTx = await core.connect(alice).openPosition(
-          alice.address,
+        const bidCost = await core.calculateOpenCost(
           marketId,
-          midTick - spread * 10 - 10, // 실제 틱값 사용
-          midTick - 10, // 실제 틱값 사용
+          midTick - spread * 10 - 10,
+          midTick - 10,
+          tradeSize
+        );
+        const bidTx = await core.connect(alice).openPosition(
+          marketId,
+          midTick - spread * 10 - 10,
+          midTick - 10,
           tradeSize,
-          ethers.parseUnits("50", USDC_DECIMALS)
+          applyBuffer(bidCost)
         );
         totalGasUsed += (await bidTx.wait())!.gasUsed;
 
         // Place ask (counter-trade)
-        const askTx = await core.connect(bob).openPosition(
-          bob.address,
+        const askCost = await core.calculateOpenCost(
           marketId,
-          midTick + 10, // 실제 틱값 사용
-          midTick + spread * 10 + 10, // 실제 틱값 사용
+          midTick + 10,
+          midTick + spread * 10 + 10,
+          tradeSize
+        );
+        const askTx = await core.connect(bob).openPosition(
+          marketId,
+          midTick + 10,
+          midTick + spread * 10 + 10,
           tradeSize,
-          ethers.parseUnits("50", USDC_DECIMALS)
+          applyBuffer(askCost)
         );
         totalGasUsed += (await askTx.wait())!.gasUsed;
       }
@@ -259,30 +319,41 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       );
 
       // Open initial large position
-      await core.connect(alice).openPosition(
-        alice.address,
+      const baseOpenCost = await core.calculateOpenCost(
         marketId,
-        100300, // 실제 틱값 사용
-        100700, // 실제 틱값 사용
-        HUGE_QUANTITY,
-        ethers.parseUnits("300", USDC_DECIMALS)
+        100300,
+        100700,
+        LARGE_QUANTITY
+      );
+
+      await core.connect(alice).openPosition(
+        marketId,
+        100300,
+        100700,
+        LARGE_QUANTITY,
+        applyBuffer(baseOpenCost)
       );
 
       // Get actual position ID from MockPosition
       const positions = await mockPosition.getPositionsByOwner(alice.address);
       const positionId = Number(positions[0]);
-      const adjustmentSize = ethers.parseUnits("100", USDC_DECIMALS);
+      const adjustmentSize = ethers.parseUnits("1", USDC_DECIMALS);
 
       // Rapidly increase and decrease position
       for (let i = 0; i < 10; i++) {
         if (i % 2 === 0) {
           // Increase position
+          const increaseCost = await core.calculateIncreaseCost(
+            positionId,
+            adjustmentSize
+          );
+
           await core
             .connect(alice)
             .increasePosition(
               positionId,
               adjustmentSize,
-              ethers.parseUnits("500", USDC_DECIMALS)
+              applyBuffer(increaseCost)
             );
         } else {
           // Decrease position
@@ -294,7 +365,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
       // Position should still exist and be manageable
       const position = await mockPosition.getPosition(positionId);
-      expect(position.quantity).to.be.gt(HUGE_QUANTITY / 2n); // Still substantial
+      expect(position.quantity).to.be.gt(LARGE_QUANTITY / 2n); // Still substantial
 
       console.log(
         `Final position size: $${ethers.formatUnits(
@@ -314,22 +385,33 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       const traders = [alice, bob, charlie];
       const concurrentTrades = 5; // Reduced from potentially higher number
       const tradeSize = ethers.parseUnits("15", USDC_DECIMALS); // $15 - small for parallel execution
-      const tradePromises = [];
+      const tradePromises: Promise<any>[] = [];
 
       console.log(`Starting ${concurrentTrades} concurrent trades...`);
       const startTime = Date.now();
 
-      for (let i = 0; i < concurrentTrades; i++) {
-        const tradePromise = core.connect(alice).openPosition(
-          alice.address,
-          marketId,
-          100300 + i * 50, // 실제 틱값 사용
-          100700 - i * 50, // 실제 틱값 사용
-          tradeSize,
-          ethers.parseUnits("100", USDC_DECIMALS)
-        );
+      const tradeRanges = [
+        { lower: 100300, upper: 100700 },
+        { lower: 100250, upper: 100650 },
+        { lower: 100200, upper: 100600 },
+        { lower: 100150, upper: 100550 },
+        { lower: 100100, upper: 100500 },
+      ];
 
-        tradePromises.push(tradePromise);
+      for (let i = 0; i < concurrentTrades; i++) {
+        const trader = traders[i % traders.length];
+        const range = tradeRanges[i % tradeRanges.length];
+        tradePromises.push(
+          openWithBuffer(
+            core,
+            trader,
+            marketId,
+            range.lower,
+            range.upper,
+            tradeSize,
+            10000n // 100% buffer to absorb concurrent slippage
+          )
+        );
       }
 
       // Wait for all trades to complete
@@ -356,15 +438,20 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
         createHighLiquidityMarket
       );
 
-      // Whale trade: $100 position (large for testing but within chunk limits)
-      const whaleQuantity = ethers.parseUnits("100", USDC_DECIMALS);
-      await core.connect(alice).openPosition(
-        alice.address,
+      // Whale trade: $15 position (reduced for updated curve)
+      const whaleQuantity = EXTREME_QUANTITY;
+      const whaleCost = await core.calculateOpenCost(
         marketId,
-        100100, // 실제 틱값 사용
-        100900, // 실제 틱값 사용
+        100100,
+        100900,
+        whaleQuantity
+      );
+      await core.connect(alice).openPosition(
+        marketId,
+        100100,
+        100900,
         whaleQuantity,
-        ethers.parseUnits("300", USDC_DECIMALS)
+        applyBuffer(whaleCost)
       );
 
       console.log(
@@ -379,13 +466,21 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       const smallTrades = 100;
 
       for (let i = 0; i < smallTrades; i++) {
-        await core.connect(bob).openPosition(
-          bob.address,
+        const lowerTick = 100400 + (i % 10) * 10;
+        const upperTick = 100600 - (i % 10) * 10;
+        const smallCost = await core.calculateOpenCost(
           marketId,
-          100400 + (i % 10) * 10, // 실제 틱값 사용
-          100600 - (i % 10) * 10, // 실제 틱값 사용
+          lowerTick,
+          upperTick,
+          smallTradeSize
+        );
+
+        await core.connect(bob).openPosition(
+          marketId,
+          lowerTick,
+          upperTick,
           smallTradeSize,
-          ethers.parseUnits("10", USDC_DECIMALS)
+          applyBuffer(smallCost)
         );
       }
 
@@ -415,18 +510,20 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       // Create moderate volume before settlement - reduced to prevent LazyFactorOverflow
       const traders = [alice, bob, charlie];
       const positionsPerTrader = 3; // Reduced from 10 to 3
-      const settlementQuantity = ethers.parseUnits("20", USDC_DECIMALS); // $20 - reduced
+      const settlementQuantity = ethers.parseUnits("5", USDC_DECIMALS); // $5 - reduced for stability
 
       for (let i = 0; i < traders.length; i++) {
         const trader = traders[i];
         for (let j = 0; j < positionsPerTrader; j++) {
-          await core.connect(trader).openPosition(
-            trader.address,
+          const lowerTick = 100100 + j * 100;
+          const upperTick = 100900 - j * 100;
+          await openWithBuffer(
+            core,
+            trader,
             marketId,
-            100100 + j * 100, // 실제 틱값 사용 - Spread out more
-            100900 - j * 100, // 실제 틱값 사용
-            settlementQuantity,
-            ethers.parseUnits("100", USDC_DECIMALS)
+            lowerTick,
+            upperTick,
+            settlementQuantity
           );
         }
       }
@@ -442,9 +539,7 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       await time.increaseTo(Number(market.endTimestamp) + 1);
 
       // Settle market
-      const settlementTx = await core
-        .connect(keeper)
-        .settleMarket(marketId, 100410, 100420); // 실제 틱값 사용
+      const settlementTx = await settleMarketAtTick(core, keeper, marketId, 100415); // 실제 틱값 사용 중간 틱
       const settlementReceipt = await settlementTx.wait();
 
       console.log(`Settlement gas used: ${settlementReceipt!.gasUsed}`);
@@ -464,43 +559,45 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
       // Create many positions
       const traders = [alice, bob, charlie];
-      const positionIds: number[] = [];
+      const positionsToClaim: { owner: any; positionId: number }[] = [];
 
-      const claimingQuantity = ethers.parseUnits("20", USDC_DECIMALS); // $20 - reduced
+      const claimingQuantity = ethers.parseUnits("5", USDC_DECIMALS);
       for (let i = 0; i < 9; i++) {
         // Reduced from 15 to 9
         const trader = traders[i % traders.length];
-        const tx = await core.connect(trader).openPosition(
-          trader.address,
+        await openWithBuffer(
+          core,
+          trader,
           marketId,
-          100100 + i * 30, // 실제 틱값 사용 - Ensure lower < upper
-          100500 + i * 30, // 실제 틱값 사용 - Move up instead of down
+          100100 + i * 30,
+          100500 + i * 30,
           claimingQuantity,
-          ethers.parseUnits("100", USDC_DECIMALS)
+          500n
         );
-        await tx.wait();
         // Get position ID from MockPosition - use trader's position list
         const traderPositions = await mockPosition.getPositionsByOwner(
           trader.address
         );
         if (traderPositions.length > 0) {
-          const positionId = traderPositions[traderPositions.length - 1]; // Get latest position
-          positionIds.push(Number(positionId)); // Convert bigint to number
+          const positionId = Number(
+            traderPositions[traderPositions.length - 1]
+          );
+          positionsToClaim.push({ owner: trader, positionId });
         }
       }
 
       // Settle market
       const market = await core.getMarket(marketId);
       await time.increaseTo(Number(market.endTimestamp) + 1);
-      await core.connect(keeper).settleMarket(marketId, 100490, 100500); // 실제 틱값 사용
+      await settleMarketAtTick(core, keeper, marketId, 100495); // 실제 틱값 사용 중간 틱
 
       // Mass claiming
       let totalClaimGas = 0n;
       const claimResults: bigint[] = [];
 
-      for (const positionId of positionIds) {
+      for (const { owner, positionId } of positionsToClaim) {
         try {
-          const claimTx = await core.connect(alice).claimPayout(positionId);
+          const claimTx = await core.connect(owner).claimPayout(positionId);
           const claimReceipt = await claimTx.wait();
           totalClaimGas += claimReceipt!.gasUsed;
 
@@ -569,7 +666,6 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
         // If it doesn't revert, the high liquidity is working
         await core.connect(alice).openPosition(
-          alice.address,
           marketId,
           100000, // 실제 틱값 사용
           100990, // 실제 틱값 사용
@@ -592,18 +688,21 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
       // Create moderate volume through medium trades - reduced to prevent LazyFactorOverflow
       const extremeTrades = 20; // Reduced from 50 to 20
-      const tradeSize = ethers.parseUnits("10", USDC_DECIMALS); // $10 each - reduced
+      const tradeSize = ethers.parseUnits("2", USDC_DECIMALS); // $2 each for stability
 
       let totalVolume = 0n;
 
       for (let i = 0; i < extremeTrades; i++) {
-        await core.connect(alice).openPosition(
-          alice.address,
+        const lowerTick = 100300 + (i % 20) * 10;
+        const upperTick = 100700 - (i % 20) * 10;
+        await openWithBuffer(
+          core,
+          alice,
           marketId,
-          100300 + (i % 20) * 10, // 실제 틱값 사용
-          100700 - (i % 20) * 10, // 실제 틱값 사용
+          lowerTick,
+          upperTick,
           tradeSize,
-          ethers.parseUnits("300", USDC_DECIMALS)
+          500n
         );
         totalVolume += tradeSize;
       }

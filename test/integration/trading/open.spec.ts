@@ -1,7 +1,10 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { createActiveMarketFixture } from "../../helpers/fixtures/core";
+import {
+  createActiveMarketFixture,
+  settleMarketAtTick,
+} from "../../helpers/fixtures/core";
 import { INTEGRATION_TAG } from "../../helpers/tags";
 
 describe(`${INTEGRATION_TAG} Position Opening`, function () {
@@ -28,9 +31,7 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
     await expect(
       core
         .connect(alice)
-        .openPosition(
-          alice.address,
-          tradeParams.marketId,
+        .openPosition(tradeParams.marketId,
           tradeParams.lowerTick,
           tradeParams.upperTick,
           tradeParams.quantity,
@@ -60,9 +61,7 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
     await expect(
       core
         .connect(alice)
-        .openPosition(
-          alice.address,
-          tradeParams.marketId,
+        .openPosition(tradeParams.marketId,
           tradeParams.lowerTick,
           tradeParams.upperTick,
           tradeParams.quantity,
@@ -87,9 +86,7 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
     await expect(
       core
         .connect(alice)
-        .openPosition(
-          alice.address,
-          tradeParams.marketId,
+        .openPosition(tradeParams.marketId,
           tradeParams.lowerTick,
           tradeParams.upperTick,
           tradeParams.quantity,
@@ -106,7 +103,7 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
     await expect(
       core
         .connect(alice)
-        .openPosition(alice.address, marketId, 100450, 100550, 0, MEDIUM_COST)
+        .openPosition(marketId, 100450, 100550, 0, MEDIUM_COST)
     ).to.be.revertedWithCustomError(core, "InvalidQuantity");
   });
 
@@ -116,9 +113,7 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
     );
 
     await expect(
-      core.connect(alice).openPosition(
-        alice.address,
-        marketId,
+      core.connect(alice).openPosition(marketId,
         101000, // 범위를 벗어난 틱값
         101100, // 범위를 벗어난 틱값
         SMALL_QUANTITY,
@@ -127,35 +122,31 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
     ).to.be.revertedWithCustomError(core, "InvalidTick");
   });
 
-  it("Should handle single tick positions", async function () {
+  it("Should reject single tick positions", async function () {
     const { core, alice, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
     await expect(
-      core.connect(alice).openPosition(
-        alice.address,
-        marketId,
+      core.connect(alice).openPosition(marketId,
         100500, // 실제 틱값
         100500, // 동일한 틱값 (single tick)
         SMALL_QUANTITY,
         MEDIUM_COST
       )
-    ).to.not.be.reverted;
+    ).to.be.revertedWithCustomError(core, "InvalidTickRange");
   });
 
-  it("Should handle boundary tick positions", async function () {
+  it("Should handle boundary tick ranges", async function () {
     const { core, alice, marketId } = await loadFixture(
       createActiveMarketFixture
     );
 
     // First tick
     await expect(
-      core.connect(alice).openPosition(
-        alice.address,
-        marketId,
+      core.connect(alice).openPosition(marketId,
         100000, // 첫 번째 틱
-        100000,
+        100010,
         SMALL_QUANTITY,
         MEDIUM_COST
       )
@@ -163,10 +154,8 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
 
     // Last tick
     await expect(
-      core.connect(alice).openPosition(
-        alice.address,
-        marketId,
-        100990, // 마지막 틱
+      core.connect(alice).openPosition(marketId,
+        100980, // 마지막 틱에서 최소 범위 확보
         100990,
         SMALL_QUANTITY,
         MEDIUM_COST
@@ -188,15 +177,13 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
     await expect(
       core
         .connect(alice)
-        .openPosition(
-          alice.address,
-          marketId,
+        .openPosition(marketId,
           100450,
           100550,
           MEDIUM_QUANTITY,
           MEDIUM_COST
         )
-    ).to.be.revertedWithCustomError(core, "ContractPaused");
+    ).to.be.revertedWithCustomError(core, "EnforcedPause");
   });
 
   it("Should handle invalid market ID", async function () {
@@ -205,7 +192,7 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
     await expect(
       core
         .connect(alice)
-        .openPosition(alice.address, 999, 45, 55, MEDIUM_QUANTITY, MEDIUM_COST)
+        .openPosition(999, 45, 55, MEDIUM_QUANTITY, MEDIUM_COST)
     ).to.be.revertedWithCustomError(core, "MarketNotFound");
   });
 
@@ -227,9 +214,7 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
     await expect(
       core
         .connect(alice)
-        .openPosition(
-          alice.address,
-          marketId,
+        .openPosition(marketId,
           100450,
           100550,
           SMALL_QUANTITY,
@@ -242,9 +227,7 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
     await expect(
       core
         .connect(alice)
-        .openPosition(
-          alice.address,
-          marketId,
+        .openPosition(marketId,
           100450,
           100550,
           SMALL_QUANTITY,
@@ -258,22 +241,25 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
       createActiveMarketFixture
     );
 
-    // Use a reasonable large quantity (1 USDC)
-    const largeQuantity = ethers.parseUnits("1", 6); // 1 USDC
-    const largeCost = ethers.parseUnits("100", 6); // 100 USDC max cost
+    const largeQuantity = ethers.parseUnits("10", 6);
+    const quotedCost = await core.calculateOpenCost(
+      marketId,
+      100000,
+      100990,
+      largeQuantity
+    );
+    const largeCost = quotedCost + ethers.parseUnits("1000", 6);
 
-    const tx = await core
-      .connect(alice)
-      .openPosition(
-        alice.address,
-        marketId,
-        100000,
-        100990,
-        largeQuantity,
-        largeCost
-      );
-
-    await expect(tx).to.emit(core, "PositionOpened");
+    await expect(
+      core
+        .connect(alice)
+        .openPosition(marketId,
+          100000,
+          100990,
+          largeQuantity,
+          largeCost
+        )
+    ).to.emit(core, "PositionOpened");
   });
 
   it("Should handle settled market trades", async function () {
@@ -282,14 +268,12 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
     );
 
     // Settle market first
-    await core.connect(keeper).settleMarket(marketId, 100490, 100500);
+    await settleMarketAtTick(core, keeper, marketId, 100490);
 
     await expect(
       core
         .connect(alice)
-        .openPosition(
-          alice.address,
-          marketId,
+        .openPosition(marketId,
           100450,
           100550,
           ethers.parseUnits("0.05", 6),

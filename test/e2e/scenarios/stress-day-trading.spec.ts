@@ -1,7 +1,11 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { coreFixture, setupCustomMarket } from "../../helpers/fixtures/core";
+import {
+  coreFixture,
+  setupCustomMarket,
+  settleMarketAtTick,
+} from "../../helpers/fixtures/core";
 import { E2E_TAG } from "../../helpers/tags";
 import {
   SAFE_DAY_TRADE_SIZE,
@@ -73,7 +77,6 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
         );
 
         const tx = await core.connect(alice).openPosition(
-          alice.address,
           marketId,
           lowerTick,
           upperTick,
@@ -134,7 +137,6 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
         await core
           .connect(alice)
           .openPosition(
-            alice.address,
             marketId,
             midTick - 10,
             midTick + 10,
@@ -210,7 +212,6 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
           const tx = await core
             .connect(alice)
             .openPosition(
-              algo.trader.address,
               marketId,
               lowerTick,
               upperTick,
@@ -266,7 +267,6 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           marketId,
           100300,
           100700,
@@ -360,7 +360,6 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
         await core
           .connect(alice)
           .openPosition(
-            alice.address,
             marketId,
             lowerTick,
             upperTick,
@@ -374,7 +373,6 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
         if (i % 3 === 0) {
           // Add some noise to market
           await core.connect(alice).openPosition(
-            alice.address,
             marketId,
             100200, // 실제 틱값 사용
             100800, // 실제 틱값 사용
@@ -453,7 +451,6 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
           await core
             .connect(alice)
             .openPosition(
-              alice.address,
               marketId,
               range.lower,
               range.upper,
@@ -546,7 +543,6 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
           const tx = await core
             .connect(alice)
             .openPosition(
-              trader.address,
               marketId,
               lowerTick,
               upperTick,
@@ -629,7 +625,6 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
           const tx = await core
             .connect(alice)
             .openPosition(
-              trader.address,
               marketId,
               lowerTick,
               upperTick,
@@ -708,7 +703,6 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
         );
 
         await core.connect(alice).openPosition(
-          trader.address,
           marketId,
           100400 + tickOffset * 10, // 실제 틱값 사용
           100600 + tickOffset * 10, // 실제 틱값 사용
@@ -753,12 +747,22 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
       expect(avgRushGas).to.be.lt(2000000);
 
       // Fast forward to settlement
-      await time.increaseTo(Number(market.endTimestamp) + 1);
+      const latestMarket = await core.getMarket(marketId);
+      const settlementGate =
+        Number(
+          latestMarket.settlementTimestamp === 0n
+            ? latestMarket.endTimestamp
+            : latestMarket.settlementTimestamp
+        ) + 1;
+      await time.increaseTo(settlementGate);
 
       // Market settlement should work despite heavy activity
-      const settlementTx = await core
-        .connect(keeper)
-        .settleMarket(marketId, 100490, 100500);
+      const settlementTx = await settleMarketAtTick(
+        core,
+        keeper,
+        marketId,
+        100495
+      );
       const settlementReceipt = await settlementTx.wait();
 
       console.log(
@@ -800,7 +804,6 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
           await core
             .connect(alice)
             .openPosition(
-              alice.address,
               marketId,
               lowerTick,
               upperTick,
@@ -905,7 +908,6 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
               core
                 .connect(alice)
                 .openPosition(
-                  trader.address,
                   marketId,
                   lowerTick,
                   upperTick,

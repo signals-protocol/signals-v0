@@ -2,14 +2,46 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { E2E_TAG } from "../../helpers/tags";
-import { createActiveMarketFixture } from "../../helpers/fixtures/core";
+import {
+  createActiveMarketFixture,
+  settleMarketAtTick,
+} from "../../helpers/fixtures/core";
 
 describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
   const SMALL_QUANTITY = ethers.parseUnits("0.01", 6); // 0.01 USDC
   const MEDIUM_QUANTITY = ethers.parseUnits("0.1", 6); // 0.1 USDC
-  const LARGE_QUANTITY = ethers.parseUnits("1", 6); // 1 USDC
-  const MEDIUM_COST = ethers.parseUnits("50", 6); // 50 USDC
-  const LARGE_COST = ethers.parseUnits("500", 6); // 500 USDC
+  const LARGE_QUANTITY = ethers.parseUnits("0.5", 6); // 0.5 USDC
+  const COST_BUFFER_BPS = 50n;
+  const BPS_DENOMINATOR = 10000n;
+
+  const applyBuffer = (amount: bigint, buffer: bigint = COST_BUFFER_BPS) =>
+    (amount * (BPS_DENOMINATOR + buffer)) / BPS_DENOMINATOR + 1n;
+
+  const openWithBuffer = async (
+    core: any,
+    signer: any,
+    marketId: number,
+    lowerTick: number,
+    upperTick: number,
+    quantity: bigint,
+    buffer: bigint = COST_BUFFER_BPS
+  ) => {
+    const cost = await core.calculateOpenCost(
+      marketId,
+      lowerTick,
+      upperTick,
+      quantity
+    );
+    return core
+      .connect(signer)
+      .openPosition(
+        marketId,
+        lowerTick,
+        upperTick,
+        quantity,
+        applyBuffer(cost, buffer)
+      );
+  };
   const TICK_COUNT = 100;
 
   async function createMarketLifecycleFixture() {
@@ -57,16 +89,14 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
 
       // Alice creates multiple positions
       for (let i = 0; i < 3; i++) {
-        await core
-          .connect(alice)
-          .openPosition(
-            alice.address,
-            marketId,
-            100200 + i * 100,
-            100250 + i * 100,
-            MEDIUM_QUANTITY,
-            MEDIUM_COST
-          );
+        await openWithBuffer(
+          core,
+          alice,
+          marketId,
+          100200 + i * 100,
+          100250 + i * 100,
+          MEDIUM_QUANTITY
+        );
       }
 
       const alicePositionList = await mockPosition.getPositionsByOwner(
@@ -78,37 +108,43 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       await time.increaseTo(startTime + 2 * 24 * 60 * 60); // 2 days later
 
       // Bob creates overlapping positions
-      await core
-        .connect(bob)
-        .openPosition(
-          bob.address,
-          marketId,
-          100250,
-          100750,
-          LARGE_QUANTITY,
-          LARGE_COST
-        );
+      await openWithBuffer(
+        core,
+        bob,
+        marketId,
+        100250,
+        100750,
+        LARGE_QUANTITY,
+        2000n
+      );
 
       // Charlie creates focused position
-      await core
-        .connect(charlie)
-        .openPosition(
-          charlie.address,
-          marketId,
-          100480,
-          100520,
-          MEDIUM_QUANTITY,
-          MEDIUM_COST
-        );
+      await openWithBuffer(
+        core,
+        charlie,
+        marketId,
+        100480,
+        100520,
+        MEDIUM_QUANTITY
+      );
 
       // Phase 4: Position adjustments
       const bobPositions = await mockPosition.getPositionsByOwner(bob.address);
       const bobPositionId = bobPositions[0];
 
       // Bob increases his position
+      const bobIncreaseCost = await core.calculateIncreaseCost(
+        bobPositionId,
+        MEDIUM_QUANTITY
+      );
+
       await core
         .connect(bob)
-        .increasePosition(bobPositionId, MEDIUM_QUANTITY, LARGE_COST);
+        .increasePosition(
+          bobPositionId,
+          MEDIUM_QUANTITY,
+          applyBuffer(bobIncreaseCost, 2000n)
+        );
 
       // Alice decreases one of her positions
       const alicePositionId = alicePositionList[0];
@@ -138,11 +174,8 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       expect(market.isActive).to.be.true; // Market remains active until settlement
 
       // Phase 7: Settlement
-      const winningLowerTick = 100490; // Range around Charlie's position!
-      const winningUpperTick = 100500;
-      await core
-        .connect(keeper)
-        .settleMarket(marketId, winningLowerTick, winningUpperTick);
+      const settlementTick = 100495; // Midpoint around Charlie's position
+      await settleMarketAtTick(core, keeper, marketId, settlementTick);
 
       // Phase 8: Claims phase
       // Bob should win since his range included tick 100500
@@ -190,7 +223,7 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       await time.increaseTo(endTime + 10);
 
       // Should still be able to settle
-      await core.connect(keeper).settleMarket(marketId, 100490, 100500);
+      await settleMarketAtTick(core, keeper, marketId, 100490);
 
       const market = await core.getMarket(marketId);
       expect(market.isActive).to.be.false;
@@ -211,19 +244,17 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       await time.increaseTo(startTime + 10);
 
       // Alice is the only participant
-      await core
-        .connect(alice)
-        .openPosition(
-          alice.address,
-          marketId,
-          100400,
-          100600,
-          MEDIUM_QUANTITY,
-          MEDIUM_COST
-        );
+      await openWithBuffer(
+        core,
+        alice,
+        marketId,
+        100400,
+        100600,
+        MEDIUM_QUANTITY
+      );
 
       await time.increaseTo(endTime + 1);
-      await core.connect(keeper).settleMarket(marketId, 100490, 100500);
+      await settleMarketAtTick(core, keeper, marketId, 100490);
 
       // Alice should be able to claim her winnings
       const positions = await mockPosition.getPositionsByOwner(alice.address);
@@ -248,16 +279,24 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
 
       // Sudden burst of activity
       const participants = [alice, bob, charlie];
-      const promises = participants.map((participant, i) =>
-        core.connect(alice).openPosition(
-          participant.address,
+      const rushRanges = [
+        { lower: 100400, upper: 100600 },
+        { lower: 100420, upper: 100580 },
+        { lower: 100440, upper: 100560 },
+      ];
+
+      const promises = participants.map((participant, i) => {
+        const { lower, upper } = rushRanges[i % rushRanges.length];
+        return openWithBuffer(
+          core,
+          participant,
           marketId,
-          100400 + i * 50, // 실제 틱값 사용
-          100600 - i * 50, // 실제 틱값 사용
+          lower,
+          upper,
           MEDIUM_QUANTITY,
-          MEDIUM_COST
-        )
-      );
+          3000n
+        );
+      });
 
       // All should succeed
       await Promise.all(promises);
@@ -273,14 +312,15 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       const participants = [alice, bob, charlie];
 
       for (const participant of participants) {
-        await core.connect(alice).openPosition(
-          participant.address,
+        await openWithBuffer(
+          core,
+          participant,
           marketId,
-          100490, // 실제 틱값 사용
-          100510, // 실제 틱값 사용
+          100490,
+          100510,
           MEDIUM_QUANTITY,
-          LARGE_COST
-        ); // Higher cost due to concentration
+          1000n
+        );
       }
 
       // Market should still function normally
@@ -295,40 +335,35 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       await time.increaseTo(startTime + 10);
 
       // Alice: Wide range strategy
-      await core
-        .connect(alice)
-        .openPosition(
-          alice.address,
-          marketId,
-          100100,
-          100900,
-          SMALL_QUANTITY,
-          MEDIUM_COST
-        );
+      await openWithBuffer(
+        core,
+        alice,
+        marketId,
+        100100,
+        100900,
+        SMALL_QUANTITY
+      );
 
       // Bob: Focused strategy
-      await core
-        .connect(bob)
-        .openPosition(
-          bob.address,
-          marketId,
-          100480,
-          100520,
-          LARGE_QUANTITY,
-          LARGE_COST
-        );
+      await openWithBuffer(
+        core,
+        bob,
+        marketId,
+        100480,
+        100520,
+        LARGE_QUANTITY,
+        1000n
+      );
 
       // Charlie: Edge strategy
-      await core
-        .connect(charlie)
-        .openPosition(
-          charlie.address,
-          marketId,
-          100000,
-          100050,
-          MEDIUM_QUANTITY,
-          MEDIUM_COST
-        );
+      await openWithBuffer(
+        core,
+        charlie,
+        marketId,
+        100000,
+        100050,
+        MEDIUM_QUANTITY
+      );
 
       // All strategies should coexist
       const alicePositions = await mockPosition.getPositionsByOwner(
@@ -353,25 +388,33 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       await time.increaseTo(startTime + 10);
 
       // Create initial position
-      await core
-        .connect(alice)
-        .openPosition(
-          alice.address,
-          marketId,
-          100400,
-          100600,
-          LARGE_QUANTITY,
-          LARGE_COST
-        );
+      await openWithBuffer(
+        core,
+        alice,
+        marketId,
+        100400,
+        100600,
+        LARGE_QUANTITY,
+        1000n
+      );
 
       const positions = await mockPosition.getPositionsByOwner(alice.address);
       const positionId = positions[0];
 
       // Rapidly adjust position multiple times
       for (let i = 0; i < 5; i++) {
+        const adjustCost = await core.calculateIncreaseCost(
+          positionId,
+          SMALL_QUANTITY
+        );
+
         await core
           .connect(alice)
-          .increasePosition(positionId, SMALL_QUANTITY, MEDIUM_COST);
+          .increasePosition(
+            positionId,
+            SMALL_QUANTITY,
+            applyBuffer(adjustCost)
+          );
         await core
           .connect(alice)
           .decreasePosition(positionId, SMALL_QUANTITY / 2n, 0);
@@ -393,16 +436,14 @@ describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
 
       for (let i = 0; i < 10; i++) {
         const participant = participants[i % 3];
-        await core
-          .connect(participant)
-          .openPosition(
-            participant.address,
-            marketId,
-            100000 + i * 50,
-            100000 + i * 50 + 100,
-            SMALL_QUANTITY,
-            MEDIUM_COST
-          );
+        await openWithBuffer(
+          core,
+          participant,
+          marketId,
+          100000 + i * 50,
+          100000 + i * 50 + 100,
+          SMALL_QUANTITY
+        );
       }
 
       // System should still be responsive

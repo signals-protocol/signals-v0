@@ -2,39 +2,68 @@ import { expect } from "chai";
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { ethers } from "hardhat";
 
-import { activePositionMarketFixture } from "../../helpers/fixtures/position";
+import { positionMarketFixture } from "../../helpers/fixtures/position";
 import { INVARIANT_TAG } from "../../helpers/tags";
+
+async function listMarketPositions(position: any, marketId: number) {
+  const length = Number(await position.getMarketTokenLength(marketId));
+  const tokens: number[] = [];
+  for (let i = 0; i < length; i++) {
+    const tokenId = await position.getMarketTokenAt(marketId, i);
+    if (tokenId !== 0n) {
+      tokens.push(Number(tokenId));
+    }
+  }
+  return tokens;
+}
+
+async function listOwnerPositions(position: any, owner: string) {
+  const tokens = await position.getPositionsByOwner(owner);
+  return tokens.map((id: bigint) => Number(id));
+}
+
+const HIGH_COST = ethers.parseUnits("100000", 6);
 
 describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
   describe("Core Invariants", function () {
     it("should maintain total supply equals sum of all user balances", async function () {
       const { core, position, alice, bob, charlie, marketId } =
-        await loadFixture(activePositionMarketFixture);
+        await loadFixture(positionMarketFixture);
 
-      // Initial state: total supply should be 0
-      expect(await position.totalSupply()).to.equal(0);
-      expect(await position.balanceOf(alice.address)).to.equal(0);
-      expect(await position.balanceOf(bob.address)).to.equal(0);
-      expect(await position.balanceOf(charlie.address)).to.equal(0);
+      const owners = [alice, bob, charlie];
+      type OwnerRecord = { id: number; owner: typeof alice | null };
+      const records: OwnerRecord[] = [];
 
-      const users = [alice, bob, charlie];
-      const positionIds = [];
+      const getBalances = async () => ({
+        alice: await position.balanceOf(alice.address),
+        bob: await position.balanceOf(bob.address),
+        charlie: await position.balanceOf(charlie.address),
+      });
 
-      // Create positions and verify invariant after each creation
+      const assertSupplyMatchesBalances = async () => {
+        const totalSupply = await position.totalSupply();
+        const { alice: balAlice, bob: balBob, charlie: balCharlie } =
+          await getBalances();
+        expect(totalSupply).to.equal(balAlice + balBob + balCharlie);
+        return totalSupply;
+      };
+
+      expect(await position.totalSupply()).to.equal(0n);
+      await assertSupplyMatchesBalances();
+
       for (let i = 0; i < 5; i++) {
-        const user = users[i % users.length];
+        const owner = owners[i % owners.length];
         const params = {
           marketId,
           lowerTick: 100100 + i * 50,
           upperTick: 100200 + i * 50,
-          quantity: ethers.parseUnits("0.01", 6), // Much smaller quantities
-          maxCost: ethers.parseUnits("10", 6), // Reduced max cost
+          quantity: ethers.parseUnits("0.01", 6),
+          maxCost: HIGH_COST,
         };
 
-        const positionId = await core
+        const positionIdBig = await core
           .connect(alice)
           .openPosition.staticCall(
-            user.address,
             params.marketId,
             params.lowerTick,
             params.upperTick,
@@ -44,71 +73,63 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
         await core
           .connect(alice)
           .openPosition(
-            user.address,
             params.marketId,
             params.lowerTick,
             params.upperTick,
             params.quantity,
             params.maxCost
           );
-        positionIds.push(positionId);
 
-        // Verify invariant: totalSupply = sum of balances
-        const totalSupply = await position.totalSupply();
-        const aliceBalance = await position.balanceOf(alice.address);
-        const bobBalance = await position.balanceOf(bob.address);
-        const charlieBalance = await position.balanceOf(charlie.address);
-        const sumOfBalances = aliceBalance + bobBalance + charlieBalance;
+        const positionId = Number(positionIdBig);
+        if (owner.address !== alice.address) {
+          await position
+            .connect(alice)
+            .transferFrom(alice.address, owner.address, positionId);
+        }
 
-        expect(totalSupply).to.equal(sumOfBalances);
-        expect(totalSupply).to.equal(i + 1);
+        records.push({ id: positionId, owner });
+        const totalSupply = await assertSupplyMatchesBalances();
+        expect(Number(totalSupply)).to.equal(i + 1);
       }
 
-      // Transfer positions and verify invariant is maintained
-      await position
-        .connect(alice)
-        .transferFrom(alice.address, bob.address, positionIds[0]);
-      await position
-        .connect(charlie)
-        .transferFrom(charlie.address, alice.address, positionIds[2]);
+      const move = async (index: number, to: typeof alice) => {
+        const record = records[index];
+        if (!record.owner) {
+          throw new Error("Position already closed");
+        }
+        await position
+          .connect(record.owner)
+          .transferFrom(record.owner.address, to.address, record.id);
+        record.owner = to;
+      };
 
-      let totalSupply = await position.totalSupply();
-      let aliceBalance = await position.balanceOf(alice.address);
-      let bobBalance = await position.balanceOf(bob.address);
-      let charlieBalance = await position.balanceOf(charlie.address);
-      let sumOfBalances = aliceBalance + bobBalance + charlieBalance;
+      await move(0, bob);
+      await move(2, alice);
 
-      expect(totalSupply).to.equal(sumOfBalances);
-      expect(totalSupply).to.equal(5);
+      let totalSupply = await assertSupplyMatchesBalances();
+      expect(Number(totalSupply)).to.equal(records.length);
 
-      // Close positions and verify invariant
-      for (let i = 0; i < 3; i++) {
-        await core.connect(alice).closePosition(positionIds[i], 0);
+      for (let i = 0; i < records.length; i++) {
+        const record = records[i];
+        if (!record.owner) continue;
 
-        totalSupply = await position.totalSupply();
-        aliceBalance = await position.balanceOf(alice.address);
-        bobBalance = await position.balanceOf(bob.address);
-        charlieBalance = await position.balanceOf(charlie.address);
-        sumOfBalances = aliceBalance + bobBalance + charlieBalance;
+        await core.connect(record.owner).closePosition(record.id, 0);
+        record.owner = null;
 
-        expect(totalSupply).to.equal(sumOfBalances);
-        expect(totalSupply).to.equal(5 - (i + 1));
+        totalSupply = await assertSupplyMatchesBalances();
+        expect(Number(totalSupply)).to.equal(records.length - (i + 1));
       }
 
-      // Close remaining positions
-      await core.connect(alice).closePosition(positionIds[3], 0);
-      await core.connect(alice).closePosition(positionIds[4], 0);
-
-      // Final state: total supply should be 0
-      expect(await position.totalSupply()).to.equal(0);
-      expect(await position.balanceOf(alice.address)).to.equal(0);
-      expect(await position.balanceOf(bob.address)).to.equal(0);
-      expect(await position.balanceOf(charlie.address)).to.equal(0);
+      const finalBalances = await getBalances();
+      expect(finalBalances.alice).to.equal(0n);
+      expect(finalBalances.bob).to.equal(0n);
+      expect(finalBalances.charlie).to.equal(0n);
+      expect(await position.totalSupply()).to.equal(0n);
     });
 
     it("should maintain position ID uniqueness and sequential assignment", async function () {
       const { core, position, alice, bob, charlie, marketId } =
-        await loadFixture(activePositionMarketFixture);
+        await loadFixture(positionMarketFixture);
 
       const positionIds = new Set();
       const users = [alice, bob, charlie];
@@ -121,7 +142,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
           lowerTick: 100100 + i * 30,
           upperTick: 100200 + i * 30,
           quantity: ethers.parseUnits("0.01", 6), // Much smaller quantity
-          maxCost: ethers.parseUnits("10", 6), // Reduced max cost
+          maxCost: HIGH_COST, // Sufficient max cost for current pricing
         };
 
         const expectedId = await position.getNextId();
@@ -130,7 +151,6 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
         const positionId = await core
           .connect(alice)
           .openPosition.staticCall(
-            user.address,
             params.marketId,
             params.lowerTick,
             params.upperTick,
@@ -140,7 +160,6 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
         await core
           .connect(alice)
           .openPosition(
-            user.address,
             params.marketId,
             params.lowerTick,
             params.upperTick,
@@ -173,13 +192,12 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
         lowerTick: 100100,
         upperTick: 100200,
         quantity: ethers.parseUnits("0.01", 6), // Much smaller quantity
-        maxCost: ethers.parseUnits("10", 6),
+        maxCost: HIGH_COST,
       };
 
       const newPositionId = await core
         .connect(alice)
         .openPosition.staticCall(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -189,7 +207,6 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -203,10 +220,11 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
 
     it("should maintain owner tracking consistency", async function () {
       const { core, position, alice, bob, charlie, marketId } =
-        await loadFixture(activePositionMarketFixture);
+        await loadFixture(positionMarketFixture);
 
       const users = [alice, bob, charlie];
-      const positionIds = [];
+      type OwnerRecord = { id: number; owner: typeof alice | null };
+      const positionRecords: OwnerRecord[] = [];
 
       // Create positions for different users
       for (let i = 0; i < 6; i++) {
@@ -215,14 +233,13 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
           marketId,
           lowerTick: 100100 + i * 50,
           upperTick: 100200 + i * 50,
-          quantity: ethers.parseUnits("1", 6),
-          maxCost: ethers.parseUnits("10", 6),
+          quantity: ethers.parseUnits("0.02", 6),
+          maxCost: HIGH_COST,
         };
 
-        const positionId = await core
+        const positionIdBig = await core
           .connect(alice)
           .openPosition.staticCall(
-            user.address,
             params.marketId,
             params.lowerTick,
             params.upperTick,
@@ -232,17 +249,22 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
         await core
           .connect(alice)
           .openPosition(
-            user.address,
             params.marketId,
             params.lowerTick,
             params.upperTick,
             params.quantity,
             params.maxCost
           );
-        positionIds.push({ id: positionId, owner: user.address });
+        const positionId = Number(positionIdBig);
+        if (user.address !== alice.address) {
+          await position
+            .connect(alice)
+            .transferFrom(alice.address, user.address, positionId);
+        }
+        positionRecords.push({ id: positionId, owner: user });
 
         // Verify owner tracking invariant
-        const ownerPositions = await position.getPositionsByOwner(user.address);
+        const ownerPositions = await listOwnerPositions(position, user.address);
         const userBalance = await position.balanceOf(user.address);
 
         expect(ownerPositions.length).to.equal(userBalance);
@@ -255,34 +277,33 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
 
       // Perform transfers and verify invariant is maintained
       const transfers = [
-        { from: alice, to: bob, positionIndex: 0 },
-        { from: charlie, to: alice, positionIndex: 2 },
-        { from: bob, to: charlie, positionIndex: 1 },
-        { from: alice, to: bob, positionIndex: 3 },
+        { to: bob, index: 0 },
+        { to: alice, index: 2 },
+        { to: charlie, index: 1 },
+        { to: bob, index: 3 },
       ];
 
       for (const transfer of transfers) {
-        const positionId = positionIds[transfer.positionIndex].id;
-
+        const record = positionRecords[transfer.index];
+        if (!record.owner) {
+          continue;
+        }
         await position
-          .connect(transfer.from)
-          .transferFrom(transfer.from.address, transfer.to.address, positionId);
+          .connect(record.owner)
+          .transferFrom(record.owner.address, transfer.to.address, record.id);
 
-        // Update our tracking
-        positionIds[transfer.positionIndex].owner = transfer.to.address;
+        record.owner = transfer.to;
 
         // Verify invariant for all users
         for (const user of users) {
-          const ownerPositions = await position.getPositionsByOwner(
-            user.address
-          );
+          const ownerPositions = await listOwnerPositions(position, user.address);
           const userBalance = await position.balanceOf(user.address);
 
           expect(ownerPositions.length).to.equal(userBalance);
 
           // Count expected positions for this user
-          const expectedPositions = positionIds.filter(
-            (p) => p.owner === user.address
+          const expectedPositions = positionRecords.filter(
+            (p) => p.owner && p.owner.address === user.address
           );
           expect(ownerPositions.length).to.equal(expectedPositions.length);
 
@@ -299,25 +320,24 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
       }
 
       // Close positions and verify invariant
-      for (let i = 0; i < positionIds.length; i++) {
-        await core.connect(alice).closePosition(positionIds[i].id, 0);
+      for (const record of positionRecords) {
+        if (!record.owner) {
+          continue;
+        }
 
-        // Remove from our tracking
-        const closedOwner = positionIds[i].owner;
-        positionIds[i].owner = ""; // Use empty string instead of null
+        await core.connect(record.owner).closePosition(record.id, 0);
+        record.owner = null;
 
         // Verify invariant for all users
         for (const user of users) {
-          const ownerPositions = await position.getPositionsByOwner(
-            user.address
-          );
+          const ownerPositions = await listOwnerPositions(position, user.address);
           const userBalance = await position.balanceOf(user.address);
 
           expect(ownerPositions.length).to.equal(userBalance);
 
           // Count expected positions for this user
-          const expectedPositions = positionIds.filter(
-            (p) => p.owner === user.address
+          const expectedPositions = positionRecords.filter(
+            (p) => p.owner && p.owner.address === user.address
           );
           expect(ownerPositions.length).to.equal(expectedPositions.length);
         }
@@ -325,34 +345,33 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
 
       // Final state: all users should have empty position lists
       for (const user of users) {
-        const ownerPositions = await position.getPositionsByOwner(user.address);
+        const ownerPositions = await listOwnerPositions(position, user.address);
         expect(ownerPositions.length).to.equal(0);
-        expect(await position.balanceOf(user.address)).to.equal(0);
+        expect(await position.balanceOf(user.address)).to.equal(0n);
       }
     });
 
     it("should maintain market position tracking consistency", async function () {
       const { core, position, alice, bob, charlie, marketId } =
-        await loadFixture(activePositionMarketFixture);
+        await loadFixture(positionMarketFixture);
 
-      const users = [alice, bob, charlie];
-      const createdPositions = [];
+      const actors = [alice, bob, charlie];
+      type MarketRecord = { id: number; owner: typeof alice | null };
+      const records: MarketRecord[] = [];
 
-      // Create positions and verify market tracking
       for (let i = 0; i < 8; i++) {
-        const user = users[i % users.length];
+        const owner = actors[i % actors.length];
         const params = {
           marketId,
           lowerTick: 100100 + i * 40,
           upperTick: 100200 + i * 40,
-          quantity: ethers.parseUnits("0.01", 6), // Much smaller quantity
-          maxCost: ethers.parseUnits("10", 6), // Reduced max cost
+          quantity: ethers.parseUnits("0.01", 6),
+          maxCost: HIGH_COST,
         };
 
-        const positionId = await core
+        const positionIdBig = await core
           .connect(alice)
           .openPosition.staticCall(
-            user.address,
             params.marketId,
             params.lowerTick,
             params.upperTick,
@@ -362,74 +381,72 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
         await core
           .connect(alice)
           .openPosition(
-            user.address,
             params.marketId,
             params.lowerTick,
             params.upperTick,
             params.quantity,
             params.maxCost
           );
-        createdPositions.push(positionId);
-
-        // Verify market tracking invariant
-        const marketPositions = await position.getMarketPositions(marketId);
-        expect(marketPositions.length).to.equal(i + 1);
-
-        // Verify all created positions are in the market list
-        for (const posId of createdPositions) {
-          expect(marketPositions).to.include(posId);
+        const positionId = Number(positionIdBig);
+        if (owner.address !== alice.address) {
+          await position
+            .connect(alice)
+            .transferFrom(alice.address, owner.address, positionId);
         }
+        records.push({ id: positionId, owner });
 
-        // Verify all positions in market list actually belong to the market
+        const marketPositions = await listMarketPositions(position, marketId);
+        expect(marketPositions.length).to.equal(i + 1);
+        for (const record of records) {
+          expect(marketPositions).to.include(record.id);
+        }
         for (const posId of marketPositions) {
           const posData = await position.getPosition(posId);
           expect(posData.marketId).to.equal(marketId);
         }
       }
 
-      // Transfer positions - market tracking should be unaffected
-      await position
-        .connect(alice)
-        .transferFrom(alice.address, bob.address, createdPositions[0]);
-      await position
-        .connect(charlie)
-        .transferFrom(charlie.address, alice.address, createdPositions[2]);
+      const move = async (index: number, to: typeof alice) => {
+        const record = records[index];
+        if (!record.owner) return;
+        await position
+          .connect(record.owner)
+          .transferFrom(record.owner.address, to.address, record.id);
+        record.owner = to;
+      };
 
-      let marketPositions = await position.getMarketPositions(marketId);
-      expect(marketPositions.length).to.equal(createdPositions.length);
+      await move(0, bob);
+      await move(2, alice);
 
-      for (const posId of createdPositions) {
-        expect(marketPositions).to.include(posId);
+      let marketPositions = await listMarketPositions(position, marketId);
+      expect(marketPositions.length).to.equal(records.length);
+      for (const record of records) {
+        expect(marketPositions).to.include(record.id);
       }
 
-      // Close positions and verify market tracking is updated
-      for (let i = 0; i < createdPositions.length; i++) {
-        await core.connect(alice).closePosition(createdPositions[i], 0);
+      for (let i = 0; i < records.length; i++) {
+        const record = records[i];
+        if (record.owner) {
+          await core.connect(record.owner).closePosition(record.id, 0);
+          record.owner = null;
+        }
 
-        marketPositions = await position.getMarketPositions(marketId);
-        expect(marketPositions.length).to.equal(
-          createdPositions.length - (i + 1)
-        );
+        marketPositions = await listMarketPositions(position, marketId);
+        expect(marketPositions.length).to.equal(records.length - (i + 1));
+        expect(marketPositions).to.not.include(records[i].id);
 
-        // Verify closed position is removed from market list
-        expect(marketPositions).to.not.include(createdPositions[i]);
-
-        // Verify remaining positions are still in the list
-        for (let j = i + 1; j < createdPositions.length; j++) {
-          expect(marketPositions).to.include(createdPositions[j]);
+        for (let j = i + 1; j < records.length; j++) {
+          expect(marketPositions).to.include(records[j].id);
         }
       }
 
-      // Final state: market should have no positions
-      const finalMarketPositions = await position.getMarketPositions(marketId);
+      const finalMarketPositions = await listMarketPositions(position, marketId);
       expect(finalMarketPositions.length).to.equal(0);
     });
-  });
 
-  describe("State Transition Invariants", function () {
     it("should maintain position data integrity during operations", async function () {
-      const { core, position, alice, bob, marketId } = await loadFixture(
-        activePositionMarketFixture
+      const { core, position, alice, bob, charlie, marketId } = await loadFixture(
+        positionMarketFixture
       );
 
       // Create position
@@ -438,13 +455,12 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
         lowerTick: 100100,
         upperTick: 100200,
         quantity: ethers.parseUnits("0.01", 6), // Much smaller to avoid chunking
-        maxCost: ethers.parseUnits("10", 6), // Reduced proportionally
+        maxCost: HIGH_COST, // Sufficient max cost for current pricing
       };
 
       const positionId = await core
         .connect(alice)
         .openPosition.staticCall(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -454,7 +470,6 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -485,19 +500,23 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
 
       let expectedQuantity = params.quantity;
       let expectedOwner = alice.address;
+      const signerByAddress: Record<string, any> = {
+        [alice.address]: alice,
+        [bob.address]: bob,
+        [charlie.address]: charlie,
+      };
 
       for (const op of operations) {
+        const ownerSigner = signerByAddress[expectedOwner];
         if (op.type === "increase" && op.amount) {
           await core
-            .connect(alice)
-            .increasePosition(
-              positionId,
-              op.amount,
-              ethers.parseUnits("50", 6)
-            );
+            .connect(ownerSigner)
+            .increasePosition(positionId, op.amount, HIGH_COST);
           expectedQuantity += op.amount;
         } else if (op.type === "decrease" && op.amount) {
-          await core.connect(alice).decreasePosition(positionId, op.amount, 0);
+          await core
+            .connect(ownerSigner)
+            .decreasePosition(positionId, op.amount, 0);
           expectedQuantity -= op.amount;
         } else if (op.type === "transfer" && op.from && op.to) {
           await position
@@ -515,8 +534,10 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
         expect(await position.ownerOf(positionId)).to.equal(expectedOwner); // Owner updated correctly
       }
 
-      // Close position
-      await core.connect(alice).closePosition(positionId, 0);
+      // Close position with the current owner
+      const finalOwnerSigner = signerByAddress[expectedOwner];
+      expect(finalOwnerSigner, "missing signer for final owner").to.exist;
+      await core.connect(finalOwnerSigner).closePosition(positionId, 0);
 
       // Verify position is completely removed
       await expect(
@@ -530,7 +551,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
 
     it("should maintain approval state consistency", async function () {
       const { position, alice, bob, charlie, marketId } = await loadFixture(
-        activePositionMarketFixture
+        positionMarketFixture
       );
 
       const positionId = await createTestPosition(alice, marketId);
@@ -577,7 +598,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
 
     it("should maintain quantity conservation during operations", async function () {
       const { core, position, alice, marketId } = await loadFixture(
-        activePositionMarketFixture
+        positionMarketFixture
       );
 
       // Create position with known quantity
@@ -587,13 +608,12 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
         lowerTick: 100100,
         upperTick: 100200,
         quantity: initialQuantity,
-        maxCost: ethers.parseUnits("10", 6), // Reduced proportionally
+        maxCost: HIGH_COST, // Sufficient max cost for current pricing
       };
 
       const positionId = await core
         .connect(alice)
         .openPosition.staticCall(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -603,7 +623,6 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           params.marketId,
           params.lowerTick,
           params.upperTick,
@@ -627,11 +646,9 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
         const beforeQuantity = currentQuantity;
 
         if (op.type === "increase") {
-          await core.connect(alice).increasePosition(
-            positionId,
-            op.amount,
-            ethers.parseUnits("10", 6) // Reduced from 100 to 10
-          );
+          await core
+            .connect(alice)
+            .increasePosition(positionId, op.amount, HIGH_COST);
           currentQuantity += op.amount;
         } else {
           await core.connect(alice).decreasePosition(positionId, op.amount, 0);
@@ -669,7 +686,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
   describe("Security Invariants", function () {
     it("should maintain access control invariants", async function () {
       const { core, position, alice, bob, marketId } = await loadFixture(
-        activePositionMarketFixture
+        positionMarketFixture
       );
 
       const positionId = await createTestPosition(alice, marketId);
@@ -712,8 +729,8 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
           .connect(alice)
           .increasePosition(
             positionId,
-            ethers.parseUnits("1", 6),
-            ethers.parseUnits("10", 6)
+            ethers.parseUnits("0.01", 6),
+            HIGH_COST
           )
       ).to.emit(position, "PositionUpdated");
 
@@ -725,7 +742,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
 
     it("should prevent unauthorized state modifications", async function () {
       const { position, alice, bob, charlie, marketId } = await loadFixture(
-        activePositionMarketFixture
+        positionMarketFixture
       );
 
       const positionId = await createTestPosition(alice, marketId);
@@ -766,7 +783,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
 
     it("should maintain data consistency under concurrent operations", async function () {
       const { core, position, alice, bob, charlie, marketId } =
-        await loadFixture(activePositionMarketFixture);
+        await loadFixture(positionMarketFixture);
 
       // Create multiple positions
       const positionIds: bigint[] = [];
@@ -776,13 +793,12 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
           lowerTick: 100100 + i * 50,
           upperTick: 100200 + i * 50,
           quantity: ethers.parseUnits("0.1", 6), // Increased to 0.1 to provide more buffer
-          maxCost: ethers.parseUnits("10", 6), // Increased proportionally
+          maxCost: HIGH_COST, // Increased proportionally
         };
 
         const positionId = await core
           .connect(alice)
           .openPosition.staticCall(
-            alice.address,
             params.marketId,
             params.lowerTick,
             params.upperTick,
@@ -792,7 +808,6 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
         await core
           .connect(alice)
           .openPosition(
-            alice.address,
             params.marketId,
             params.lowerTick,
             params.upperTick,
@@ -808,7 +823,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
           core.connect(alice).increasePosition(
             positionIds[0],
             ethers.parseUnits("0.02", 6), // Increased proportionally
-            ethers.parseUnits("10", 6) // Increased proportionally
+            HIGH_COST // Increased proportionally
           ),
         () =>
           position
@@ -823,7 +838,7 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
           core.connect(alice).increasePosition(
             positionIds[4],
             ethers.parseUnits("0.01", 6), // Proportionally increased
-            ethers.parseUnits("10", 6) // Proportionally increased
+            HIGH_COST // Proportionally increased
           ),
         () =>
           position
@@ -871,39 +886,38 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
       expect(await position.ownerOf(positionIds[4])).to.equal(alice.address);
 
       // Clean up
+      const signerByAddress: Record<string, any> = {
+        [alice.address]: alice,
+        [bob.address]: bob,
+        [charlie.address]: charlie,
+      };
+
       for (const posId of positionIds) {
-        try {
-          await core.connect(alice).closePosition(posId, 0);
-        } catch (error: any) {
-          console.log(
-            `Failed to close position ${posId}:`,
-            error.message || error
-          );
-        }
+        const ownerAddress = await position.ownerOf(posId);
+        const ownerSigner = signerByAddress[ownerAddress];
+        expect(ownerSigner, `missing signer for ${ownerAddress}`).to.exist;
+        await core.connect(ownerSigner).closePosition(posId, 0);
       }
 
-      const finalSupply = await position.totalSupply();
-      console.log(`Final total supply: ${finalSupply}`);
-      expect(finalSupply).to.equal(0);
+      expect(await position.totalSupply()).to.equal(0n);
     });
   });
 
   // Helper function to create a test position
   async function createTestPosition(user: any, marketId: any) {
-    const { core, alice } = await loadFixture(activePositionMarketFixture);
+    const { core, alice } = await loadFixture(positionMarketFixture);
 
     const params = {
       marketId,
       lowerTick: 100100,
       upperTick: 100200,
       quantity: ethers.parseUnits("0.01", 6), // Reduced from 5 to 0.01
-      maxCost: ethers.parseUnits("10", 6), // Reduced from 50 to 10
+      maxCost: HIGH_COST, // Sufficient max cost for current pricing
     };
 
     const positionId = await core
       .connect(alice)
       .openPosition.staticCall(
-        user.address,
         params.marketId,
         params.lowerTick,
         params.upperTick,
@@ -913,7 +927,6 @@ describe(`${INVARIANT_TAG} Position Contract Invariants`, function () {
     await core
       .connect(alice)
       .openPosition(
-        user.address,
         params.marketId,
         params.lowerTick,
         params.upperTick,

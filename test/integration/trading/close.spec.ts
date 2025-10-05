@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { createActiveMarketFixture } from "../../helpers/fixtures/core";
+import { createActiveMarketFixture, settleMarketUsingRange } from "../../helpers/fixtures/core";
 import { INTEGRATION_TAG } from "../../helpers/tags";
 
 describe(`${INTEGRATION_TAG} Position Closing`, function () {
@@ -26,7 +26,6 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
     await core
       .connect(alice)
       .openPosition(
-        alice.address,
         tradeParams.marketId,
         tradeParams.lowerTick,
         tradeParams.upperTick,
@@ -52,7 +51,7 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
     // Position should be burned/deleted
     await expect(
       mockPosition.getPosition(positionId)
-    ).to.be.revertedWithCustomError(core, "PositionNotFound");
+    ).to.be.revertedWithCustomError(mockPosition, "PositionNotFound");
   });
 
   it("Should handle multiple position closures", async function () {
@@ -67,7 +66,6 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
       await core
         .connect(user)
         .openPosition(
-          user.address,
           marketId,
           100040,
           100060,
@@ -112,7 +110,6 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
     await core
       .connect(alice)
       .openPosition(
-        alice.address,
         marketId,
         100450,
         100550,
@@ -125,7 +122,7 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
     // Move to market end and settle
     const market = await core.getMarket(marketId);
     await time.increaseTo(Number(market.endTimestamp) + 1);
-    await core.connect(keeper).settleMarket(marketId, 100490, 100500); // Settle at tick range 100490-100500
+    await settleMarketUsingRange(core, keeper, marketId, 100490, 100500); // Settle using midpoint tick
 
     const balanceBefore = await paymentToken.balanceOf(alice.address);
 
@@ -145,7 +142,6 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
 
     // Create very small position
     await core.connect(alice).openPosition(
-      alice.address,
       marketId,
       100850,
       100950,
@@ -168,12 +164,14 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
   });
 
   it("Should revert on invalid position closure", async function () {
-    const { core, alice } = await loadFixture(createActiveMarketFixture);
+    const { core, alice, mockPosition } = await loadFixture(
+      createActiveMarketFixture
+    );
 
     // Try to close non-existent position
     await expect(
       core.connect(alice).closePosition(999, 0)
-    ).to.be.revertedWithCustomError(core, "PositionNotFound");
+    ).to.be.revertedWithCustomError(mockPosition, "PositionNotFound");
   });
 
   it("Should handle position closure with minimum payout requirement", async function () {
@@ -184,7 +182,6 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
     await core
       .connect(alice)
       .openPosition(
-        alice.address,
         marketId,
         100450,
         100550,
@@ -198,7 +195,7 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
     const highMinPayout = ethers.parseUnits("1000", 6);
     await expect(
       core.connect(alice).closePosition(positionId, highMinPayout)
-    ).to.be.revertedWithCustomError(core, "CostExceedsMaximum");
+    ).to.be.revertedWithCustomError(core, "ProceedsBelowMinimum");
   });
 
   it("Should handle partial closure through decrease", async function () {
@@ -210,7 +207,6 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
     await core
       .connect(alice)
       .openPosition(
-        alice.address,
         marketId,
         100450,
         100550,

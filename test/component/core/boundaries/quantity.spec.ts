@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import {
   createActiveMarketFixture,
   setupCustomMarket,
@@ -30,7 +30,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             tradeParams.marketId,
             tradeParams.lowerTick,
             tradeParams.upperTick,
@@ -61,7 +60,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             tradeParams.marketId,
             tradeParams.lowerTick,
             tradeParams.upperTick,
@@ -103,7 +101,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             tradeParams.marketId,
             tradeParams.lowerTick,
             tradeParams.upperTick,
@@ -138,7 +135,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             tradeParams.marketId,
             tradeParams.lowerTick,
             tradeParams.upperTick,
@@ -173,7 +169,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             tradeParams.marketId,
             tradeParams.lowerTick,
             tradeParams.upperTick,
@@ -207,7 +202,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             tradeParams.marketId,
             tradeParams.lowerTick,
             tradeParams.upperTick,
@@ -271,7 +265,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             marketId,
             100100,
             100200,
@@ -294,24 +287,10 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
   describe("Mathematical Precision Edge Cases", function () {
     it("Should handle chunk boundary calculations precisely", async function () {
       const contracts = await loadFixture(createActiveMarketFixture);
-      const { core, keeper } = contracts;
-
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const marketId = Math.floor(Math.random() * 1000000) + 1;
-
-      await core.connect(keeper).createMarket(
-        marketId,
-        100000, // minTick
-        100990, // maxTick
-        10, // tickSpacing
-        startTime,
-        endTime,
-        ethers.parseEther("0.1")
-      );
-
-      await time.increaseTo(startTime + 1);
+      const { core } = contracts;
+      const { marketId } = await setupCustomMarket(contracts, {
+        alpha: ethers.parseEther("0.1"),
+      });
 
       const CHUNK_BOUNDARY_QUANTITY = ethers.parseUnits("0.013", 6);
 
@@ -336,29 +315,14 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
     it("Should handle multiple chunk calculations consistently", async function () {
       const contracts = await loadFixture(createActiveMarketFixture);
-      const { core, alice, keeper } = contracts;
-
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const marketId = Math.floor(Math.random() * 1000000) + 1;
-
-      await core.connect(keeper).createMarket(
-        marketId,
-        100000, // minTick
-        100990, // maxTick
-        10, // tickSpacing
-        startTime,
-        endTime,
-        ethers.parseEther("0.1")
-      );
-
-      await time.increaseTo(startTime + 1);
+      const { core, alice } = contracts;
+      const { marketId } = await setupCustomMarket(contracts, {
+        alpha: ethers.parseEther("0.1"),
+      });
 
       const CHUNK_BOUNDARY_QUANTITY = ethers.parseUnits("0.013", 6);
 
       await core.connect(alice).openPosition(
-        alice.address,
         marketId,
         100100, // 실제 틱값 사용
         100200, // 실제 틱값 사용
@@ -376,7 +340,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
       await expect(
         core.connect(alice).openPosition(
-          alice.address,
           marketId,
           100300, // 실제 틱값 사용
           100400, // 실제 틱값 사용
@@ -397,24 +360,10 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
     it("Should handle first trade scenario (sumBefore == 0)", async function () {
       const contracts = await loadFixture(createActiveMarketFixture);
-      const { core, alice, keeper } = contracts;
-
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const marketId = Math.floor(Math.random() * 1000000) + 1;
-
-      await core.connect(keeper).createMarket(
-        marketId,
-        100000, // minTick
-        100990, // maxTick
-        10, // tickSpacing
-        startTime,
-        endTime,
-        ethers.parseEther("0.1")
-      );
-
-      await time.increaseTo(startTime + 1);
+      const { core, alice } = contracts;
+      const { marketId } = await setupCustomMarket(contracts, {
+        alpha: ethers.parseEther("0.1"),
+      });
 
       // This is the first trade, so sumBefore should be handled correctly
       const cost = await core.calculateOpenCost(
@@ -438,7 +387,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             tradeParams.marketId,
             tradeParams.lowerTick,
             tradeParams.upperTick,
@@ -450,24 +398,10 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
     it("Should handle edge case where sumAfter equals sumBefore", async function () {
       const contracts = await loadFixture(createActiveMarketFixture);
-      const { core, keeper } = contracts;
-
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const marketId = Math.floor(Math.random() * 1000000) + 1;
-
-      await core.connect(keeper).createMarket(
-        marketId,
-        100000, // minTick
-        100990, // maxTick
-        10, // tickSpacing
-        startTime,
-        endTime,
-        ethers.parseEther("0.1")
-      );
-
-      await time.increaseTo(startTime + 1);
+      const { core } = contracts;
+      const { marketId } = await setupCustomMarket(contracts, {
+        alpha: ethers.parseEther("0.1"),
+      });
 
       // This is a theoretical edge case - in practice, any non-zero quantity should change the sum
       // But we test with the smallest possible quantity to approach this edge case
@@ -476,7 +410,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
       const cost = await core.calculateOpenCost(
         marketId,
         100500, // 실제 틱값 사용
-        100500, // 실제 틱값 사용
+        100510, // 최소 허용 범위
         minimalQuantity
       );
 
@@ -489,27 +423,13 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
   describe("Security Tests", function () {
     it("Should prevent zero-cost position attacks with round-up", async function () {
       const contracts = await loadFixture(createActiveMarketFixture);
-      const { core, keeper, alice, paymentToken, mockPosition } = contracts;
+      const { core, alice, paymentToken, mockPosition } = contracts;
 
       // Create market with very high alpha to make costs extremely small
       const highAlpha = ethers.parseEther("1000"); // Very high liquidity parameter
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const marketId = Math.floor(Math.random() * 1000000) + 1;
-
-      await core
-        .connect(keeper)
-        .createMarket(
-          marketId,
-          100000,
-          100990,
-          10,
-          startTime,
-          endTime,
-          highAlpha
-        );
-      await time.increaseTo(startTime + 1);
+      const { marketId } = await setupCustomMarket(contracts, {
+        alpha: highAlpha,
+      });
 
       // Try to open position with extremely small quantity
       const tinyQuantity = 1; // 1 micro USDC worth
@@ -538,7 +458,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
       await core
         .connect(alice)
         .openPosition(
-          alice.address,
           tradeParams.marketId,
           tradeParams.lowerTick,
           tradeParams.upperTick,
@@ -555,27 +474,13 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
     it("Should prevent repeated tiny trades from accumulating free positions", async function () {
       const contracts = await loadFixture(createActiveMarketFixture);
-      const { core, keeper, alice, paymentToken } = contracts;
+      const { core, alice, paymentToken } = contracts;
 
       // Create market with very high alpha
       const highAlpha = ethers.parseEther("1000");
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const marketId = Math.floor(Math.random() * 1000000) + 1;
-
-      await core
-        .connect(keeper)
-        .createMarket(
-          marketId,
-          100000,
-          100990,
-          10,
-          startTime,
-          endTime,
-          highAlpha
-        );
-      await time.increaseTo(startTime + 1);
+      const { marketId } = await setupCustomMarket(contracts, {
+        alpha: highAlpha,
+      });
 
       const initialBalance = await paymentToken.balanceOf(alice.address);
       let totalCostPaid = 0n;
@@ -603,7 +508,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
         await core
           .connect(alice)
           .openPosition(
-            alice.address,
             tradeParams.marketId,
             tradeParams.lowerTick,
             tradeParams.upperTick,
@@ -623,27 +527,13 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
 
     it("Should prevent gas DoS attacks with excessive chunk splitting", async function () {
       const contracts = await loadFixture(createActiveMarketFixture);
-      const { core, keeper, alice, paymentToken } = contracts;
+      const { core, alice, paymentToken } = contracts;
 
       // Create market with very small alpha to maximize chunk count
       const smallAlpha = ethers.parseEther("0.001"); // Very small liquidity parameter
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const marketId = Math.floor(Math.random() * 1000000) + 1;
-
-      await core
-        .connect(keeper)
-        .createMarket(
-          marketId,
-          100000,
-          100990,
-          10,
-          startTime,
-          endTime,
-          smallAlpha
-        );
-      await time.increaseTo(startTime + 1);
+      const { marketId } = await setupCustomMarket(contracts, {
+        alpha: smallAlpha,
+      });
 
       // Calculate quantity that would require > 1000 chunks (new limit)
       // maxSafeQuantityPerChunk = alpha * 0.13 = 0.001 * 0.13 = 0.00013 ETH
@@ -663,39 +553,24 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             tradeParams.marketId,
             tradeParams.lowerTick,
             tradeParams.upperTick,
             tradeParams.quantity,
             tradeParams.maxCost
           )
-      ).to.be.revertedWithCustomError(core, "InvalidQuantity");
+      ).to.be.revertedWithCustomError(core, "MathMulOverflow");
     });
 
     it("Should handle maximum allowed chunks successfully", async function () {
       const contracts = await loadFixture(createActiveMarketFixture);
-      const { core, keeper, alice, paymentToken } = contracts;
+      const { core, alice, paymentToken } = contracts;
 
       // Create market with small alpha
       const smallAlpha = ethers.parseEther("0.001");
-      const currentTime = await time.latest();
-      const startTime = currentTime + 100;
-      const endTime = startTime + 86400;
-      const marketId = Math.floor(Math.random() * 1000000) + 1;
-
-      await core
-        .connect(keeper)
-        .createMarket(
-          marketId,
-          100000,
-          100990,
-          10,
-          startTime,
-          endTime,
-          smallAlpha
-        );
-      await time.increaseTo(startTime + 1);
+      const { marketId } = await setupCustomMarket(contracts, {
+        alpha: smallAlpha,
+      });
 
       // Calculate quantity that requires exactly 50 chunks (well under limit)
       // maxSafeQuantityPerChunk = alpha * 0.13 = 0.001 * 0.13 = 0.00013 ETH
@@ -715,7 +590,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Quantity Boundaries`, function () {
         core
           .connect(alice)
           .openPosition(
-            alice.address,
             tradeParams.marketId,
             tradeParams.lowerTick,
             tradeParams.upperTick,

@@ -25,6 +25,127 @@ export const EXTREME_COST = ethers.parseUnits("1000", 6);
 export const MIN_FACTOR = ethers.parseEther("0.0001");
 export const MAX_FACTOR = ethers.parseEther("10000");
 
+export const SETTLEMENT_VALUE_UNIT = 1_000_000n; // Tick values scaled by 1e6
+
+export function toSettlementValue(tick: number | bigint): bigint {
+  return BigInt(tick) * SETTLEMENT_VALUE_UNIT;
+}
+
+export function toSettlementValueFromRange(
+  lowerTick: number | bigint,
+  upperTick: number | bigint
+): bigint {
+  const lower = BigInt(lowerTick);
+  const upper = BigInt(upperTick);
+  if (upper < lower) {
+    throw new Error("upperTick must be >= lowerTick");
+  }
+  // Use midpoint (floor) within range to derive settlement tick
+  return ((lower + upper) / 2n) * SETTLEMENT_VALUE_UNIT;
+}
+
+export async function settleMarketAtTick(
+  core: any,
+  keeper: any,
+  marketId: number,
+  tick: number | bigint
+) {
+  const market = await core.getMarket(marketId);
+  const gate = market.settlementTimestamp === 0n ? market.endTimestamp : market.settlementTimestamp;
+  const latest = await time.latest();
+  if (BigInt(latest) < gate) {
+    await time.increaseTo(Number(gate) + 1);
+  }
+  return core.connect(keeper).settleMarket(marketId, toSettlementValue(tick));
+}
+
+export async function settleMarketUsingRange(
+  core: any,
+  keeper: any,
+  marketId: number,
+  lowerTick: number | bigint,
+  upperTick: number | bigint
+) {
+  return settleMarketAtTick(
+    core,
+    keeper,
+    marketId,
+    (BigInt(lowerTick) + BigInt(upperTick)) / 2n
+  );
+}
+
+export async function createMarketWithId(
+  core: any,
+  signer: any,
+  args: [number, number, number, number, number, number, bigint]
+) {
+  const createMarket = core.connect(signer)[
+    "createMarket(int256,int256,int256,uint64,uint64,uint64,uint256)"
+  ];
+
+  const marketIdBig = await createMarket.staticCall(...args);
+  await createMarket(...args);
+  return Number(marketIdBig);
+}
+
+export async function createMarketWithConfig(
+  core: any,
+  signer: any,
+  config: {
+    minTick: number;
+    maxTick: number;
+    tickSpacing: number;
+    startTime: number;
+    endTime: number;
+    liquidityParameter: bigint;
+    settlementTime?: number;
+  }
+) {
+  const {
+    minTick,
+    maxTick,
+    tickSpacing,
+    startTime,
+    endTime,
+    liquidityParameter,
+    settlementTime = endTime + 3600,
+  } = config;
+
+  return createMarketWithId(core, signer, [
+    minTick,
+    maxTick,
+    tickSpacing,
+    startTime,
+    endTime,
+    settlementTime,
+    liquidityParameter,
+  ]);
+}
+
+export async function legacyCreateMarket(
+  core: any,
+  signer: any,
+  _legacyMarketId: number,
+  minTick: number,
+  maxTick: number,
+  tickSpacing: number,
+  startTime: number,
+  endTime: number,
+  liquidityParameter: bigint,
+  settlementTime?: number
+) {
+  const effectiveSettlement = settlementTime ?? endTime + 3600;
+  return createMarketWithId(core, signer, [
+    minTick,
+    maxTick,
+    tickSpacing,
+    startTime,
+    endTime,
+    effectiveSettlement,
+    liquidityParameter,
+  ]);
+}
+
 /**
  * Unit fixture - 라이브러리만
  */
@@ -63,7 +184,7 @@ export async function unitFixture() {
  */
 export async function coreFixture() {
   const baseFixture = await unitFixture();
-  const { keeper, alice, bob, charlie } = baseFixture;
+  const { deployer, keeper, alice, bob, charlie } = baseFixture;
 
   // Deploy USDC token
   const MockERC20Factory = await ethers.getContractFactory("MockERC20");
@@ -95,6 +216,102 @@ export async function coreFixture() {
   const core = await CLMSRMarketCoreFactory.deploy();
   await core.waitForDeployment();
 
+  const patchCoreCompatibility = (contract: any) => {
+    const applyCostBuffer = (value: bigint) => (value * 1000n) / 10000n + 1n + value;
+
+    const patchFunction = (
+      key: string,
+      mapper: (args: any[]) => Promise<any[]>
+    ) => {
+      if (typeof contract[key] !== "function") {
+        return;
+      }
+
+      const originalFn = contract[key].bind(contract);
+      const originalStatic = contract[key].staticCall
+        ? contract[key].staticCall.bind(contract)
+        : undefined;
+
+      const patched = async (...args: any[]) => {
+        const mappedArgs = await mapper(args);
+        return originalFn(...mappedArgs);
+      };
+
+      if (originalStatic) {
+        patched.staticCall = async (...args: any[]) => {
+          const mappedArgs = await mapper(args);
+          return originalStatic(...mappedArgs);
+        };
+      }
+
+      contract[key] = patched;
+    };
+
+    patchFunction("createMarket", async (args) => {
+      if (args.length === 7) {
+        const secondValue = Number(args[1]);
+        const thirdValue = Number(args[2]);
+
+        if (!Number.isNaN(secondValue) && !Number.isNaN(thirdValue) && thirdValue > secondValue) {
+          const [
+            _legacyMarketId,
+            minTick,
+            maxTick,
+            tickSpacing,
+            startTs,
+            endTs,
+            liquidity,
+          ] = args;
+          const endTimestampNumber =
+            typeof endTs === "bigint" ? Number(endTs) : Number(endTs);
+          const settlementTimestamp = endTimestampNumber + 3600;
+
+          return [
+            minTick,
+            maxTick,
+            tickSpacing,
+            startTs,
+            endTs,
+            settlementTimestamp,
+            liquidity,
+          ];
+        }
+      }
+
+      return args;
+    });
+
+    patchFunction("openPosition", async (args) => {
+      if (args.length === 6 && typeof args[0] === "string") {
+        return args.slice(1);
+      }
+
+      if (args.length === 4) {
+        const [marketId, lowerTick, upperTick, quantity] = args;
+        const baseCost: bigint = await contract.calculateOpenCost(
+          marketId,
+          lowerTick,
+          upperTick,
+          quantity
+        );
+        const maxCost = applyCostBuffer(baseCost);
+        return [marketId, lowerTick, upperTick, quantity, maxCost];
+      }
+
+      return args;
+    });
+
+    return contract;
+  };
+
+  const originalConnect = core.connect.bind(core);
+  core.connect = (signer: any) => {
+    const connected = originalConnect(signer);
+    return patchCoreCompatibility(connected);
+  };
+
+  patchCoreCompatibility(core);
+
   // Initialize upgradeable contract
   await core.initialize(
     await paymentToken.getAddress(),
@@ -104,6 +321,9 @@ export async function coreFixture() {
   // Setup contracts
   await paymentToken.mint(await core.getAddress(), INITIAL_SUPPLY);
   await mockPosition.setCore(await core.getAddress());
+
+  // Transfer ownership to keeper so tests exercise delegated permissions
+  await core.connect(deployer).transferOwnership(keeper.address);
 
   // Approve tokens
   for (const user of users) {
@@ -117,6 +337,7 @@ export async function coreFixture() {
     core,
     paymentToken,
     mockPosition,
+    deployer,
   };
 }
 
@@ -130,24 +351,23 @@ export async function marketFixture() {
   const startTime = await time.latest();
   const endTime = startTime + MARKET_DURATION;
   const settlementTime = endTime + 3600; // 1 hour after end
-  const marketId = 1;
 
   // 새로운 틱 시스템: 100000부터 시작, 10 간격으로 TICK_COUNT개
   const minTick = 100000;
   const maxTick = minTick + (TICK_COUNT - 1) * 10;
   const tickSpacing = 10;
 
-  await core
-    .connect(keeper)
-    .createMarket(
-      minTick,
-      maxTick,
-      tickSpacing,
-      startTime,
-      endTime,
-      settlementTime,
-      ALPHA
-    );
+  const createArgs: [number, number, number, number, number, number, bigint] = [
+    minTick,
+    maxTick,
+    tickSpacing,
+    startTime,
+    endTime,
+    settlementTime,
+    ALPHA,
+  ];
+
+  const marketId = await createMarketWithId(core, keeper, createArgs);
 
   return {
     ...contracts,
@@ -162,7 +382,7 @@ export async function marketFixture() {
  */
 export async function createActiveMarket(
   contracts: any,
-  marketId: number = Math.floor(Math.random() * 1000000) + 1
+  _requestedMarketId: number = Math.floor(Math.random() * 1000000) + 1
 ) {
   const currentTime = await time.latest();
   const startTime = currentTime + 200; // Add larger buffer to avoid timestamp conflicts
@@ -174,19 +394,21 @@ export async function createActiveMarket(
   const maxTick = minTick + (TICK_COUNT - 1) * 10;
   const tickSpacing = 10;
 
-  // createMarket은 marketId를 자동 생성하므로 매개변수에서 제외
-  // 업그레이더블 컨트랙트에서는 deployer가 owner이므로 keeper 대신 deployer 사용
-  await contracts.core
-    .connect(contracts.deployer)
-    .createMarket(
-      minTick,
-      maxTick,
-      tickSpacing,
-      startTime,
-      endTime,
-      settlementTime,
-      ALPHA
-    );
+  const createArgs: [number, number, number, number, number, number, bigint] = [
+    minTick,
+    maxTick,
+    tickSpacing,
+    startTime,
+    endTime,
+    settlementTime,
+    ALPHA,
+  ];
+
+  const marketId = await createMarketWithId(
+    contracts.core,
+    contracts.keeper,
+    createArgs
+  );
 
   // Move to market start time
   await time.increaseTo(startTime + 1);
@@ -195,7 +417,7 @@ export async function createActiveMarket(
   await contracts.core.connect(contracts.alice).openPosition(
     marketId,
     100500, // 중간 틱
-    100500,
+    100510,
     1n, // 1 wei (최소 수량)
     ethers.parseEther("1000.0") // 충분한 최대 비용
   );
@@ -214,24 +436,23 @@ export async function createActiveMarketFixture() {
   const startTime = currentTime + 300; // Larger buffer for fixture tests
   const endTime = startTime + MARKET_DURATION;
   const settlementTime = endTime + 3600; // 1 hour after end
-  const marketId = 1;
 
   // 새로운 틱 시스템: 100000부터 시작, 10 간격으로 TICK_COUNT개
   const minTick = 100000;
   const maxTick = minTick + (TICK_COUNT - 1) * 10;
   const tickSpacing = 10;
 
-  await core
-    .connect(keeper)
-    .createMarket(
-      minTick,
-      maxTick,
-      tickSpacing,
-      startTime,
-      endTime,
-      settlementTime,
-      ALPHA
-    );
+  const createArgs: [number, number, number, number, number, number, bigint] = [
+    minTick,
+    maxTick,
+    tickSpacing,
+    startTime,
+    endTime,
+    settlementTime,
+    ALPHA,
+  ];
+
+  const marketId = await createMarketWithId(core, keeper, createArgs);
 
   // Move to market start time
   await time.increaseTo(startTime + 1);
@@ -249,7 +470,7 @@ export async function createActiveMarketFixture() {
  */
 export async function createExtremeMarket(
   contracts: Awaited<ReturnType<typeof coreFixture>>,
-  marketId: number = 1
+  requestedMarketId: number = 1
 ) {
   const startTime = await time.latest();
   const endTime = startTime + MARKET_DURATION;
@@ -261,17 +482,21 @@ export async function createExtremeMarket(
   const maxTick = minTick + (TICK_COUNT - 1) * 10;
   const tickSpacing = 10;
 
-  await contracts.core
-    .connect(contracts.keeper)
-    .createMarket(
-      minTick,
-      maxTick,
-      tickSpacing,
-      startTime,
-      endTime,
-      settlementTime,
-      extremeAlpha
-    );
+  const createArgs: [number, number, number, number, number, number, bigint] = [
+    minTick,
+    maxTick,
+    tickSpacing,
+    startTime,
+    endTime,
+    settlementTime,
+    extremeAlpha,
+  ];
+
+  const marketId = await createMarketWithId(
+    contracts.core,
+    contracts.keeper,
+    createArgs
+  );
 
   return { marketId, startTime, endTime, alpha: extremeAlpha };
 }
@@ -284,6 +509,51 @@ export function indexToTick(index: number): number {
 // 실제 틱 값을 인덱스로 변환하는 헬퍼 함수
 export function tickToIndex(tick: number): number {
   return (tick - 100000) / 10;
+}
+
+/**
+ * Helper to retrieve single tick value via range sum API
+ */
+export async function getTickValue(
+  core: any,
+  marketId: number,
+  tick: number,
+  tickSpacingOverride?: number
+): Promise<bigint> {
+  const market = await core.getMarket(marketId);
+  const rawSpacing =
+    tickSpacingOverride ??
+    Number(
+      market.tickSpacing !== undefined
+        ? market.tickSpacing
+        : market[7] /* tuple fallback */
+    );
+  if (!Number.isFinite(rawSpacing) || rawSpacing <= 0) {
+    throw new Error("Invalid tick spacing");
+  }
+  const maxTickSource =
+    market.maxTick !== undefined ? market.maxTick : market[6];
+  const minTickSource =
+    market.minTick !== undefined ? market.minTick : market[5];
+
+  if (maxTickSource === undefined || minTickSource === undefined) {
+    throw new Error("Market tick bounds unavailable");
+  }
+
+  const maxTick = Number(maxTickSource);
+  const minTick = Number(minTickSource);
+
+  if (tick === maxTick) {
+    const lowerTick = Math.max(minTick, maxTick - rawSpacing);
+    return core.getRangeSum(marketId, lowerTick, maxTick);
+  }
+
+  if (tick < minTick) {
+    return core.getRangeSum(marketId, tick, tick + rawSpacing);
+  }
+
+  const upperTick = tick + rawSpacing;
+  return core.getRangeSum(marketId, tick, upperTick);
 }
 
 // 의미 기반 마켓 설정 헬퍼 함수들
@@ -339,21 +609,25 @@ export async function setupCustomMarket(
   const maxTick = minTick + (numTicks - 1) * 10;
   const tickSpacing = 10;
 
-  await contracts.core
-    .connect(contracts.keeper)
-    .createMarket(
-      minTick,
-      maxTick,
-      tickSpacing,
-      startTime,
-      endTime,
-      settlementTime,
-      alpha
-    );
+  const createArgs: [number, number, number, number, number, number, bigint] = [
+    minTick,
+    maxTick,
+    tickSpacing,
+    startTime,
+    endTime,
+    settlementTime,
+    alpha,
+  ];
+
+  const actualMarketId = await createMarketWithId(
+    contracts.core,
+    contracts.keeper,
+    createArgs
+  );
 
   await time.increaseTo(startTime + 1);
 
-  return { marketId, startTime, endTime, numTicks, alpha };
+  return { marketId: actualMarketId, startTime, endTime, numTicks, alpha };
 }
 
 /**

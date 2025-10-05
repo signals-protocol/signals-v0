@@ -25,7 +25,6 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
     await core
       .connect(alice)
       .openPosition(
-        alice.address,
         tradeParams.marketId,
         tradeParams.lowerTick,
         tradeParams.upperTick,
@@ -54,7 +53,9 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
   });
 
   it("Should revert decrease of non-existent position", async function () {
-    const { core, alice } = await loadFixture(createActiveMarketFixture);
+    const { core, alice, mockPosition } = await loadFixture(
+      createActiveMarketFixture
+    );
 
     await expect(
       core.connect(alice).decreasePosition(
@@ -62,7 +63,7 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
         SMALL_QUANTITY,
         0
       )
-    ).to.be.revertedWithCustomError(core, "PositionNotFound");
+    ).to.be.revertedWithCustomError(mockPosition, "PositionNotFound");
   });
 
   it("Should handle zero quantity decrease", async function () {
@@ -74,7 +75,6 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
     await core
       .connect(alice)
       .openPosition(
-        alice.address,
         marketId,
         100450,
         100550,
@@ -99,7 +99,6 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
     await core
       .connect(alice)
       .openPosition(
-        alice.address,
         marketId,
         100450,
         100550,
@@ -116,7 +115,7 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
         MEDIUM_QUANTITY, // Larger than position
         0
       )
-    ).to.be.revertedWithCustomError(core, "InvalidQuantity");
+    ).to.be.revertedWithCustomError(core, "InsufficientPositionQuantity");
   });
 
   it("Should handle payout below minimum", async function () {
@@ -128,7 +127,6 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
     await core
       .connect(alice)
       .openPosition(
-        alice.address,
         marketId,
         100450,
         100550,
@@ -151,7 +149,7 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
         SMALL_QUANTITY,
         payout + 1n // Set min payout higher than actual
       )
-    ).to.be.revertedWithCustomError(core, "CostExceedsMaximum");
+    ).to.be.revertedWithCustomError(core, "ProceedsBelowMinimum");
   });
 
   it("Should handle paused contract for decrease", async function () {
@@ -163,7 +161,6 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
     await core
       .connect(alice)
       .openPosition(
-        alice.address,
         marketId,
         100450,
         100550,
@@ -179,7 +176,7 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
 
     await expect(
       core.connect(alice).decreasePosition(positionId, SMALL_QUANTITY, 0)
-    ).to.be.revertedWithCustomError(core, "ContractPaused");
+    ).to.be.revertedWithCustomError(core, "EnforcedPause");
   });
 
   it("Should calculate decrease payout correctly", async function () {
@@ -199,7 +196,6 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
     await core
       .connect(alice)
       .openPosition(
-        alice.address,
         tradeParams.marketId,
         tradeParams.lowerTick,
         tradeParams.upperTick,
@@ -225,7 +221,6 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
     await core
       .connect(alice)
       .openPosition(
-        alice.address,
         marketId,
         100450,
         100550,
@@ -250,7 +245,6 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
     await core
       .connect(alice)
       .openPosition(
-        alice.address,
         marketId,
         100450,
         100550,
@@ -284,7 +278,6 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
     await core
       .connect(alice)
       .openPosition(
-        alice.address,
         marketId,
         100450,
         100550,
@@ -299,6 +292,6 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
 
     await expect(
       core.connect(alice).decreasePosition(positionId, excessiveSell, 0)
-    ).to.be.revertedWithCustomError(core, "InvalidQuantity");
+    ).to.be.revertedWithCustomError(core, "InsufficientPositionQuantity");
   });
 });

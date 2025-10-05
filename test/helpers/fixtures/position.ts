@@ -9,12 +9,25 @@ import {
   MARKET_DURATION,
 } from "./core";
 
+const DEFAULT_POSITION_QUANTITY = ethers.parseUnits("10", 6);
+const DEFAULT_POSITION_MAX_COST = ethers.parseUnits("1000", 6);
+
+async function createMarketAndReturnId(
+  core: any,
+  signer: any,
+  args: [number, number, number, number, number, number, bigint]
+) {
+  const marketIdBig = await core.connect(signer).createMarket.staticCall(...args);
+  await core.connect(signer).createMarket(...args);
+  return Number(marketIdBig);
+}
+
 /**
  * Position fixture - CLMSRPosition contract for complex testing
  */
 export async function positionFixture() {
   const baseFixture = await unitFixture();
-  const { keeper, alice, bob, charlie } = baseFixture;
+  const { deployer, keeper, alice, bob, charlie } = baseFixture;
 
   // Deploy USDC token
   const MockERC20Factory = await ethers.getContractFactory("MockERC20");
@@ -55,6 +68,10 @@ export async function positionFixture() {
   // Set core in position contract
   await position.setCore(await core.getAddress());
 
+  // Delegate ownership to keeper for compatibility
+  await core.connect(deployer).transferOwnership(keeper.address);
+  await position.connect(deployer).transferOwnership(keeper.address);
+
   // Setup contracts
   await paymentToken.mint(await core.getAddress(), INITIAL_SUPPLY);
 
@@ -70,6 +87,7 @@ export async function positionFixture() {
     core,
     paymentToken,
     position,
+    deployer,
   };
 }
 
@@ -78,7 +96,7 @@ export async function positionFixture() {
  */
 export async function activePositionFixture() {
   const baseFixture = await unitFixture();
-  const { keeper, alice, bob, charlie } = baseFixture;
+  const { deployer, keeper, alice, bob, charlie } = baseFixture;
 
   // Deploy USDC token
   const MockERC20Factory = await ethers.getContractFactory("MockERC20");
@@ -103,38 +121,24 @@ export async function activePositionFixture() {
   );
   const CLMSRPositionFactory = await ethers.getContractFactory("CLMSRPosition");
 
-  // Get deployer nonce to calculate future addresses
-  const deployer = await ethers.provider.getSigner();
-  const deployerAddress = await deployer.getAddress();
-  const nonce = await ethers.provider.getTransactionCount(deployerAddress);
-
-  // Calculate future core address (will be deployed after position)
-  const futureCore = ethers.getCreateAddress({
-    from: deployerAddress,
-    nonce: nonce + 1, // Position deploys first, then core
-  });
-
-  // Deploy position with future core address
-  const position = await CLMSRPositionFactory.deploy(futureCore);
+  // Deploy position implementation and initialize with placeholder core
+  const position = await CLMSRPositionFactory.deploy();
   await position.waitForDeployment();
+  await position.initialize(ethers.ZeroAddress);
 
-  // Deploy core with actual position address
-  const core = await CLMSRMarketCoreFactory.deploy(
-    await paymentToken.getAddress(),
-    await position.getAddress(),
-    keeper.address
-  );
+  // Deploy core and initialize with position address
+  const core = await CLMSRMarketCoreFactory.deploy();
   await core.waitForDeployment();
 
-  // Verify the addresses match
-  const actualCoreAddress = await core.getAddress();
-  const positionCoreAddress = await position.getCoreContract();
+  await core.initialize(
+    await paymentToken.getAddress(),
+    await position.getAddress()
+  );
 
-  if (actualCoreAddress !== positionCoreAddress) {
-    throw new Error(
-      `Core address mismatch: expected ${actualCoreAddress}, got ${positionCoreAddress}`
-    );
-  }
+  // Link position to core and delegate ownership
+  await position.updateCore(await core.getAddress());
+  await core.connect(deployer).transferOwnership(keeper.address);
+  await position.connect(deployer).transferOwnership(keeper.address);
 
   // Setup contracts
   await paymentToken.mint(await core.getAddress(), INITIAL_SUPPLY);
@@ -151,6 +155,7 @@ export async function activePositionFixture() {
     core,
     paymentToken,
     position,
+    deployer,
   };
 }
 
@@ -164,24 +169,24 @@ export async function positionMarketFixture() {
   const currentTime = await time.latest();
   const startTime = currentTime + 500; // Larger buffer for position market tests
   const endTime = startTime + MARKET_DURATION;
-  const marketId = 1;
 
   // 새로운 틱 시스템 사용
   const minTick = 100000;
   const maxTick = minTick + (TICK_COUNT - 1) * 10;
   const tickSpacing = 10;
+  const settlementTime = endTime + 3600;
 
-  await core
-    .connect(keeper)
-    .createMarket(
-      marketId,
-      minTick,
-      maxTick,
-      tickSpacing,
-      startTime,
-      endTime,
-      ALPHA
-    );
+  const createArgs: [number, number, number, number, number, number, bigint] = [
+    minTick,
+    maxTick,
+    tickSpacing,
+    startTime,
+    endTime,
+    settlementTime,
+    ALPHA,
+  ];
+
+  const marketId = await createMarketAndReturnId(core, keeper, createArgs);
 
   // Move to market start time
   await time.increaseTo(startTime + 1);
@@ -204,24 +209,24 @@ export async function activePositionMarketFixture() {
   const currentTime = await time.latest();
   const startTime = currentTime + 600; // Even larger buffer for real position tests
   const endTime = startTime + MARKET_DURATION;
-  const marketId = 1;
+  const settlementTime = endTime + 3600;
 
   // 새로운 틱 시스템 사용
   const minTick = 100000;
   const maxTick = minTick + (TICK_COUNT - 1) * 10;
   const tickSpacing = 10;
 
-  await core
-    .connect(keeper)
-    .createMarket(
-      marketId,
-      minTick,
-      maxTick,
-      tickSpacing,
-      startTime,
-      endTime,
-      ALPHA
-    );
+  const createArgs: [number, number, number, number, number, number, bigint] = [
+    minTick,
+    maxTick,
+    tickSpacing,
+    startTime,
+    endTime,
+    settlementTime,
+    ALPHA,
+  ];
+
+  const marketId = await createMarketAndReturnId(core, keeper, createArgs);
 
   // LazyMulSegmentTree는 createMarket에서 자동 초기화됨
 
@@ -236,6 +241,84 @@ export async function activePositionMarketFixture() {
   };
 }
 
+function applyBuffer(value: bigint, bufferBps: bigint = 1000n) {
+  const buffer = (value * bufferBps) / 10000n + 1n;
+  return value + buffer;
+}
+
+export async function quoteOpenCost(
+  core: any,
+  marketId: number,
+  lowerTick: number,
+  upperTick: number,
+  quantity: bigint,
+  bufferBps: bigint = 1000n
+) {
+  const baseCost: bigint = await core.calculateOpenCost(
+    marketId,
+    lowerTick,
+    upperTick,
+    quantity
+  );
+  return applyBuffer(baseCost, bufferBps);
+}
+
+export async function openPositionWithQuote(
+  core: any,
+  signer: any,
+  params: {
+    marketId: number;
+    lowerTick: number;
+    upperTick: number;
+    quantity: bigint;
+    maxCost?: bigint;
+    bufferBps?: bigint;
+  }
+) {
+  const { marketId, lowerTick, upperTick, quantity, maxCost, bufferBps } = params;
+  const costLimit =
+    maxCost ?? (await quoteOpenCost(core, marketId, lowerTick, upperTick, quantity, bufferBps));
+
+  const positionId = await core
+    .connect(signer)
+    .openPosition.staticCall(marketId, lowerTick, upperTick, quantity, costLimit);
+
+  await core
+    .connect(signer)
+    .openPosition(marketId, lowerTick, upperTick, quantity, costLimit);
+
+  return { positionId, maxCost: costLimit };
+}
+
+export async function quoteIncreaseCostWithBuffer(
+  core: any,
+  positionId: bigint,
+  additionalQuantity: bigint,
+  bufferBps: bigint = 1000n
+) {
+  const baseCost: bigint = await core.calculateIncreaseCost(
+    positionId,
+    additionalQuantity
+  );
+  return applyBuffer(baseCost, bufferBps);
+}
+
+export async function listMarketPositions(position: any, marketId: number) {
+  if (typeof position.getMarketPositions === "function") {
+    return position.getMarketPositions(marketId);
+  }
+
+  const length: bigint = await position.getMarketTokenLength(marketId);
+  const results: bigint[] = [];
+  for (let i = 0n; i < length; i++) {
+    const tokenId: bigint = await position.getMarketTokenAt(marketId, i);
+    if (tokenId !== 0n) {
+      results.push(tokenId);
+    }
+  }
+  return results;
+}
+
 /**
  * Position with active market and positions
  */
@@ -246,10 +329,10 @@ export async function positionWithDataFixture() {
   // Create some test positions
   const positionParams = {
     marketId,
-    lowerTick: 10,
-    upperTick: 20,
-    quantity: ethers.parseUnits("0.01", 6),
-    maxCost: ethers.parseUnits("1", 6),
+    lowerTick: 100100,
+    upperTick: 100200,
+    quantity: DEFAULT_POSITION_QUANTITY,
+    maxCost: DEFAULT_POSITION_MAX_COST,
   };
 
   // Alice opens position
@@ -309,7 +392,8 @@ export async function createTestPosition(
   marketId: number,
   lowerTick: number = 100100, // 실제 틱값으로 변경
   upperTick: number = 100200, // 실제 틱값으로 변경
-  quantity: bigint = ethers.parseUnits("0.01", 6)
+  quantity: bigint = DEFAULT_POSITION_QUANTITY,
+  maxCost: bigint = DEFAULT_POSITION_MAX_COST
 ) {
   // Ensure core exists
   if (!contracts.core) {
@@ -321,13 +405,12 @@ export async function createTestPosition(
     lowerTick,
     upperTick,
     quantity,
-    maxCost: ethers.parseUnits("10", 6), // High max cost
+    maxCost,
   };
 
   const positionId = await contracts.core
     .connect(user)
     .openPosition.staticCall(
-      user.address,
       params.marketId,
       params.lowerTick,
       params.upperTick,
@@ -337,7 +420,6 @@ export async function createTestPosition(
   await contracts.core
     .connect(user)
     .openPosition(
-      user.address,
       params.marketId,
       params.lowerTick,
       params.upperTick,
@@ -357,7 +439,8 @@ export async function createRealTestPosition(
   marketId: number,
   lowerTick: number = 100100,
   upperTick: number = 100200,
-  quantity: bigint = ethers.parseUnits("0.01", 6)
+  quantity: bigint = DEFAULT_POSITION_QUANTITY,
+  maxCost: bigint = DEFAULT_POSITION_MAX_COST
 ) {
   // Ensure core exists
   if (!contracts.core) {
@@ -369,14 +452,13 @@ export async function createRealTestPosition(
     lowerTick,
     upperTick,
     quantity,
-    maxCost: ethers.parseUnits("10", 6), // High max cost
+    maxCost,
   };
 
   // Call directly to core (no router needed)
   const positionId = await contracts.core
     .connect(user)
     .openPosition.staticCall(
-      user.address,
       params.marketId,
       params.lowerTick,
       params.upperTick,
@@ -386,7 +468,6 @@ export async function createRealTestPosition(
   await contracts.core
     .connect(user)
     .openPosition(
-      user.address,
       params.marketId,
       params.lowerTick,
       params.upperTick,

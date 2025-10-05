@@ -114,23 +114,25 @@ describe(`${UNIT_TAG} FixedPointMath - Invariants & Precision`, function () {
       // Test maximum uint256 value (boundary case)
       const maxUint256 =
         "115792089237316195423570985008687907853269984665640564039457584007913129639935";
-      try {
-        const maxResult = await test.wSqrt(maxUint256);
-        // If it succeeds, result should be ≤ 2^128
-        const maxSqrt = "340282366920938463463374607431768211456"; // 2^128
-        expect(maxResult).to.be.lte(maxSqrt);
-      } catch (error) {
-        // If it reverts, that's also acceptable for extreme values
-      }
+      const maxInputBig = BigInt(maxUint256);
+      await expect(test.wSqrt(maxUint256)).to.be.revertedWithCustomError(
+        test,
+        "PRBMath_UD60x18_Sqrt_Overflow"
+      );
 
-      // Test type(uint256).max - 1 for additional boundary coverage
-      const almostMax = BigInt(maxUint256) - 1n;
-      try {
-        const almostMaxResult = await test.wSqrt(almostMax.toString());
-        expect(almostMaxResult).to.be.gt(0);
-      } catch (error) {
-        // Revert is acceptable for extreme values
-      }
+      // Just below the limit also overflows because PRB-Math rounding guards
+      await expect(
+        test.wSqrt((maxInputBig - 1n).toString())
+      ).to.be.revertedWithCustomError(test, "PRBMath_UD60x18_Sqrt_Overflow");
+
+      // Large but safe value should succeed
+      const safeInputBig = 10n ** 24n; // 1e24 (represents 1e6 WAD)
+      const safeResult = (await test.wSqrt(safeInputBig.toString())) as bigint;
+      const WAD = 1_000_000_000_000_000_000n;
+      const safeResultSquared = (safeResult * safeResult) / WAD;
+      expect(safeResultSquared).to.equal(safeInputBig);
+      const nextSquare = ((safeResult + 1n) * (safeResult + 1n)) / WAD;
+      expect(nextSquare).to.be.gt(safeInputBig);
     });
   });
 
@@ -167,16 +169,11 @@ describe(`${UNIT_TAG} FixedPointMath - Invariants & Precision`, function () {
         ethers.parseEther("60"), // Even larger
       ];
 
-      try {
-        const result = await test.logSumExp(extremeValues);
+      const result = await test.logSumExp(extremeValues);
 
-        // Should be dominated by the largest value (60)
-        expect(result).to.be.gt(ethers.parseEther("60"));
-        expect(result).to.be.lt(ethers.parseEther("62"));
-      } catch (error) {
-        // May revert due to PRB-Math limits for very large exp() inputs
-        // This is acceptable behavior
-      }
+      // Should be dominated by the largest value (60)
+      expect(result).to.be.gt(ethers.parseEther("60"));
+      expect(result).to.be.lt(ethers.parseEther("62"));
     });
 
     it("Should maintain exp/ln inverse relationship", async function () {
@@ -192,17 +189,12 @@ describe(`${UNIT_TAG} FixedPointMath - Invariants & Precision`, function () {
       ];
 
       for (const value of testValues) {
-        try {
-          // exp(ln(x)) should equal x
-          const lnResult = await test.wLn(value);
-          const expLnResult = await test.wExp(lnResult);
+        // exp(ln(x)) should equal x within tolerance for safe-domain values
+        const lnResult = await test.wLn(value);
+        const expLnResult = await test.wExp(lnResult);
 
-          // Should recover original value within reasonable tolerance
-          const tolerance = value / 100000n; // 0.001% tolerance
-          expect(expLnResult).to.be.closeTo(value, tolerance);
-        } catch (error) {
-          // Some values might be outside safe range - that's acceptable
-        }
+        const tolerance = value / 100000n; // 0.001% tolerance
+        expect(expLnResult).to.be.closeTo(value, tolerance);
       }
     });
 
@@ -271,20 +263,19 @@ describe(`${UNIT_TAG} FixedPointMath - Invariants & Precision`, function () {
     it("Should handle overflow protection in sumExp", async function () {
       const { test } = await loadFixture(deployFixture);
 
-      // Test with values that might cause overflow
-      const largeValues = Array(10).fill(ethers.parseEther("100"));
+      // Sanity: values comfortably within safe range should succeed
+      const safeValues = Array(10).fill(ethers.parseEther("100"));
+      const safeResult = await test.sumExp(safeValues);
+      expect(safeResult).to.be.gt(0);
 
-      try {
-        const result = await test.sumExp(largeValues);
-        // If it succeeds, overflow protection is working
-        expect(result).to.be.gt(0);
-      } catch (error) {
-        // Should revert with FP_Overflow
-        await expect(test.sumExp(largeValues)).to.be.revertedWithCustomError(
-          test,
-          "FP_Overflow"
-        );
-      }
+      // Values close to the PRB-Math exp upper bound will overflow when summed
+      const nearLimit = ethers.parseEther("133.08");
+      const overflowValues = Array(20).fill(nearLimit);
+
+      await expect(test.sumExp(overflowValues)).to.be.revertedWithCustomError(
+        test,
+        "FP_Overflow"
+      );
     });
 
     it("Should handle very small numbers", async function () {
