@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import fs from "fs";
 import path from "path";
-import { COMPONENT_TAG } from "../../helpers/tags";
+import { COMPONENT_TAG } from "../helpers/tags";
 
 describe(`${COMPONENT_TAG} CLMSRPosition - ABI Golden Snapshot`, function () {
   const workspaceRoot = process.cwd();
@@ -16,7 +16,7 @@ describe(`${COMPONENT_TAG} CLMSRPosition - ABI Golden Snapshot`, function () {
   const goldenPath = path.join(
     workspaceRoot,
     "test",
-    "golden",
+    "abi",
     "clmsr-position.abi.json"
   );
 

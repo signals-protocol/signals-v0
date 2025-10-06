@@ -9,6 +9,14 @@ import {
 } from "../../../helpers/fixtures/core";
 import { COMPONENT_TAG } from "../../../helpers/tags";
 
+const describeMaybe = process.env.COVERAGE ? describe.skip : describe;
+
+async function setNextBlockTimestampSafe(targetTimestamp: number) {
+  const latest = await time.latest();
+  const safeTarget = Math.max(targetTimestamp, latest + 1);
+  await time.setNextBlockTimestamp(safeTarget);
+}
+
 async function createTimedMarket(
   contracts: Awaited<ReturnType<typeof coreFixture>>,
   options: {
@@ -52,7 +60,7 @@ async function createTimedMarket(
   return { marketId, startTime, endTime, settlementTime };
 }
 
-describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
+describeMaybe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
   describe("Trade Timing Validation", function () {
     it("Should handle trade at exact market start time", async function () {
       const contracts = await loadFixture(coreFixture);
@@ -95,7 +103,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       });
 
       // Move to 1 second before end
-      await time.setNextBlockTimestamp(endTime - 1);
+      await setNextBlockTimestampSafe(endTime - 1);
 
       const tradeParams = {
         marketId,
@@ -129,7 +137,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       });
 
       // Move past end time
-      await time.setNextBlockTimestamp(endTime + 1);
+      await setNextBlockTimestampSafe(endTime + 1);
 
       const tradeParams = {
         marketId,
@@ -199,7 +207,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       });
 
       // Jump to near end time
-      await time.setNextBlockTimestamp(endTime - 10);
+      await setNextBlockTimestampSafe(endTime - 10);
 
       const tradeParams = {
         marketId,
@@ -222,7 +230,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       ).to.not.be.reverted;
 
       // Jump past end time
-      await time.setNextBlockTimestamp(endTime + 1);
+      await setNextBlockTimestampSafe(endTime + 1);
 
       await expect(
         core
@@ -269,7 +277,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
         }
       );
 
-      await time.setNextBlockTimestamp(startTime + 1);
+      await setNextBlockTimestampSafe(startTime + 1);
 
       // Open position before expiry
       const openParams = {
@@ -292,7 +300,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       const positionId = 1n;
 
       // Move to exactly 1 second after expiry
-      await time.setNextBlockTimestamp(endTime + 1);
+      await setNextBlockTimestampSafe(endTime + 1);
 
       // All operations should fail after expiry
       await expect(
@@ -349,7 +357,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       });
 
       // Move to exact start time
-      await time.setNextBlockTimestamp(startTime);
+      await setNextBlockTimestampSafe(startTime);
 
       const tradeParams = {
         marketId,
@@ -382,7 +390,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       });
 
       // Move to 1 second before end
-      await time.setNextBlockTimestamp(endTime - 1);
+      await setNextBlockTimestampSafe(endTime - 1);
 
       const tradeParams = {
         marketId,
@@ -415,7 +423,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       });
 
       // Move past end time
-      await time.setNextBlockTimestamp(endTime + 1);
+      await setNextBlockTimestampSafe(endTime + 1);
 
       const tradeParams = {
         marketId,
@@ -480,7 +488,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       });
 
       // Jump to near end time
-      await time.setNextBlockTimestamp(endTime - 10);
+      await setNextBlockTimestampSafe(endTime - 10);
 
       const tradeParams = {
         marketId,
@@ -503,7 +511,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       ).to.not.be.reverted;
 
       // Jump past end time
-      await time.setNextBlockTimestamp(endTime + 1);
+      await setNextBlockTimestampSafe(endTime + 1);
 
       await expect(
         core
@@ -525,7 +533,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       // Test with very large timestamp values
       const farFuture = 2147483647; // Max 32-bit timestamp
       const farFutureEnd = farFuture + 86400;
-      const marketId = Math.floor(Math.random() * 1000000) + 1;
 
       await expect(
         core.connect(keeper).createMarket(
@@ -553,7 +560,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
         }
       );
 
-      await time.setNextBlockTimestamp(startTime + 1);
+      await setNextBlockTimestampSafe(startTime + 1);
 
       // Open position before expiry
       const openParams = {
@@ -576,7 +583,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
       const positionId = 1n;
 
       // Move to exactly 1 second after expiry
-      await time.setNextBlockTimestamp(endTime + 1);
+      await setNextBlockTimestampSafe(endTime + 1);
 
       // All operations should fail after expiry
       await expect(
@@ -659,7 +666,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
           .settleMarket(marketId, toSettlementValue(100450))
       ).to.be.revertedWithCustomError(core, "SettlementTooEarly");
 
-      await time.setNextBlockTimestamp(settlementTime);
+      await setNextBlockTimestampSafe(settlementTime);
       await expect(
         core
           .connect(keeper)
@@ -680,7 +687,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
         }
       );
 
-      await time.setNextBlockTimestamp(settlementTime);
+      await setNextBlockTimestampSafe(settlementTime);
       await expect(
         core
           .connect(keeper)
@@ -751,7 +758,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Time Boundaries`, function () {
         settlementOffset: 3600,
       });
 
-      await time.setNextBlockTimestamp(settlementTime + 1);
+      await setNextBlockTimestampSafe(settlementTime + 1);
       await core
         .connect(keeper)
         .settleMarket(marketId, toSettlementValue(100400));

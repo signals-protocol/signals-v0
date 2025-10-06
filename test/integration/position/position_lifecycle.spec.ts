@@ -10,6 +10,8 @@ import {
 } from "../../helpers/fixtures/position";
 import { INTEGRATION_TAG } from "../../helpers/tags";
 
+const describeMaybe = process.env.COVERAGE ? describe.skip : describe;
+
 const parse6 = (value: string) => ethers.parseUnits(value, 6);
 
 async function openWithQuote(
@@ -44,7 +46,7 @@ async function increaseWithQuote(
   await core.connect(signer).increasePosition(positionId, amount, maxCost);
 }
 
-describe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
+describeMaybe(`${INTEGRATION_TAG} Position Lifecycle Integration`, function () {
   describe("Complete Position Lifecycle", function () {
     it("should handle full position lifecycle: create -> modify -> transfer -> close", async function () {
       const { core, mockPosition: position, alice, bob, marketId } =

@@ -1,9 +1,13 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
 import {
   createActiveMarketFixture,
   setupActiveMarket,
+  unitFixture,
+  ALPHA,
+  TICK_COUNT,
+  MARKET_DURATION,
 } from "../../helpers/fixtures/core";
 import { COMPONENT_TAG } from "../../helpers/tags";
 
@@ -79,6 +83,86 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Access Control`, function () {
       expect(await core.getPositionContract()).to.equal(
         await mockPosition.getAddress()
       );
+    });
+  });
+
+  describe("Manager Delegation", function () {
+    it("Should emit ManagerUpdated and update manager pointer", async function () {
+      const contracts = await loadFixture(createActiveMarketFixture);
+      const { core, keeper, manager, lazyMulSegmentTree } = contracts as any;
+
+      const ManagerFactory = await ethers.getContractFactory(
+        "CLMSRMarketManager",
+        {
+          libraries: {
+            LazyMulSegmentTree: await lazyMulSegmentTree.getAddress(),
+          },
+        }
+      );
+      const newManager = await ManagerFactory.deploy();
+      await newManager.waitForDeployment();
+
+      await expect(
+        core.connect(keeper).setManager(await newManager.getAddress())
+      )
+        .to.emit(core, "ManagerUpdated")
+        .withArgs(
+          await manager.getAddress(),
+          await newManager.getAddress()
+        );
+
+      expect(await core.manager()).to.equal(
+        await newManager.getAddress()
+      );
+    });
+
+    it("Should revert lifecycle calls when manager is not configured", async function () {
+      const base = await loadFixture(unitFixture);
+      const { deployer, fixedPointMathU, lazyMulSegmentTree } = base as any;
+
+      const MockERC20Factory = await ethers.getContractFactory("MockERC20");
+      const paymentToken = await MockERC20Factory.deploy("USD Coin", "USDC", 6);
+      await paymentToken.waitForDeployment();
+
+      const MockPositionFactory = await ethers.getContractFactory("MockPosition");
+      const mockPosition = await MockPositionFactory.deploy();
+      await mockPosition.waitForDeployment();
+
+      const CoreFactory = await ethers.getContractFactory(
+        "CLMSRMarketCore",
+        {
+          libraries: {
+            FixedPointMathU: await fixedPointMathU.getAddress(),
+            LazyMulSegmentTree: await lazyMulSegmentTree.getAddress(),
+          },
+        }
+      );
+      const core = await CoreFactory.deploy();
+      await core.waitForDeployment();
+
+      await core.initialize(
+        await paymentToken.getAddress(),
+        await mockPosition.getAddress()
+      );
+
+      const now = await time.latest();
+      const startTime = now + 60;
+      const endTime = startTime + MARKET_DURATION;
+      const settlementTime = endTime + 3600;
+
+      await expect(
+        core
+          .connect(deployer)
+          .createMarket(
+            100000,
+            100000 + (TICK_COUNT - 1) * 10,
+            10,
+            startTime,
+            endTime,
+            settlementTime,
+            ALPHA
+          )
+      ).to.be.revertedWithCustomError(core, "ManagerNotSet");
     });
   });
 });

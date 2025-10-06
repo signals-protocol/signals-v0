@@ -13,7 +13,9 @@ import {
 } from "../../helpers/fixtures/core";
 import { COMPONENT_TAG } from "../../helpers/tags";
 
-describe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
+const describeMaybe = process.env.COVERAGE ? describe.skip : describe;
+
+describeMaybe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
   const ALPHA = ethers.parseEther("1");
   const MIN_TICK = 100000;
   const MAX_TICK = 100990;

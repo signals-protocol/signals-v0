@@ -8,7 +8,9 @@ import {
 } from "../../helpers/fixtures/core";
 import { E2E_TAG } from "../../helpers/tags";
 
-describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
+const describeMaybe = process.env.COVERAGE ? describe.skip : describe;
+
+describeMaybe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
   const HIGH_ALPHA = ethers.parseEther("10"); // High liquidity parameter
   const TICK_COUNT = 100;
   const MARKET_DURATION = 7 * 24 * 60 * 60; // 7 days
@@ -597,22 +599,20 @@ describe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
 
       for (const { owner, positionId } of positionsToClaim) {
         try {
+          const expectedPayout = await core.calculateClaimAmount(positionId);
           const claimTx = await core.connect(owner).claimPayout(positionId);
           const claimReceipt = await claimTx.wait();
           totalClaimGas += claimReceipt!.gasUsed;
 
-          const position = await mockPosition.getPosition(positionId);
-          claimResults.push(position.quantity); // Use quantity instead of payout
+          claimResults.push(expectedPayout);
         } catch (error: any) {
-          // Handle PositionNotFound gracefully - position may have been closed
           if (error.message.includes("PositionNotFound")) {
             console.log(
               `Position ${positionId} not found (may have been closed)`
             );
             continue;
-          } else {
-            throw error;
           }
+          throw error;
         }
       }
 

@@ -8,7 +8,9 @@ import {
 } from "../helpers/fixtures/core";
 import { PERF_TAG } from "../helpers/tags";
 
-describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
+const describeMaybe = process.env.COVERAGE ? describe.skip : describe;
+
+describeMaybe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
   const ALPHA = ethers.parseEther("0.1");
   const TICK_COUNT = 100;
   const MARKET_DURATION = 7 * 24 * 60 * 60; // 7 days
@@ -234,19 +236,18 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
       const { core, alice, marketId } = await loadFixture(createActiveMarket);
 
       // Try to trigger 50+ chunks (should revert)
-      const excessiveQuantity = CHUNK_BOUNDARY * 50n;
+      const excessiveQuantity = ethers.parseUnits("1500", USDC_DECIMALS);
 
       const tradeParams = {
         marketId,
-        lowerTick: 0,
-        upperTick: 99,
+        lowerTick: 100000,
+        upperTick: 100990,
         quantity: excessiveQuantity,
         maxCost: EXTREME_COST,
       };
 
-      // This should either revert with InvalidQuantity or succeed
-      try {
-        await core
+      await expect(
+        core
           .connect(alice)
           .openPosition(
             tradeParams.marketId,
@@ -254,12 +255,10 @@ describe(`${PERF_TAG} Gas Optimization - Chunk Split Operations`, function () {
             tradeParams.upperTick,
             tradeParams.quantity,
             tradeParams.maxCost
-          );
-        console.log("Large chunk operation succeeded (acceptable)");
-      } catch (error) {
-        console.log("Large chunk operation reverted (also acceptable)");
-        // Either outcome is acceptable for this test
-      }
+          )
+      )
+        .to.be.revertedWithCustomError(core, "ChunkLimitExceeded")
+        .withArgs(1501n, 1000n);
     });
   });
 

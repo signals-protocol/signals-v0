@@ -16,7 +16,7 @@ describe(`${UNIT_TAG} MockPosition - ABI Golden Snapshot`, function () {
   const goldenPath = path.join(
     workspaceRoot,
     "test",
-    "golden",
+    "abi",
     "mock-position.abi.json"
   );
 

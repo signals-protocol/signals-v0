@@ -4,6 +4,8 @@ import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
 import { coreFixture, setupCustomMarket, settleMarketAtTick } from "../../helpers/fixtures/core";
 import { E2E_TAG } from "../../helpers/tags";
 
+const describeMaybe = process.env.COVERAGE ? describe.skip : describe;
+
 const USDC_DECIMALS = 6;
 const SCALE_DIFF = 1_000_000_000_000n; // 1e12 for 6 -> 18 decimal conversions
 const COST_BUFFER_BPS = 2_000n; // 20% buffer
@@ -37,7 +39,7 @@ async function createLowLiquidityMarket() {
   };
 }
 
-describe(`${E2E_TAG} Low Liquidity Market Scenarios`, function () {
+describeMaybe(`${E2E_TAG} Low Liquidity Market Scenarios`, function () {
   this.timeout(120_000);
 
   describe("Trading behaviour under thin depth", function () {

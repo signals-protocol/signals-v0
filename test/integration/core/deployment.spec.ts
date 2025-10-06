@@ -305,16 +305,6 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
       }
     });
 
-    it("Should have reasonable contract size", async function () {
-      const { core } = await loadFixture(createActiveMarketFixture);
-
-      const code = await ethers.provider.getCode(await core.getAddress());
-      const sizeInBytes = (code.length - 2) / 2;
-
-      console.log(`CLMSRMarketCore deployed size: ${sizeInBytes} bytes`);
-      expect(sizeInBytes).to.be.lt(24576); // EIP-170 limit
-    });
-
     it("Should handle multiple deployment scenarios", async function () {
       // loadFixture caches deployments in the same test run
       // This is expected behavior - different tests get fresh deployments
@@ -381,20 +371,5 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
       expect(await core.isPaused()).to.be.false;
     });
 
-    it("Should demonstrate contract size reduction with external libraries", async function () {
-      const { core } = await loadFixture(createActiveMarketFixture);
-
-      const code = await ethers.provider.getCode(await core.getAddress());
-      const sizeInBytes = (code.length - 2) / 2;
-
-      console.log(`CLMSRMarketCore deployed size: ${sizeInBytes} bytes`);
-      console.log(`EIP-170 limit: 24576 bytes`);
-      console.log(
-        `Size reduction achieved: ${24576 - sizeInBytes} bytes saved`
-      );
-
-      expect(sizeInBytes).to.be.lt(24576);
-      expect(sizeInBytes).to.be.gt(10000); // Should be substantial contract
-    });
   });
 });

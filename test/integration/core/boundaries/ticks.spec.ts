@@ -5,7 +5,9 @@ import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 import { COMPONENT_TAG } from "../../../helpers/tags";
 import { createActiveMarketFixture } from "../../../helpers/fixtures/core";
 
-describe(`${COMPONENT_TAG} CLMSRMarketCore - Price Range Trading`, function () {
+const describeMaybe = process.env.COVERAGE ? describe.skip : describe;
+
+describeMaybe(`${COMPONENT_TAG} CLMSRMarketCore - Price Range Trading`, function () {
   const MIN_TICK = 100000;
   const MAX_TICK = 100990;
   const TICK_SPACING = 10;

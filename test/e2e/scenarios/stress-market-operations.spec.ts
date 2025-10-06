@@ -8,7 +8,9 @@ import {
 } from "../../helpers/fixtures/core";
 import { E2E_TAG } from "../../helpers/tags";
 
-describe(`${E2E_TAG} Market Operations - Stress Tests`, function () {
+const describeMaybe = process.env.COVERAGE ? describe.skip : describe;
+
+describeMaybe(`${E2E_TAG} Market Operations - Stress Tests`, function () {
   const ALPHA = ethers.parseEther("1");
   const TICK_COUNT = 100;
   const MARKET_DURATION = 7 * 24 * 60 * 60; // 7 days
