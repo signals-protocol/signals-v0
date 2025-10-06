@@ -24,6 +24,8 @@ import { PointsGranted } from "../generated/PointsGranter/PointsGranter";
 import {
   handleMarketCreated,
   handleMarketSettled,
+  handleMarketReopened,
+  handleMarketTimingUpdated,
   handleMarketSettlementValueSubmitted,
   handleRangeFactorApplied,
   handlePositionOpened,
@@ -38,6 +40,8 @@ import { handlePointsGranted } from "../src/points";
 import {
   createMarketCreatedEvent,
   createMarketSettledEvent,
+  createMarketReopenedEvent,
+  createMarketTimingUpdatedEvent,
   createMarketSettlementValueSubmittedEvent,
   createRangeFactorAppliedEvent,
   createPositionOpenedEvent,
@@ -954,6 +958,73 @@ describe("CLMSR Market Core Tests", () => {
     // First by MarketSettled: 115 * 1_000_000 = 115_000_000
     // Then by MarketSettlementValueSubmitted: 115_500_000 (overwrites)
     assert.fieldEquals("Market", "1", "settlementValue", "115500000");
+  });
+
+  test("MarketReopened - resets settlement flags and updates stats", () => {
+    clearStore();
+
+    const marketId = BigInt.fromI32(1);
+    handleMarketCreated(
+      createMarketCreatedEvent(
+        marketId,
+        BigInt.fromI32(1000000),
+        BigInt.fromI32(2000000),
+        BigInt.fromI32(100),
+        BigInt.fromI32(200),
+        BigInt.fromI32(10),
+        BigInt.fromI32(10),
+        BigInt.fromString("1000000000000000000")
+      )
+    );
+
+    // Mark market as settled with explicit values
+    handleMarketSettled(createMarketSettledEvent(marketId, BigInt.fromI32(120)));
+    handleMarketSettlementValueSubmitted(
+      createMarketSettlementValueSubmittedEvent(
+        marketId,
+        BigInt.fromI32(123_000_000)
+      )
+    );
+
+    assert.fieldEquals("Market", "1", "isSettled", "true");
+    assert.fieldEquals("Market", "1", "settlementTick", "120");
+    assert.fieldEquals("Market", "1", "settlementValue", "123000000");
+
+    // Reopen market
+    let reopenEvent = createMarketReopenedEvent(marketId);
+    reopenEvent.block.timestamp = BigInt.fromI32(3000000);
+    handleMarketReopened(reopenEvent);
+
+    assert.fieldEquals("Market", "1", "isSettled", "false");
+    assert.fieldEquals("MarketStats", "1", "lastUpdated", "3000000");
+  });
+
+  test("MarketTimingUpdated - adjusts start and end timestamps", () => {
+    clearStore();
+
+    const marketId = BigInt.fromI32(1);
+    handleMarketCreated(
+      createMarketCreatedEvent(
+        marketId,
+        BigInt.fromI32(1000000),
+        BigInt.fromI32(2000000),
+        BigInt.fromI32(100),
+        BigInt.fromI32(200),
+        BigInt.fromI32(10),
+        BigInt.fromI32(10),
+        BigInt.fromString("1000000000000000000")
+      )
+    );
+
+    const newStart = BigInt.fromI32(1500000);
+    const newEnd = BigInt.fromI32(2500000);
+    let timingEvent = createMarketTimingUpdatedEvent(marketId, newStart, newEnd);
+    timingEvent.block.timestamp = BigInt.fromI32(1600000);
+    handleMarketTimingUpdated(timingEvent);
+
+    assert.fieldEquals("Market", "1", "startTimestamp", "1500000");
+    assert.fieldEquals("Market", "1", "endTimestamp", "2500000");
+    assert.fieldEquals("Market", "1", "lastUpdated", "1600000");
   });
 
   test("PositionSettled - WIN scenario with detailed PnL and points calculation", () => {
