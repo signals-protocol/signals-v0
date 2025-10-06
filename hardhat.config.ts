@@ -4,6 +4,7 @@ import "@openzeppelin/hardhat-upgrades";
 import "hardhat-gas-reporter";
 import "hardhat-tracer";
 import "solidity-docgen";
+import "solidity-coverage";
 import dotenv from "dotenv";
 
 dotenv.config();
