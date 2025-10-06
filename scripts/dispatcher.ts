@@ -40,6 +40,13 @@ if (!COMMAND) {
   settle-market:citrea:dev  - Settle market on citrea dev
   settle-market:citrea:prod - Settle market on citrea prod
   
+🚫 Market Close Commands:
+  close-market:localhost    - Close market on localhost (stops trading)
+  close-market:base:dev     - Close market on base dev (stops trading)
+  close-market:base:prod    - Close market on base prod (stops trading)
+  close-market:citrea:dev   - Close market on citrea dev (stops trading)
+  close-market:citrea:prod  - Close market on citrea prod (stops trading)
+  
 🔄 Market Reopen Commands:
   reopen-market:localhost   - Reopen settled market on localhost
   reopen-market:base:dev    - Reopen settled market on base dev
@@ -165,6 +172,11 @@ async function dispatch() {
       case "settle-market":
         const { settleMarketAction } = await import("./actions/settle-market");
         await settleMarketAction(environment as Environment);
+        break;
+
+      case "close-market":
+        const { closeMarketAction } = await import("./actions/close-market");
+        await closeMarketAction(environment as Environment);
         break;
 
       case "reopen-market":
