@@ -49,6 +49,8 @@
     "repair:citrea:dev": "MANIFEST_DEFAULT_DIR=.openzeppelin/dev COMMAND=repair-manifest:citrea:dev npx hardhat run scripts/dispatcher.ts --network citrea-dev",
     "repair:citrea:prod": "MANIFEST_DEFAULT_DIR=.openzeppelin/prod COMMAND=repair-manifest:citrea:prod npx hardhat run scripts/dispatcher.ts --network citrea-prod",
     "test:full:localhost": "npx hardhat run scripts/full-test-localhost.ts --network localhost",
+    "coverage": "COVERAGE=1 npx hardhat coverage",
+    "coverage:check": "node scripts/check-coverage.mjs",
     "beta": "npx hardhat run scripts/beta-distribution.ts --network citrea-prod",
     "compensate:citrea:dev": "COMMAND=compensate-susd:citrea:dev npx hardhat run scripts/dispatcher.ts --network citrea-dev",
     "compensate:citrea:prod": "COMMAND=compensate-susd:citrea:prod npx hardhat run scripts/dispatcher.ts --network citrea-prod"

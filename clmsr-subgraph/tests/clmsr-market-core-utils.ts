@@ -29,6 +29,8 @@ function setupMockEvent(event: ethereum.Event): void {
 import {
   MarketCreated,
   MarketSettled,
+  MarketReopened,
+  MarketTimingUpdated,
   MarketSettlementValueSubmitted,
   PositionClaimed,
   PositionClosed,
@@ -136,6 +138,62 @@ export function createMarketSettledEvent(
   );
 
   return stamp(marketSettledEvent);
+}
+
+export function createMarketReopenedEvent(
+  marketId: BigInt
+): MarketReopened {
+  let marketReopenedEvent = changetype<MarketReopened>(newMockEvent());
+  setupMockEvent(marketReopenedEvent);
+  marketReopenedEvent.transaction.hash = Bytes.fromHexString(
+    "0x123456789012345678901234567890123456789012345678901234567890123E"
+  );
+  marketReopenedEvent.logIndex = BigInt.fromI32(0);
+
+  marketReopenedEvent.parameters = new Array();
+  marketReopenedEvent.parameters.push(
+    new ethereum.EventParam(
+      "marketId",
+      ethereum.Value.fromUnsignedBigInt(marketId)
+    )
+  );
+
+  return stamp(marketReopenedEvent);
+}
+
+export function createMarketTimingUpdatedEvent(
+  marketId: BigInt,
+  newStart: BigInt,
+  newEnd: BigInt
+): MarketTimingUpdated {
+  let timingUpdatedEvent = changetype<MarketTimingUpdated>(newMockEvent());
+  setupMockEvent(timingUpdatedEvent);
+  timingUpdatedEvent.transaction.hash = Bytes.fromHexString(
+    "0x123456789012345678901234567890123456789012345678901234567890123F"
+  );
+  timingUpdatedEvent.logIndex = BigInt.fromI32(1);
+
+  timingUpdatedEvent.parameters = new Array();
+  timingUpdatedEvent.parameters.push(
+    new ethereum.EventParam(
+      "marketId",
+      ethereum.Value.fromUnsignedBigInt(marketId)
+    )
+  );
+  timingUpdatedEvent.parameters.push(
+    new ethereum.EventParam(
+      "newStartTimestamp",
+      ethereum.Value.fromUnsignedBigInt(newStart)
+    )
+  );
+  timingUpdatedEvent.parameters.push(
+    new ethereum.EventParam(
+      "newEndTimestamp",
+      ethereum.Value.fromUnsignedBigInt(newEnd)
+    )
+  );
+
+  return stamp(timingUpdatedEvent);
 }
 
 export function createMarketSettlementValueSubmittedEvent(
