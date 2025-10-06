@@ -15,8 +15,11 @@ import {
   safeMaxCost,
   safeMaxCostFixed,
 } from "../../helpers/limits";
+import { createDeterministicRandom } from "../../helpers/utils/random";
 
-describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
+const describeMaybe = process.env.COVERAGE ? describe.skip : describe;
+
+describeMaybe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
   const ALPHA = ethers.parseEther("0.5"); // Medium liquidity for day trading
   const TICK_COUNT = 100;
   const MARKET_DURATION = 24 * 60 * 60; // 1 day for day trading
@@ -116,6 +119,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
       const { core, alice, marketId } = await loadFixture(
         createDayTradingMarket
       );
+      const random = createDeterministicRandom(101);
 
       // Scalping: with auto-flush mechanism, we can handle reasonable scalping
       // Scalping with 20 trades - realistic stress test with auto-flush protection
@@ -149,7 +153,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
         // Occasionally close some positions (scalping)
         if (i > 10 && i % 5 === 0) {
           const positionToClose =
-            positions[Math.floor(Math.random() * (positions.length - 5))];
+            positions[Math.floor(random() * (positions.length - 5))];
           await core.connect(alice).closePosition(positionToClose, 0);
         }
       }
@@ -677,6 +681,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
     it("Should handle end-of-day settlement rush", async function () {
       const { core, keeper, alice, bob, charlie, marketId, mockPosition } =
         await loadFixture(createDayTradingMarket);
+      const random = createDeterministicRandom(202);
 
       const traders = [alice, bob, charlie];
       const dayTradingPositions = 20; // Reduced from 50 to prevent LazyFactorOverflow
@@ -723,7 +728,7 @@ describe(`${E2E_TAG} Stress Day Trading Scenarios`, function () {
       let rushGasUsed = 0n;
 
       for (let i = 0; i < rushTrades; i++) {
-        const positionId = Math.floor(Math.random() * dayTradingPositions) + 1;
+        const positionId = Math.floor(random() * dayTradingPositions) + 1;
 
         try {
           const position = await mockPosition.getPosition(positionId);
