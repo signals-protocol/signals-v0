@@ -1,11 +1,11 @@
 # 🚀 CLMSR Market System
 
-[![Tests](https://img.shields.io/badge/tests-324%20passing-brightgreen)](./test/)
+[![Tests](https://img.shields.io/badge/tests-686%20passing-brightgreen)](./test/)
 [![Security](https://img.shields.io/badge/security-hardened-green)](./README.md#security-enhancements)
-[![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](./test/)
+[![Coverage](https://img.shields.io/badge/coverage-%E2%89%A580%25-brightgreen)](./test/)
 [![Status](https://img.shields.io/badge/status-in%20development-yellow)](./README.md)
 
-> **CLMSR (Continuous Logarithmic Market Scoring Rule) implementation with comprehensive security hardening and 324 passing tests.**
+> **CLMSR (Continuous Logarithmic Market Scoring Rule) implementation with comprehensive security hardening and 686 passing tests.**
 
 ---
 
@@ -15,8 +15,11 @@
 # Install dependencies
 npm install
 
-# Run tests (324 tests)
+# Run tests (686 tests)
 npm test
+
+# Enforce coverage thresholds
+npm run coverage && npm run coverage:check
 
 # Compile contracts
 npm run compile
@@ -29,13 +32,14 @@ npm run compile
 
 ## 📊 Project Status
 
-| Metric                 | Status                  | Details                           |
-| ---------------------- | ----------------------- | --------------------------------- |
-| **Tests**              | ✅ **324 passing**      | Complete test coverage            |
-| **Security**           | ✅ **Hardened**         | Critical vulnerabilities fixed    |
-| **Documentation**      | ✅ **Complete**         | Auto-generated comprehensive docs |
-| **Gas Optimization**   | ✅ **Optimized**        | Efficient chunk-split algorithms  |
-| **Development Status** | ✅ **Production Ready** | Deployed on Base Mainnet          |
+| Metric                 | Status                  | Details                                   |
+| ---------------------- | ----------------------- | ----------------------------------------- |
+| **Tests**              | ✅ **686 passing**      | Full hardhat suite + subgraph matchstick  |
+| **Security**           | ✅ **Hardened**         | Critical vulnerabilities fixed            |
+| **Documentation**      | ✅ **Complete**         | Auto-generated comprehensive docs         |
+| **Gas Optimization**   | ✅ **Optimized**        | Efficient chunk-split algorithms          |
+| **Coverage**           | ✅ **≥80% gated**       | Enforced via `npm run coverage:check`     |
+| **Development Status** | ✅ **Production Ready** | Deployed on Base Mainnet                  |
 
 ---
 
