@@ -31,6 +31,12 @@ export function toSettlementValue(tick: number | bigint): bigint {
   return BigInt(tick) * SETTLEMENT_VALUE_UNIT;
 }
 
+async function increaseToSafe(targetTimestamp: number) {
+  const latest = await time.latest();
+  const safeTarget = Math.max(targetTimestamp, latest + 1);
+  await time.increaseTo(safeTarget);
+}
+
 export function toSettlementValueFromRange(
   lowerTick: number | bigint,
   upperTick: number | bigint
@@ -43,6 +49,7 @@ export function toSettlementValueFromRange(
   // Use midpoint (floor) within range to derive settlement tick
   return ((lower + upper) / 2n) * SETTLEMENT_VALUE_UNIT;
 }
+
 
 export async function settleMarketAtTick(
   core: any,
@@ -168,6 +175,17 @@ export async function unitFixture() {
   const lazyMulSegmentTree = await LazyMulSegmentTreeFactory.deploy();
   await lazyMulSegmentTree.waitForDeployment();
 
+  const CLMSRMarketManagerFactory = await ethers.getContractFactory(
+    "CLMSRMarketManager",
+    {
+      libraries: {
+        LazyMulSegmentTree: await lazyMulSegmentTree.getAddress(),
+      },
+    }
+  );
+  const manager = await CLMSRMarketManagerFactory.deploy();
+  await manager.waitForDeployment();
+
   return {
     fixedPointMathU,
     lazyMulSegmentTree,
@@ -176,6 +194,7 @@ export async function unitFixture() {
     alice,
     bob,
     charlie,
+    manager,
   };
 }
 
@@ -184,7 +203,7 @@ export async function unitFixture() {
  */
 export async function coreFixture() {
   const baseFixture = await unitFixture();
-  const { deployer, keeper, alice, bob, charlie } = baseFixture;
+  const { deployer, keeper, alice, bob, charlie, manager } = baseFixture as any;
 
   // Deploy USDC token
   const MockERC20Factory = await ethers.getContractFactory("MockERC20");
@@ -318,6 +337,8 @@ export async function coreFixture() {
     await mockPosition.getAddress()
   );
 
+  await core.connect(deployer).setManager(await manager.getAddress());
+
   // Setup contracts
   await paymentToken.mint(await core.getAddress(), INITIAL_SUPPLY);
   await mockPosition.setCore(await core.getAddress());
@@ -337,6 +358,7 @@ export async function coreFixture() {
     core,
     paymentToken,
     mockPosition,
+    manager,
     deployer,
   };
 }
@@ -380,10 +402,7 @@ export async function marketFixture() {
 /**
  * Create active market helper
  */
-export async function createActiveMarket(
-  contracts: any,
-  _requestedMarketId: number = Math.floor(Math.random() * 1000000) + 1
-) {
+export async function createActiveMarket(contracts: any) {
   const currentTime = await time.latest();
   const startTime = currentTime + 200; // Add larger buffer to avoid timestamp conflicts
   const endTime = startTime + MARKET_DURATION;
@@ -410,8 +429,8 @@ export async function createActiveMarket(
     createArgs
   );
 
-  // Move to market start time
-  await time.increaseTo(startTime + 1);
+  // Move to market start time (ensure monotonic timestamp progression)
+  await increaseToSafe(startTime + 1);
 
   // Tree 초기화를 위한 첫 번째 position 생성 (매우 작은 수량)
   await contracts.core.connect(contracts.alice).openPosition(
@@ -454,8 +473,8 @@ export async function createActiveMarketFixture() {
 
   const marketId = await createMarketWithId(core, keeper, createArgs);
 
-  // Move to market start time
-  await time.increaseTo(startTime + 1);
+  // Move to market start time (ensure monotonic timestamp progression)
+  await increaseToSafe(startTime + 1);
 
   return {
     ...contracts,
@@ -562,10 +581,9 @@ export async function getTickValue(
  * 표준 활성 마켓 설정 - 대부분의 테스트에서 사용
  */
 export async function setupActiveMarket(
-  contracts: any,
-  marketId: number = Math.floor(Math.random() * 1000000) + 1
+  contracts: any
 ) {
-  return await createActiveMarket(contracts, marketId);
+  return await createActiveMarket(contracts);
 }
 
 /**
@@ -574,7 +592,7 @@ export async function setupActiveMarket(
 export async function setupMultipleMarkets(contracts: any, count: number = 3) {
   const markets = [];
   for (let i = 1; i <= count; i++) {
-    const market = await createActiveMarket(contracts, i);
+    const market = await createActiveMarket(contracts);
     markets.push(market);
   }
   return markets;
@@ -586,14 +604,12 @@ export async function setupMultipleMarkets(contracts: any, count: number = 3) {
 export async function setupCustomMarket(
   contracts: any,
   options: {
-    marketId?: number;
     numTicks?: number;
     alpha?: bigint;
     duration?: number;
   } = {}
 ) {
   const {
-    marketId = Math.floor(Math.random() * 1000000) + 1, // 랜덤 marketId 생성
     numTicks = TICK_COUNT,
     alpha = ALPHA,
     duration = MARKET_DURATION,
@@ -625,7 +641,7 @@ export async function setupCustomMarket(
     createArgs
   );
 
-  await time.increaseTo(startTime + 1);
+  await increaseToSafe(startTime + 1);
 
   return { marketId: actualMarketId, startTime, endTime, numTicks, alpha };
 }

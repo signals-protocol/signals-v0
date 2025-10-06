@@ -3,6 +3,7 @@ import { ethers } from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { UNIT_TAG } from "../../../helpers/tags";
 import { unitFixture } from "../../../helpers/fixtures/core";
+import { createDeterministicRandom } from "../../../helpers/utils/random";
 
 describe(`${UNIT_TAG} FixedPointMath - Invariants & Precision`, function () {
   const UNIT = ethers.parseEther("1");
@@ -307,13 +308,14 @@ describe(`${UNIT_TAG} FixedPointMath - Invariants & Precision`, function () {
   describe("Property-Based and Fuzz Tests", function () {
     it("Should test exp(ln(x)) ≈ x property with random values", async function () {
       const { test } = await loadFixture(deployFixture);
+      const random = createDeterministicRandom(1);
 
       // Generate 20 random values in safe range for PRB-Math ln
       const randomValues = [];
       for (let i = 0; i < 20; i++) {
         // Generate values between 1 and 1000 WAD (safe for ln)
         const randomWad = ethers.parseEther(
-          (Math.random() * 999 + 1).toString()
+          (random() * 999 + 1).toString()
         );
         randomValues.push(randomWad);
       }
@@ -330,11 +332,12 @@ describe(`${UNIT_TAG} FixedPointMath - Invariants & Precision`, function () {
 
     it("Should test multiplication/division inverse property with random values", async function () {
       const { test } = await loadFixture(deployFixture);
+      const random = createDeterministicRandom(2);
 
       // Generate 15 random pairs
       for (let i = 0; i < 15; i++) {
-        const a = ethers.parseEther((Math.random() * 1000 + 0.1).toString());
-        const b = ethers.parseEther((Math.random() * 1000 + 0.1).toString());
+        const a = ethers.parseEther((random() * 1000 + 0.1).toString());
+        const b = ethers.parseEther((random() * 1000 + 0.1).toString());
 
         // Test: div(mul(a, b), b) ≈ a
         const mulResult = await test.wMul(a, b);
@@ -347,16 +350,17 @@ describe(`${UNIT_TAG} FixedPointMath - Invariants & Precision`, function () {
 
     it("Should test CLMSR price normalization with random arrays", async function () {
       const { test } = await loadFixture(deployFixture);
+      const random = createDeterministicRandom(3);
 
       // Test 10 random arrays of different sizes
       for (let arrayTest = 0; arrayTest < 10; arrayTest++) {
-        const arraySize = Math.floor(Math.random() * 20) + 5; // 5-24 elements
+        const arraySize = Math.floor(random() * 20) + 5; // 5-24 elements
         const expValues = [];
 
         for (let i = 0; i < arraySize; i++) {
           // Generate random exp values between 1 and 100 WAD
           const randomExp = ethers.parseEther(
-            (Math.random() * 99 + 1).toString()
+            (random() * 99 + 1).toString()
           );
           expValues.push(randomExp);
         }
@@ -377,6 +381,7 @@ describe(`${UNIT_TAG} FixedPointMath - Invariants & Precision`, function () {
 
     it("Should test continuous operation chains with random values", async function () {
       const { test } = await loadFixture(deployFixture);
+      const random = createDeterministicRandom(4);
 
       // Test 5 chains of 10 operations each
       for (let chain = 0; chain < 5; chain++) {
@@ -384,7 +389,7 @@ describe(`${UNIT_TAG} FixedPointMath - Invariants & Precision`, function () {
 
         for (let op = 0; op < 10; op++) {
           const randomMultiplier = ethers.parseEther(
-            (Math.random() * 2 + 0.5).toString()
+            (random() * 2 + 0.5).toString()
           ); // 0.5-2.5
 
           // Multiply then divide by same value
@@ -419,14 +424,13 @@ describe(`${UNIT_TAG} FixedPointMath - Invariants & Precision`, function () {
 
     it("Should test signed operations with extreme values", async function () {
       const { test } = await loadFixture(deployFixture);
+      const random = createDeterministicRandom(5);
 
       // Test near signed limits with random operations
       for (let i = 0; i < 10; i++) {
-        const randomPositive = ethers.parseEther(
-          (Math.random() * 1000 + 1).toString()
-        );
+        const randomPositive = ethers.parseEther((random() * 1000 + 1).toString());
         const randomNegative = ethers.parseEther(
-          (-Math.random() * 1000 - 1).toString()
+          (-random() * 1000 - 1).toString()
         );
 
         // Test mixed sign multiplication

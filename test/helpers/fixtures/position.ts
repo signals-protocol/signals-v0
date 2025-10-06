@@ -27,7 +27,7 @@ async function createMarketAndReturnId(
  */
 export async function positionFixture() {
   const baseFixture = await unitFixture();
-  const { deployer, keeper, alice, bob, charlie } = baseFixture;
+  const { deployer, keeper, alice, bob, charlie, manager } = baseFixture
 
   // Deploy USDC token
   const MockERC20Factory = await ethers.getContractFactory("MockERC20");
@@ -65,6 +65,8 @@ export async function positionFixture() {
     await position.getAddress()
   );
 
+  await core.connect(deployer).setManager(await manager.getAddress());
+
   // Set core in position contract
   await position.setCore(await core.getAddress());
 
@@ -87,6 +89,7 @@ export async function positionFixture() {
     core,
     paymentToken,
     position,
+    manager,
     deployer,
   };
 }
@@ -96,7 +99,7 @@ export async function positionFixture() {
  */
 export async function activePositionFixture() {
   const baseFixture = await unitFixture();
-  const { deployer, keeper, alice, bob, charlie } = baseFixture;
+  const { deployer, keeper, alice, bob, charlie, manager } = baseFixture as any;
 
   // Deploy USDC token
   const MockERC20Factory = await ethers.getContractFactory("MockERC20");
@@ -119,6 +122,7 @@ export async function activePositionFixture() {
       },
     }
   );
+
   const CLMSRPositionFactory = await ethers.getContractFactory("CLMSRPosition");
 
   // Deploy position implementation and initialize with placeholder core
@@ -134,6 +138,8 @@ export async function activePositionFixture() {
     await paymentToken.getAddress(),
     await position.getAddress()
   );
+
+  await core.connect(deployer).setManager(await manager.getAddress());
 
   // Link position to core and delegate ownership
   await position.updateCore(await core.getAddress());
@@ -155,6 +161,7 @@ export async function activePositionFixture() {
     core,
     paymentToken,
     position,
+    manager,
     deployer,
   };
 }
