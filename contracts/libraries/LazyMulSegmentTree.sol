@@ -19,6 +19,7 @@ library LazyMulSegmentTree {
     uint256 public constant MIN_FACTOR = 0.01e18;  // 1% minimum - allow wide range for CLMSR
     uint256 public constant MAX_FACTOR = 100e18;   // 100x maximum - allow wide range for CLMSR
     uint256 public constant FLUSH_THRESHOLD = 1e21; // 1,000 WAD - auto-flush when pendingFactor exceeds this
+    uint256 public constant UNDERFLOW_FLUSH_THRESHOLD = 1e15; // 0.001 WAD - auto-flush when pendingFactor drops below this
 
     // ========================================
     // STRUCTS
@@ -263,7 +264,13 @@ library LazyMulSegmentTree {
             
             uint256 newPendingFactor = uint256(node.pendingFactor).wMul(factor);
             
-            if (newPendingFactor > FLUSH_THRESHOLD) {
+            if (newPendingFactor < UNDERFLOW_FLUSH_THRESHOLD) {
+                // Mirror the overflow flush: push accumulated lazy when it shrinks too far
+                if (node.pendingFactor != uint192(ONE_WAD)) {
+                    _pushPendingFactor(tree, nodeIndex, l, r);
+                }
+                node.pendingFactor = uint192(factor);
+            } else if (newPendingFactor > FLUSH_THRESHOLD) {
                 // Force push current pendingFactor first, then apply new factor
                 if (node.pendingFactor != uint192(ONE_WAD)) {
                     _pushPendingFactor(tree, nodeIndex, l, r);
