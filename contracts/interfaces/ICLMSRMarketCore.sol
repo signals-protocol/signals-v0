@@ -132,6 +132,11 @@ interface ICLMSRMarketCore {
         uint64 settlementTimestamp
     );
 
+    event ManagerUpdated(
+        address indexed oldManager,
+        address indexed newManager
+    );
+
     /// @notice Emitted when range multiplication factor is applied
     /// @param marketId Market identifier
     /// @param lo Lower tick boundary (inclusive)
@@ -198,6 +203,12 @@ interface ICLMSRMarketCore {
     /// @dev Reactivates a settled market using existing timing parameters
     /// @param marketId Market identifier
     function reopenMarket(uint256 marketId) external;
+
+    // ========================================
+    // MANAGER CONFIGURATION
+    // ========================================
+
+    function setManager(address newManager) external;
 
     // ========================================
     // EXECUTION FUNCTIONS

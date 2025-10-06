@@ -337,6 +337,29 @@ export async function upgradeAction(environment: Environment): Promise<void> {
   );
   console.log("✅ New LazyMulSegmentTree deployed:", newSegmentTreeAddress);
 
+  console.log("🏢 Deploying CLMSRMarketManager implementation...");
+  const CLMSRMarketManager = await ethers.getContractFactory(
+    "CLMSRMarketManager",
+    {
+      libraries: {
+        LazyMulSegmentTree: newSegmentTreeAddress,
+      },
+    }
+  );
+  const managerContract = await withRetry(
+    () => CLMSRMarketManager.deploy(txOpts),
+    5
+  );
+  await withRetry(() => managerContract.waitForDeployment(), 5);
+  const managerAddress = await withRetry(() => managerContract.getAddress(), 5);
+  envManager.updateContract(
+    environment,
+    "core",
+    "CLMSRMarketManager",
+    managerAddress
+  );
+  console.log("✅ CLMSRMarketManager deployed:", managerAddress);
+
   // Position contract 업그레이드 (안전한 방법)
   console.log("🎭 Upgrading Position contract...");
   await delay(3000); // Wait between transactions
@@ -515,7 +538,7 @@ export async function upgradeAction(environment: Environment): Promise<void> {
       upgrades.upgradeProxy(addresses.CLMSRMarketCoreProxy!, CLMSRMarketCore, {
         kind: "uups",
         redeployImplementation: "always",
-        unsafeAllow: ["external-library-linking"],
+        unsafeAllow: ["external-library-linking", "delegatecall"],
         txOverrides: await safeTxOpts(),
       }),
     5
@@ -535,6 +558,20 @@ export async function upgradeAction(environment: Environment): Promise<void> {
     newImplAddress
   );
   console.log("✅ Core contract upgraded:", newImplAddress);
+
+  console.log("⚙️ Setting manager pointer on upgraded core...");
+  const coreProxy = await ethers.getContractAt(
+    "CLMSRMarketCore",
+    addresses.CLMSRMarketCoreProxy!
+  );
+  await withRetry(
+    async () =>
+      coreProxy
+        .connect(deployer)
+        .setManager(managerAddress, await safeTxOpts()),
+    5
+  );
+  console.log("✅ Manager pointer updated to:", managerAddress);
 
   // PointsGranter 업그레이드 (안전한 방법)
   console.log("🎯 Upgrading PointsGranter...");
@@ -614,6 +651,7 @@ export async function upgradeAction(environment: Environment): Promise<void> {
       LazyMulSegmentTree: newSegmentTreeAddress,
       CLMSRPositionImplementation: newPositionImplAddress,
       CLMSRMarketCoreImplementation: newImplAddress,
+      CLMSRMarketManager: managerAddress,
       PointsGranterProxy: pointsProxyAddress,
       PointsGranterImplementation: pointsImplAddress,
     },

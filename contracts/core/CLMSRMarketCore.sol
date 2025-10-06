@@ -13,7 +13,9 @@ import "../interfaces/ICLMSRMarketCore.sol";
 import "../interfaces/ICLMSRPosition.sol";
 import {LazyMulSegmentTree} from "../libraries/LazyMulSegmentTree.sol";
 import {FixedPointMathU} from "../libraries/FixedPointMath.sol";
+import "../errors/CLMSRErrors.sol";
 import {CLMSRErrors as CE} from "../errors/CLMSRErrors.sol";
+import "./storage/CLMSRMarketCoreStorage.sol";
 
 /// @title CLMSRMarketCore  
 /// @notice Core implementation for CLMSR Daily-Market System
@@ -21,10 +23,12 @@ import {CLMSRErrors as CE} from "../errors/CLMSRErrors.sol";
 contract CLMSRMarketCore is 
     Initializable,
     ICLMSRMarketCore, 
+    CLMSRErrors,
     OwnableUpgradeable,
     UUPSUpgradeable,
     PausableUpgradeable,
-    ReentrancyGuardUpgradeable
+    ReentrancyGuardUpgradeable,
+    CLMSRMarketCoreStorage
 {
     using SafeERC20 for IERC20;
     using {
@@ -64,28 +68,8 @@ contract CLMSRMarketCore is
     // ========================================
     // STATE VARIABLES
     // ========================================
-    
-    /// @notice Payment token (USDC - 6 decimals)
-    IERC20 public paymentToken;
-    
-    /// @notice Position NFT contract
-    ICLMSRPosition public positionContract;
-    
 
-    
-    /// @notice Market data storage
-    mapping(uint256 => Market) public markets;
-    
-    /// @notice Segment trees for each market (marketId => tree)
-    mapping(uint256 => LazyMulSegmentTree.Tree) public marketTrees;
-    
-    /// @notice Next market ID counter for auto-increment
-    uint256 public _nextMarketId;
-    
-    /// @dev Gap for future storage variables
-    // NEW: guard to ensure PositionSettled is emitted once per position
-    mapping(uint256 => bool) public positionSettledEmitted;
-    uint256[48] private __gap;
+    /// @dev 공유 스토리지는 CLMSRMarketCoreStorage에 정의되어 Manager와 슬롯을 일치시킨다.
     
 
 
@@ -132,6 +116,37 @@ contract CLMSRMarketCore is
         
         // Note: 6 decimals assumed for payment token (USDC)
     }
+
+    // ========================================
+    // MANAGER CONFIGURATION
+    // ========================================
+
+    /// @notice 라이프사이클 위임 대상 매니저를 설정한다.
+    function setManager(address newManager) external onlyOwner {
+        require(newManager != address(0), CE.ZeroAddress());
+        require(newManager.code.length > 0, "ManagerNoCode");
+
+        emit ManagerUpdated(manager, newManager);
+        manager = newManager;
+    }
+
+    /// @dev 설정된 매니저로 delegatecall 수행, 실패 시 revert 데이터를 버블링한다.
+    function _delegateToManager() private returns (bytes memory) {
+        address implementation = manager;
+        if (implementation == address(0)) {
+            revert CE.ManagerNotSet();
+        }
+
+        (bool ok, bytes memory ret) = implementation.delegatecall(msg.data);
+        if (!ok) {
+            if (ret.length == 0) revert("ManagerDelegateFailed");
+            assembly {
+                revert(add(ret, 0x20), mload(ret))
+            }
+        }
+
+        return ret;
+    }
     
 
     // ========================================
@@ -148,110 +163,24 @@ contract CLMSRMarketCore is
         uint64 settlementTimestamp,
         uint256 liquidityParameter
     ) external override onlyOwner whenNotPaused returns (uint256 marketId) {
-        // Auto-generate market ID
-        marketId = _nextMarketId;
-        _nextMarketId++;
-        
-        // Ensure market doesn't already exist
-        require(!_marketExists(marketId), CE.MarketAlreadyExists(marketId));
-        
-        // Validate market parameters
-        _validateMarketParameters(minTick, maxTick, tickSpacing);
-        
-        require(startTimestamp < endTimestamp, CE.InvalidTimeRange());
-        require(endTimestamp < settlementTimestamp, CE.InvalidTimeRange());
-
-        require(
-            liquidityParameter >= MIN_LIQUIDITY_PARAMETER &&
-                liquidityParameter <= MAX_LIQUIDITY_PARAMETER,
-            CE.InvalidLiquidityParameter()
-        );
-        
-        // Calculate number of bins
-        uint32 numBins = _calculateNumBins(minTick, maxTick, tickSpacing);
-        
-        require(
-            numBins != 0 && numBins <= MAX_TICK_COUNT,
-            CE.BinCountExceedsLimit(numBins, MAX_TICK_COUNT)
-        );
-        
-        // Create market
-        markets[marketId] = Market({
-            isActive: true,
-            settled: false,
-            startTimestamp: startTimestamp,
-            endTimestamp: endTimestamp,
-            settlementTick: 0,
-            minTick: minTick,
-            maxTick: maxTick,
-            tickSpacing: tickSpacing,
-            numBins: numBins,
-            liquidityParameter: liquidityParameter,
-            positionEventsCursor: 0,
-            positionEventsEmitted: false,
-            settlementValue: 0,
-            settlementTimestamp: settlementTimestamp
-        });
-        
-        // Initialize segment tree
-        LazyMulSegmentTree.init(marketTrees[marketId], numBins);
-        
-        emit MarketCreated(marketId, startTimestamp, endTimestamp, minTick, maxTick, tickSpacing, numBins, liquidityParameter);
-        emit SettlementTimestampUpdated(marketId, settlementTimestamp);
+        // Parameters are forwarded via msg.data to the manager.
+        (minTick, maxTick, tickSpacing, startTimestamp, endTimestamp, settlementTimestamp, liquidityParameter);
+        bytes memory ret = _delegateToManager();
+        return abi.decode(ret, (uint256));
     }
     
     /// @inheritdoc ICLMSRMarketCore
     function settleMarket(uint256 marketId, int256 settlementValue) 
         external override onlyOwner marketExists(marketId) {
-        Market storage market = markets[marketId];
-        
-        require(!market.settled, CE.MarketAlreadySettled(marketId));
-
-        uint64 gate = (market.settlementTimestamp == 0) ? market.endTimestamp : market.settlementTimestamp;
-        require(block.timestamp >= gate, CE.SettlementTooEarly(gate, uint64(block.timestamp)));
-        
-        // Convert 6-decimal settlementValue to integer tick (floor division)
-        int256 settlementTick = settlementValue / 1_000_000;
-        
-        // Validate settlement tick is within market bounds
-        require(
-            settlementTick >= market.minTick &&
-                settlementTick <= market.maxTick,
-            CE.InvalidTick(settlementTick, market.minTick, market.maxTick)
-        );
-        
-        // Settle market with both original value and calculated tick
-        market.settled = true;
-        market.settlementValue = settlementValue;
-        market.settlementTick = settlementTick;
-        market.isActive = false;
-        
-        // Initialize position events emission state
-        market.positionEventsCursor = 0;
-        market.positionEventsEmitted = false;
-        
-        emit MarketSettled(marketId, settlementTick);
-        emit MarketSettlementValueSubmitted(marketId, settlementValue);
+        (marketId, settlementValue);
+        _delegateToManager();
     }
 
     /// @inheritdoc ICLMSRMarketCore
     function reopenMarket(uint256 marketId) 
         external override onlyOwner marketExists(marketId) {
-        Market storage market = markets[marketId];
-        
-        require(market.settled, CE.MarketNotSettled(marketId));
-        
-        // Reset settlement state
-        market.settled = false;
-        market.settlementValue = 0;
-        market.settlementTick = 0;
-        market.isActive = true;
-        
-        // Reset position events emission state
-        market.positionEventsCursor = 0;
-        market.positionEventsEmitted = false;
-        
-        emit MarketReopened(marketId);
+        marketId;
+        _delegateToManager();
     }
 
 
@@ -260,42 +189,8 @@ contract CLMSRMarketCore is
         uint256 marketId,
         uint256 limit
     ) external override onlyOwner marketExists(marketId) {
-        Market storage m = markets[marketId];
-        require(m.settled, CE.MarketNotSettled(marketId));
-        if (m.positionEventsEmitted) return;
-        require(limit > 0, CE.ZeroLimit());
-
-        uint256 len = positionContract.getMarketTokenLength(marketId);
-        uint256 cursor = uint256(m.positionEventsCursor);
-        if (cursor >= len) {
-            m.positionEventsEmitted = true;
-            emit PositionEventsProgress(marketId, cursor, cursor, true);
-            return;
-        }
-
-        uint256 toExclusive = cursor + limit;
-        if (toExclusive > len) toExclusive = len;
-
-        for (uint256 i = cursor; i < toExclusive; ++i) {
-            uint256 pid = positionContract.getMarketTokenAt(marketId, i);
-            if (pid == 0) continue; // burned hole
-            if (positionSettledEmitted[pid]) continue; // already emitted
-            if (!positionContract.exists(pid)) continue; // safety
-
-            ICLMSRPosition.Position memory p = positionContract.getPosition(pid);
-            if (p.marketId != marketId) continue; // safety
-
-            uint256 payout = _calculateClaimAmount(pid);
-            bool isWin = payout > 0;
-            address trader = positionContract.ownerOf(pid);
-            emit PositionSettled(pid, trader, payout, isWin);
-            positionSettledEmitted[pid] = true;
-        }
-
-        m.positionEventsCursor = uint32(toExclusive);
-        bool done = (toExclusive == len);
-        if (done) m.positionEventsEmitted = true;
-        emit PositionEventsProgress(marketId, cursor, toExclusive == 0 ? 0 : (toExclusive - 1), done);
+        (marketId, limit);
+        _delegateToManager();
     }
 
     /// @inheritdoc ICLMSRMarketCore
@@ -305,22 +200,8 @@ contract CLMSRMarketCore is
         uint64 newEndTimestamp,
         uint64 newSettlementTimestamp
     ) external override onlyOwner marketExists(marketId) {
-        Market storage market = markets[marketId];
-        
-        // Market must not be settled
-        require(!market.settled, CE.MarketAlreadySettled(marketId));
-        
-        // Validate new time ranges
-        require(newStartTimestamp < newEndTimestamp, CE.InvalidTimeRange());
-        require(newEndTimestamp < newSettlementTimestamp, CE.InvalidTimeRange());
-        
-        // Update timing
-        market.startTimestamp = newStartTimestamp;
-        market.endTimestamp = newEndTimestamp;
-        market.settlementTimestamp = newSettlementTimestamp;
-        
-        emit MarketTimingUpdated(marketId, newStartTimestamp, newEndTimestamp);
-        emit SettlementTimestampUpdated(marketId, newSettlementTimestamp);
+        (marketId, newStartTimestamp, newEndTimestamp, newSettlementTimestamp);
+        _delegateToManager();
     }
 
     

@@ -82,6 +82,26 @@ export async function deployAction(environment: Environment): Promise<void> {
 
   console.log("✅ Libraries deployed");
 
+  console.log("🏢 Deploying Manager contract...");
+  const CLMSRMarketManager = await ethers.getContractFactory(
+    "CLMSRMarketManager",
+    {
+      libraries: {
+        LazyMulSegmentTree: segmentTreeAddress,
+      },
+    }
+  );
+  const manager = await CLMSRMarketManager.deploy();
+  await manager.waitForDeployment();
+  const managerAddress = await manager.getAddress();
+  envManager.updateContract(
+    environment,
+    "core",
+    "CLMSRMarketManager",
+    managerAddress
+  );
+  console.log("✅ Manager deployed:", managerAddress);
+
   // Position 컨트랙트 배포
   console.log("🎭 Deploying Position contract...");
 
@@ -132,7 +152,7 @@ export async function deployAction(environment: Environment): Promise<void> {
     {
       kind: "uups",
       initializer: "initialize",
-      unsafeAllow: ["external-library-linking"],
+      unsafeAllow: ["external-library-linking", "delegatecall"],
     }
   );
   await coreProxy.waitForDeployment();
@@ -156,6 +176,10 @@ export async function deployAction(environment: Environment): Promise<void> {
   );
 
   console.log("✅ Core proxy deployed:", coreProxyAddress);
+
+  console.log("⚙️ Configuring manager pointer...");
+  await coreProxy.setManager(managerAddress);
+  console.log("✅ Manager linked to Core");
 
   // Position 컨트랙트 core 주소 업데이트
   console.log("🔗 Updating Position contract...");
@@ -210,6 +234,7 @@ export async function deployAction(environment: Environment): Promise<void> {
       FixedPointMathU: fixedPointMathAddress,
       LazyMulSegmentTree: segmentTreeAddress,
       SUSD: susdAddress,
+      CLMSRMarketManager: managerAddress,
       CLMSRPositionProxy: positionProxyAddress,
       CLMSRPositionImplementation: positionImplAddress,
       CLMSRMarketCoreProxy: coreProxyAddress,

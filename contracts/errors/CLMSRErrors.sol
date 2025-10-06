@@ -35,6 +35,7 @@ interface CLMSRErrors {
     error BinOutOfBounds(uint32 bin, uint32 numBins);
     error RangeBinsOutOfBounds(uint32 lowerBin, uint32 upperBin, uint32 numBins);
     error InvalidRangeBins(uint32 lowerBin, uint32 upperBin);
+    error ManagerNotSet();
     
     /* ───────────────────── Position errors ─────────────────────── */
     error PositionNotFound(uint256 positionId);
