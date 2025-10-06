@@ -4,7 +4,9 @@ import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { createActiveMarketFixture } from "../helpers/fixtures/core";
 import { PERF_TAG } from "../helpers/tags";
 
-describe(`${PERF_TAG} Gas Optimization - Position Operations`, function () {
+const describeMaybe = process.env.COVERAGE ? describe.skip : describe;
+
+describeMaybe(`${PERF_TAG} Gas Optimization - Position Operations`, function () {
   const USDC_DECIMALS = 6;
   const LARGE_QUANTITY = ethers.parseUnits("0.2", USDC_DECIMALS);
   const MEDIUM_QUANTITY = ethers.parseUnits("0.05", USDC_DECIMALS);

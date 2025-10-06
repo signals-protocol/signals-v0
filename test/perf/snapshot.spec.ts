@@ -8,7 +8,9 @@ import {
 } from "../helpers/fixtures/core";
 import { PERF_TAG } from "../helpers/tags";
 
-describe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function () {
+const describeMaybe = process.env.COVERAGE ? describe.skip : describe;
+
+describeMaybe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, function () {
   const ALPHA = ethers.parseEther("1");
   const MIN_TICK = 100000;
   const MAX_TICK = 100990;

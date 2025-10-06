@@ -16,7 +16,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - ABI Golden Snapshot`, function () {
   const goldenPath = path.join(
     workspaceRoot,
     "test",
-    "golden",
+    "abi",
     "clmsr-market-core.abi.json"
   );
 

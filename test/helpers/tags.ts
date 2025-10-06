@@ -5,6 +5,7 @@ export const INTEGRATION_TAG = "@integration";
 export const INVARIANT_TAG = "@invariant";
 export const E2E_TAG = "@e2e";
 export const PERF_TAG = "@perf";
+export const SECURITY_TAG = "@security";
 
 // Test descriptions with tags
 export const withTag = (tag: string, description: string) =>

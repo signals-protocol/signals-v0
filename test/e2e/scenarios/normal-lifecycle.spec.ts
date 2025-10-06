@@ -2,12 +2,13 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { E2E_TAG } from "../../helpers/tags";
+const describeMaybe = process.env.COVERAGE ? describe.skip : describe;
 import {
   createActiveMarketFixture,
   settleMarketAtTick,
 } from "../../helpers/fixtures/core";
 
-describe(`${E2E_TAG} Normal Market Lifecycle`, function () {
+describeMaybe(`${E2E_TAG} Normal Market Lifecycle`, function () {
   const SMALL_QUANTITY = ethers.parseUnits("0.01", 6); // 0.01 USDC
   const MEDIUM_QUANTITY = ethers.parseUnits("0.1", 6); // 0.1 USDC
   const LARGE_QUANTITY = ethers.parseUnits("0.5", 6); // 0.5 USDC

@@ -4,7 +4,9 @@ import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { coreFixture, setupActiveMarket } from "../helpers/fixtures/core";
 import { PERF_TAG } from "../helpers/tags";
 
-describe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
+const describeMaybe = process.env.COVERAGE ? describe.skip : describe;
+
+describeMaybe(`${PERF_TAG} Gas Optimization - Position Closing`, function () {
   const MIN_TICK = 100000;
   const MAX_TICK = 100990;
   const TICK_SPACING = 10;
