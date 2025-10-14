@@ -138,6 +138,11 @@ interface ICLMSRMarketCore {
         uint256 indexed marketId
     );
 
+    event MarketActivationUpdated(
+        uint256 indexed marketId,
+        bool isActive
+    );
+
     event RangeFactorBatchApplied(
         uint256 indexed marketId,
         uint256 operationCount,
@@ -196,6 +201,11 @@ interface ICLMSRMarketCore {
     /// @param marketId Market identifier
     /// @param settlementValue Exact winning settlement value with 6 decimals
     function settleMarket(uint256 marketId, int256 settlementValue) external;
+
+    /// @notice Toggle market active status
+    /// @param marketId Market identifier
+    /// @param active Target activation state
+    function setMarketActive(uint256 marketId, bool active) external;
 
     /// @notice Emit position settled events in batches (only callable by Owner)
     /// @dev Emits PositionSettled events for positions using cursor-based pagination

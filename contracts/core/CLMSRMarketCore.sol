@@ -183,6 +183,18 @@ contract CLMSRMarketCore is
         _delegateToManager();
     }
 
+    /// @inheritdoc ICLMSRMarketCore
+    function setMarketActive(uint256 marketId, bool active)
+        external
+        override
+        onlyOwner
+        whenNotPaused
+        marketExists(marketId)
+    {
+        (marketId, active);
+        _delegateToManager();
+    }
+
 
     /// @inheritdoc ICLMSRMarketCore
     function emitPositionSettledBatch(
