@@ -3,6 +3,9 @@ import { ethers } from "hardhat";
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import {
   createActiveMarketFixture,
+  coreFixture,
+  createMarketWithConfig,
+  setMarketActivation,
   settleMarketAtTick,
 } from "../../helpers/fixtures/core";
 import { INTEGRATION_TAG } from "../../helpers/tags";
@@ -13,6 +16,43 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
   const LARGE_QUANTITY = ethers.parseUnits("0.1", 6); // 0.1 USDC
   const MEDIUM_COST = ethers.parseUnits("5", 6); // 5 USDC
   const TICK_COUNT = 100;
+
+  it("Should reject trading before explicit activation", async function () {
+    const contracts = await loadFixture(coreFixture);
+    const { core, keeper, alice } = contracts;
+
+    const currentTime = await time.latest();
+    const startTime = currentTime + 500;
+    const endTime = startTime + 7 * 24 * 60 * 60;
+    const marketId = await createMarketWithConfig(core, keeper, {
+      minTick: 100000,
+      maxTick: 100990,
+      tickSpacing: 10,
+      startTime,
+      endTime,
+      liquidityParameter: ethers.parseEther("1"),
+    });
+
+    await time.increaseTo(startTime + 1);
+
+    const quantity = MEDIUM_QUANTITY;
+    const cost = await core.calculateOpenCost(marketId, 100450, 100550, quantity);
+    const maxCost = cost + ethers.parseUnits("1", 6);
+
+    await expect(
+      core
+        .connect(alice)
+        .openPosition(marketId, 100450, 100550, quantity, maxCost)
+    ).to.be.revertedWithCustomError(core, "MarketNotActive");
+
+    await setMarketActivation(core, keeper, marketId, true);
+
+    await expect(
+      core
+        .connect(alice)
+        .openPosition(marketId, 100450, 100550, quantity, maxCost)
+    ).to.emit(core, "PositionOpened");
+  });
 
   it("Should open position successfully", async function () {
     const { core, alice, paymentToken, mockPosition, marketId } =

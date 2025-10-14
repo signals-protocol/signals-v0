@@ -465,10 +465,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
 
   describe("🧮 Rounding Policy Tests - Up/Up Fairness", function () {
     it("Should apply consistent round-up for both buy and sell operations", async function () {
-      const { core, alice, mockPosition } = await loadFixture(coreFixture);
-
-      // Create market
-      const { keeper } = await loadFixture(coreFixture);
+      const { core, alice, mockPosition, keeper } = await loadFixture(coreFixture);
       const currentTime = await time.latest();
       const startTime = currentTime + 2000; // Large buffer for invariant tests
       const endTime = startTime + 86400;
@@ -487,9 +484,9 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
         .createMarket.staticCall(...createArgs);
 
       await core.connect(keeper).createMarket(...createArgs);
-      await time.increaseTo(startTime + 1);
-
       const marketId = Number(marketIdBig);
+      await core.connect(keeper).setMarketActive(marketId, true);
+      await time.increaseTo(startTime + 1);
 
       // Test with minimal quantities that trigger rounding edge cases
       const testQuantities = [1, 2, 3, 5, 7, 11]; // Small prime numbers
@@ -535,12 +532,9 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
     });
 
     it("Should demonstrate zero expected value for round-trip trades", async function () {
-      const { core, alice, paymentToken, mockPosition } = await loadFixture(
+      const { core, alice, paymentToken, mockPosition, keeper } = await loadFixture(
         coreFixture
       );
-
-      // Create market
-      const { keeper } = await loadFixture(coreFixture);
       const currentTime = await time.latest();
       const startTime = currentTime + 2000; // Large buffer for invariant tests
       const endTime = startTime + 86400;
@@ -559,9 +553,9 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
         .createMarket.staticCall(...createArgs);
 
       await core.connect(keeper).createMarket(...createArgs);
-      await time.increaseTo(startTime + 1);
-
       const marketId = Number(marketIdBig);
+      await core.connect(keeper).setMarketActive(marketId, true);
+      await time.increaseTo(startTime + 1);
 
       // Track net deltas for multiple round-trip trades
       const deltas: bigint[] = [];
@@ -613,10 +607,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
     });
 
     it("Should prevent zero-cost attacks while maintaining fairness", async function () {
-      const { core, alice } = await loadFixture(coreFixture);
-
-      // Create market with very high liquidity (small alpha for minimal costs)
-      const { keeper } = await loadFixture(coreFixture);
+      const { core, alice, keeper } = await loadFixture(coreFixture);
       const smallAlpha = ethers.parseEther("0.01"); // Small alpha = low costs
       const currentTime = await time.latest();
       const startTime = currentTime + 2000; // Large buffer for invariant tests
@@ -644,9 +635,9 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
           endTime + 3600,
           smallAlpha
         );
-      await time.increaseTo(startTime + 1);
-
       const marketId = Number(createdMarketId);
+      await core.connect(keeper).setMarketActive(marketId, true);
+      await time.increaseTo(startTime + 1);
 
       // Try minimal quantity that might result in near-zero cost
       const minimalQuantity = 1; // 1 micro USDC
@@ -672,10 +663,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
     });
 
     it("Should maintain consistent rounding across different market states", async function () {
-      const { core, alice } = await loadFixture(coreFixture);
-
-      // Create market
-      const { keeper } = await loadFixture(coreFixture);
+      const { core, alice, keeper } = await loadFixture(coreFixture);
       const currentTime = await time.latest();
       const startTime = currentTime + 2000; // Large buffer for invariant tests
       const endTime = startTime + 86400;
@@ -702,9 +690,9 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
           endTime + 3600,
           ethers.parseEther("1")
         );
-      await time.increaseTo(startTime + 1);
-
       const marketId = Number(createdMarketId);
+      await core.connect(keeper).setMarketActive(marketId, true);
+      await time.increaseTo(startTime + 1);
 
       const testQuantity = 5;
 

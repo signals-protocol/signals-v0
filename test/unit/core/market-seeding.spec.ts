@@ -67,6 +67,8 @@ describe("Market range factor batching", function () {
       params.liquidityParameter
     );
 
+    await core.connect(keeper).setMarketActive(Number(marketId), true);
+
     return { marketId, params };
   }
 

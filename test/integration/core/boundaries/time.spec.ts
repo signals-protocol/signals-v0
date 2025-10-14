@@ -5,6 +5,7 @@ import {
   coreFixture,
   setupCustomMarket,
   createMarketWithConfig,
+  setMarketActivation,
   toSettlementValue,
 } from "../../../helpers/fixtures/core";
 import { COMPONENT_TAG } from "../../../helpers/tags";
@@ -56,6 +57,8 @@ async function createTimedMarket(
     liquidityParameter: liquidity,
     settlementTime,
   });
+
+  await setMarketActivation(contracts.core, contracts.keeper, marketId, true);
 
   return { marketId, startTime, endTime, settlementTime };
 }
