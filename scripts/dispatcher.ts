@@ -46,7 +46,6 @@ if (!COMMAND) {
   close-market:base:prod    - Close market on base prod (stops trading)
   close-market:citrea:dev   - Close market on citrea dev (stops trading)
   close-market:citrea:prod  - Close market on citrea prod (stops trading)
-  
 🔄 Market Reopen Commands:
   reopen-market:localhost   - Reopen settled market on localhost
   reopen-market:base:dev    - Reopen settled market on base dev
