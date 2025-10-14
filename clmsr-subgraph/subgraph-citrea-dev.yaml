@@ -29,6 +29,8 @@ dataSources:
       eventHandlers:
         - event: MarketCreated(indexed uint256,uint64,uint64,int256,int256,int256,uint32,uint256)
           handler: handleMarketCreated
+        - event: MarketActivationUpdated(indexed uint256,bool)
+          handler: handleMarketActivationUpdated
         - event: MarketSettled(indexed uint256,int256)
           handler: handleMarketSettled
         - event: MarketReopened(indexed uint256)
