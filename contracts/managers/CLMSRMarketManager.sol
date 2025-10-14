@@ -44,6 +44,8 @@ contract CLMSRMarketManager is
 
     event MarketReopened(uint256 indexed marketId);
 
+    event MarketActivationUpdated(uint256 indexed marketId, bool isActive);
+
     event MarketTimingUpdated(
         uint256 indexed marketId,
         uint64 newStartTimestamp,
@@ -102,7 +104,8 @@ contract CLMSRMarketManager is
             liquidityParameter: liquidityParameter
         });
 
-        (marketId, ) = _createMarketInternal(params, true);
+        (marketId, ) = _createMarketInternal(params, false);
+        emit MarketActivationUpdated(marketId, false);
     }
 
     function settleMarket(uint256 marketId, int256 settlementValue)
@@ -223,6 +226,25 @@ contract CLMSRMarketManager is
         bool done = toExclusive == len;
         if (done) m.positionEventsEmitted = true;
         emit PositionEventsProgress(marketId, cursor, toExclusive == 0 ? 0 : (toExclusive - 1), done);
+    }
+
+    function setMarketActive(uint256 marketId, bool active)
+        external
+        onlyOwner
+        whenNotPaused
+        onlyDelegated
+    {
+        require(_marketExists(marketId), CE.MarketNotFound(marketId));
+        ICLMSRMarketCore.Market storage market = markets[marketId];
+
+        require(!market.settled, CE.MarketAlreadySettled(marketId));
+
+        if (market.isActive == active) {
+            return;
+        }
+
+        market.isActive = active;
+        emit MarketActivationUpdated(marketId, active);
     }
 
     function _createMarketInternal(
