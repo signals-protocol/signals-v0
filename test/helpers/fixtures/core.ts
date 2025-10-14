@@ -129,6 +129,15 @@ export async function createMarketWithConfig(
   ]);
 }
 
+export async function setMarketActivation(
+  core: any,
+  signer: any,
+  marketId: number,
+  active: boolean = true
+) {
+  await core.connect(signer).setMarketActive(marketId, active);
+}
+
 export async function legacyCreateMarket(
   core: any,
   signer: any,
@@ -429,6 +438,8 @@ export async function createActiveMarket(contracts: any) {
     createArgs
   );
 
+  await setMarketActivation(contracts.core, contracts.keeper, marketId, true);
+
   // Move to market start time (ensure monotonic timestamp progression)
   await increaseToSafe(startTime + 1);
 
@@ -473,6 +484,8 @@ export async function createActiveMarketFixture() {
 
   const marketId = await createMarketWithId(core, keeper, createArgs);
 
+  await setMarketActivation(core, keeper, marketId, true);
+
   // Move to market start time (ensure monotonic timestamp progression)
   await increaseToSafe(startTime + 1);
 
@@ -516,6 +529,8 @@ export async function createExtremeMarket(
     contracts.keeper,
     createArgs
   );
+
+  await setMarketActivation(contracts.core, contracts.keeper, marketId, true);
 
   return { marketId, startTime, endTime, alpha: extremeAlpha };
 }
@@ -640,6 +655,8 @@ export async function setupCustomMarket(
     contracts.keeper,
     createArgs
   );
+
+  await setMarketActivation(contracts.core, contracts.keeper, actualMarketId, true);
 
   await increaseToSafe(startTime + 1);
 

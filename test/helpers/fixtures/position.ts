@@ -15,11 +15,16 @@ const DEFAULT_POSITION_MAX_COST = ethers.parseUnits("1000", 6);
 async function createMarketAndReturnId(
   core: any,
   signer: any,
-  args: [number, number, number, number, number, number, bigint]
+  args: [number, number, number, number, number, number, bigint],
+  activate: boolean = true
 ) {
   const marketIdBig = await core.connect(signer).createMarket.staticCall(...args);
   await core.connect(signer).createMarket(...args);
-  return Number(marketIdBig);
+  const marketId = Number(marketIdBig);
+  if (activate) {
+    await core.connect(signer).setMarketActive(marketId, true);
+  }
+  return marketId;
 }
 
 /**
