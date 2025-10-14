@@ -92,50 +92,17 @@ contract CLMSRMarketManager is
         uint64 settlementTimestamp,
         uint256 liquidityParameter
     ) external onlyOwner whenNotPaused onlyDelegated returns (uint256 marketId) {
-        marketId = _nextMarketId;
-        _nextMarketId++;
-
-        require(!_marketExists(marketId), CE.MarketAlreadyExists(marketId));
-
-        _validateMarketParameters(minTick, maxTick, tickSpacing);
-
-        require(startTimestamp < endTimestamp, CE.InvalidTimeRange());
-        require(endTimestamp < settlementTimestamp, CE.InvalidTimeRange());
-
-        require(
-            liquidityParameter >= MIN_LIQUIDITY_PARAMETER &&
-                liquidityParameter <= MAX_LIQUIDITY_PARAMETER,
-            CE.InvalidLiquidityParameter()
-        );
-
-        uint32 numBins = _calculateNumBins(minTick, maxTick, tickSpacing);
-
-        require(
-            numBins != 0 && numBins <= MAX_TICK_COUNT,
-            CE.BinCountExceedsLimit(numBins, MAX_TICK_COUNT)
-        );
-
-        markets[marketId] = ICLMSRMarketCore.Market({
-            isActive: true,
-            settled: false,
-            startTimestamp: startTimestamp,
-            endTimestamp: endTimestamp,
-            settlementTick: 0,
+        ICLMSRMarketCore.MarketCreationParams memory params = ICLMSRMarketCore.MarketCreationParams({
             minTick: minTick,
             maxTick: maxTick,
             tickSpacing: tickSpacing,
-            numBins: numBins,
-            liquidityParameter: liquidityParameter,
-            positionEventsCursor: 0,
-            positionEventsEmitted: false,
-            settlementValue: 0,
-            settlementTimestamp: settlementTimestamp
+            startTimestamp: startTimestamp,
+            endTimestamp: endTimestamp,
+            settlementTimestamp: settlementTimestamp,
+            liquidityParameter: liquidityParameter
         });
 
-        LazyMulSegmentTree.init(marketTrees[marketId], numBins);
-
-        emit MarketCreated(marketId, startTimestamp, endTimestamp, minTick, maxTick, tickSpacing, numBins, liquidityParameter);
-        emit SettlementTimestampUpdated(marketId, settlementTimestamp);
+        (marketId, ) = _createMarketInternal(params, true);
     }
 
     function settleMarket(uint256 marketId, int256 settlementValue)
@@ -256,6 +223,67 @@ contract CLMSRMarketManager is
         bool done = toExclusive == len;
         if (done) m.positionEventsEmitted = true;
         emit PositionEventsProgress(marketId, cursor, toExclusive == 0 ? 0 : (toExclusive - 1), done);
+    }
+
+    function _createMarketInternal(
+        ICLMSRMarketCore.MarketCreationParams memory params,
+        bool activate
+    ) internal returns (uint256 marketId, uint32 numBins) {
+        marketId = _nextMarketId;
+        _nextMarketId++;
+
+        require(!_marketExists(marketId), CE.MarketAlreadyExists(marketId));
+
+        _validateMarketParameters(params.minTick, params.maxTick, params.tickSpacing);
+
+        require(params.startTimestamp < params.endTimestamp, CE.InvalidTimeRange());
+        require(params.endTimestamp < params.settlementTimestamp, CE.InvalidTimeRange());
+
+        require(
+            params.liquidityParameter >= MIN_LIQUIDITY_PARAMETER &&
+                params.liquidityParameter <= MAX_LIQUIDITY_PARAMETER,
+            CE.InvalidLiquidityParameter()
+        );
+
+        numBins = _calculateNumBins(params.minTick, params.maxTick, params.tickSpacing);
+
+        require(
+            numBins != 0 && numBins <= MAX_TICK_COUNT,
+            CE.BinCountExceedsLimit(numBins, MAX_TICK_COUNT)
+        );
+
+        markets[marketId] = ICLMSRMarketCore.Market({
+            isActive: activate,
+            settled: false,
+            startTimestamp: params.startTimestamp,
+            endTimestamp: params.endTimestamp,
+            settlementTick: 0,
+            minTick: params.minTick,
+            maxTick: params.maxTick,
+            tickSpacing: params.tickSpacing,
+            numBins: numBins,
+            liquidityParameter: params.liquidityParameter,
+            positionEventsCursor: 0,
+            positionEventsEmitted: false,
+            settlementValue: 0,
+            settlementTimestamp: params.settlementTimestamp
+        });
+
+        LazyMulSegmentTree.init(marketTrees[marketId], numBins);
+
+        emit MarketCreated(
+            marketId,
+            params.startTimestamp,
+            params.endTimestamp,
+            params.minTick,
+            params.maxTick,
+            params.tickSpacing,
+            numBins,
+            params.liquidityParameter
+        );
+        emit SettlementTimestampUpdated(marketId, params.settlementTimestamp);
+
+        return (marketId, numBins);
     }
 
     function _marketExists(uint256 marketId) internal view returns (bool) {

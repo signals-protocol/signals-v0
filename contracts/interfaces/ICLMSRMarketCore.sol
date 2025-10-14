@@ -29,6 +29,17 @@ interface ICLMSRMarketCore {
         int256 settlementValue;         // Original settlement value with 6 decimals (only if settled)
         uint64 settlementTimestamp;     // Settlement reference time (when settlement data should be retrieved)
     }
+
+    /// @notice Parameter bundle for market creation
+    struct MarketCreationParams {
+        int256 minTick;
+        int256 maxTick;
+        int256 tickSpacing;
+        uint64 startTimestamp;
+        uint64 endTimestamp;
+        uint64 settlementTimestamp;
+        uint256 liquidityParameter;
+    }
     
 
     // ========================================
@@ -127,6 +138,12 @@ interface ICLMSRMarketCore {
         uint256 indexed marketId
     );
 
+    event RangeFactorBatchApplied(
+        uint256 indexed marketId,
+        uint256 operationCount,
+        bytes32 context
+    );
+
     event SettlementTimestampUpdated(
         uint256 indexed marketId,
         uint64 settlementTimestamp
@@ -173,7 +190,7 @@ interface ICLMSRMarketCore {
         uint64 settlementTimestamp,
         uint256 liquidityParameter
     ) external returns (uint256 marketId);
-    
+
     /// @notice Settle a market (only callable by Owner)
     /// @dev Sets exact winning settlement value (6 decimals) and calculates corresponding tick value
     /// @param marketId Market identifier
@@ -384,6 +401,20 @@ interface ICLMSRMarketCore {
     // Tick boundary in absolute ticks; internally maps to inclusive bin indices [loBin, hiBin]
     function applyRangeFactor(uint256 marketId, int256 lo, int256 hi, uint256 factor)
         external;
+
+    /// @notice Apply multiple range factors within a single transaction
+    /// @param marketId Market identifier
+    /// @param lowers Lower tick bounds (inclusive)
+    /// @param uppers Upper tick bounds (exclusive)
+    /// @param factors Multiplication factors (WAD scale)
+    /// @param context Optional context hash (e.g., seed commitment)
+    function applyRangeFactorBatch(
+        uint256 marketId,
+        int256[] calldata lowers,
+        int256[] calldata uppers,
+        uint256[] calldata factors,
+        bytes32 context
+    ) external;
 
     // ========================================
     // EMERGENCY FUNCTIONS
