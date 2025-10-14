@@ -410,4 +410,45 @@ library LazyMulSegmentTree {
         return leftSum + rightSum;
     }
 
-} 
+
+    function seedWithFactors(Tree storage tree, uint256[] memory factors) internal {
+        require(tree.size != 0, CE.TreeNotInitialized());
+        require(factors.length == tree.size, CE.ArrayLengthMismatch());
+
+        tree.nextIndex = 0;
+        tree.root = 0;
+
+        (uint32 rootIndex, uint256 total) = _buildTreeFromArray(tree, 0, tree.size - 1, factors);
+        tree.root = rootIndex;
+        tree.cachedRootSum = total;
+    }
+
+    function _buildTreeFromArray(
+        Tree storage tree,
+        uint32 l,
+        uint32 r,
+        uint256[] memory factors
+    ) private returns (uint32 nodeIndex, uint256 sum) {
+        nodeIndex = _allocateNode(tree, l, r);
+        Node storage node = tree.nodes[nodeIndex];
+        node.pendingFactor = uint192(ONE_WAD);
+
+        if (l == r) {
+            uint256 leafValue = factors[uint256(l)];
+            node.sum = leafValue;
+            node.childPtr = 0;
+            return (nodeIndex, leafValue);
+        }
+
+        uint32 mid = l + (r - l) / 2;
+        (uint32 leftChild, uint256 leftSum) = _buildTreeFromArray(tree, l, mid, factors);
+        (uint32 rightChild, uint256 rightSum) = _buildTreeFromArray(tree, mid + 1, r, factors);
+
+        node.childPtr = _packChildPtr(leftChild, rightChild);
+        uint256 total = leftSum + rightSum;
+        node.sum = total;
+
+        return (nodeIndex, total);
+    }
+
+}

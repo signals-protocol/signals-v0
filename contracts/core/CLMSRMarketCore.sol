@@ -168,7 +168,7 @@ contract CLMSRMarketCore is
         bytes memory ret = _delegateToManager();
         return abi.decode(ret, (uint256));
     }
-    
+
     /// @inheritdoc ICLMSRMarketCore
     function settleMarket(uint256 marketId, int256 settlementValue) 
         external override onlyOwner marketExists(marketId) {
@@ -293,6 +293,37 @@ contract CLMSRMarketCore is
 
         LazyMulSegmentTree.applyRangeFactor(marketTrees[marketId], loBin, hiBin, factor);
         emit RangeFactorApplied(marketId, lo, hi, factor);
+    }
+
+    /// @inheritdoc ICLMSRMarketCore
+    function applyRangeFactorBatch(
+        uint256 marketId,
+        int256[] calldata lowers,
+        int256[] calldata uppers,
+        uint256[] calldata factors,
+        bytes32 context
+    ) external override onlyOwner whenNotPaused marketExists(marketId) {
+        uint256 length = lowers.length;
+        require(length == uppers.length && length == factors.length, CE.ArrayLengthMismatch());
+        require(length != 0, CE.ArrayLengthMismatch());
+
+        Market memory market = markets[marketId];
+
+        for (uint256 i = 0; i < length; ++i) {
+            int256 lo = lowers[i];
+            int256 hi = uppers[i];
+            uint256 factor = factors[i];
+
+            _validateTick(lo, market);
+            _validateTick(hi, market);
+            require(lo <= hi, CE.InvalidTickRange(lo, hi));
+
+            (uint32 loBin, uint32 hiBin) = _rangeToBins(lo, hi, market);
+            LazyMulSegmentTree.applyRangeFactor(marketTrees[marketId], loBin, hiBin, factor);
+            emit RangeFactorApplied(marketId, lo, hi, factor);
+        }
+
+        emit RangeFactorBatchApplied(marketId, length, context);
     }
     
     /// @inheritdoc ICLMSRMarketCore
