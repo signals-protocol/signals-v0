@@ -10,6 +10,7 @@ type Market @entity(immutable: false) {
   settlementTimestamp: BigInt # uint64 - 정산 기준 시각 (신규 필드, nullable)
   numBins: BigInt! # uint32 - 계산된 빈 개수
   liquidityParameter: BigInt!
+  isActive: Boolean!
   isSettled: Boolean!
   settlementValue: BigInt # int256 (6 decimals, original value)
   settlementTick: BigInt # int256 (calculated from settlementValue)

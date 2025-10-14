@@ -29,6 +29,7 @@ import {
   MarketTimingUpdated as MarketTimingUpdatedEvent,
   SettlementTimestampUpdated as SettlementTimestampUpdatedEvent,
   RangeFactorApplied as RangeFactorAppliedEvent,
+  MarketActivationUpdated as MarketActivationUpdatedEvent,
 } from "../generated/CLMSRMarketCore/CLMSRMarketCore";
 
 import {
@@ -261,6 +262,7 @@ export function handleMarketCreated(event: MarketCreatedEvent): void {
   market.settlementTimestamp = event.params.endTimestamp; // fallback for legacy compatibility
   market.numBins = event.params.numBins;
   market.liquidityParameter = event.params.liquidityParameter;
+  market.isActive = false;
   market.isSettled = false;
   market.settlementValue = null;
   market.settlementTick = null;
@@ -299,6 +301,7 @@ export function handleMarketSettled(event: MarketSettledEvent): void {
   const market = loadMarketOrSkip(marketId, "handleMarketSettled");
   if (market == null) return;
   market.isSettled = true;
+  market.isActive = false;
   market.settlementTick = event.params.settlementTick;
   // Calculate settlementValue by appending 6 zeros (multiply by 1,000,000)
   market.settlementValue = event.params.settlementTick.times(
@@ -356,6 +359,7 @@ export function handleMarketReopened(event: MarketReopenedEvent): void {
   if (market == null) return;
   // 재오픈 시 정산 상태 초기화 및 활성화
   market.isSettled = false;
+  market.isActive = true;
   market.settlementTick = null;
   market.settlementValue = null;
   market.lastUpdated = event.block.timestamp;
@@ -365,6 +369,19 @@ export function handleMarketReopened(event: MarketReopenedEvent): void {
   const stats = getOrCreateMarketStats(market.id);
   stats.lastUpdated = event.block.timestamp;
   stats.save();
+}
+
+export function handleMarketActivationUpdated(
+  event: MarketActivationUpdatedEvent
+): void {
+  const market = loadMarketOrSkip(
+    buildMarketId(event.params.marketId),
+    "handleMarketActivationUpdated"
+  );
+  if (market == null) return;
+  market.isActive = event.params.isActive;
+  market.lastUpdated = event.block.timestamp;
+  market.save();
 }
 
 function applySettlementOnce(
