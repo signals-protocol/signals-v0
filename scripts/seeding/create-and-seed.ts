@@ -257,6 +257,30 @@ async function main() {
     console.log("⚠️ Verification skipped (disabled in CONFIG).");
   }
 
+  const autoActivate = process.env.ACTIVATE_AFTER_SEED === "true";
+
+  if (autoActivate) {
+    console.log("\n🔓 ACTIVATE_AFTER_SEED=true -> 마켓 활성화 진행...");
+    const activateTx = await coreWithOwner.setMarketActive(
+      BigInt(marketId),
+      true
+    );
+    console.log("   • tx:", activateTx.hash);
+    const activateReceipt = await activateTx.wait();
+    console.log(
+      "   ✅ 활성화 완료 (gas=",
+      activateReceipt?.gasUsed?.toString() ?? "N/A",
+      ")"
+    );
+  } else {
+    console.log(
+      "\n⚠️ 새 마켓은 기본적으로 비활성 상태입니다. 검증 후 아래 명령어로 개장하세요:"
+    );
+    console.log(
+      `   COMMAND=set-market-active:${environment} MARKET_ID=${marketId} ACTIVE=true npx hardhat run scripts/dispatcher.ts --network ${environment}`
+    );
+  }
+
   console.log("\n🎉 Market creation + seeding complete!");
   console.log(
     "  Liquidity parameter (α):",
@@ -268,4 +292,3 @@ main().catch((error) => {
   console.error("❌ create-and-seed failed:", error);
   process.exitCode = 1;
 });
-

@@ -108,7 +108,7 @@ export async function createMarketAction(
       }
     });
 
-    let marketId: number | undefined;
+    let marketId: bigint | undefined;
     if (marketCreatedEvent) {
       const parsed = core.interface.parseLog({
         topics: marketCreatedEvent.topics,
@@ -120,6 +120,41 @@ export async function createMarketAction(
     console.log("✅ 마켓 생성 성공!");
     console.log("  - 생성된 마켓 ID:", marketId?.toString() || "확인 불가");
     console.log("  - 가스 사용량:", receipt?.gasUsed.toString());
+
+    const autoActivate = process.env.ACTIVATE_AFTER_CREATE === "true";
+
+    if (autoActivate) {
+      if (marketId === undefined) {
+        console.warn(
+          "⚠️  ACTIVATE_AFTER_CREATE=true 이지만 marketId를 파싱하지 못해 활성화 스킵"
+        );
+      } else {
+        console.log(
+          "\n🔓 ACTIVATE_AFTER_CREATE=true -> 마켓 활성화 트랜잭션 전송..."
+        );
+        const activateTx = await core.setMarketActive(marketId, true);
+        console.log("   • tx:", activateTx.hash);
+        const activateReceipt = await activateTx.wait();
+        console.log(
+          "   ✅ 활성화 완료 (gas=",
+          activateReceipt?.gasUsed?.toString() ?? "N/A",
+          ")"
+        );
+      }
+    } else {
+      console.log(
+        "\n⚠️ 새로 생성된 마켓은 기본적으로 비활성 상태입니다. 시딩 및 검증 완료 후 아래 커맨드를 실행해 개장하세요:"
+      );
+      if (marketId !== undefined) {
+        console.log(
+          `   COMMAND=set-market-active:${environment} MARKET_ID=${marketId.toString()} ACTIVE=true npx hardhat run scripts/dispatcher.ts --network ${environment}`
+        );
+      } else {
+        console.log(
+          "   (marketId를 파싱하지 못했습니다. 이벤트 로그에서 marketId를 확인한 뒤 set-market-active 스크립트를 실행하세요)"
+        );
+      }
+    }
 
     console.log("\n🎯 Market creation completed for", environment);
   } catch (error: any) {
