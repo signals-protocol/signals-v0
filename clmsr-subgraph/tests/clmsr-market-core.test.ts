@@ -35,6 +35,7 @@ import {
   handlePositionClaimed,
   handlePositionSettled,
   handleSettlementTimestampUpdated,
+  handleMarketActivationUpdated,
 } from "../src/clmsr-market-core";
 import { handlePointsGranted } from "../src/points";
 import {
@@ -51,6 +52,7 @@ import {
   createPositionClaimedEvent,
   createPositionSettledEvent,
   createSettlementTimestampUpdatedEvent,
+  createMarketActivationUpdatedEvent,
 } from "./clmsr-market-core-utils";
 
 // Tests structure (matchstick-as >=0.5.0)
@@ -106,6 +108,7 @@ describe("CLMSR Market Core Tests", () => {
       "liquidityParameter",
       "1000000000000000000"
     );
+    assert.fieldEquals("Market", "1", "isActive", "false");
     assert.fieldEquals("Market", "1", "isSettled", "false"); // 초기에는 정산되지 않음
 
     // BinState 엔티티들 확인 (10개 생성되어야 함)
@@ -133,6 +136,36 @@ describe("CLMSR Market Core Tests", () => {
     assert.entityCount("MarketStats", 1);
     assert.fieldEquals("MarketStats", "1", "totalTrades", "0"); // 초기에는 거래 없음
     assert.fieldEquals("MarketStats", "1", "totalVolume", "0");
+  });
+
+  test("Market Activation Updated toggles active state", () => {
+    clearStore();
+
+    let marketId = BigInt.fromI32(1);
+    handleMarketCreated(
+      createMarketCreatedEvent(
+        marketId,
+        BigInt.fromI32(1000000),
+        BigInt.fromI32(2000000),
+        BigInt.fromI32(100),
+        BigInt.fromI32(200),
+        BigInt.fromI32(10),
+        BigInt.fromI32(10),
+        BigInt.fromString("1000000000000000000")
+      )
+    );
+
+    let activateEvent = createMarketActivationUpdatedEvent(marketId, true);
+    activateEvent.block.timestamp = BigInt.fromI32(1500000);
+    handleMarketActivationUpdated(activateEvent);
+    assert.fieldEquals("Market", "1", "isActive", "true");
+    assert.fieldEquals("Market", "1", "lastUpdated", "1500000");
+
+    let deactivateEvent = createMarketActivationUpdatedEvent(marketId, false);
+    deactivateEvent.block.timestamp = BigInt.fromI32(1600000);
+    handleMarketActivationUpdated(deactivateEvent);
+    assert.fieldEquals("Market", "1", "isActive", "false");
+    assert.fieldEquals("Market", "1", "lastUpdated", "1600000");
   });
 
   test("Range Factor Applied", () => {
@@ -937,8 +970,13 @@ describe("CLMSR Market Core Tests", () => {
     );
     handleMarketCreated(marketCreatedEvent);
 
+    let activationEvent = createMarketActivationUpdatedEvent(marketId, true);
+    activationEvent.block.timestamp = BigInt.fromI32(1500000);
+    handleMarketActivationUpdated(activationEvent);
+
     // 2. Verify market is initially active and not settled
     assert.fieldEquals("Market", "1", "isSettled", "false");
+    assert.fieldEquals("Market", "1", "isActive", "true");
 
     // 3. Settle market with tick 115 (basic settlement)
     let settlementTick = BigInt.fromI32(115);
@@ -958,6 +996,7 @@ describe("CLMSR Market Core Tests", () => {
     // First by MarketSettled: 115 * 1_000_000 = 115_000_000
     // Then by MarketSettlementValueSubmitted: 115_500_000 (overwrites)
     assert.fieldEquals("Market", "1", "settlementValue", "115500000");
+    assert.fieldEquals("Market", "1", "isActive", "false");
   });
 
   test("MarketReopened - resets settlement flags and updates stats", () => {
@@ -996,6 +1035,7 @@ describe("CLMSR Market Core Tests", () => {
     handleMarketReopened(reopenEvent);
 
     assert.fieldEquals("Market", "1", "isSettled", "false");
+    assert.fieldEquals("Market", "1", "isActive", "true");
     assert.fieldEquals("MarketStats", "1", "lastUpdated", "3000000");
   });
 
