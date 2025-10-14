@@ -32,6 +32,7 @@ import {
   MarketReopened,
   MarketTimingUpdated,
   MarketSettlementValueSubmitted,
+  MarketActivationUpdated,
   PositionClaimed,
   PositionClosed,
   PositionDecreased,
@@ -107,6 +108,34 @@ export function createMarketCreatedEvent(
   );
 
   return stamp(marketCreatedEvent);
+}
+
+export function createMarketActivationUpdatedEvent(
+  marketId: BigInt,
+  isActive: boolean
+): MarketActivationUpdated {
+  let activationEvent = changetype<MarketActivationUpdated>(newMockEvent());
+  setupMockEvent(activationEvent);
+  activationEvent.transaction.hash = Bytes.fromHexString(
+    "0x1234567890123456789012345678901234567890123456789012345678901235"
+  );
+  activationEvent.logIndex = BigInt.fromI32(0);
+
+  activationEvent.parameters = new Array();
+  activationEvent.parameters.push(
+    new ethereum.EventParam(
+      "marketId",
+      ethereum.Value.fromUnsignedBigInt(marketId)
+    )
+  );
+  activationEvent.parameters.push(
+    new ethereum.EventParam(
+      "isActive",
+      ethereum.Value.fromBoolean(isActive)
+    )
+  );
+
+  return stamp(activationEvent);
 }
 
 export function createMarketSettledEvent(
