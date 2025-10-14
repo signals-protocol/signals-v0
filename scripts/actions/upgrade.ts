@@ -350,6 +350,7 @@ export async function upgradeAction(environment: Environment): Promise<void> {
     () => CLMSRMarketManager.deploy(txOpts),
     5
   );
+  await delay(4000);
   await withRetry(() => managerContract.waitForDeployment(), 5);
   const managerAddress = await withRetry(() => managerContract.getAddress(), 5);
   envManager.updateContract(

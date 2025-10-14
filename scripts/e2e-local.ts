@@ -80,6 +80,9 @@ async function main() {
   ).wait();
   console.log("Market created", marketId.toString());
 
+  await (await core.setMarketActive(marketId, true)).wait();
+  console.log("Market activated");
+
   await increaseTimeTo(startTime + 1);
 
   const lowerTick = 100_450;

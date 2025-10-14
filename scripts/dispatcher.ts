@@ -32,6 +32,9 @@ if (!COMMAND) {
   create-market:base:prod   - Create market on base prod
   create-market:citrea:dev  - Create market on citrea dev
   create-market:citrea:prod - Create market on citrea prod
+  set-market-active:ENV     - Toggle activation (MARKET_ID, ACTIVE env vars)
+  activate-market:ENV       - Alias for set-market-active with ACTIVE=true
+  deactivate-market:ENV     - Alias for set-market-active with ACTIVE=false
   
 🏁 Settlement Commands:
   settle-market:localhost   - Settle market on localhost
@@ -215,6 +218,21 @@ async function dispatch() {
         );
         await updateMarketTimingAction(environment as Environment);
         break;
+
+      case "set-market-active":
+      case "activate-market":
+      case "deactivate-market": {
+        if (action === "activate-market") {
+          process.env.ACTIVE = "true";
+        } else if (action === "deactivate-market") {
+          process.env.ACTIVE = "false";
+        }
+        const { setMarketActiveAction } = await import(
+          "./actions/set-market-active"
+        );
+        await setMarketActiveAction(environment as Environment);
+        break;
+      }
 
       case "deploy-susd":
         const { deploySUSDAction } = await import("./actions/deploy-susd");
