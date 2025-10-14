@@ -6,6 +6,7 @@ import {
   coreFixture,
   settleMarketAtTick,
   toSettlementValue,
+  setMarketActivation,
 } from "../../helpers/fixtures/core";
 import { INTEGRATION_TAG } from "../../helpers/tags";
 
@@ -83,6 +84,10 @@ describe(`${INTEGRATION_TAG} Market Lifecycle`, function () {
         ALPHA
       );
       marketIds.push(Number(marketId));
+    }
+
+    for (const id of marketIds) {
+      await setMarketActivation(core, keeper, id, true);
     }
 
     await time.increaseTo(markets[0].end + SETTLEMENT_OFFSET + 1);

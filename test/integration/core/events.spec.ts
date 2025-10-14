@@ -89,19 +89,19 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
 
       const numBins = BigInt((MAX_TICK - MIN_TICK) / TICK_SPACING);
 
-      await expect(
-        core
-          .connect(keeper)
-          .createMarket(
-            MIN_TICK,
-            MAX_TICK,
-            TICK_SPACING,
-            startTime,
-            endTime,
-            settlementTime,
-            ALPHA
-          )
-      )
+      const tx = core
+        .connect(keeper)
+        .createMarket(
+          MIN_TICK,
+          MAX_TICK,
+          TICK_SPACING,
+          startTime,
+          endTime,
+          settlementTime,
+          ALPHA
+        );
+
+      await expect(tx)
         .to.emit(core, "MarketCreated")
         .withArgs(
           expectedId,
@@ -113,6 +113,10 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
           numBins,
           ALPHA
         );
+
+      await expect(tx)
+        .to.emit(core, "MarketActivationUpdated")
+        .withArgs(expectedId, false);
     });
 
     it("Should emit MarketSettled event with correct parameters", async function () {
@@ -589,19 +593,19 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
       );
 
       // Market creation
-      await expect(
-        core
-          .connect(keeper)
-          .createMarket(
-            MIN_TICK,
-            MAX_TICK,
-            TICK_SPACING,
-            startTime,
-            endTime,
-            settlementTime,
-            ALPHA
-          )
-      )
+      const createTx = core
+        .connect(keeper)
+        .createMarket(
+          MIN_TICK,
+          MAX_TICK,
+          TICK_SPACING,
+          startTime,
+          endTime,
+          settlementTime,
+          ALPHA
+        );
+
+      await expect(createTx)
         .to.emit(core, "MarketCreated")
         .withArgs(
           marketId,
@@ -613,6 +617,10 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
           BigInt((MAX_TICK - MIN_TICK) / TICK_SPACING),
           ALPHA
         );
+
+      await expect(createTx)
+        .to.emit(core, "MarketActivationUpdated")
+        .withArgs(marketId, false);
 
       // Market activation (start time reached)
       await time.increaseTo(startTime + 1);
@@ -644,19 +652,19 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
         ALPHA
       );
 
-      await expect(
-        core
-          .connect(keeper)
-          .createMarket(
-            MIN_TICK,
-            MAX_TICK,
-            TICK_SPACING,
-            startTime,
-            endTime,
-            settlementTime,
-            ALPHA
-          )
-      )
+      const createTx = core
+        .connect(keeper)
+        .createMarket(
+          MIN_TICK,
+          MAX_TICK,
+          TICK_SPACING,
+          startTime,
+          endTime,
+          settlementTime,
+          ALPHA
+        );
+
+      await expect(createTx)
         .to.emit(core, "MarketCreated")
         .withArgs(
           marketId,
@@ -668,6 +676,10 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
           BigInt((MAX_TICK - MIN_TICK) / TICK_SPACING),
           ALPHA
         );
+
+      await expect(createTx)
+        .to.emit(core, "MarketActivationUpdated")
+        .withArgs(marketId, false);
 
       // Verify timestamps are within reasonable bounds
       expect(startTime).to.be.gt(currentBlockTime);

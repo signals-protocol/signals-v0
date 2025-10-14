@@ -1,7 +1,11 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { coreFixture, getTickValue } from "../../helpers/fixtures/core";
+import {
+  coreFixture,
+  getTickValue,
+  setMarketActivation,
+} from "../../helpers/fixtures/core";
 import { INTEGRATION_TAG } from "../../helpers/tags";
 
 describe(`${INTEGRATION_TAG} Market Creation`, function () {
@@ -36,17 +40,17 @@ describe(`${INTEGRATION_TAG} Market Creation`, function () {
       ALPHA
     );
 
-    await expect(
-      core.connect(keeper).createMarket(
-        MIN_TICK,
-        MAX_TICK,
-        TICK_SPACING,
-        startTime,
-        endTime,
-        settlementTime,
-        ALPHA
-      )
-    )
+    const tx = core.connect(keeper).createMarket(
+      MIN_TICK,
+      MAX_TICK,
+      TICK_SPACING,
+      startTime,
+      endTime,
+      settlementTime,
+      ALPHA
+    );
+
+    await expect(tx)
       .to.emit(core, "MarketCreated")
       .withArgs(
         expectedId,
@@ -59,6 +63,10 @@ describe(`${INTEGRATION_TAG} Market Creation`, function () {
         ALPHA
       );
 
+    await expect(tx)
+      .to.emit(core, "MarketActivationUpdated")
+      .withArgs(expectedId, false);
+
     const market = await core.getMarket(Number(expectedId));
     expect(market.minTick).to.equal(BigInt(MIN_TICK));
     expect(market.maxTick).to.equal(BigInt(MAX_TICK));
@@ -68,10 +76,14 @@ describe(`${INTEGRATION_TAG} Market Creation`, function () {
     expect(market.startTimestamp).to.equal(BigInt(startTime));
     expect(market.endTimestamp).to.equal(BigInt(endTime));
     expect(market.settlementTimestamp).to.equal(BigInt(settlementTime));
-    expect(market.isActive).to.be.true;
+    expect(market.isActive).to.be.false;
     expect(market.settled).to.be.false;
     expect(market.settlementTick).to.equal(BigInt(0));
     expect(market.settlementValue).to.equal(BigInt(0));
+
+    await setMarketActivation(core, keeper, Number(expectedId), true);
+    const activated = await core.getMarket(Number(expectedId));
+    expect(activated.isActive).to.be.true;
   });
 
   it("Should initialize segment tree correctly", async function () {
@@ -142,8 +154,12 @@ describe(`${INTEGRATION_TAG} Market Creation`, function () {
 
       expect(expectedId).to.equal(BigInt(i));
       const market = await core.getMarket(Number(expectedId));
-      expect(market.isActive).to.be.true;
+      expect(market.isActive).to.be.false;
       expect(market.numBins).to.equal(calculateNumBins(MIN_TICK, MAX_TICK, TICK_SPACING));
+
+      await setMarketActivation(core, keeper, Number(expectedId), true);
+      const activated = await core.getMarket(Number(expectedId));
+      expect(activated.isActive).to.be.true;
     }
   });
 

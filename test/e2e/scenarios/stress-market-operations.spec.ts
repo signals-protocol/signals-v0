@@ -332,6 +332,8 @@ describeMaybe(`${E2E_TAG} Market Operations - Stress Tests`, function () {
           config.alpha
         );
 
+      await core.connect(keeper).setMarketActive(config.id, true);
+
       const market = await core.getMarket(config.id);
       expect(Number(market.numBins)).to.equal(config.tickCount - 1);
       expect(market.liquidityParameter).to.equal(config.alpha);

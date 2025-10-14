@@ -38,7 +38,9 @@ async function createTestMarket(
       settlementTime,
       alpha
     );
-  return { marketId: Number(marketIdBig), settlementTime };
+  const marketId = Number(marketIdBig);
+  await core.connect(keeper).setMarketActive(marketId, true);
+  return { marketId, settlementTime };
 }
 
 

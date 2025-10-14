@@ -4,6 +4,7 @@ import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
 import {
   unitFixture,
   createMarketWithId,
+  setMarketActivation,
   ALPHA,
   INITIAL_SUPPLY,
   MARKET_DURATION,
@@ -100,6 +101,8 @@ async function createActiveMarketProxyFixture() {
     settlementTime,
     ALPHA,
   ]);
+
+  await setMarketActivation(core, keeper, marketId, true);
 
   await time.increaseTo(startTime + 1);
 

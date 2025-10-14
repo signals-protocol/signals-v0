@@ -6,6 +6,7 @@ import {
   createActiveMarketFixture,
   setupActiveMarket,
   setupCustomMarket,
+  setMarketActivation,
   settleMarketAtTick,
   toSettlementValue,
   getTickValue,
@@ -687,6 +688,7 @@ describeMaybe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
         );
 
       const marketId = Number(marketIdBig);
+      await setMarketActivation(core, keeper, marketId, true);
 
       // PENDING state - before market starts
       let market = await core.getMarket(marketId);

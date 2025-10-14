@@ -2,9 +2,13 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
 import {
+  coreFixture,
   createActiveMarketFixture,
+  createMarketWithConfig,
+  setMarketActivation,
   setupActiveMarket,
   unitFixture,
+  toSettlementValue,
   ALPHA,
   TICK_COUNT,
   MARKET_DURATION,
@@ -71,6 +75,91 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Access Control`, function () {
             maxCost
           )
       ).to.not.be.reverted;
+    });
+  });
+
+  describe("Market Activation Controls", function () {
+    it("Should restrict activation toggles to owner", async function () {
+      const contracts = await loadFixture(coreFixture);
+      const { core, keeper, alice } = contracts;
+
+      const now = await time.latest();
+      const startTime = now + 600;
+      const endTime = startTime + MARKET_DURATION;
+      const marketId = await createMarketWithConfig(core, keeper, {
+        minTick: 100000,
+        maxTick: 100990,
+        tickSpacing: 10,
+        startTime,
+        endTime,
+        liquidityParameter: ALPHA,
+      });
+
+      await expect(
+        core.connect(alice).setMarketActive(marketId, true)
+      )
+        .to.be.revertedWithCustomError(core, "OwnableUnauthorizedAccount")
+        .withArgs(alice.address);
+
+      const tx = core.connect(keeper).setMarketActive(marketId, true);
+      await expect(tx)
+        .to.emit(core, "MarketActivationUpdated")
+        .withArgs(BigInt(marketId), true);
+    });
+
+    it("Should prevent activation changes after settlement", async function () {
+      const contracts = await loadFixture(coreFixture);
+      const { core, keeper } = contracts;
+
+      const now = await time.latest();
+      const startTime = now + 600;
+      const endTime = startTime + MARKET_DURATION;
+      const settlementTime = endTime + 3600;
+      const marketId = await createMarketWithConfig(core, keeper, {
+        minTick: 100000,
+        maxTick: 100990,
+        tickSpacing: 10,
+        startTime,
+        endTime,
+        liquidityParameter: ALPHA,
+        settlementTime,
+      });
+
+      await setMarketActivation(core, keeper, marketId, true);
+      await time.increaseTo(settlementTime + 1);
+
+      await core
+        .connect(keeper)
+        .settleMarket(marketId, toSettlementValue(100450));
+
+      await expect(
+        core.connect(keeper).setMarketActive(marketId, true)
+      ).to.be.revertedWithCustomError(core, "MarketAlreadySettled");
+    });
+
+    it("Should be idempotent when toggling to same state", async function () {
+      const contracts = await loadFixture(coreFixture);
+      const { core, keeper } = contracts;
+
+      const now = await time.latest();
+      const startTime = now + 600;
+      const endTime = startTime + MARKET_DURATION;
+      const marketId = await createMarketWithConfig(core, keeper, {
+        minTick: 100000,
+        maxTick: 100990,
+        tickSpacing: 10,
+        startTime,
+        endTime,
+        liquidityParameter: ALPHA,
+      });
+
+      const activateTx = core.connect(keeper).setMarketActive(marketId, true);
+      await expect(activateTx)
+        .to.emit(core, "MarketActivationUpdated")
+        .withArgs(BigInt(marketId), true);
+
+      const noopTx = core.connect(keeper).setMarketActive(marketId, true);
+      await expect(noopTx).to.not.emit(core, "MarketActivationUpdated");
     });
   });
 
