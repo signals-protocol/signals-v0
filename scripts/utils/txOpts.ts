@@ -1,12 +1,16 @@
 import { ethers } from "hardhat";
+import type { Provider } from "ethers";
 
 /**
  * Get safe transaction options with higher fees to avoid "replacement transaction underpriced"
  * @param multiplier Fee multiplier (default 1.15 = 15% increase)
  * @returns Transaction options with bumped fees
  */
-export async function safeTxOpts(multiplier = 1.15) {
-  const fee = await ethers.provider.getFeeData();
+export async function safeTxOpts(
+  multiplier = 1.15,
+  provider?: Provider
+) {
+  const fee = await (provider ?? ethers.provider).getFeeData();
 
   const bump = (x: bigint | null) => {
     if (!x) return ethers.parseUnits("2", "gwei"); // Fallback
@@ -20,6 +24,13 @@ export async function safeTxOpts(multiplier = 1.15) {
     ),
     gasLimit: 6000000, // Increased for new LazyMulSegmentTree features
   };
+}
+
+export async function safeTxOptsPinned(
+  provider: Provider,
+  multiplier = 1.15
+) {
+  return safeTxOpts(multiplier, provider);
 }
 
 /**

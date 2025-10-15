@@ -1,19 +1,51 @@
 import { ethers, upgrades } from "hardhat";
 import { envManager } from "../utils/environment";
 import type { Environment } from "../types/environment";
-import { safeTxOpts, delay, safeExecuteTx } from "../utils/txOpts";
+import { safeTxOptsPinned, delay } from "../utils/txOpts";
 import { UpgradeSafetyChecker } from "../safety-checks";
 import { OpenZeppelinManifestManager } from "../manage-manifest";
+
+const TX_DELAY_MS = Number(process.env.TX_DELAY_MS ?? "10000");
+const PINNED_RPC_URL =
+  process.env.PINNED_RPC_URL ?? process.env.RPC_URL;
+
+if (!PINNED_RPC_URL) {
+  throw new Error(
+    "PINNED_RPC_URL must be set to bypass Hardhat provider entirely."
+  );
+}
+
+const pinnedProvider = new ethers.JsonRpcProvider(PINNED_RPC_URL);
+
+const DEPLOYER_PRIVATE_KEY =
+  process.env.DEPLOYER_PRIVATE_KEY ?? process.env.PRIVATE_KEY;
+
+if (!DEPLOYER_PRIVATE_KEY) {
+  throw new Error(
+    "DEPLOYER_PRIVATE_KEY (or PRIVATE_KEY) is required to run the upgrade action with a pinned signer."
+  );
+}
+
+const pinnedDeployer = new ethers.Wallet(DEPLOYER_PRIVATE_KEY, pinnedProvider);
+
+const EXPECTED_CHAIN_ID = BigInt(process.env.EXPECTED_CHAIN_ID ?? "5115");
+
+const EIP1967_IMPLEMENTATION_SLOT =
+  "0x360894A13BA1A3210667C828492DB98DCA3E2076CC3735A920A3CA505D382BBC";
 
 /**
  * Citrea 시퀀서 RPC 오류 판별 함수
  */
 function isIgnorableSequencerError(e: any): boolean {
+  const msg = String(e?.data || e?.message || e || "");
   return (
     e?.code === -32001 ||
-    /SEQUENCER_CLIENT_ERROR/i.test(e?.message) ||
-    /missing field `result\/error`/i.test(e?.data || e?.message) ||
-    /Parse error/i.test(e?.data || e?.message)
+    /SEQUENCER_CLIENT_ERROR/i.test(msg) ||
+    /missing field `result\/error`/i.test(msg) ||
+    /Parse error/i.test(msg) ||
+    /invalid json response|unexpected token|econnreset|etimedout|socket hang up|fetch failed/i.test(
+      msg
+    )
   );
 }
 
@@ -34,6 +66,41 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
 }
 
 /**
+ * EIP-1967 구현체 슬롯을 직접 조회하여 주소 반환
+ */
+async function getImplementationAddress(proxy: string): Promise<string> {
+  const storageReader =
+    typeof (pinnedProvider as any).getStorageAt === "function"
+      ? (address: string, slot: string) =>
+          (pinnedProvider as any).getStorageAt(address, slot)
+      : typeof (pinnedProvider as any).getStorage === "function"
+      ? (address: string, slot: string) =>
+          (pinnedProvider as any).getStorage(address, slot)
+      : null;
+
+  if (!storageReader) {
+    throw new Error("Pinned provider does not support storage slot reads");
+  }
+
+  const rawSlot = await withRetry(() =>
+    storageReader(proxy, EIP1967_IMPLEMENTATION_SLOT)
+  );
+
+  if (!rawSlot || rawSlot === "0x" || /^0x0+$/.test(rawSlot.toLowerCase())) {
+    throw new Error(`Empty implementation slot for proxy ${proxy}`);
+  }
+
+  const addressHex = rawSlot.slice(-40);
+  try {
+    return ethers.getAddress(`0x${addressHex}`);
+  } catch (error) {
+    throw new Error(
+      `Failed to parse implementation slot for proxy ${proxy}: ${rawSlot}`
+    );
+  }
+}
+
+/**
  * 업그레이드 후 구현체 주소가 변경될 때까지 폴링하여 대기
  */
 async function waitForImplChange(
@@ -44,9 +111,7 @@ async function waitForImplChange(
 ): Promise<string> {
   for (let i = 0; i < attempts; i++) {
     try {
-      const cur = (
-        await upgrades.erc1967.getImplementationAddress(proxy)
-      ).toLowerCase();
+      const cur = (await getImplementationAddress(proxy)).toLowerCase();
       if (!prev || cur !== prev.toLowerCase()) {
         console.log(`✅ Implementation changed to: ${cur}`);
         return cur;
@@ -87,7 +152,7 @@ async function waitForImplChange(
 
   // 마지막으로 한 번 더 시도
   try {
-    const finalResult = await upgrades.erc1967.getImplementationAddress(proxy);
+    const finalResult = await getImplementationAddress(proxy);
     console.log(`📋 Final implementation address: ${finalResult}`);
     return finalResult;
   } catch (error) {
@@ -112,8 +177,8 @@ async function verifyImplementationConsistency(
 
   // Position 프록시 검증
   if (addresses.CLMSRPositionProxy && addresses.CLMSRPositionImplementation) {
-    const actualPosition = await withRetry(() =>
-      upgrades.erc1967.getImplementationAddress(addresses.CLMSRPositionProxy!)
+    const actualPosition = await getImplementationAddress(
+      addresses.CLMSRPositionProxy!
     );
     if (
       actualPosition.toLowerCase() !==
@@ -150,8 +215,8 @@ async function verifyImplementationConsistency(
     addresses.CLMSRMarketCoreProxy &&
     addresses.CLMSRMarketCoreImplementation
   ) {
-    const actualCore = await withRetry(() =>
-      upgrades.erc1967.getImplementationAddress(addresses.CLMSRMarketCoreProxy!)
+    const actualCore = await getImplementationAddress(
+      addresses.CLMSRMarketCoreProxy!
     );
     if (
       actualCore.toLowerCase() !==
@@ -185,8 +250,8 @@ async function verifyImplementationConsistency(
 
   // Points 프록시 검증
   if (addresses.PointsGranterProxy && addresses.PointsGranterImplementation) {
-    const actualPoints = await withRetry(() =>
-      upgrades.erc1967.getImplementationAddress(addresses.PointsGranterProxy!)
+    const actualPoints = await getImplementationAddress(
+      addresses.PointsGranterProxy!
     );
     if (
       actualPoints.toLowerCase() !==
@@ -232,7 +297,14 @@ async function verifyImplementationConsistency(
 export async function upgradeAction(environment: Environment): Promise<void> {
   console.log(`⬆️ Upgrading ${environment} to latest contract`);
 
-  const [deployer] = await ethers.getSigners();
+  const networkInfo = await pinnedProvider.getNetwork();
+  if (networkInfo.chainId !== EXPECTED_CHAIN_ID) {
+    throw new Error(
+      `Unexpected chainId ${networkInfo.chainId}; expected ${EXPECTED_CHAIN_ID}`
+    );
+  }
+
+  const deployer = pinnedDeployer;
   console.log("👤 Deployer:", deployer.address);
 
   const addresses = envManager.getDeployedAddresses(environment);
@@ -256,6 +328,7 @@ export async function upgradeAction(environment: Environment): Promise<void> {
   const CLMSRMarketCoreImport = await ethers.getContractFactory(
     "CLMSRMarketCore",
     {
+      signer: deployer,
       libraries: {
         FixedPointMathU: addresses.FixedPointMathU!,
         LazyMulSegmentTree: addresses.LazyMulSegmentTree!,
@@ -281,7 +354,9 @@ export async function upgradeAction(environment: Environment): Promise<void> {
   // Position forceImport
   if (addresses.CLMSRPositionProxy) {
     try {
-      const CLMSRPosition = await ethers.getContractFactory("CLMSRPosition");
+      const CLMSRPosition = await ethers.getContractFactory("CLMSRPosition", {
+        signer: deployer,
+      });
       await upgrades.forceImport(addresses.CLMSRPositionProxy, CLMSRPosition, {
         kind: "uups",
       });
@@ -295,7 +370,9 @@ export async function upgradeAction(environment: Environment): Promise<void> {
   // Points forceImport
   if (addresses.PointsGranterProxy) {
     try {
-      const PointsGranter = await ethers.getContractFactory("PointsGranter");
+      const PointsGranter = await ethers.getContractFactory("PointsGranter", {
+        signer: deployer,
+      });
       await upgrades.forceImport(addresses.PointsGranterProxy, PointsGranter, {
         kind: "uups",
       });
@@ -306,17 +383,20 @@ export async function upgradeAction(environment: Environment): Promise<void> {
     }
   }
 
-  await delay(1000);
+  await delay(TX_DELAY_MS);
 
   console.log("📝 Manifest synchronized with on-chain state");
 
   // 새 라이브러리 배포 (FLUSH_THRESHOLD 등 신기능 포함)
   console.log("📚 Deploying new LazyMulSegmentTree library...");
-  const txOpts = await safeTxOpts();
+  const txOpts = await safeTxOptsPinned(pinnedProvider);
 
   const LazyMulSegmentTree = await ethers.getContractFactory(
     "LazyMulSegmentTree",
-    { libraries: { FixedPointMathU: addresses.FixedPointMathU } }
+    {
+      signer: deployer,
+      libraries: { FixedPointMathU: addresses.FixedPointMathU },
+    }
   );
   const newSegmentTree = await withRetry(
     () => LazyMulSegmentTree.deploy(txOpts),
@@ -336,11 +416,13 @@ export async function upgradeAction(environment: Environment): Promise<void> {
     newSegmentTreeAddress
   );
   console.log("✅ New LazyMulSegmentTree deployed:", newSegmentTreeAddress);
+  await delay(TX_DELAY_MS);
 
   console.log("🏢 Deploying CLMSRMarketManager implementation...");
   const CLMSRMarketManager = await ethers.getContractFactory(
     "CLMSRMarketManager",
     {
+      signer: deployer,
       libraries: {
         LazyMulSegmentTree: newSegmentTreeAddress,
       },
@@ -350,7 +432,7 @@ export async function upgradeAction(environment: Environment): Promise<void> {
     () => CLMSRMarketManager.deploy(txOpts),
     5
   );
-  await delay(4000);
+  await delay(TX_DELAY_MS);
   await withRetry(() => managerContract.waitForDeployment(), 5);
   const managerAddress = await withRetry(() => managerContract.getAddress(), 5);
   envManager.updateContract(
@@ -363,19 +445,21 @@ export async function upgradeAction(environment: Environment): Promise<void> {
 
   // Position contract 업그레이드 (안전한 방법)
   console.log("🎭 Upgrading Position contract...");
-  await delay(3000); // Wait between transactions
+  await delay(TX_DELAY_MS);
 
   let newPositionImplAddress = addresses.CLMSRPositionImplementation;
 
   if (addresses.CLMSRPositionProxy) {
     try {
       // 업그레이드 이전 구현체 주소를 저장 (RPC 재시도 포함)
-      const beforePosImpl = await withRetry(() =>
-        upgrades.erc1967.getImplementationAddress(addresses.CLMSRPositionProxy)
+      const beforePosImpl = await getImplementationAddress(
+        addresses.CLMSRPositionProxy
       );
       console.log("📋 Position impl before upgrade:", beforePosImpl);
 
-      const CLMSRPosition = await ethers.getContractFactory("CLMSRPosition");
+      const CLMSRPosition = await ethers.getContractFactory("CLMSRPosition", {
+        signer: deployer,
+      });
 
       // upgradeProxy 호출 시 RPC 오류 처리 + 재시도 보강
       await withRetry(async () => {
@@ -386,7 +470,7 @@ export async function upgradeAction(environment: Environment): Promise<void> {
             {
               kind: "uups",
               redeployImplementation: "always",
-              txOverrides: await safeTxOpts(),
+              txOverrides: await safeTxOptsPinned(pinnedProvider),
             }
           );
           console.log("✅ Position upgradeProxy completed successfully");
@@ -428,7 +512,8 @@ export async function upgradeAction(environment: Environment): Promise<void> {
       // 0) 오너십 확인 (UUPS onlyOwner)
       const positionReadonly = await ethers.getContractAt(
         "CLMSRPosition",
-        addresses.CLMSRPositionProxy
+        addresses.CLMSRPositionProxy,
+        deployer
       );
       const currentOwner = await positionReadonly.owner();
       console.log("🧑‍⚖️ Position owner:", currentOwner);
@@ -439,9 +524,10 @@ export async function upgradeAction(environment: Environment): Promise<void> {
       }
 
       // 1) 새 구현 컨트랙트 직접 배포 (Initializable, no constructor)
-      const txOverrides = await safeTxOpts();
+      const txOverrides = await safeTxOptsPinned(pinnedProvider);
       const PositionImplFactory = await ethers.getContractFactory(
-        "CLMSRPosition"
+        "CLMSRPosition",
+        { signer: deployer }
       );
       const positionImpl = await PositionImplFactory.deploy(txOverrides);
       await positionImpl.waitForDeployment();
@@ -450,8 +536,8 @@ export async function upgradeAction(environment: Environment): Promise<void> {
 
       // 2) proxy.upgradeTo(새 구현) 호출 (UUPS, onlyOwner)
       // 업그레이드 이전 구현체 주소를 다시 한 번 저장 (수동 업그레이드 전)
-      const beforeManualPosImpl = await withRetry(() =>
-        upgrades.erc1967.getImplementationAddress(addresses.CLMSRPositionProxy!)
+      const beforeManualPosImpl = await getImplementationAddress(
+        addresses.CLMSRPositionProxy!
       );
       // ethers v6에서 안전하게 직접 인코딩하여 트랜잭션 전송
       try {
@@ -516,91 +602,181 @@ export async function upgradeAction(environment: Environment): Promise<void> {
 
   // Core contract 업그레이드
   console.log("🔧 Upgrading Core contract with new library...");
-  await delay(3000); // Wait between transactions
+  await delay(TX_DELAY_MS);
 
-  // Core 업그레이드 (레이스 컨디션 제거)
+  let coreImplAddress = addresses.CLMSRMarketCoreImplementation;
 
   // 업그레이드 이전 구현체 주소를 저장
-  const beforeCoreImpl = await withRetry(() =>
-    upgrades.erc1967.getImplementationAddress(addresses.CLMSRMarketCoreProxy!)
+  const beforeCoreImpl = await getImplementationAddress(
+    addresses.CLMSRMarketCoreProxy!
   );
   console.log("📋 Core impl before upgrade:", beforeCoreImpl);
 
-  // Core contract 업그레이드 (매니페스트 이미 동기화됨)
   const CLMSRMarketCore = await ethers.getContractFactory("CLMSRMarketCore", {
+    signer: deployer,
     libraries: {
       FixedPointMathU: addresses.FixedPointMathU,
-      LazyMulSegmentTree: newSegmentTreeAddress, // 새 라이브러리 주소 사용
+      LazyMulSegmentTree: newSegmentTreeAddress,
     },
   });
 
-  await withRetry(
-    async () =>
-      upgrades.upgradeProxy(addresses.CLMSRMarketCoreProxy!, CLMSRMarketCore, {
-        kind: "uups",
-        redeployImplementation: "always",
-        unsafeAllow: ["external-library-linking", "delegatecall"],
-        txOverrides: await safeTxOpts(),
-      }),
-    5
-  );
+  try {
+    await withRetry(async () => {
+      try {
+        await upgrades.upgradeProxy(
+          addresses.CLMSRMarketCoreProxy!,
+          CLMSRMarketCore,
+          {
+            kind: "uups",
+            redeployImplementation: "always",
+            unsafeAllow: ["external-library-linking", "delegatecall"],
+            txOverrides: await safeTxOptsPinned(pinnedProvider),
+          }
+        );
+        console.log("✅ Core upgradeProxy completed successfully");
+      } catch (upgradeError) {
+        if (isIgnorableSequencerError(upgradeError)) {
+          console.warn(
+            "⚠️ RPC 파싱 오류 발생했지만 업그레이드는 성공했을 가능성 높음. 온체인 상태로 검증 진행..."
+          );
+        } else {
+          throw upgradeError;
+        }
+      }
+    }, 5);
 
-  // 새 구현체 주소가 반영될 때까지 대기(폴링)
-  const newImplAddress = await waitForImplChange(
-    addresses.CLMSRMarketCoreProxy!,
-    beforeCoreImpl
-  );
-  console.log("📋 Core impl after upgrade:", newImplAddress);
+    coreImplAddress = await waitForImplChange(
+      addresses.CLMSRMarketCoreProxy!,
+      beforeCoreImpl
+    );
+    console.log("📋 Core impl after upgrade:", coreImplAddress);
 
-  envManager.updateContract(
-    environment,
-    "core",
-    "CLMSRMarketCoreImplementation",
-    newImplAddress
-  );
-  console.log("✅ Core contract upgraded:", newImplAddress);
+    envManager.updateContract(
+      environment,
+      "core",
+      "CLMSRMarketCoreImplementation",
+      coreImplAddress
+    );
+    console.log("✅ Core contract upgraded:", coreImplAddress);
+  } catch (error) {
+    const msg = (error as any)?.message ?? String(error);
+    console.warn(
+      "⚠️ Core contract upgrade via upgrades.upgradeProxy failed:",
+      msg
+    );
+    console.log("🔁 Falling back to manual UUPS upgrade flow for Core...");
+
+    const coreReadonly = await ethers.getContractAt(
+      "CLMSRMarketCore",
+      addresses.CLMSRMarketCoreProxy!,
+      deployer
+    );
+    const currentOwner = await coreReadonly.owner();
+    console.log("🧑‍⚖️ Core owner:", currentOwner);
+    if (currentOwner.toLowerCase() !== deployer.address.toLowerCase()) {
+      throw new Error(
+        `❌ Core owner is ${currentOwner}, not deployer ${deployer.address}. Use the owner key to upgrade.`
+      );
+    }
+
+    const deployOverrides = await safeTxOptsPinned(pinnedProvider);
+    const coreImpl = await CLMSRMarketCore.deploy(deployOverrides);
+    await coreImpl.waitForDeployment();
+    const manualImplAddr = await coreImpl.getAddress();
+    console.log("📦 Deployed new Core implementation:", manualImplAddr);
+
+    const beforeManualCoreImpl = await getImplementationAddress(
+      addresses.CLMSRMarketCoreProxy!
+    );
+
+    const upgradeOverrides = await safeTxOptsPinned(pinnedProvider);
+    try {
+      const iface = new ethers.Interface([
+        "function upgradeTo(address newImplementation)",
+      ]);
+      const data = iface.encodeFunctionData("upgradeTo", [manualImplAddr]);
+      const tx = await deployer.sendTransaction({
+        to: addresses.CLMSRMarketCoreProxy!,
+        data,
+        ...upgradeOverrides,
+      });
+      await tx.wait();
+    } catch (e) {
+      const msg2 = (e as any)?.message ?? String(e);
+      console.warn("⚠️ upgradeTo failed, trying upgradeToAndCall (0x):", msg2);
+      const iface2 = new ethers.Interface([
+        "function upgradeToAndCall(address newImplementation, bytes data)",
+      ]);
+      const data2 = iface2.encodeFunctionData("upgradeToAndCall", [
+        manualImplAddr,
+        "0x",
+      ]);
+      const tx2 = await deployer.sendTransaction({
+        to: addresses.CLMSRMarketCoreProxy!,
+        data: data2,
+        ...upgradeOverrides,
+      });
+      await tx2.wait();
+    }
+
+    coreImplAddress = await waitForImplChange(
+      addresses.CLMSRMarketCoreProxy!,
+      beforeManualCoreImpl
+    );
+    console.log("📋 Core impl after manual upgrade:", coreImplAddress);
+
+    envManager.updateContract(
+      environment,
+      "core",
+      "CLMSRMarketCoreImplementation",
+      coreImplAddress
+    );
+    console.log("✅ Core contract manually upgraded:", coreImplAddress);
+  }
 
   console.log("⚙️ Setting manager pointer on upgraded core...");
   const coreProxy = await ethers.getContractAt(
     "CLMSRMarketCore",
-    addresses.CLMSRMarketCoreProxy!
+    addresses.CLMSRMarketCoreProxy!,
+    deployer
   );
   await withRetry(
     async () =>
-      coreProxy
-        .connect(deployer)
-        .setManager(managerAddress, await safeTxOpts()),
+      coreProxy.setManager(
+        managerAddress,
+        await safeTxOptsPinned(pinnedProvider)
+      ),
     5
   );
   console.log("✅ Manager pointer updated to:", managerAddress);
 
   // PointsGranter 업그레이드 (안전한 방법)
   console.log("🎯 Upgrading PointsGranter...");
-  await delay(3000);
+  await delay(TX_DELAY_MS);
 
   let pointsImplAddress = addresses.PointsGranterImplementation;
   const pointsProxyAddress = addresses.PointsGranterProxy;
 
   if (addresses.PointsGranterProxy) {
+    const PointsGranterFactory = await ethers.getContractFactory(
+      "PointsGranter",
+      { signer: deployer }
+    );
     try {
-      // 업그레이드 이전 구현체 주소를 저장 (RPC 재시도 포함)
-      const beforePointsImpl = await withRetry(() =>
-        upgrades.erc1967.getImplementationAddress(addresses.PointsGranterProxy!)
+      const beforePointsImpl = await getImplementationAddress(
+        addresses.PointsGranterProxy!
       );
       console.log("📋 Points impl before upgrade:", beforePointsImpl);
 
-      const PointsGranter = await ethers.getContractFactory("PointsGranter");
-
-      // upgradeProxy 호출 시 RPC 오류 처리
       await withRetry(async () => {
         try {
           await upgrades.upgradeProxy(
             addresses.PointsGranterProxy!,
-            PointsGranter,
+            PointsGranterFactory,
             {
               kind: "uups",
               redeployImplementation: "always",
-              txOverrides: await safeTxOpts(),
+              txOverrides: await safeTxOptsPinned(pinnedProvider),
             }
           );
           console.log("✅ Points upgradeProxy completed successfully");
@@ -615,9 +791,8 @@ export async function upgradeAction(environment: Environment): Promise<void> {
         }
       }, 5);
 
-      // 새 구현체 주소가 반영될 때까지 대기(폴링) - 이미 withRetry 내장됨
       pointsImplAddress = await waitForImplChange(
-        pointsProxyAddress,
+        pointsProxyAddress!,
         beforePointsImpl
       );
       console.log("📋 Points impl after upgrade:", pointsImplAddress);
@@ -631,11 +806,81 @@ export async function upgradeAction(environment: Environment): Promise<void> {
       console.log("✅ PointsGranter upgraded:", pointsImplAddress);
     } catch (error) {
       const msg = (error as any)?.message ?? String(error);
-      console.warn("⚠️ PointsGranter upgrade failed, using existing:", msg);
-      console.log(
-        "📋 Using existing PointsGranter implementation:",
+      console.warn(
+        "⚠️ PointsGranter upgrade via upgrades.upgradeProxy failed:",
+        msg
+      );
+      console.log("🔁 Falling back to manual UUPS upgrade flow for Points...");
+
+      const pointsReadonly = await ethers.getContractAt(
+        "PointsGranter",
+        addresses.PointsGranterProxy!,
+        deployer
+      );
+      const currentOwner = await pointsReadonly.owner();
+      console.log("🧑‍⚖️ Points owner:", currentOwner);
+      if (currentOwner.toLowerCase() !== deployer.address.toLowerCase()) {
+        throw new Error(
+          `❌ Points owner is ${currentOwner}, not deployer ${deployer.address}. Use the owner key to upgrade.`
+        );
+      }
+
+      const deployOverrides = await safeTxOptsPinned(pinnedProvider);
+      const pointsImpl = await PointsGranterFactory.deploy(deployOverrides);
+      await pointsImpl.waitForDeployment();
+      const manualImplAddr = await pointsImpl.getAddress();
+      console.log("📦 Deployed new Points implementation:", manualImplAddr);
+
+      const beforeManualPointsImpl = await getImplementationAddress(
+        addresses.PointsGranterProxy!
+      );
+
+      const upgradeOverrides = await safeTxOptsPinned(pinnedProvider);
+      try {
+        const iface = new ethers.Interface([
+          "function upgradeTo(address newImplementation)",
+        ]);
+        const data = iface.encodeFunctionData("upgradeTo", [manualImplAddr]);
+        const tx = await deployer.sendTransaction({
+          to: addresses.PointsGranterProxy!,
+          data,
+          ...upgradeOverrides,
+        });
+        await tx.wait();
+      } catch (e) {
+        const msg2 = (e as any)?.message ?? String(e);
+        console.warn(
+          "⚠️ upgradeTo failed, trying upgradeToAndCall (0x):",
+          msg2
+        );
+        const iface2 = new ethers.Interface([
+          "function upgradeToAndCall(address newImplementation, bytes data)",
+        ]);
+        const data2 = iface2.encodeFunctionData("upgradeToAndCall", [
+          manualImplAddr,
+          "0x",
+        ]);
+        const tx2 = await deployer.sendTransaction({
+          to: addresses.PointsGranterProxy!,
+          data: data2,
+          ...upgradeOverrides,
+        });
+        await tx2.wait();
+      }
+
+      pointsImplAddress = await waitForImplChange(
+        pointsProxyAddress!,
+        beforeManualPointsImpl
+      );
+      console.log("📋 Points impl after manual upgrade:", pointsImplAddress);
+
+      envManager.updateContract(
+        environment,
+        "points",
+        "PointsGranterImplementation",
         pointsImplAddress
       );
+      console.log("✅ PointsGranter manually upgraded:", pointsImplAddress);
     }
   } else {
     throw new Error(
@@ -651,7 +896,7 @@ export async function upgradeAction(environment: Environment): Promise<void> {
     contracts: {
       LazyMulSegmentTree: newSegmentTreeAddress,
       CLMSRPositionImplementation: newPositionImplAddress,
-      CLMSRMarketCoreImplementation: newImplAddress,
+      CLMSRMarketCoreImplementation: coreImplAddress,
       CLMSRMarketManager: managerAddress,
       PointsGranterProxy: pointsProxyAddress,
       PointsGranterImplementation: pointsImplAddress,

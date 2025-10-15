@@ -13,6 +13,20 @@ function parseBoolean(value: string | undefined, fallback: boolean): boolean {
 export async function setMarketActiveAction(
   environment: Environment
 ): Promise<void> {
+  const pinnedRpcUrl = process.env.PINNED_RPC_URL ?? process.env.RPC_URL;
+  if (!pinnedRpcUrl) {
+    throw new Error("PINNED_RPC_URL (or RPC_URL) environment variable is required");
+  }
+
+  const privateKey =
+    process.env.DEPLOYER_PRIVATE_KEY ?? process.env.PRIVATE_KEY;
+  if (!privateKey) {
+    throw new Error("DEPLOYER_PRIVATE_KEY (or PRIVATE_KEY) environment variable is required");
+  }
+
+  const pinnedProvider = new ethers.JsonRpcProvider(pinnedRpcUrl);
+  const deployer = new ethers.Wallet(privateKey, pinnedProvider);
+
   const marketIdInput = process.env.MARKET_ID;
   if (!marketIdInput) {
     throw new Error("MARKET_ID environment variable is required");
@@ -31,7 +45,6 @@ export async function setMarketActiveAction(
     `🔁 setMarketActive(marketId=${marketId.toString()}, active=${desiredActive}) on ${environment}`
   );
 
-  const [deployer] = await ethers.getSigners();
   console.log("👤 Caller:", deployer.address);
 
   const addresses = envManager.getDeployedAddresses(environment);
@@ -42,7 +55,8 @@ export async function setMarketActiveAction(
 
   const core = await ethers.getContractAt(
     "CLMSRMarketCore",
-    addresses.CLMSRMarketCoreProxy
+    addresses.CLMSRMarketCoreProxy,
+    deployer
   );
 
   const market = await core.getMarket(marketId);
