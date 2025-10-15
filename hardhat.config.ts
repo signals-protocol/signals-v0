@@ -51,13 +51,13 @@ const config: HardhatUserConfig = {
     },
     // Citrea Testnet Tangerine (Production)
     "citrea-prod": {
-      url: "https://citrea-testnet.blastapi.io/475d3b4a-99af-4271-b84f-ff6f8f5f7259",
+      url: "https://citrea-testnet.g.alchemy.com/v2/Oz8-bskLalE8OHisEsJZM",
       chainId: 5115,
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
     },
     // Citrea Testnet Tangerine (Development)
     "citrea-dev": {
-      url: "https://citrea-testnet.blastapi.io/475d3b4a-99af-4271-b84f-ff6f8f5f7259",
+      url: "https://citrea-testnet.g.alchemy.com/v2/Oz8-bskLalE8OHisEsJZM",
       chainId: 5115,
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
     },
