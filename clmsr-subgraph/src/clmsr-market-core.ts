@@ -6,6 +6,8 @@ import {
   log,
 } from "@graphprotocol/graph-ts";
 import { loadMarketOrSkip, loadPosOrSkip, loadBinOrSkip } from "./_safeload";
+import { wad, zero, one } from "./constants";
+import { computeRangeFactorCorrection } from "./range-factor-correction";
 import {
   checkActivityLimit,
   calcActivityPoints,
@@ -1029,31 +1031,43 @@ export function handleRangeFactorApplied(event: RangeFactorAppliedEvent): void {
   if (lo > maxIdx) lo = maxIdx;
   if (hi > maxIdx) hi = maxIdx;
 
+  const bins = new Array<BinState>();
+  const values = new Array<BigInt>();
+
   for (let i = lo; i <= hi; i++) {
     const id = buildBinStateId(event.params.marketId, i);
     let bin = loadBinOrSkip(id, "handleRangeFactorApplied");
+    let binState: BinState;
     if (bin == null) {
-      // get-or-create for missing BinState
-      let lowerTickBin = market.minTick.plus(
+      const lowerTickBin = market.minTick.plus(
         BigInt.fromI32(i).times(market.tickSpacing)
       );
-      let upperTickBin = lowerTickBin.plus(market.tickSpacing);
-      bin = new BinState(id);
-      bin.market = market.id;
-      bin.binIndex = BigInt.fromI32(i);
-      bin.lowerTick = lowerTickBin;
-      bin.upperTick = upperTickBin;
-      bin.currentFactor = BigInt.fromString("1000000000000000000");
-      bin.lastUpdated = event.block.timestamp;
-      bin.updateCount = BigInt.fromI32(0);
-      bin.totalVolume = BigInt.fromI32(0);
+      const upperTickBin = lowerTickBin.plus(market.tickSpacing);
+      binState = new BinState(id);
+      binState.market = market.id;
+      binState.binIndex = BigInt.fromI32(i);
+      binState.lowerTick = lowerTickBin;
+      binState.upperTick = upperTickBin;
+      binState.currentFactor = wad();
+      binState.lastUpdated = event.block.timestamp;
+      binState.updateCount = zero();
+      binState.totalVolume = zero();
+    } else {
+      binState = bin;
     }
-    bin.currentFactor = bin.currentFactor
-      .times(event.params.factor)
-      .div(BigInt.fromString("1000000000000000000"));
-    bin.lastUpdated = event.block.timestamp;
-    bin.updateCount = bin.updateCount.plus(BigInt.fromI32(1));
-    bin.save();
+    bins.push(binState);
+    values.push(binState.currentFactor);
+  }
+
+  const correction = computeRangeFactorCorrection(values, event.params.factor);
+
+  for (let i = 0; i < bins.length; i++) {
+    const binState = bins[i];
+    const nextValue = correction.correctedValues[i];
+    binState.currentFactor = nextValue;
+    binState.lastUpdated = event.block.timestamp;
+    binState.updateCount = binState.updateCount.plus(one());
+    binState.save();
   }
 
   // MarketDistribution 완전 제거로 성능 최적화 - 별도 처리 불필요
