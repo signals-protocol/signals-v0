@@ -41,8 +41,6 @@ contract CLMSRMarketCore is
         FixedPointMathU.wLn
     } for uint256;
 
-
-
     // ========================================
     // CONSTANTS
     // ========================================
@@ -1059,10 +1057,10 @@ contract CLMSRMarketCore is
                 uint256 ratio = sumAfter.wDiv(currentSumBefore);
                 uint256 chunkCost = alpha.wMul(ratio.wLn());
                 totalCost += chunkCost;
-                
+
                 // Ensure we make progress to prevent infinite loops
                 require(chunkQuantity != 0, CE.NoChunkProgress());
-                
+
                 // Update state for next chunk
                 currentSumBefore = sumAfter;
                 currentAffectedSum = newAffectedSum;
@@ -1210,10 +1208,10 @@ contract CLMSRMarketCore is
                     uint256 chunkProceeds = alpha.wMul(ratio.wLn());
                     totalProceeds += chunkProceeds;
                 }
-                
+
                 // Ensure we make progress to prevent infinite loops
                 require(chunkQuantity != 0, CE.NoChunkProgress());
-                
+
                 // Update state for next chunk
                 currentSumBefore = sumAfter;
                 currentAffectedSum = newAffectedSum;
@@ -1228,9 +1226,6 @@ contract CLMSRMarketCore is
         }
     }
     
-    /// @notice Debug event for sell proceeds calculation
-    event DebugSellProceeds(uint256 step, uint256 value1, uint256 value2, string message);
-
     /// @notice Calculate proceeds for a single chunk (small quantity)
     function _calculateSingleSellProceeds(
         uint256 marketId,
@@ -1363,9 +1358,8 @@ contract CLMSRMarketCore is
         
         if (quantity <= maxSafeQuantityPerChunk) {
             // Safe to apply in single operation
-            uint256 quantityScaled = quantity.wDiv(alpha);
-            uint256 factor = quantityScaled.wExp();
-            
+            uint256 factor = (quantity.wDiv(alpha)).wExp();
+
             if (!isBuy) {
                 // For sell, use inverse factor
                 factor = FixedPointMathU.WAD.wDiv(factor);
@@ -1399,21 +1393,20 @@ contract CLMSRMarketCore is
                     ? maxSafeQuantityPerChunk 
                     : remainingQuantity;
                 
-                uint256 quantityScaled = chunkQuantity.wDiv(alpha);
-                uint256 factor = quantityScaled.wExp();
-                
+                uint256 factor = (chunkQuantity.wDiv(alpha)).wExp();
+
                 if (!isBuy) {
                     // For sell, use inverse factor
                     factor = FixedPointMathU.WAD.wDiv(factor);
                 }
-                
+
                 // Verify factor is within safe bounds for each chunk
                 require(
                     factor >= LazyMulSegmentTree.MIN_FACTOR &&
                         factor <= LazyMulSegmentTree.MAX_FACTOR,
                     CE.FactorOutOfBounds()
                 );
-                
+
                 LazyMulSegmentTree.applyRangeFactor(marketTrees[marketId], loBin, hiBin, factor);
                 // Use original tick values for event
                 emit RangeFactorApplied(marketId, lowerTick, upperTick, factor);

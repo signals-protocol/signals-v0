@@ -63,7 +63,6 @@
   "error UnauthorizedCaller(address)",
   "error ZeroAddress()",
   "error ZeroLimit()",
-  "event DebugSellProceeds(uint256,uint256,uint256,string)",
   "event EmergencyPaused(indexed address,string)",
   "event EmergencyUnpaused(indexed address)",
   "event Initialized(uint64)",

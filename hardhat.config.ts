@@ -64,7 +64,11 @@ const config: HardhatUserConfig = {
 
     // Hardhat local network
     hardhat: {
-      chainId: 31337,
+      chainId: 5115,
+      hardfork: "cancun",
+      hardforkHistory: {
+        cancun: 0,
+      },
       allowUnlimitedContractSize: true,
       blockGasLimit: 30000000,
       gas: 30000000,

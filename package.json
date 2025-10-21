@@ -87,6 +87,7 @@
     "@openzeppelin/contracts-upgradeable": "^5.4.0",
     "@openzeppelin/hardhat-upgrades": "^3.9.1",
     "@prb/math": "^4.1.0",
-    "axios": "^1.10.0"
+    "axios": "^1.10.0",
+    "decimal.js": "^10.6.0"
   }
 }
