@@ -151,6 +151,31 @@ library LazyMulSegmentTree {
         node.sum = _defaultSum(l, r); // Default sum for range
     }
 
+    /// @notice Apply multiplicative factor to node sum with sell-side rounding compensation
+    /// @param node Node storage reference
+    /// @param factor Multiplication factor
+    function _scaleNodeSum(Node storage node, uint256 factor) private {
+        if (factor == ONE_WAD) {
+            return;
+        }
+
+        uint256 priorSum = node.sum;
+        if (priorSum == 0) {
+            return;
+        }
+
+        uint256 scaled = priorSum.wMul(factor);
+        uint256 remainder = mulmod(priorSum, factor, ONE_WAD);
+
+        if (factor < ONE_WAD && remainder != 0) {
+            unchecked {
+                scaled += 1;
+            }
+        }
+
+        node.sum = scaled;
+    }
+
     /// @notice Apply lazy propagation to a node
     /// @dev INVARIANT: node.sum already contains its own pendingFactor
     /// @param tree Tree storage reference
@@ -160,10 +185,18 @@ library LazyMulSegmentTree {
         if (nodeIndex == 0 || factor == ONE_WAD) return;
         
         Node storage node = tree.nodes[nodeIndex];
-        node.sum = node.sum.wMul(factor);
+        _scaleNodeSum(node, factor);
         
-        uint256 newPendingFactor = uint256(node.pendingFactor).wMul(factor);
-        
+        uint256 priorPending = uint256(node.pendingFactor);
+        uint256 newPendingFactor = priorPending.wMul(factor);
+        uint256 pendingRemainder = mulmod(priorPending, factor, ONE_WAD);
+
+        if (factor < ONE_WAD && pendingRemainder != 0) {
+            unchecked {
+                newPendingFactor += 1;
+            }
+        }
+
         require(newPendingFactor <= type(uint192).max, CE.LazyFactorOverflow());
         node.pendingFactor = uint192(newPendingFactor);
         
@@ -260,9 +293,16 @@ library LazyMulSegmentTree {
         
         // Complete overlap - apply lazy update with smart auto-flush
         if (l >= lo && r <= hi) {
-            node.sum = node.sum.wMul(factor);
-            
-            uint256 newPendingFactor = uint256(node.pendingFactor).wMul(factor);
+            _scaleNodeSum(node, factor);
+
+            uint256 priorPending = uint256(node.pendingFactor);
+            uint256 newPendingFactor = priorPending.wMul(factor);
+            uint256 pendingRemainder = mulmod(priorPending, factor, ONE_WAD);
+            if (factor < ONE_WAD && pendingRemainder != 0) {
+                unchecked {
+                    newPendingFactor += 1;
+                }
+            }
             
             if (newPendingFactor < UNDERFLOW_FLUSH_THRESHOLD) {
                 // Mirror the overflow flush: push accumulated lazy when it shrinks too far
