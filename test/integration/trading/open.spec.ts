@@ -33,7 +33,9 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
       liquidityParameter: ethers.parseEther("1"),
     });
 
-    await time.increaseTo(startTime + 1);
+    const target = startTime + 1;
+    const latestTs = await time.latest();
+    await time.increaseTo(target > latestTs ? target : latestTs + 1);
 
     const quantity = MEDIUM_QUANTITY;
     const cost = await core.calculateOpenCost(marketId, 100450, 100550, quantity);
