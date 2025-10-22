@@ -62,4 +62,15 @@ library FixedPointMathU {
         require(b != 0, FP_DivisionByZero());
         return mulDiv(a, WAD, b);
     }
+
+    function wDivUp(uint256 a, uint256 b) external pure returns (uint256) {
+        require(b != 0, FP_DivisionByZero());
+        uint256 result = mulDiv(a, WAD, b);
+        if (mulmod(a, WAD, b) != 0) {
+            unchecked {
+                result += 1;
+            }
+        }
+        return result;
+    }
 } 
