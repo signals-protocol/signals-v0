@@ -12,14 +12,20 @@ const FULL_RANGE_LO = 0;
 const FULL_RANGE_HI = TREE_SIZE - 1;
 const LEFT_RANGE_HI = HALF_SIZE - 1;
 
-function mulWadDown(a: bigint, b: bigint): bigint {
-  return (a * b) / WAD;
+function mulWadAdaptive(a: bigint, b: bigint): bigint {
+  const product = a * b;
+  const truncated = product / WAD;
+  const remainder = product % WAD;
+  if (b < WAD && remainder !== 0n) {
+    return truncated + 1n;
+  }
+  return truncated;
 }
 
 function expectedRangeSum(length: number, factor: bigint, iterations: number): bigint {
   let result = BigInt(length) * WAD;
   for (let i = 0; i < iterations; i++) {
-    result = mulWadDown(result, factor);
+    result = mulWadAdaptive(result, factor);
   }
   return result;
 }
@@ -27,7 +33,7 @@ function expectedRangeSum(length: number, factor: bigint, iterations: number): b
 function simulatePending(factor: bigint, iterations: number): bigint {
   let pending = WAD;
   for (let i = 0; i < iterations; i++) {
-    const candidate = mulWadDown(pending, factor);
+    const candidate = mulWadAdaptive(pending, factor);
     pending = candidate < UNDERFLOW_FLUSH_THRESHOLD ? factor : candidate;
   }
   return pending;
