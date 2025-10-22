@@ -37,6 +37,7 @@ contract CLMSRMarketCore is
         FixedPointMathU.fromWadRoundUp,
         FixedPointMathU.wMul,
         FixedPointMathU.wDiv,
+        FixedPointMathU.wDivUp,
         FixedPointMathU.wExp,
         FixedPointMathU.wLn
     } for uint256;
@@ -1054,7 +1055,7 @@ contract CLMSRMarketCore is
                 
                 // Calculate cost for this chunk: α * ln(sumAfter / sumBefore)
                 require(sumAfter > currentSumBefore, CE.NonIncreasingSum(currentSumBefore, sumAfter));
-                uint256 ratio = sumAfter.wDiv(currentSumBefore);
+                uint256 ratio = sumAfter.wDivUp(currentSumBefore);
                 uint256 chunkCost = alpha.wMul(ratio.wLn());
                 totalCost += chunkCost;
 
@@ -1110,7 +1111,7 @@ contract CLMSRMarketCore is
             return 0; // No cost if sum doesn't increase
         }
         
-        uint256 ratio = sumAfter.wDiv(sumBefore);
+        uint256 ratio = sumAfter.wDivUp(sumBefore);
         uint256 lnRatio = ratio.wLn();
         cost = alpha.wMul(lnRatio);
     }
@@ -1164,7 +1165,7 @@ contract CLMSRMarketCore is
                 // Calculate inverse factor for this chunk: 1 / exp(quantity/α)
                 uint256 quantityScaled = chunkQuantity.wDiv(alpha);
                 uint256 factor = quantityScaled.wExp();
-                uint256 inverseFactor = FixedPointMathU.WAD.wDiv(factor);
+                uint256 inverseFactor = FixedPointMathU.WAD.wDivUp(factor);
                 
                 // ✨ Adaptive overflow guard: check if multiplication would overflow
                 if (currentAffectedSum > type(uint256).max / inverseFactor) {
@@ -1183,7 +1184,7 @@ contract CLMSRMarketCore is
                     
                     quantityScaled = chunkQuantity.wDiv(alpha);
                     factor = quantityScaled.wExp();
-                    inverseFactor = FixedPointMathU.WAD.wDiv(factor);
+                    inverseFactor = FixedPointMathU.WAD.wDivUp(factor);
                 }
                 
                 // Calculate new sums after this chunk with overflow protection
@@ -1204,7 +1205,7 @@ contract CLMSRMarketCore is
                 
                 // Calculate proceeds for this chunk: α * ln(sumBefore / sumAfter)
                 if (currentSumBefore > sumAfter) {
-                    uint256 ratio = currentSumBefore.wDiv(sumAfter);
+                    uint256 ratio = currentSumBefore.wDivUp(sumAfter);
                     uint256 chunkProceeds = alpha.wMul(ratio.wLn());
                     totalProceeds += chunkProceeds;
                 }
@@ -1241,7 +1242,7 @@ contract CLMSRMarketCore is
         // Calculate multiplicative factor: exp(-quantity / α) = 1 / exp(quantity / α)
         uint256 quantityScaled = quantity.wDiv(alpha);
         uint256 factor = quantityScaled.wExp();
-        uint256 inverseFactor = FixedPointMathU.WAD.wDiv(factor);
+        uint256 inverseFactor = FixedPointMathU.WAD.wDivUp(factor);
         
         // Calculate sum after sell - convert range to indices
         (uint32 loBin, uint32 hiBin) = _rangeToBins(lowerTick, upperTick, market);
@@ -1263,7 +1264,7 @@ contract CLMSRMarketCore is
             return 0; // No proceeds if sum doesn't decrease
         }
         
-        uint256 ratio = sumBefore.wDiv(sumAfter);
+        uint256 ratio = sumBefore.wDivUp(sumAfter);
         uint256 lnRatio = ratio.wLn();
         proceeds = alpha.wMul(lnRatio);
     }
@@ -1362,7 +1363,7 @@ contract CLMSRMarketCore is
 
             if (!isBuy) {
                 // For sell, use inverse factor
-                factor = FixedPointMathU.WAD.wDiv(factor);
+                factor = FixedPointMathU.WAD.wDivUp(factor);
             }
             
             // Verify factor is within safe bounds
@@ -1397,7 +1398,7 @@ contract CLMSRMarketCore is
 
                 if (!isBuy) {
                     // For sell, use inverse factor
-                    factor = FixedPointMathU.WAD.wDiv(factor);
+                    factor = FixedPointMathU.WAD.wDivUp(factor);
                 }
 
                 // Verify factor is within safe bounds for each chunk
