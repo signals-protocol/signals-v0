@@ -170,6 +170,12 @@ export interface QuantityFromCostResult {
   actualCost: USDCAmount;
 }
 
+/** calculateQuantityFromProceeds 결과 (매도용 역함수) */
+export interface QuantityFromProceedsResult {
+  quantity: Quantity; // 매도할 수량 (양수)
+  actualProceeds: USDCAmount; // 실제 받을 수익
+}
+
 // ============================================================================
 // ERRORS
 // ============================================================================

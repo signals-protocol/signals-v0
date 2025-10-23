@@ -35,6 +35,7 @@ export {
   CloseProceedsResult,
   ClaimResult,
   QuantityFromCostResult,
+  QuantityFromProceedsResult,
 
   // Errors
   ValidationError,
@@ -47,5 +48,5 @@ export * as MathUtils from "./utils/math";
 // Convenience functions
 export { toWAD, toMicroUSDC } from "./clmsr-sdk";
 
-// Version
-export const VERSION = "1.7.1";
+// Version (keep in sync with package.json)
+export const VERSION = "1.10.0";

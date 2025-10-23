@@ -9,6 +9,7 @@ import {
   CloseProceedsResult,
   ClaimResult,
   QuantityFromCostResult,
+  QuantityFromProceedsResult,
   WADAmount,
   USDCAmount,
   Quantity,
@@ -307,6 +308,142 @@ export class CLMSRSDK {
     return {
       quantity: MathUtils.formatUSDC(quantity),
       actualCost: MathUtils.formatUSDC(actualCost),
+    };
+  }
+
+  /**
+   * 주어진 목표 수익(proceeds)으로 필요한 매도 수량 역산
+   * @param position 보유 포지션 정보
+   * @param targetProceeds 목표 수익 (6 decimals)
+   * @param distribution Current market distribution
+   * @param market Market parameters
+   * @returns 매도해야 할 수량과 검증된 실제 수익
+   */
+  calculateQuantityFromProceeds(
+    position: Position,
+    targetProceeds: USDCAmount,
+    distribution: MarketDistribution,
+    market: Market
+  ): QuantityFromProceedsResult {
+    this.validateTickRange(position.lowerTick, position.upperTick, market);
+
+    if (!distribution) {
+      throw new ValidationError(
+        "Distribution data is required but was undefined"
+      );
+    }
+
+    if (new Big(position.quantity).lte(0)) {
+      throw new ValidationError("Position quantity must be positive");
+    }
+
+    if (new Big(targetProceeds).lte(0)) {
+      throw new ValidationError("Target proceeds must be positive");
+    }
+
+    // 최대 수익 한계 확인 (전체 매도)
+    const maxProceeds = this.calculateDecreaseProceeds(
+      position,
+      position.quantity,
+      distribution,
+      market
+    ).proceeds;
+
+    if (new Big(targetProceeds).gt(maxProceeds)) {
+      throw new ValidationError(
+        "Target proceeds exceed the maximum proceeds available for this position"
+      );
+    }
+
+    const alpha = market.liquidityParameter;
+    const proceedsWad = MathUtils.toWad(targetProceeds);
+
+    const sumBefore = distribution.totalSum;
+    const affectedSum = this.getAffectedSum(
+      position.lowerTick,
+      position.upperTick,
+      distribution,
+      market
+    );
+
+    if (affectedSum.eq(0)) {
+      throw new CalculationError(
+        "Cannot calculate quantity from proceeds: affected sum is zero. This usually means the tick range is outside the market or the distribution data is empty."
+      );
+    }
+
+    // sumAfter = sumBefore * exp(-targetProceeds/α)
+    const expProceeds = MathUtils.safeExp(proceedsWad, alpha);
+    const targetSumAfter = MathUtils.wDiv(sumBefore, expProceeds);
+
+    const unaffectedSum = sumBefore.minus(affectedSum);
+
+    if (targetSumAfter.lt(unaffectedSum)) {
+      throw new ValidationError(
+        "Target proceeds require selling more than the position holds"
+      );
+    }
+
+    const requiredAffectedSumAfter = targetSumAfter.minus(unaffectedSum);
+
+    if (requiredAffectedSumAfter.lte(0)) {
+      throw new ValidationError(
+        "Target proceeds would reduce the affected sum to zero or negative"
+      );
+    }
+
+    if (requiredAffectedSumAfter.gt(affectedSum)) {
+      throw new CalculationError(
+        "Target proceeds require increasing the affected sum, which is impossible for a sale"
+      );
+    }
+
+    const inverseFactor = MathUtils.wDiv(requiredAffectedSumAfter, affectedSum);
+
+    if (inverseFactor.lte(0) || inverseFactor.gt(MathUtils.WAD)) {
+      throw new CalculationError(
+        "Inverse factor out of bounds when calculating sell quantity"
+      );
+    }
+
+    // q = α * ln(1 / inverseFactor)
+    const factor = MathUtils.wDiv(MathUtils.WAD, inverseFactor);
+    const quantityWad = MathUtils.wMul(alpha, MathUtils.wLn(factor));
+
+    const quantityValue = MathUtils.wadToNumber(quantityWad);
+    const quantity = quantityValue.mul(MathUtils.USDC_PRECISION);
+
+    this._assertQuantityWithinLimit(quantity, alpha);
+
+    let formattedQuantity = MathUtils.formatUSDC(quantity);
+
+    if (formattedQuantity.gt(position.quantity)) {
+      formattedQuantity = MathUtils.formatUSDC(position.quantity);
+    }
+
+    let actualProceeds: Big;
+
+    try {
+      const verification = this._calcSellProceeds(
+        position.lowerTick,
+        position.upperTick,
+        formattedQuantity,
+        position.quantity,
+        distribution,
+        market
+      );
+      actualProceeds = verification.proceeds;
+    } catch (error) {
+      actualProceeds = targetProceeds;
+      console.warn(
+        "calculateQuantityFromProceeds: verification failed, using target proceeds as approximation",
+        error
+      );
+    }
+
+    return {
+      quantity: formattedQuantity,
+      actualProceeds: MathUtils.formatUSDC(actualProceeds),
     };
   }
 

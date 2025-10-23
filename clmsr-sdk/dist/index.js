@@ -56,5 +56,5 @@ exports.MathUtils = __importStar(require("./utils/math"));
 var clmsr_sdk_2 = require("./clmsr-sdk");
 Object.defineProperty(exports, "toWAD", { enumerable: true, get: function () { return clmsr_sdk_2.toWAD; } });
 Object.defineProperty(exports, "toMicroUSDC", { enumerable: true, get: function () { return clmsr_sdk_2.toMicroUSDC; } });
-// Version
-exports.VERSION = "1.7.1";
+// Version (keep in sync with package.json)
+exports.VERSION = "1.10.0";
