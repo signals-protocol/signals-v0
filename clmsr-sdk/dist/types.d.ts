@@ -96,6 +96,11 @@ export interface QuantityFromCostResult {
     quantity: Quantity;
     actualCost: USDCAmount;
 }
+/** calculateQuantityFromProceeds 결과 (매도용 역함수) */
+export interface QuantityFromProceedsResult {
+    quantity: Quantity;
+    actualProceeds: USDCAmount;
+}
 export declare class ValidationError extends Error {
     constructor(message: string);
 }

@@ -1,4 +1,4 @@
-import { MarketDistribution, Market, Position, OpenCostResult, IncreaseCostResult, DecreaseProceedsResult, CloseProceedsResult, ClaimResult, QuantityFromCostResult, USDCAmount, Quantity, Tick } from "./types";
+import { MarketDistribution, Market, Position, OpenCostResult, IncreaseCostResult, DecreaseProceedsResult, CloseProceedsResult, ClaimResult, QuantityFromCostResult, QuantityFromProceedsResult, USDCAmount, Quantity, Tick } from "./types";
 export * from "./types";
 export { toWAD, toMicroUSDC } from "./utils/math";
 /**
@@ -49,6 +49,15 @@ export declare class CLMSRSDK {
      * @returns 구매 가능한 수량
      */
     calculateQuantityFromCost(lowerTick: Tick, upperTick: Tick, cost: USDCAmount, distribution: MarketDistribution, market: Market): QuantityFromCostResult;
+    /**
+     * 주어진 목표 수익(proceeds)으로 필요한 매도 수량 역산
+     * @param position 보유 포지션 정보
+     * @param targetProceeds 목표 수익 (6 decimals)
+     * @param distribution Current market distribution
+     * @param market Market parameters
+     * @returns 매도해야 할 수량과 검증된 실제 수익
+     */
+    calculateQuantityFromProceeds(position: Position, targetProceeds: USDCAmount, distribution: MarketDistribution, market: Market): QuantityFromProceedsResult;
     /**
      * 시장별 최대 수량 한계 검증 (컨트랙트와 동일한 제한)
      * @param quantity 검증할 수량 (6 decimals)

@@ -117,7 +117,7 @@ try {
 ```typescript
 // Calculate how much can be bet with target cost of 300 USDC
 const targetCost = toUSDC("300");
-const inverse = sdk.calculateQuantityFromCost(
+const inverseBuy = sdk.calculateQuantityFromCost(
   115000,
   125000,
   targetCost,
@@ -125,8 +125,26 @@ const inverse = sdk.calculateQuantityFromCost(
   market
 );
 
-console.log(`Quantity: ${inverse.quantity.toString()}`);
-console.log(`Actual cost: ${inverse.actualCost.toString()}`);
+console.log(`Buy quantity: ${inverseBuy.quantity.toString()}`);
+console.log(`Actual cost: ${inverseBuy.actualCost.toString()}`);
+
+// Calculate how much must be sold to realize 180 USDC proceeds
+const position = {
+  lowerTick: 115000,
+  upperTick: 125000,
+  quantity: toUSDC("800"), // current position size
+};
+
+const targetProceeds = toUSDC("180");
+const inverseSell = sdk.calculateQuantityFromProceeds(
+  position,
+  targetProceeds,
+  distribution,
+  market
+);
+
+console.log(`Sell quantity: ${inverseSell.quantity.toString()}`);
+console.log(`Actual proceeds: ${inverseSell.actualProceeds.toString()}`);
 ```
 
 ## 📖 API Reference
@@ -251,6 +269,19 @@ calculateQuantityFromCost(
   distribution: MarketDistribution,
   market: Market
 ): QuantityFromCostResult
+```
+
+#### calculateQuantityFromProceeds()
+
+Calculate sell quantity from target proceeds (inverse function)
+
+```typescript
+calculateQuantityFromProceeds(
+  position: Position,
+  targetProceeds: USDCAmount,
+  distribution: MarketDistribution,
+  market: Market
+): QuantityFromProceedsResult
 ```
 
 #### calculateClaim()
