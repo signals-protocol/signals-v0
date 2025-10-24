@@ -2,7 +2,11 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { COMPONENT_TAG } from "../../helpers/tags";
-import { createActiveMarketFixture, settleMarketAtTick } from "../../helpers/fixtures/core";
+import {
+  createActiveMarketFixture,
+  settleMarketAtTick,
+  increaseToSafe,
+} from "../../helpers/fixtures/core";
 
 
 async function createTestMarket(
@@ -174,7 +178,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
       );
 
       // Fast forward to settlement time
-      await time.increaseTo(settlementTime + 1);
+      await increaseToSafe(settlementTime + 1);
 
       // Pause the contract
       await core.connect(keeper).pause("Emergency");
@@ -201,7 +205,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
         endTime
       );
 
-      await time.increaseTo(startTime + 1);
+      await increaseToSafe(startTime + 1);
 
       // Pause the contract
       await core.connect(keeper).pause("Emergency");
@@ -244,7 +248,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
         ethers.parseEther("0.1")
       );
 
-      await time.increaseTo(startTime + 1);
+      await increaseToSafe(startTime + 1);
 
       // Open position first (before pausing)
       const tradeParams = {
@@ -306,7 +310,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
         endTime
       );
 
-      await time.increaseTo(startTime + 1);
+      await increaseToSafe(startTime + 1);
 
       const tradeParams = {
         marketId,
@@ -330,7 +334,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
       const positionId = Number(positions[0]);
 
       // Settle market
-      await time.increaseTo(settlementTime + 1);
+      await increaseToSafe(settlementTime + 1);
       await settleMarketAtTick(core, keeper, marketId, 100150);
 
       // Pause the contract
@@ -397,7 +401,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
         ethers.parseEther("0.1")
       );
 
-      await time.increaseTo(startTime + 1);
+      await increaseToSafe(startTime + 1);
 
       const tradeQuantity = ethers.parseUnits("0.01", 6);
       const quotedOpenCost = await core.calculateOpenCost(
@@ -458,7 +462,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
         ethers.parseEther("0.1")
       );
 
-      await time.increaseTo(startTime + 1);
+      await increaseToSafe(startTime + 1);
 
       const tradeQuantity = ethers.parseUnits("0.01", 6);
       const quotedOpenCost = await core.calculateOpenCost(
@@ -635,7 +639,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Pause Functionality`, function () {
       const endTime = Number(market.endTimestamp);
 
       // Move to settlement period
-      await time.increaseTo(endTime + 1);
+      await increaseToSafe(endTime + 1);
 
       // Pause during settlement period
       await core.connect(keeper).pause("Emergency during settlement");

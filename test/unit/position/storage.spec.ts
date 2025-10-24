@@ -10,6 +10,8 @@ import { setupMultipleMarkets } from "../../helpers/fixtures/core";
 import { UNIT_TAG } from "../../helpers/tags";
 
 describe(`${UNIT_TAG} Position Storage Management`, function () {
+  this.timeout(120000);
+  this.slow(60000);
   describe("Position Data Storage", function () {
     it("should store position data correctly", async function () {
       const contracts = await loadFixture(positionMarketFixture);

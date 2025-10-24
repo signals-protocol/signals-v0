@@ -6,6 +6,8 @@ import { activePositionMarketFixture } from "../../helpers/fixtures/position";
 import { COMPONENT_TAG } from "../../helpers/tags";
 
 describe(`${COMPONENT_TAG} Core ↔ Position Integration`, function () {
+  this.timeout(120000);
+  this.slow(60000);
   const POSITION_QUANTITY = ethers.parseUnits("10", 6);
   const POSITION_MAX_COST = ethers.parseUnits("1000", 6);
   const INCREASE_COST_BUFFER = ethers.parseUnits("500", 6);

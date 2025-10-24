@@ -31,7 +31,7 @@ export function toSettlementValue(tick: number | bigint): bigint {
   return BigInt(tick) * SETTLEMENT_VALUE_UNIT;
 }
 
-async function increaseToSafe(targetTimestamp: number) {
+export async function increaseToSafe(targetTimestamp: number) {
   const latest = await time.latest();
   const safeTarget = Math.max(targetTimestamp, latest + 1);
   await time.increaseTo(safeTarget);
