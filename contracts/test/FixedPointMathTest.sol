@@ -138,8 +138,11 @@ contract FixedPointMathTest {
     }
 
     function testFromWadRoundUp(uint256 amtWad) external pure returns (uint256) {
+        if (amtWad == 0) {
+            return 0;
+        }
         unchecked {
-            return (amtWad + SCALE_DIFF - 1) / SCALE_DIFF;
+            return ((amtWad - 1) / SCALE_DIFF) + 1;
         }
     }
 

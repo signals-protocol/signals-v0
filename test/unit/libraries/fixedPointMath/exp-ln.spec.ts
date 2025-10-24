@@ -3,6 +3,7 @@ import { ethers } from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { UNIT_TAG } from "../../../helpers/tags";
 import { unitFixture } from "../../../helpers/fixtures/core";
+import { createDeterministicRandom } from "../../../helpers/utils/random";
 
 describe(`${UNIT_TAG} FixedPointMath - Exponential & Logarithm`, function () {
   const UNIT = ethers.parseEther("1");
@@ -164,6 +165,39 @@ describe(`${UNIT_TAG} FixedPointMath - Exponential & Logarithm`, function () {
 
       const tolerance = testValue / 100n; // 1% tolerance
       expect(expLnResult).to.be.closeTo(testValue, tolerance);
+    });
+
+    it("Should match natural log within tolerance across boundary and random samples", async function () {
+      const { test } = await loadFixture(deployFixture);
+      const rng = createDeterministicRandom(1337);
+
+      const samples: Array<{ value: number; literal: string }> = [
+        { value: 1, literal: "1.000000" },
+        { value: 1 + 1e-6, literal: "1.000001" },
+      ];
+
+      while (samples.length < 100) {
+        const integerPart = 1 + Math.floor(rng() * 1_000_000);
+        const fractionalPart = Math.floor(rng() * 1_000_000);
+        const value = integerPart + fractionalPart / 1_000_000;
+        samples.push({
+          value,
+          literal: `${integerPart}.${fractionalPart.toString().padStart(6, "0")}`,
+        });
+      }
+
+      const tolerance = ethers.parseEther("0.0000001"); // 1e-7 WAD tolerance
+
+      for (const sample of samples) {
+        const wadInput = ethers.parseUnits(sample.literal, 18);
+        const result = await test.wLn(wadInput);
+
+        const expectedLn = Math.log(sample.value);
+        const expectedWad = ethers.parseUnits(expectedLn.toFixed(18), 18);
+
+        expect(expectedWad).to.be.gte(0);
+        expect(result).to.be.closeTo(expectedWad, tolerance);
+      }
     });
   });
 });
