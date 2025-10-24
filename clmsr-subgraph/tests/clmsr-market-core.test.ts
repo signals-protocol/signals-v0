@@ -405,6 +405,29 @@ describe("CLMSR Market Core Tests", () => {
 
     // realizedPnL 검증: proceeds - costPortion = 180000 - 1200000 = -1020000 (손실)
     assert.fieldEquals("UserPosition", "1", "realizedPnL", "-1020000");
+
+    // 평균 진입가가 현재 잔여 수량 기준으로 유지되는지 검증
+    assert.fieldEquals("UserPosition", "1", "averageEntryPrice", "4000000");
+
+    // 4. 남은 수량 전부 감소시켜 포지션 종료
+    let finalDecreaseEvent = createPositionDecreasedEvent(
+      positionId,
+      trader,
+      BigInt.fromI32(200000), // 남은 0.2 전량 매도
+      BigInt.fromI32(0), // 잔여 수량 0
+      BigInt.fromI32(160000) // 추가 수익 0.16
+    );
+    finalDecreaseEvent.logIndex = BigInt.fromI32(2);
+    finalDecreaseEvent.transaction.hash = Bytes.fromHexString(
+      "0x0000000000000000000000000000000000000000000000000000000000000003"
+    );
+
+    handlePositionDecreased(finalDecreaseEvent);
+
+    assert.fieldEquals("UserPosition", "1", "currentQuantity", "0");
+    assert.fieldEquals("UserPosition", "1", "averageEntryPrice", "0");
+    assert.fieldEquals("UserPosition", "1", "outcome", "CLOSED");
+    assert.fieldEquals("UserPosition", "1", "totalCostBasis", "0");
   });
 
   test("Position Increase - Test", () => {
@@ -577,6 +600,7 @@ describe("CLMSR Market Core Tests", () => {
     assert.fieldEquals("UserPosition", "1", "totalProceeds", "1800000"); // 1.8 USDC 회수
     assert.fieldEquals("UserPosition", "1", "realizedPnL", "-200000"); // 0.2 USDC 손실
     assert.fieldEquals("UserPosition", "1", "totalCostBasis", "2000000"); // 업데이트 안됨 (그대로 유지)
+    assert.fieldEquals("UserPosition", "1", "averageEntryPrice", "0");
 
     // Activity 완전 소진
     assert.fieldEquals("UserPosition", "1", "activityRemaining", "0");

@@ -542,6 +542,7 @@ export function handlePositionClosed(event: PositionClosedEvent): void {
   userPosition.outcome = "CLOSED";
   userPosition.activityRemaining = BigInt.fromI32(0);
   userPosition.weightedEntryTime = BigInt.fromI32(0);
+  userPosition.averageEntryPrice = BigInt.fromI32(0);
   userPosition.lastUpdated = event.block.timestamp;
   userPosition.save();
 
@@ -680,6 +681,11 @@ export function handlePositionDecreased(event: PositionDecreasedEvent): void {
   );
   userPosition.realizedPnL = userPosition.realizedPnL.plus(tradeRealizedPnL);
 
+  userPosition.averageEntryPrice = calculateRawPrice(
+    userPosition.totalCostBasis,
+    userPosition.currentQuantity
+  );
+
   let activityPortion = userPosition.activityRemaining
     .times(event.params.sellQuantity)
     .div(oldQuantity);
@@ -811,9 +817,10 @@ export function handlePositionIncreased(event: PositionIncreasedEvent): void {
   );
   userPosition.currentQuantity = event.params.newQuantity;
 
-  userPosition.averageEntryPrice = userPosition.totalCostBasis
-    .times(BigInt.fromString("1000000"))
-    .div(userPosition.totalQuantityBought);
+  userPosition.averageEntryPrice = calculateRawPrice(
+    userPosition.totalCostBasis,
+    userPosition.currentQuantity
+  );
 
   let currentTime = event.block.timestamp;
   let oldQuantity = userPosition.currentQuantity.minus(
