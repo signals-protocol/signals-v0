@@ -7,7 +7,6 @@ import {
   setMarketActivation,
 } from "../../helpers/fixtures/core";
 import { INTEGRATION_TAG } from "../../helpers/tags";
-
 describe(`${INTEGRATION_TAG} Market Creation`, function () {
   const ALPHA = ethers.parseEther("1");
   const MARKET_DURATION = 7 * 24 * 60 * 60; // 7 days
@@ -18,7 +17,11 @@ describe(`${INTEGRATION_TAG} Market Creation`, function () {
   const MAX_TICK = 100990;
   const TICK_SPACING = 10;
 
-  function calculateNumBins(minTick: number, maxTick: number, tickSpacing: number) {
+  function calculateNumBins(
+    minTick: number,
+    maxTick: number,
+    tickSpacing: number
+  ) {
     return (maxTick - minTick) / tickSpacing;
   }
 
@@ -30,25 +33,29 @@ describe(`${INTEGRATION_TAG} Market Creation`, function () {
     const endTime = startTime + MARKET_DURATION;
     const settlementTime = endTime + SETTLEMENT_OFFSET;
 
-    const expectedId = await core.connect(keeper).createMarket.staticCall(
-      MIN_TICK,
-      MAX_TICK,
-      TICK_SPACING,
-      startTime,
-      endTime,
-      settlementTime,
-      ALPHA
-    );
+    const expectedId = await core
+      .connect(keeper)
+      .createMarket.staticCall(
+        MIN_TICK,
+        MAX_TICK,
+        TICK_SPACING,
+        startTime,
+        endTime,
+        settlementTime,
+        ALPHA
+      );
 
-    const tx = core.connect(keeper).createMarket(
-      MIN_TICK,
-      MAX_TICK,
-      TICK_SPACING,
-      startTime,
-      endTime,
-      settlementTime,
-      ALPHA
-    );
+    const tx = core
+      .connect(keeper)
+      .createMarket(
+        MIN_TICK,
+        MAX_TICK,
+        TICK_SPACING,
+        startTime,
+        endTime,
+        settlementTime,
+        ALPHA
+      );
 
     await expect(tx)
       .to.emit(core, "MarketCreated")
@@ -71,7 +78,9 @@ describe(`${INTEGRATION_TAG} Market Creation`, function () {
     expect(market.minTick).to.equal(BigInt(MIN_TICK));
     expect(market.maxTick).to.equal(BigInt(MAX_TICK));
     expect(market.tickSpacing).to.equal(BigInt(TICK_SPACING));
-    expect(market.numBins).to.equal(calculateNumBins(MIN_TICK, MAX_TICK, TICK_SPACING));
+    expect(market.numBins).to.equal(
+      calculateNumBins(MIN_TICK, MAX_TICK, TICK_SPACING)
+    );
     expect(market.liquidityParameter).to.equal(ALPHA);
     expect(market.startTimestamp).to.equal(BigInt(startTime));
     expect(market.endTimestamp).to.equal(BigInt(endTime));
@@ -95,25 +104,21 @@ describe(`${INTEGRATION_TAG} Market Creation`, function () {
     const endTime = startTime + MARKET_DURATION;
     const settlementTime = endTime + SETTLEMENT_OFFSET;
 
-    const marketId = await core.connect(keeper).createMarket.staticCall(
-      1000,
-      1099,
-      1,
-      startTime,
-      endTime,
-      settlementTime,
-      ALPHA
-    );
+    const marketId = await core
+      .connect(keeper)
+      .createMarket.staticCall(
+        1000,
+        1099,
+        1,
+        startTime,
+        endTime,
+        settlementTime,
+        ALPHA
+      );
 
-    await core.connect(keeper).createMarket(
-      1000,
-      1099,
-      1,
-      startTime,
-      endTime,
-      settlementTime,
-      ALPHA
-    );
+    await core
+      .connect(keeper)
+      .createMarket(1000, 1099, 1, startTime, endTime, settlementTime, ALPHA);
 
     for (let i = 0; i < 10; i++) {
       const actualTick = 1000 + i;
@@ -131,31 +136,37 @@ describe(`${INTEGRATION_TAG} Market Creation`, function () {
     const settlementTime = endTime + SETTLEMENT_OFFSET;
 
     for (let i = 1; i <= 5; i++) {
-      const expectedId = await core.connect(keeper).createMarket.staticCall(
-        MIN_TICK,
-        MAX_TICK,
-        TICK_SPACING,
-        startTime + i * 1000,
-        endTime + i * 1000,
-        settlementTime + i * 1000,
-        ALPHA
-      );
+      const expectedId = await core
+        .connect(keeper)
+        .createMarket.staticCall(
+          MIN_TICK,
+          MAX_TICK,
+          TICK_SPACING,
+          startTime + i * 1000,
+          endTime + i * 1000,
+          settlementTime + i * 1000,
+          ALPHA
+        );
 
-      const tx = await core.connect(keeper).createMarket(
-        MIN_TICK,
-        MAX_TICK,
-        TICK_SPACING,
-        startTime + i * 1000,
-        endTime + i * 1000,
-        settlementTime + i * 1000,
-        ALPHA
-      );
+      const tx = await core
+        .connect(keeper)
+        .createMarket(
+          MIN_TICK,
+          MAX_TICK,
+          TICK_SPACING,
+          startTime + i * 1000,
+          endTime + i * 1000,
+          settlementTime + i * 1000,
+          ALPHA
+        );
       await tx.wait();
 
       expect(expectedId).to.equal(BigInt(i));
       const market = await core.getMarket(Number(expectedId));
       expect(market.isActive).to.be.false;
-      expect(market.numBins).to.equal(calculateNumBins(MIN_TICK, MAX_TICK, TICK_SPACING));
+      expect(market.numBins).to.equal(
+        calculateNumBins(MIN_TICK, MAX_TICK, TICK_SPACING)
+      );
 
       await setMarketActivation(core, keeper, Number(expectedId), true);
       const activated = await core.getMarket(Number(expectedId));
@@ -180,28 +191,34 @@ describe(`${INTEGRATION_TAG} Market Creation`, function () {
     ];
 
     for (const { minTick, maxTick } of testCases) {
-      const marketId = await core.connect(keeper).createMarket.staticCall(
-        minTick,
-        maxTick,
-        TICK_SPACING,
-        startTime,
-        endTime,
-        settlementTime,
-        ALPHA
-      );
+      const marketId = await core
+        .connect(keeper)
+        .createMarket.staticCall(
+          minTick,
+          maxTick,
+          TICK_SPACING,
+          startTime,
+          endTime,
+          settlementTime,
+          ALPHA
+        );
 
-      await core.connect(keeper).createMarket(
-        minTick,
-        maxTick,
-        TICK_SPACING,
-        startTime,
-        endTime,
-        settlementTime,
-        ALPHA
-      );
+      await core
+        .connect(keeper)
+        .createMarket(
+          minTick,
+          maxTick,
+          TICK_SPACING,
+          startTime,
+          endTime,
+          settlementTime,
+          ALPHA
+        );
 
       const market = await core.getMarket(Number(marketId));
-      expect(market.numBins).to.equal(calculateNumBins(minTick, maxTick, TICK_SPACING));
+      expect(market.numBins).to.equal(
+        calculateNumBins(minTick, maxTick, TICK_SPACING)
+      );
     }
   });
 
@@ -224,25 +241,29 @@ describe(`${INTEGRATION_TAG} Market Creation`, function () {
     ];
 
     for (const alpha of testAlphas) {
-      const marketId = await core.connect(keeper).createMarket.staticCall(
-        MIN_TICK,
-        MAX_TICK,
-        TICK_SPACING,
-        startTime,
-        endTime,
-        settlementTime,
-        alpha
-      );
+      const marketId = await core
+        .connect(keeper)
+        .createMarket.staticCall(
+          MIN_TICK,
+          MAX_TICK,
+          TICK_SPACING,
+          startTime,
+          endTime,
+          settlementTime,
+          alpha
+        );
 
-      await core.connect(keeper).createMarket(
-        MIN_TICK,
-        MAX_TICK,
-        TICK_SPACING,
-        startTime,
-        endTime,
-        settlementTime,
-        alpha
-      );
+      await core
+        .connect(keeper)
+        .createMarket(
+          MIN_TICK,
+          MAX_TICK,
+          TICK_SPACING,
+          startTime,
+          endTime,
+          settlementTime,
+          alpha
+        );
 
       const market = await core.getMarket(Number(marketId));
       expect(market.liquidityParameter).to.equal(alpha);

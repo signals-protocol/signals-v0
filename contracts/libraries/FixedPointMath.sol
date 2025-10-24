@@ -39,8 +39,11 @@ library FixedPointMathU {
     /// @dev 18-decimal → 6-decimal with round-up (prevents zero-cost attacks)
     /// @notice Always rounds up to ensure minimum 1 micro unit cost
     function fromWadRoundUp(uint256 amtWad) internal pure returns (uint256) {
+        if (amtWad == 0) {
+            return 0;
+        }
         unchecked {
-            return (amtWad + SCALE_DIFF - 1) / SCALE_DIFF;
+            return ((amtWad - 1) / SCALE_DIFF) + 1;
         }
     }
 
@@ -50,7 +53,9 @@ library FixedPointMathU {
     }
 
     function wLn(uint256 x) external pure returns (uint256) {
-        require(x >= WAD, FP_InvalidInput()); // ln(x) for UD60x18 requires x >= 1e18
+        if (x < WAD) {
+            revert FP_InvalidInput();
+        }
         return unwrap(ln(wrap(x)));
     }
 
