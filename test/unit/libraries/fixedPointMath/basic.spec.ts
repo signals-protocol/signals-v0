@@ -3,6 +3,7 @@ import { ethers } from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { UNIT_TAG } from "../../../helpers/tags";
 import { unitFixture } from "../../../helpers/fixtures/core";
+import { createDeterministicRandom } from "../../../helpers/utils/random";
 
 describe(`${UNIT_TAG} FixedPointMath - Basic Operations`, function () {
   const WAD = ethers.parseEther("1");
@@ -160,6 +161,54 @@ describe(`${UNIT_TAG} FixedPointMath - Basic Operations`, function () {
       const wadWithFraction = WAD + 1n; // 1.000000000000000001 WAD
       const roundedResult = await test.testFromWadRoundUp(wadWithFraction);
       expect(roundedResult).to.equal(oneUSDC + 1n); // Should round up to next USDC unit
+    });
+
+    it("Should round up conversion for boundary and random samples", async function () {
+      const { test } = await loadFixture(deployFixture);
+      const rng = createDeterministicRandom(20241024);
+
+      const SCALE_DIFF = 1_000_000_000_000n;
+      const FRACTION_SCALE = 1_000_000n;
+      const FRACTION_STEP = WAD / FRACTION_SCALE;
+
+      const MAX_UINT256 = (1n << 256n) - 1n;
+
+      const samples: bigint[] = [0n, 1n, SCALE_DIFF, SCALE_DIFF + 1n, MAX_UINT256];
+
+      while (samples.length < 100) {
+        const integerPart = BigInt(Math.floor(rng() * 1_000_000));
+        const fractionalPart = BigInt(Math.floor(rng() * Number(FRACTION_SCALE)));
+        const wadValue = integerPart * WAD + fractionalPart * FRACTION_STEP;
+        samples.push(wadValue);
+      }
+
+      for (const wadValue of samples) {
+        const floor = await test.testFromWad(wadValue);
+        const ceil = await test.testFromWadRoundUp(wadValue);
+
+        expect(ceil).to.be.gte(floor);
+
+        const hasFraction = wadValue % SCALE_DIFF !== 0n;
+
+        if (wadValue === 0n) {
+          expect(floor).to.equal(0n);
+          expect(ceil).to.equal(0n);
+          continue;
+        }
+
+        if (hasFraction) {
+          expect(ceil - floor).to.equal(1n);
+          expect(ceil).to.be.gt(0n);
+        } else {
+          expect(ceil).to.equal(floor);
+        }
+
+        const lowerBound = (ceil - 1n) * SCALE_DIFF;
+        const upperBound = ceil * SCALE_DIFF;
+
+        expect(wadValue).to.be.gt(lowerBound);
+        expect(wadValue).to.be.lte(upperBound);
+      }
     });
   });
 

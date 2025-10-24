@@ -177,14 +177,20 @@
 - [ ] 왕복 쐐기 인바리언트: 동일 범위 buy(q)→sell(q) 차이 ≤ 1 μUSDC.
 
 ### T1-1 | FixedPointMathU 경계/라운딩
-- [ ] `test:` 경계/무작위 100건 property 테스트 추가
-- [ ] `feat:` wLn, fromWadRoundUp 최소 수정
+- [x] `test:` 경계/무작위 100건 property 테스트 추가
+- [x] `feat:` wLn, fromWadRoundUp 최소 수정
 - [ ] `refactor:` 중복 수학 유틸 정리
 - [ ] `docs:` 라운딩 규칙 노트 업데이트
-- [ ] DoD: 1e18±1 및 대규모 값 케이스 통과
-- [ ] 결과 메모 업데이트
+- [x] DoD: 1e18±1 및 대규모 값 케이스 통과
+- [x] 결과 메모 업데이트
   - 테스트 로그:
+    - `npx hardhat test test/unit/libraries/fixedPointMath/basic.spec.ts --grep "round up conversion"` (기존 구현 실패 재현, MAX_UINT256 → 0 반환)
+    - `npx hardhat test test/unit/libraries/fixedPointMath/basic.spec.ts --grep "round up conversion"` (수정 후 통과, 118ms)
+    - `npx hardhat test test/unit/libraries/fixedPointMath/basic.spec.ts test/unit/libraries/fixedPointMath/exp-ln.spec.ts` (39 passing / 516ms)
   - 발견 이슈 & 해결:
+    - `fromWadRoundUp`가 `MAX_UINT256` 입력에서 0을 반환해 최소 비용 가드가 붕괴 → 0 입력 분기와 감산 기반 올림 로직으로 수정.
+    - `wLn` revert 경로가 PRB-Math 내부 오류에 의존 → WAD 미만 입력 시 `FP_InvalidInput` 강제.
+    - 경계/랜덤 100샘플 property 테스트(라운딩/ln 비교)로 회귀 탐지 커버리지 확보.
 
 ### T1-2 | LazyMulSegmentTree 합/지연값 보존성
 - [ ] `test:` rangeSum vs propagateLazy 비교, 임의 200샘플
