@@ -11,7 +11,7 @@ import {
   setMarketActivation,
   toSettlementValue,
 } from "../../helpers/fixtures/core";
-import { INTEGRATION_TAG } from "../../helpers/tags";
+import { INTEGRATION_TAG, REPLAY_TAG } from "../../helpers/tags";
 
 type TradeType = "OPEN" | "CLOSE" | "SETTLE";
 
@@ -46,7 +46,10 @@ const SNAPSHOT: SnapshotData = JSON.parse(
 
 const TRADES = SNAPSHOT.trades;
 
-describe(`${INTEGRATION_TAG} Market64 Regression`, function () {
+const shouldRunReplay = process.env.RUN_REPLAY === "1";
+const describeMaybe = shouldRunReplay ? describe : describe.skip;
+
+describeMaybe(`${INTEGRATION_TAG} ${REPLAY_TAG} Market64 Regression`, function () {
   this.timeout(600000);
   this.slow(300000);
 

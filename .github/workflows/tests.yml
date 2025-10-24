@@ -1,0 +1,99 @@
+name: Tests
+
+on:
+  push:
+    branches: ["**"]
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-fast:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+          cache-dependency-path: |
+            yarn.lock
+            clmsr-sdk/yarn.lock
+            clmsr-subgraph/yarn.lock
+
+      - name: Install root dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Install SDK dependencies
+        working-directory: clmsr-sdk
+        run: yarn install --frozen-lockfile
+
+      - name: Install subgraph dependencies
+        working-directory: clmsr-subgraph
+        run: yarn install --frozen-lockfile
+
+      - name: Run fast test suite
+        run: yarn test:fast
+
+  test-replay:
+    runs-on: ubuntu-latest
+    needs: test-fast
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+          cache-dependency-path: |
+            yarn.lock
+            clmsr-sdk/yarn.lock
+            clmsr-subgraph/yarn.lock
+
+      - name: Install root dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Install SDK dependencies
+        working-directory: clmsr-sdk
+        run: yarn install --frozen-lockfile
+
+      - name: Install subgraph dependencies
+        working-directory: clmsr-subgraph
+        run: yarn install --frozen-lockfile
+
+      - name: Run replay regression suite
+        run: yarn test:replay
+
+  coverage:
+    runs-on: ubuntu-latest
+    needs: test-fast
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+          cache-dependency-path: |
+            yarn.lock
+            clmsr-sdk/yarn.lock
+            clmsr-subgraph/yarn.lock
+
+      - name: Install root dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Install SDK dependencies
+        working-directory: clmsr-sdk
+        run: yarn install --frozen-lockfile
+
+      - name: Install subgraph dependencies
+        working-directory: clmsr-subgraph
+        run: yarn install --frozen-lockfile
+
+      - name: Run full coverage pipeline
+        run: yarn coverage:all

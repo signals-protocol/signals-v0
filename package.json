@@ -54,6 +54,9 @@
     "test:full:localhost": "npx hardhat run scripts/full-test-localhost.ts --network localhost",
     "coverage": "COVERAGE=1 npx hardhat coverage",
     "coverage:check": "node scripts/check-coverage.mjs",
+    "test:fast": "npx hardhat test",
+    "test:replay": "node scripts/test-replay.js",
+    "coverage:all": "npm run coverage && npm run coverage:check && npm --prefix clmsr-sdk test -- --coverage && npm --prefix clmsr-subgraph run test:citrea:dev",
     "beta": "npx hardhat run scripts/beta-distribution.ts --network citrea-prod",
     "compensate:citrea:dev": "COMMAND=compensate-susd:citrea:dev npx hardhat run scripts/dispatcher.ts --network citrea-dev",
     "compensate:citrea:prod": "COMMAND=compensate-susd:citrea:prod npx hardhat run scripts/dispatcher.ts --network citrea-prod"

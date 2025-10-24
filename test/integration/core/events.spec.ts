@@ -1,7 +1,11 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { createActiveMarketFixture, settleMarketAtTick } from "../../helpers/fixtures/core";
+import {
+  createActiveMarketFixture,
+  settleMarketAtTick,
+  increaseToSafe,
+} from "../../helpers/fixtures/core";
 import { COMPONENT_TAG } from "../../helpers/tags";
 
 describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
@@ -148,7 +152,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
           ALPHA
         );
 
-      await time.increaseTo(startTime + 1);
+      await increaseToSafe(startTime + 1);
 
       const settlementTick = 100490;
 
@@ -188,7 +192,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
           ALPHA
         );
 
-      await time.increaseTo(endTime + 1);
+      await increaseToSafe(endTime + 1);
 
       await expect(
         settleMarketAtTick(core, keeper, Number(expectedId), 100450)
@@ -409,7 +413,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
       const positionId = Number(positions[0]);
 
       // Fast forward past market end and settle
-      await time.increaseTo(endTime + 1);
+      await increaseToSafe(endTime + 1);
       await settleMarketAtTick(core, keeper, marketId, 100150);
 
       // Claim the position
@@ -623,10 +627,10 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
         .withArgs(marketId, false);
 
       // Market activation (start time reached)
-      await time.increaseTo(startTime + 1);
+      await increaseToSafe(startTime + 1);
 
       // Market ending (end time reached)
-      await time.increaseTo(endTime + 1);
+      await increaseToSafe(endTime + 1);
 
       // Market settlement
       await expect(
@@ -916,7 +920,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
         .connect(keeper)
         .updateMarketTiming(marketId, newStart, newEnd, newSettlement);
 
-      await time.increaseTo(newStart + 1);
+      await increaseToSafe(newStart + 1);
 
       const lowerTick = 100200;
       const upperTick = 100260;
