@@ -120,15 +120,20 @@
     - 커버리지 실행 시 리플레이 테스트 포함으로 장시간 소요 → 향후 CI 단계 분리/샘플 축소 검토 필요
 
 ### T0-2 | 업그레이드 회귀 스냅샷
-- [ ] `test:` Proxy → V2Mock 업그레이드 전후 snapshotState 비교 테스트
-- [ ] `feat:` 배포/테스트 플로우에 업그레이드 흐름 추가
-- [ ] `refactor:` 업그레이드 헬퍼 정리
-- [ ] `docs:` 스냅샷 확인 절차 기록
-- [ ] DoD: 업그레이드 전후 스토리지 일치(매니저 주소, _nextMarketId 등)
-- [ ] 결과 메모 업데이트
+- [x] `test:` Proxy → V2Mock 업그레이드 전후 snapshotState 비교 테스트
+- [x] `feat:` 배포/테스트 플로우에 업그레이드 흐름 추가
+- [x] `refactor:` 업그레이드 헬퍼 정리
+- [x] `docs:` 스냅샷 확인 절차 기록
+- [x] DoD: 업그레이드 전후 스토리지 일치(매니저 주소, _nextMarketId 등)
+- [x] 결과 메모 업데이트
   - 테스트 로그:
+    - 2025-10-24 `npx hardhat test test/upgrade/core.upgrade.spec.ts` (3 passing, 666ms) — 업그레이드 회귀 스냅샷 그린
   - 스냅샷 비교 요약:
+    - `captureCoreSnapshot` 헬퍼로 manager/paymentToken/positionContract/_nextMarketId, 마켓 파라미터, 세그트리 합계, `calculateOpen/Increase/Decrease/Close` 뷰 결과를 업그레이드 전후 동일성 검증
+    - `snapshotState` 반환값과 사전 스냅샷이 일치함을 확인하고, 업그레이드 후 신규 포지션 생성 이벤트까지 재확인
   - 추가 메모:
+    - `docs/TEST_PIPELINE.md`에 업그레이드 회귀 스냅샷 절차 추가, `WORKLOG.md`에 실행 로그 기록
+    - `test/upgrade/position.upgrade.spec.ts`로 CLMSRPosition 업그레이드 스냅샷/동작 검증 커버리지 추가
 
 ---
 

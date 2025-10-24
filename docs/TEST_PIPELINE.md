@@ -26,3 +26,16 @@
 - `test:replay`는 `scripts/test-replay.js`를 통해 `RUN_REPLAY=1`을 설정한 뒤 `npx hardhat test --grep @replay`를 실행합니다.
 - 커버리지 실행에는 시간이 오래 걸릴 수 있으므로 CI에서는 `test:fast` → `coverage:all` 순서를 권장하며, 리플레이는 야간 혹은 전용 스텝에서 실행합니다.
 - GitHub Actions 워크플로(`.github/workflows/tests.yml`)는 모든 브랜치의 push마다 `test-fast` job을 먼저 실행한 뒤, 성공 시 `test-replay`와 `coverage` job을 병렬로 실행합니다.
+
+## 업그레이드 회귀 스냅샷
+
+- 명령:
+  - `npx hardhat test test/upgrade/core.upgrade.spec.ts`
+  - `npx hardhat test test/upgrade/position.upgrade.spec.ts`
+- 검증 범위:
+  - UUPS 업그레이드 전후 `manager`, `_nextMarketId`, 마켓 파라미터, 세그먼트 트리 합계가 유지되는지 스냅샷 비교
+  - `calculateOpenCost / IncreaseCost / DecreaseProceeds / CloseProceeds` 등 핵심 뷰 함수 결과가 동일하게 유지되는지 확인
+  - 업그레이드 이후 신규 포지션 생성 등 주요 이벤트 흐름이 정상 동작하는지 확인
+- 포지션 컨트랙트 업그레이드 테스트는 기존 포지션 데이터(토큰URI, 틱 범위, 수량, 소유자, 마켓 인덱스)가 동일하게 유지되는지 검증하고, 업그레이드 이후에도 `mintPosition`/`updateQuantity`/`burn` 흐름이 정상 동작하는지 확인한다.
+
+- 테스트 성공 시 `WORKLOG.md`에 실행 시각과 로그 요약을 함께 기록한다.
