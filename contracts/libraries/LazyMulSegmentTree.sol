@@ -123,9 +123,47 @@ library LazyMulSegmentTree {
     /// @param r Right boundary (inclusive)
     /// @return sum Default sum for range
     function _defaultSum(uint32 l, uint32 r) private pure returns (uint256 sum) {
-        unchecked { 
-            return uint256(r - l + 1) * ONE_WAD; 
+        unchecked {
+            return uint256(r - l + 1) * ONE_WAD;
         }
+    }
+
+    /// @dev Applies factor to a value while mirroring sell-side rounding so view logic matches mutate path.
+    function _mulWithCompensation(uint256 value, uint256 factor) private pure returns (uint256) {
+        if (value == 0 || factor == ONE_WAD) {
+            return value;
+        }
+
+        uint256 scaled = value.wMul(factor);
+        if (factor < ONE_WAD) {
+            uint256 remainder = mulmod(value, factor, ONE_WAD);
+            if (remainder != 0) {
+                unchecked {
+                    scaled += 1;
+                }
+            }
+        }
+
+        return scaled;
+    }
+
+    /// @dev Multiplies two lazy factors while preserving the compensation semantics used on sums.
+    function _combineFactors(uint256 lhs, uint256 rhs) private pure returns (uint256) {
+        if (rhs == ONE_WAD) {
+            return lhs;
+        }
+
+        uint256 combined = lhs.wMul(rhs);
+        if (rhs < ONE_WAD) {
+            uint256 remainder = mulmod(lhs, rhs, ONE_WAD);
+            if (remainder != 0) {
+                unchecked {
+                    combined += 1;
+                }
+            }
+        }
+
+        return combined;
     }
 
     /// @notice Pack two uint32 values into uint64 child pointer
@@ -155,25 +193,7 @@ library LazyMulSegmentTree {
     /// @param node Node storage reference
     /// @param factor Multiplication factor
     function _scaleNodeSum(Node storage node, uint256 factor) private {
-        if (factor == ONE_WAD) {
-            return;
-        }
-
-        uint256 priorSum = node.sum;
-        if (priorSum == 0) {
-            return;
-        }
-
-        uint256 scaled = priorSum.wMul(factor);
-        uint256 remainder = mulmod(priorSum, factor, ONE_WAD);
-
-        if (factor < ONE_WAD && remainder != 0) {
-            unchecked {
-                scaled += 1;
-            }
-        }
-
-        node.sum = scaled;
+        node.sum = _mulWithCompensation(node.sum, factor);
     }
 
     /// @notice Apply lazy propagation to a node
@@ -188,14 +208,7 @@ library LazyMulSegmentTree {
         _scaleNodeSum(node, factor);
         
         uint256 priorPending = uint256(node.pendingFactor);
-        uint256 newPendingFactor = priorPending.wMul(factor);
-        uint256 pendingRemainder = mulmod(priorPending, factor, ONE_WAD);
-
-        if (factor < ONE_WAD && pendingRemainder != 0) {
-            unchecked {
-                newPendingFactor += 1;
-            }
-        }
+        uint256 newPendingFactor = _combineFactors(priorPending, factor);
 
         require(newPendingFactor <= type(uint192).max, CE.LazyFactorOverflow());
         node.pendingFactor = uint192(newPendingFactor);
@@ -296,13 +309,7 @@ library LazyMulSegmentTree {
             _scaleNodeSum(node, factor);
 
             uint256 priorPending = uint256(node.pendingFactor);
-            uint256 newPendingFactor = priorPending.wMul(factor);
-            uint256 pendingRemainder = mulmod(priorPending, factor, ONE_WAD);
-            if (factor < ONE_WAD && pendingRemainder != 0) {
-                unchecked {
-                    newPendingFactor += 1;
-                }
-            }
+            uint256 newPendingFactor = _combineFactors(priorPending, factor);
             
             if (newPendingFactor < UNDERFLOW_FLUSH_THRESHOLD) {
                 // Mirror the overflow flush: push accumulated lazy when it shrinks too far
@@ -377,7 +384,7 @@ library LazyMulSegmentTree {
             if (r < lo || l > hi) return 0;
             uint32 overlapL = lo > l ? lo : l;
             uint32 overlapR = hi < r ? hi : r;
-            return _defaultSum(overlapL, overlapR).wMul(accFactor);
+            return _mulWithCompensation(_defaultSum(overlapL, overlapR), accFactor);
         }
         
         // No overlap
@@ -388,7 +395,7 @@ library LazyMulSegmentTree {
         // Complete overlap
         if (l >= lo && r <= hi) {
             // node.sum already contains pendingFactor, so only apply ancestor accumulated factor
-            return node.sum.wMul(accFactor);
+            return _mulWithCompensation(node.sum, accFactor);
         }
         
         // Apply current node's lazy to accumulated lazy
