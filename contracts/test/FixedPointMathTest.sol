@@ -14,7 +14,6 @@ error FP_SignedOverflow();
 contract FixedPointMathTest {
     uint256 public constant WAD = 1e18;
     uint256 public constant UNIT = 1e18;
-    uint256 private constant SCALE_DIFF = 1e12;
 
     // ---------------------------------------------------------------------
     // Core math wrappers
@@ -128,22 +127,15 @@ contract FixedPointMathTest {
     // ---------------------------------------------------------------------
 
     function testToWad(uint256 amt6) external pure returns (uint256) {
-        unchecked {
-            return amt6 * SCALE_DIFF;
-        }
+        return FixedPointMathU.toWad(amt6);
     }
 
     function testFromWad(uint256 amtWad) external pure returns (uint256) {
-        return amtWad / SCALE_DIFF;
+        return FixedPointMathU.fromWad(amtWad);
     }
 
     function testFromWadRoundUp(uint256 amtWad) external pure returns (uint256) {
-        if (amtWad == 0) {
-            return 0;
-        }
-        unchecked {
-            return ((amtWad - 1) / SCALE_DIFF) + 1;
-        }
+        return FixedPointMathU.fromWadRoundUp(amtWad);
     }
 
     // ---------------------------------------------------------------------
