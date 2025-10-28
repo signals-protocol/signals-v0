@@ -59,6 +59,8 @@ The whitepaper insists on one conversion per action, with direction fixed to clo
 
 Ceiling rounding on buys plus the minimum trade size $\delta_{\min}$ guarantee that every successful trade removes at least one micro unit of SUSD. Attackers cannot leave zero-cost dust positions on the books, and auditors can assume that every position reflects real capital at risk.
 
+> **Implementation detail:** `fromWadRoundUp` subtracts 1 before dividing by $10^{12}$, so even an input of `type(uint256).max` rounds to a positive micro amount instead of wrapping to zero. This hardens the zero-cost attack fix for extreme WAD values.
+
 ## Where to look in code
 
 - LazyMulSegmentTree.sol implements the chunking logic and exponential weight updates.
