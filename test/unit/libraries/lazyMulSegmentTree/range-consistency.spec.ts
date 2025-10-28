@@ -5,7 +5,7 @@ import { UNIT_TAG } from "../../../helpers/tags";
 import { unitFixture } from "../../../helpers/fixtures/core";
 
 const TREE_SIZE = 128;
-const SAMPLE_COUNT = 150;
+const SAMPLE_COUNT = process.env.COVERAGE ? 64 : 150;
 const OPS_PER_SAMPLE = 1;
 const VIEW_TOLERANCE = 1_000_000_000_000n; // 1 micro WAD tolerance
 
@@ -77,6 +77,7 @@ function randomFactor(rng: ReturnType<typeof createPrng>): bigint {
 
 describe(`${UNIT_TAG} LazyMulSegmentTree - View vs Propagate consistency`, function () {
   it("should keep getRangeSum and propagateLazy in sync across random samples", async function () {
+    this.timeout(process.env.COVERAGE ? 120_000 : 60_000);
     const { harness }: HarnessFixture = await loadFixture(
       deployHarnessFixture
     );
@@ -125,5 +126,4 @@ describe(`${UNIT_TAG} LazyMulSegmentTree - View vs Propagate consistency`, funct
       await harness.propagate(0, TREE_SIZE - 1);
     }
   });
-
 });
