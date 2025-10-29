@@ -64,6 +64,20 @@ contract CLMSRMarketCore is
     /// This allows for trades up to 500 * maxSafeQuantityPerChunk in size
     uint256 private constant MAX_CHUNKS_PER_TX = 1000;
 
+    /// @notice Scaling factor between 18-decimal WAD and 6-decimal token amounts
+    uint256 private constant SIX_DECIMAL_SCALE = 1_000_000_000_000;
+
+    /// @dev Helper to derive a chunk size representable in 6-decimal units without exceeding raw bound
+    function _maxSafeChunkQuantity(uint256 alpha) private pure returns (uint256) {
+        uint256 raw = alpha.wMul(MAX_EXP_INPUT_WAD) - 1;
+        if (raw == 0) {
+            return 0;
+        }
+
+        uint256 quantized = raw - (raw % SIX_DECIMAL_SCALE);
+        return quantized != 0 ? quantized : raw;
+    }
+
     // ========================================
     // STATE VARIABLES
     // ========================================
@@ -987,7 +1001,7 @@ contract CLMSRMarketCore is
         
         uint256 totalQuantity = quantity;
         uint256 alpha = market.liquidityParameter;
-        uint256 maxSafeQuantityPerChunk = alpha.wMul(MAX_EXP_INPUT_WAD) - 1; // -1 wei to prevent rounding errors
+        uint256 maxSafeQuantityPerChunk = _maxSafeChunkQuantity(alpha);
         
         if (totalQuantity <= maxSafeQuantityPerChunk) {
             // Safe to calculate in single operation
@@ -1006,7 +1020,7 @@ contract CLMSRMarketCore is
             require(requiredChunks <= MAX_CHUNKS_PER_TX, CE.ChunkLimitExceeded(requiredChunks, MAX_CHUNKS_PER_TX));
             
             // Chunk-split with cumulative state tracking
-            uint256 totalCost = 0;
+            uint256 sequentialCostMicro = 0;
             uint256 remainingQuantity = totalQuantity;
             uint256 currentSumBefore = sumBefore;
             uint256 currentAffectedSum = affectedSum;
@@ -1057,7 +1071,11 @@ contract CLMSRMarketCore is
                 require(sumAfter > currentSumBefore, CE.NonIncreasingSum(currentSumBefore, sumAfter));
                 uint256 ratio = sumAfter.wDivUp(currentSumBefore);
                 uint256 chunkCost = alpha.wMul(ratio.wLn());
-                totalCost += chunkCost;
+                uint256 chunkCostMicro = chunkCost / SIX_DECIMAL_SCALE;
+                if (chunkCost % SIX_DECIMAL_SCALE != 0) {
+                    chunkCostMicro += 1;
+                }
+                sequentialCostMicro += chunkCostMicro;
 
                 // Ensure we make progress to prevent infinite loops
                 require(chunkQuantity != 0, CE.NoChunkProgress());
@@ -1071,8 +1089,8 @@ contract CLMSRMarketCore is
             
             // Additional safety check
             require(remainingQuantity == 0, CE.ResidualQuantity(remainingQuantity));
-            
-            return totalCost;
+
+            return sequentialCostMicro * SIX_DECIMAL_SCALE;
         }
     }
     
@@ -1132,7 +1150,7 @@ contract CLMSRMarketCore is
         
         uint256 totalQuantity = quantity;
         uint256 alpha = market.liquidityParameter;
-        uint256 maxSafeQuantityPerChunk = alpha.wMul(MAX_EXP_INPUT_WAD) - 1; // -1 wei to prevent rounding errors
+        uint256 maxSafeQuantityPerChunk = _maxSafeChunkQuantity(alpha);
         
         if (totalQuantity <= maxSafeQuantityPerChunk) {
             // Safe to calculate in single operation
@@ -1151,7 +1169,7 @@ contract CLMSRMarketCore is
             require(requiredChunks <= MAX_CHUNKS_PER_TX, CE.ChunkLimitExceeded(requiredChunks, MAX_CHUNKS_PER_TX));
             
             // Chunk-split with cumulative state tracking
-            uint256 totalProceeds = 0;
+            uint256 sequentialProceedsMicro = 0;
             uint256 remainingQuantity = totalQuantity;
             uint256 currentSumBefore = sumBefore;
             uint256 currentAffectedSum = affectedSum;
@@ -1165,6 +1183,7 @@ contract CLMSRMarketCore is
                 // Calculate inverse factor for this chunk: 1 / exp(quantity/α)
                 uint256 quantityScaled = chunkQuantity.wDiv(alpha);
                 uint256 factor = quantityScaled.wExp();
+                // Use ceil division so sell-side rounding mirrors sequential per-chunk execution
                 uint256 inverseFactor = FixedPointMathU.WAD.wDivUp(factor);
                 
                 // ✨ Adaptive overflow guard: check if multiplication would overflow
@@ -1184,6 +1203,7 @@ contract CLMSRMarketCore is
                     
                     quantityScaled = chunkQuantity.wDiv(alpha);
                     factor = quantityScaled.wExp();
+                    // Maintain ceil rounding symmetry after chunk size adjustment
                     inverseFactor = FixedPointMathU.WAD.wDivUp(factor);
                 }
                 
@@ -1207,7 +1227,11 @@ contract CLMSRMarketCore is
                 if (currentSumBefore > sumAfter) {
                     uint256 ratio = currentSumBefore.wDivUp(sumAfter);
                     uint256 chunkProceeds = alpha.wMul(ratio.wLn());
-                    totalProceeds += chunkProceeds;
+                    uint256 chunkProceedsMicro = chunkProceeds / SIX_DECIMAL_SCALE;
+                    if (chunkProceeds % SIX_DECIMAL_SCALE != 0) {
+                        chunkProceedsMicro += 1;
+                    }
+                    sequentialProceedsMicro += chunkProceedsMicro;
                 }
 
                 // Ensure we make progress to prevent infinite loops
@@ -1222,8 +1246,8 @@ contract CLMSRMarketCore is
             
             // Additional safety check
             require(remainingQuantity == 0, CE.ResidualQuantity(remainingQuantity));
-            
-            return totalProceeds;
+
+            return sequentialProceedsMicro * SIX_DECIMAL_SCALE;
         }
     }
     
@@ -1355,7 +1379,7 @@ contract CLMSRMarketCore is
         // Use fixed safe chunk size to avoid overflow in chunk calculations
         // This ensures that quantity/alpha ratios stay within safe bounds
         // for exponential calculations in PRB-Math
-        uint256 maxSafeQuantityPerChunk = alpha.wMul(MAX_EXP_INPUT_WAD) - 1; // -1 wei to prevent rounding errors
+        uint256 maxSafeQuantityPerChunk = _maxSafeChunkQuantity(alpha);
         
         if (quantity <= maxSafeQuantityPerChunk) {
             // Safe to apply in single operation
