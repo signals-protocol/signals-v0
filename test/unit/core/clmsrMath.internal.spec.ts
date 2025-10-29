@@ -3,6 +3,7 @@ import { ethers } from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import {
   createActiveMarketFixture,
+  setupCustomMarket,
   SMALL_QUANTITY,
   MEDIUM_QUANTITY,
   LARGE_QUANTITY,
@@ -10,6 +11,19 @@ import {
   TICK_COUNT,
 } from "../../helpers/fixtures/core";
 import { UNIT_TAG } from "../../helpers/tags";
+
+const SCALE_DIFF = 10n ** 12n;
+const MICRO_USDC = 1n; // 1e-6 USDC in 6-decimal representation
+const DEFAULT_LOWER_TICK = 100100;
+const DEFAULT_UPPER_TICK = 100200;
+const MAX_CHUNKS_PER_TX = 1000n;
+const CHUNK_PARITY_SCENARIOS = [
+  { alpha: "0.005", chunkMultiplier: 6n },
+  { alpha: "0.01", chunkMultiplier: 8n },
+  { alpha: "0.02", chunkMultiplier: 5n },
+  { alpha: "0.1", chunkMultiplier: 3n },
+  { alpha: "0.5", chunkMultiplier: 2n },
+];
 
 describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
   describe("Cost Calculation Functions", function () {
@@ -185,6 +199,173 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
 
       // Larger cost should yield larger quantity
       expect(largeQuantity).to.be.gt(smallQuantity);
+    });
+
+    it("Should align chunked open cost with sequential single-chunk quotes within 1 micro USDC", async function () {
+      const contracts = await loadFixture(createActiveMarketFixture);
+      const { core, alice } = contracts;
+
+      for (const { alpha, chunkMultiplier } of CHUNK_PARITY_SCENARIOS) {
+        const alphaWad = ethers.parseEther(alpha);
+        const { marketId } = await setupCustomMarket(contracts, {
+          alpha: alphaWad,
+        });
+
+        const maxSafeQuantityPerChunkWad = alphaWad - 1n;
+        const singleChunkQuantity6 = maxSafeQuantityPerChunkWad / SCALE_DIFF;
+        expect(
+          singleChunkQuantity6,
+          `scenario alpha=${alpha} single chunk`
+        ).to.be.gt(0n);
+
+        const totalQuantity6 = singleChunkQuantity6 * chunkMultiplier;
+        expect(
+          totalQuantity6,
+          `scenario alpha=${alpha} total quantity`
+        ).to.be.gt(singleChunkQuantity6);
+
+        const totalCost = await core.calculateOpenCost(
+          marketId,
+          DEFAULT_LOWER_TICK,
+          DEFAULT_UPPER_TICK,
+          totalQuantity6
+        );
+
+        let sequentialCost = 0n;
+        let remaining = totalQuantity6;
+        while (remaining > 0n) {
+          const chunk =
+            remaining > singleChunkQuantity6 ? singleChunkQuantity6 : remaining;
+          const chunkCost = await core.calculateOpenCost(
+            marketId,
+            DEFAULT_LOWER_TICK,
+            DEFAULT_UPPER_TICK,
+            chunk
+          );
+          sequentialCost += chunkCost;
+
+          await core
+            .connect(alice)
+            .openPosition(
+              marketId,
+              DEFAULT_LOWER_TICK,
+              DEFAULT_UPPER_TICK,
+              chunk
+            );
+
+          remaining -= chunk;
+        }
+
+        const diff =
+          totalCost > sequentialCost
+            ? totalCost - sequentialCost
+            : sequentialCost - totalCost;
+        const maxAllowed =
+          chunkMultiplier > 0n ? (chunkMultiplier - 1n) * MICRO_USDC : 0n;
+        expect(
+          diff,
+          `chunk cost diff alpha=${alpha}, chunks=${chunkMultiplier}`
+        ).to.be.lte(maxAllowed);
+      }
+    });
+
+    it("Should align chunked decrease proceeds with sequential single-chunk exits within 1 micro USDC", async function () {
+      const contracts = await loadFixture(createActiveMarketFixture);
+      const { core, alice, mockPosition } = contracts as typeof contracts & {
+        mockPosition: any;
+      };
+
+      for (const { alpha, chunkMultiplier } of CHUNK_PARITY_SCENARIOS) {
+        const alphaWad = ethers.parseEther(alpha);
+        const { marketId } = await setupCustomMarket(contracts, {
+          alpha: alphaWad,
+        });
+
+        const maxSafeQuantityPerChunkWad = alphaWad - 1n;
+        const singleChunkQuantity6 = maxSafeQuantityPerChunkWad / SCALE_DIFF;
+        expect(
+          singleChunkQuantity6,
+          `scenario alpha=${alpha} single chunk`
+        ).to.be.gt(0n);
+
+        const totalQuantity6 = singleChunkQuantity6 * chunkMultiplier;
+
+        await core
+          .connect(alice)
+          .openPosition(
+            marketId,
+            DEFAULT_LOWER_TICK,
+            DEFAULT_UPPER_TICK,
+            totalQuantity6
+          );
+
+        const positions = await mockPosition.getPositionsByOwner(alice.address);
+        const positionId = positions[positions.length - 1];
+
+        const totalProceeds = await core.calculateDecreaseProceeds(
+          positionId,
+          totalQuantity6
+        );
+
+        let sequentialProceeds = 0n;
+        let remaining = totalQuantity6;
+        while (remaining > 0n) {
+          const chunk =
+            remaining > singleChunkQuantity6 ? singleChunkQuantity6 : remaining;
+          const chunkProceeds = await core.calculateDecreaseProceeds(
+            positionId,
+            chunk
+          );
+          sequentialProceeds += chunkProceeds;
+
+          await core
+            .connect(alice)
+            .decreasePosition(positionId, chunk, 0n);
+
+          remaining -= chunk;
+        }
+
+        const diff =
+          totalProceeds > sequentialProceeds
+            ? totalProceeds - sequentialProceeds
+            : sequentialProceeds - totalProceeds;
+        const maxAllowed =
+          chunkMultiplier > 0n ? (chunkMultiplier - 1n) * MICRO_USDC : 0n;
+        expect(
+          diff,
+          `chunk proceeds diff alpha=${alpha}, chunks=${chunkMultiplier}`
+        ).to.be.lte(maxAllowed);
+      }
+    });
+
+    it("Should revert with ChunkLimitExceeded when required chunks exceed limit", async function () {
+      const contracts = await loadFixture(createActiveMarketFixture);
+      const { core } = contracts;
+
+      const customAlpha = ethers.parseEther("0.001");
+      const { marketId } = await setupCustomMarket(contracts, {
+        alpha: customAlpha,
+        numTicks: 10,
+      });
+
+      const alphaWad = customAlpha;
+      const maxSafeQuantityPerChunkWad = alphaWad - 1n;
+      const targetQuantityWad =
+        maxSafeQuantityPerChunkWad * (MAX_CHUNKS_PER_TX + 1n);
+      const exceedingQuantity =
+        (targetQuantityWad + SCALE_DIFF - 1n) / SCALE_DIFF;
+
+      const lowerTick = 100000;
+      const upperTick = 100010;
+
+      await expect(
+        core.calculateOpenCost(
+          marketId,
+          lowerTick,
+          upperTick,
+          exceedingQuantity
+        )
+      ).to.be.revertedWithCustomError(core, "ChunkLimitExceeded");
     });
   });
 

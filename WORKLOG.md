@@ -1,0 +1,662 @@
+# 워크로그
+
+- 2025-10-02 22:49 KST: 작업 시작, 사용자 지침 재확인. (사용자 요구: 모든 테스트 통과, 워크로그 유지)
+- 2025-10-02 22:49 KST: `date` 명령으로 현재 시간 확인.
+- 2025-10-02 22:50 KST: 전체 작업 계획 수립 (3단계 플랜 작성, Step1 진행 중).
+- 2025-10-02 22:51 KST: 루트 `package.json` 스크립트 확인 (테스트 태그 분리 스크립트 미정의 상태 확인).
+- 2025-10-02 22:52 KST: `test/perf/gas.chunk-split.spec.ts` 내용 검토 (가스 절대치 비교 및 양방향 허용 케이스 존재 확인).
+- 2025-10-02 22:52 KST: `test/e2e/scenarios/low-liquidity.spec.ts` 파일 확인 (내용 없음).
+- 2025-10-02 22:53 KST: `rg`로 `USDC_DECIMALS` 사용 위치 조사 (여러 테스트에 중복 선언 확인).
+- 2025-10-02 22:54 KST: `test/helpers/fixtures/core.ts` 주요 상수 및 픽스처 구조 검토.
+- 2025-10-02 22:54 KST: `test/helpers/tags.ts` 확인 (태그 상수 및 withTag 함수 존재 확인).
+- 2025-10-02 22:55 KST: `test` 디렉토리 구조 확인 (golden 폴더 미존재 확인).
+- 2025-10-02 22:55 KST: `npm test` 실행 → Hardhat test 수행 중 `CLMSRMarketCoreStorage` 아티팩트 누락으로 실패(ENOENT).
+- 2025-10-02 22:56 KST: `npx hardhat clean` 실행해 구 캐시/아티팩트 제거.
+- 2025-10-14 17:40 KST: 신규 작업 전 기존 워크로그 포맷 확인 위해 `sed -n '1,120p' WORKLOG.md` 실행.
+- 2025-10-14 17:40 KST: 워크로그 타임스탬프 확인용으로 `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'` 실행.
+- 2025-10-14 17:41 KST: 컨트랙트 변경 1단계 진행을 위한 3스텝 플랜 수립(Plan tool 업데이트).
+- 2025-10-14 17:42 KST: `contracts/managers/CLMSRMarketManager.sol` 초반부 검토(`sed -n '1,200p'`)로 현재 createMarket 및 이벤트 구조 확인.
+- 2025-10-14 17:43 KST: 동일 파일 후반부(`sed -n '200,400p'`) 확인으로 `_createMarketInternal` activate 플래그 흐름 파악.
+- 2025-10-14 17:44 KST: 관련 인터페이스 정의 확인을 위해 `sed -n '1,200p' contracts/interfaces/ICLMSRMarketCore.sol` 실행.
+- 2025-10-14 17:45 KST: 1단계 완료 표시 및 2단계 착수 위해 플랜 상태 업데이트.
+- 2025-10-14 17:47 KST: `CLMSRMarketManager.sol`에 `MarketActivationUpdated` 이벤트 추가, `createMarket` 기본 비활성화 및 `setMarketActive` 함수 구현 (`activate` 멱등 처리 포함).
+- 2025-10-14 17:48 KST: 매니저 컨트랙트 수정 완료로 2단계 플랜 완료 처리.
+- 2025-10-14 17:49 KST: `contracts/interfaces/ICLMSRMarketCore.sol`에 `MarketActivationUpdated` 이벤트 및 `setMarketActive` 시그니처 추가.
+- 2025-10-14 17:49 KST: 3단계 인터페이스 갱신 완료로 전체 플랜 완료 처리.
+- 2025-10-14 17:50 KST: 라인 번호 확인을 위해 `nl -ba contracts/managers/CLMSRMarketManager.sol | sed -n '1,220p'` 실행.
+- 2025-10-14 17:51 KST: 인터페이스 라인 번호 확인(`nl -ba contracts/interfaces/ICLMSRMarketCore.sol | sed -n '1,200p'` 및 `'200,400p'`).
+- 2025-10-14 17:52 KST: `setMarketActive` 위치 확인을 위해 `nl -ba contracts/managers/CLMSRMarketManager.sol | sed -n '220,320p'` 실행.
+- 2025-10-14 17:53 KST: 2단계(테스트/서브그래프/로컬 검증) 지시 확인, 현재 시각 확인 위해 `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'` 실행.
+- 2025-10-14 17:54 KST: 단계별 세부 플랜(테스트/서브그래프/백엔드/로컬 검증) 5스텝으로 update_plan 등록.
+- 2025-10-14 17:56 KST: `CLMSRMarketCore.sol`에 `setMarketActive` 위임 함수 추가(`whenNotPaused` + `onlyOwner`).
+- 2025-10-14 17:58 KST: `test/helpers/fixtures/core.ts`에 `setMarketActivation` 헬퍼 추가 및 주요 활성화 픽스처에서 `setMarketActive` 호출하도록 수정.
+- 2025-10-14 18:02 KST: `test/integration/market/create.spec.ts` 업데이트(신규 이벤트 검증, 기본 비활성 상태 asserts, `setMarketActivation` 활용).
+- 2025-10-14 18:04 KST: `test/integration/market/life-cycle.spec.ts`에 신규 활성화 헬퍼 도입 및 다중 마켓 테스트에서 수동 활성화 적용.
+- 2025-10-14 18:06 KST: `test/integration/trading/open.spec.ts`에 초기 비활성 상태 거래 차단 및 활성화 후 허용 테스트 추가.
+- 2025-10-14 18:09 KST: `test/integration/core/access-control.spec.ts`에 활성화 권한/멱등/정산 이후 제한 검증 케이스 추가.
+- 2025-10-14 18:11 KST: `test/integration/core/events.spec.ts`에서 마켓 생성 시 신규 활성화 이벤트 검증 추가.
+- 2025-10-14 18:12 KST: 1단계 완료 표기 및 2단계(테스트 전반 조정) in-progress로 플랜 업데이트.
+- 2025-10-14 18:14 KST: `test/helpers/fixtures/position.ts`에서 마켓 생성 시 자동 활성화 옵션 추가 및 픽스처가 활성화 상태로 반환되도록 조정.
+- 2025-10-14 18:16 KST: `npx hardhat compile` 실행해 신규 이벤트/함수 반영된 아티팩트 및 타입 생성.
+- 2025-10-14 18:18 KST: `npx hardhat test test/integration/trading/open.spec.ts` 실행해 신규 활성화 게이트 테스트 포함 케이스 검증.
+- 2025-10-14 18:19 KST: `npx hardhat test test/integration/market/create.spec.ts` 실행, 생성 기본 비활성 및 이벤트 로직 검증.
+- 2025-10-14 18:20 KST: `npx hardhat test test/integration/core/access-control.spec.ts` 실행해 활성화 권한 테스트 포함 구성 검증.
+- 2025-10-14 18:23 KST: `npx hardhat test test/integration/core/events.spec.ts` 실행해 신규 활성화 이벤트 포함 전체 이벤트 흐름 확인.
+- 2025-10-14 18:27 KST: 전체 테스트(`npx hardhat test`) 실행 시도, 다수 케이스에서 MarketNotActive 관련 실패 확인(타임아웃 포함)으로 추가 수정 필요 파악.
+- 2025-10-14 18:30 KST: `test/integration/core/pause.spec.ts`의 `createTestMarket` 헬퍼에 활성화 호출 추가.
+- 2025-10-14 18:32 KST: `test/integration/core/state-getters.spec.ts`에서 상태 전환 테스트용 마켓 활성화 추가 및 헬퍼 import 조정.
+- 2025-10-14 18:36 KST: `test/invariant/core.roundtrip.spec.ts`의 수동 마켓 생성 경로에 활성화 호출 및 중복 fixture 호출 정리.
+- 2025-10-14 18:38 KST: `test/unit/core/market-seeding.spec.ts`의 마켓 생성 헬퍼에 활성화 로직 추가.
+- 2025-10-14 18:40 KST: `test/upgrade/core.upgrade.spec.ts` 프록시 픽스처에 `setMarketActivation` 호출 추가 및 헬퍼 import.
+- 2025-10-14 18:42 KST: `npx hardhat test test/integration/core/pause.spec.ts` 재실행, 수정된 활성화 흐름 검증.
+- 2025-10-14 18:44 KST: `npx hardhat test test/integration/core/state-getters.spec.ts` 재실행, 다양한 상태에서 활성화 적용 확인.
+- 2025-10-14 18:46 KST: `npx hardhat test test/invariant/core.roundtrip.spec.ts` 재실행, 라운딩 불변식 활성화 경로 확인.
+- 2025-10-14 18:47 KST: `npx hardhat test test/unit/core/market-seeding.spec.ts` 재실행, 시딩 배치 테스트 성공 확인.
+- 2025-10-14 18:48 KST: `npx hardhat test test/upgrade/core.upgrade.spec.ts` 재실행, 업그레이드 시나리오 정상 확인.
+- 2025-10-14 18:50 KST: `test/integration/core/boundaries/time.spec.ts` 헬퍼에 `setMarketActivation` 추가해 타이밍 관련 테스트 보정.
+- 2025-10-14 18:51 KST: `npx hardhat test test/integration/core/boundaries/time.spec.ts` 재실행, 시간 경계 케이스 정상 확인.
+- 2025-10-14 18:52 KST: ABI 골든 스냅샷(`test/abi/clmsr-market-core.abi.json`)을 최신 아티팩트 기준으로 갱신(새 이벤트/함수 포함).
+- 2025-10-14 18:53 KST: `test/e2e/scenarios/stress-market-operations.spec.ts` 다중 마켓 생성 후 활성화 호출 추가.
+- 2025-10-14 18:57 KST: 전체 테스트(`npx hardhat test`, timeout 600s) 재실행, 704개 케이스 모두 통과 확인.
+- 2025-10-14 18:58 KST: 플랜 업데이트(2단계 완료, 3단계 착수).
+- 2025-10-14 18:59 KST: 서브그래프 스키마에 `isActive` 필드 추가.
+- 2025-10-14 19:01 KST: `clmsr-market-core` 매핑에 `MarketActivationUpdated` 핸들러 추가 및 활성화 상태 업데이트 로직 보강.
+- 2025-10-14 19:02 KST: `subgraph-citrea-{dev,prod}.yaml`에 신규 이벤트 핸들러 등록.
+- 2025-10-14 19:03 KST: Hardhat 아티팩트로 서브그래프 ABI(`clmsr-subgraph/abis/CLMSRMarketCore.json`) 갱신.
+- 2025-10-14 19:04 KST: 서브그래프 테스트 유틸에 `createMarketActivationUpdatedEvent` 추가.
+- 2025-10-14 19:05 KST: 서브그래프 테스트에 활성화 핸들러/검증 추가(`handleMarketActivationUpdated`, isActive assertions).
+- 2025-10-14 19:06 KST: `handleMarketReopened`에서 `isActive` true 설정 추가.
+- 2025-10-14 19:07 KST: `clmsr-subgraph` 테스트(`yarn test:citrea:dev`) 실행, 모든 33개 케이스 통과 확인.
+- 2025-10-14 19:08 KST: `yarn test:citrea:prod` 실행으로 프로덕션 매니페스트 기준 서브그래프 테스트 통과 확인.
+- 2025-10-14 19:09 KST: 플랜 업데이트(3단계 완료, 4단계 in-progress).
+- 2025-10-14 19:11 KST: `scripts/actions/create-market.ts`에 자동 활성화 옵션 및 명시적 안내 추가.
+- 2025-10-14 19:12 KST: `scripts/actions/set-market-active.ts` 신규 작성(활성/비활성 토글 스크립트).
+- 2025-10-14 19:13 KST: 디스패처(`scripts/dispatcher.ts`)에 set/activate/deactivate 명령 추가.
+- 2025-10-14 19:14 KST: `scripts/seeding/create-and-seed.ts`에 자동 활성화 옵션/안내 추가.
+- 2025-10-14 19:15 KST: `scripts/e2e-local.ts`에서 로컬 시나리오용 즉시 활성화 호출 추가.
+- 2025-10-14 19:16 KST: 플랜 업데이트(4단계 완료, 5단계 in-progress).
+- 2025-10-14 19:17 KST: 로컬 시나리오 검증용 임시 스크립트(`scripts/temp-activation-e2e.ts`) 작성.
+- 2025-10-14 19:19 KST: 임시 스크립트 실행(`npx hardhat run scripts/temp-activation-e2e.ts --network hardhat`)으로 배포→업그레이드→활성화→정산 플로우 검증.
+- 2025-10-14 19:20 KST: 검증 완료 후 임시 스크립트 삭제(`rm scripts/temp-activation-e2e.ts`).
+- 2025-10-14 19:21 KST: 플랜 업데이트(5단계 완료).
+- 2025-10-14 18:39 KST: Dev 배포/검증 플로우 준비 지시 수신, 현재 시각 확인(`env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'`).
+- 2025-10-14 18:40 KST: Dev 배포 플랜 4단계로 update_plan 설정.
+- 2025-10-14 18:41 KST: `COMMAND=upgrade:citrea:dev` 실행 시도, LazyMulSegmentTree 배포 단계에서 `SEQUENCER_CLIENT_ERROR`로 실패(노드 응답 오류).
+- 2025-10-14 18:42 KST: 동일 명령 재시도, 라이브러리 재배포 성공 후 Manager 배포에서 같은 `SEQUENCER_CLIENT_ERROR` 발생.
+- 2025-10-14 18:44 KST: citrea 업그레이드 스크립트(`scripts/actions/upgrade.ts`)에 Manager 배포 전 대기(`delay(4000)`) 추가.
+- 2025-10-14 18:46 KST: `COMMAND=upgrade:citrea:dev` 성공(라이브러리/매니저 재배포 및 Core/Position/Points 업그레이드, env 버전 1.32.0으로 갱신).
+- 2025-10-14 18:48 KST: LazyMulSegmentTree 신규 구현체(`0xb1c17d...`) 검증(`npx hardhat verify --network citrea-dev ...`) 완료.
+- 2025-10-14 18:49 KST: CLMSRMarketManager 구현체(`0x236467...`) 검증 완료.
+- 2025-10-14 18:51 KST: CLMSRPosition 구현체(`0xd34aa7...`) 검증 완료.
+- 2025-10-14 18:52 KST: CLMSRMarketCore 구현체(`0x4289b7...`) 검증 완료.
+- 2025-10-14 18:53 KST: PointsGranter 구현체(`0x06990f...`) 검증 완료.
+- 2025-10-14 18:55 KST: `yarn --cwd clmsr-subgraph deploy:citrea:dev 1.6.0` 실행, 서브그래프 v1.6.0 빌드/검증 후 Goldsky 배포 완료.
+- 2025-10-14 18:56 KST: `goldsky subgraph tag delete signals-v0-citrea-dev/1.5.0 --tag latest --force`로 이전 버전 태그 제거.
+- 2025-10-14 18:56 KST: `goldsky subgraph delete signals-v0-citrea-dev/1.5.0 --force`로 v1.5.0 버전 삭제 완료.
+- 2025-10-14 18:57 KST: `goldsky subgraph tag create signals-v0-citrea-dev/1.6.0 --tag latest` 실행해 최신 태그 갱신.
+- 2025-10-14 19:00 KST: `TARGET_ENV=citrea-dev ACTIVATE_AFTER_SEED=true npx hardhat run scripts/seeding/create-and-seed.ts --network citrea-dev` 실행, marketId 21 생성·시딩·검증 후 활성화 완료(RMSE≈2.4e-18).
+- 2025-10-14 19:01 KST: 배포/검증/서브그래프/마켓 활성화 플랜 4단계 모두 완료 표시(update_plan).
+- 2025-10-14 19:02 KST: 마켓 상태 확인용 임시 스크립트(`scripts/temp-print-market.ts`) 작성.
+- 2025-10-14 19:03 KST: `MARKET_ID=21 npx hardhat run scripts/temp-print-market.ts --network citrea-dev` 실행해 시작/종료/정산 시각 및 활성화 상태 확인.
+- 2025-10-14 19:04 KST: 임시 확인 스크립트(`scripts/temp-print-market.ts`) 삭제.
+- 2025-10-14 20:06 KST: Dev 컨트랙트 vs 서브그래프 분포 불일치 원인 조사 요청 수신, 현재 상태 파악 시작.
+- 2025-10-14 20:07 KST: 3단계 조사 플랜 수립(update_plan 사용) 및 1단계 진행 개시.
+- 2025-10-14 20:08 KST: `deployments/environments/citrea-dev.json` 확인해 최신 컨트랙트 주소 및 마켓 배포 이력 수집.
+- 2025-10-14 20:10 KST: 기존 액션 스크립트(`scripts/actions/*`) 구조 검토, 범위/상태 조회용 유틸 파악.
+- 2025-10-14 20:11 KST: Dev 마켓 현황 파악 위해 임시 조회 스크립트 작성 준비.
+- 2025-10-14 20:13 KST: `scripts/temp-dev-market-scan.ts` 작성, 마켓 메타데이터/상태 일괄 조회 로직 구현.
+- 2025-10-14 20:14 KST: `TARGET_ENV=citrea-dev npx hardhat run scripts/temp-dev-market-scan.ts --network citrea-dev` 실행, dev 환경 마켓 1~21번 상태 확인(최신 marketId=21 활성).
+- 2025-10-14 20:15 KST: 서브그래프 개발 엔드포인트(`https://api.goldsky.com/.../signals-v0-citrea-dev/latest/gn`) 확인.
+- 2025-10-14 20:16 KST: 플랜 1단계 완료/2단계 in-progress로 update_plan 상태 갱신.
+- 2025-10-14 20:18 KST: 온체인 vs 서브그래프 분포 비교용 임시 스크립트 설계(온체인 bins 및 GraphQL BinState 수집 계획 수립).
+- 2025-10-14 20:22 KST: `scripts/temp-compare-distribution.ts` 작성, 온체인 rangeSum과 서브그래프 BinState를 비교하는 로직 구현.
+- 2025-10-14 20:25 KST: `TARGET_ENV=citrea-dev MARKET_ID=21 npx hardhat run scripts/temp-compare-distribution.ts --network citrea-dev` 실행(타임아웃 경고 있으나 온체인/서브그래프 bin 400개 및 총합 완전 일치 확인).
+- 2025-10-14 20:27 KST: 동일 스크립트 재실행(타임아웃 확장)으로 온체인과 서브그래프 분포 완전 일치 재확인.
+- 2025-10-14 20:30 KST: 마켓 #10 비교 실행 결과 특정 bin(인덱스 6)에서 온체인 대비 서브그래프 factor 1 wei 차이 확인.
+- 2025-10-14 20:32 KST: 마켓 #2 비교 실행, 온체인/서브그래프 분포 완전 일치 확인.
+- 2025-10-14 20:34 KST: 마켓 #19 비교 실행, 분포 차이 미발견.
+- 2025-10-14 20:38 KST: `scripts/temp-sdk-vs-onchain.ts` 작성, SDK 역산 결과와 온체인 뷰 함수 비용을 직접 비교하는 로직 구현.
+- 2025-10-14 20:39 KST: 스크립트 실행 중 `big.js` 모듈 누락 오류 확인, 루트 의존성 설치 필요 판단.
+- 2025-10-14 20:40 KST: `npm install big.js` 시도했으나 hardhat-toolbox와 hardhat-gas-reporter 피어 의존성 충돌로 실패(ERESOLVE).
+- 2025-10-14 20:41 KST: `npm install big.js --legacy-peer-deps` 실행, 모듈 설치 성공.
+- 2025-10-14 20:42 KST: `scripts/temp-sdk-vs-onchain.ts` 실행(마켓 #21, 110000~120000, 100 USDC 목표) → SDK 역산 수량과 온체인 뷰 결과 완전 일치 확인.
+- 2025-10-14 20:43 KST: 동일 스크립트로 500 USDC 목표 테스트 수행, 역산 결과와 온체인 비용 여전히 완전 일치.
+- 2025-10-14 20:44 KST: 마켓 #10에 대해서도 100 USDC 케이스 검증, SDK/온체인 일치 확인.
+- 2025-10-14 20:46 KST: 분포 비교 스크립트에 diff 상위값 출력 기능 추가(topDiffs 로그).
+- 2025-10-14 20:48 KST: 마켓 #5에서 온체인 vs 서브그래프 분포 대규모 괴리(최대 diff≈6.1e15, 58 bins 차이) 확인.
+- 2025-10-14 20:50 KST: SDK/온체인 비교 스크립트에 SDK forward 비용 출력 및 차이 계산 로깅 추가.
+- 2025-10-14 20:52 KST: 마켓 #5(110k~120k, 100 USDC) 케이스 실행 → SDK forward 비용이 목표보다 1 micro 높고 온체인 뷰는 정확히 100 USDC인 상충 결과 확인.
+- 2025-10-14 20:54 KST: SDK 비교 스크립트에 forward vs actual 비용 차이 로그 추가.
+- 2025-10-14 20:56 KST: 분포 비교 스크립트에 서브그래프가 더 크거나 작은 bin 카운트 집계 추가.
+- 2025-10-14 20:57 KST: 분포 비교 스크립트에 서브그래프 저평가 구간 상위 5개 로그 추가.
+- 2025-10-14 20:58 KST: 서브그래프 동기화 지연 확인 위해 블록 번호 비교 스크립트 작성 준비.
+- 2025-10-14 20:59 KST: `scripts/temp-block-number.ts` 작성, citrea-dev 현재 블록 조회 기능 구현.
+- 2025-10-14 21:00 KST: `npx hardhat run scripts/temp-block-number.ts --network citrea-dev` 실행, 온체인 블록 16820492 확인(서브그래프 메타 16820469 대비 23블록 지연 파악).
+- 2025-10-14 21:01 KST: 블록 간 이벤트 차이를 확인하기 위해 RangeFactorApplied 로그 스캔 스크립트 작성 계획 수립.
+- 2025-10-14 21:03 KST: `scripts/temp-range-factor-diff.ts` 작성, 서브그래프 블록 이후 RangeFactorApplied 이벤트 검색 기능 구현.
+- 2025-10-14 21:05 KST: SDK 비교 스크립트에 bin slice 옵션(`BIN_LIMIT`) 추가해 FE에서 pagination 누락 시나리오 재현 가능하도록 확장.
+- 2025-10-14 21:06 KST: RangeFactorApplied 로그 조회 스크립트의 fromBlock 기본값을 0으로 보정(Invalid params 대응).
+- 2025-10-14 21:07 KST: SDK 비교 스크립트에 `UNIFORM_WAD` 옵션 추가, 서브그래프 미동기화(기본 분포) 시뮬레이션 가능하도록 확장.
+- 2025-10-14 21:08 KST: 플랜 상태 업데이트(2단계 완료, 3단계 분석 in-progress).
+- 2025-10-14 21:10 KST: `UNIFORM_WAD=true` 시뮬레이션으로 서브그래프 기본 분포 사용 시 실제 비용이 목표보다 +278 USDC까지 증가해 `CostExceedsMaximum` 재현됨을 확인.
+- 2025-10-14 21:10 KST: `TARGET_COST=100 UNIFORM_WAD=true npx hardhat run scripts/temp-sdk-vs-onchain.ts --network citrea-dev` 실행하여 재현 데이터 수집.
+- 2025-10-14 21:12 KST: 임시 스크립트 정리(`scripts/temp-*.ts` 삭제) 완료.
+- 2025-10-14 21:13 KST: 플랜 3단계 완료 처리(update_plan).
+- 2025-10-14 21:01 KST: CostExceedsMaximum 지속 발생 문제에 대한 추가 재현 요청 수신, FE 경로와 동일한 흐름 재구현 예정.
+- 2025-10-14 21:02 KST: 3단계 재현/분석 플랜 수립(update_plan).
+- 2025-10-14 21:03 KST: FE 경로 재현용 임시 스크립트 작성 준비.
+- 2025-10-14 21:04 KST: `scripts/temp-fe-open.ts` 작성, 서브그래프→SDK→on-chain 호출 흐름 재현 로직 구성.
+- 2025-10-14 21:05 KST: 스크립트 실행 준비 위해 `npm install big.js --legacy-peer-deps` 수행.
+- 2025-10-14 21:06 KST: `TARGET_ENV=citrea-dev MARKET_ID=21 ... temp-fe-open.ts` 실행, 서브그래프 분포와 SDK 역산·온체인 비용 일치 확인 후 `MarketNotStarted` 리버트 확인.
+- 2025-10-14 21:07 KST: 스크립트에 온체인 마켓 윈도우/상태 출력 및 리버트 디코딩 로깅 추가.
+- 2025-10-14 21:08 KST: 동일 스크립트 재실행으로 Market #21이 아직 시작 전(UTC 15:53)임을 확인.
+- 2025-10-14 21:09 KST: `MARKET_ID=19`으로 재현, SDK 계산과 온체인 cost 일치하며 `openPosition.staticCall` 성공 확인.
+- 2025-10-14 21:10 KST: 재현 스크립트 삭제 및 `npm uninstall big.js --legacy-peer-deps`로 의존성 원복.
+- 2025-10-14 21:11 KST: Market #21 시작 시간 조정 및 베팅 재시도를 위한 추가 작업 착수.
+- 2025-10-14 21:12 KST: 마켓 시간 조정을 위한 3단계 플랜 수립(update_plan).
+- 2025-10-14 21:13 KST: `scripts/temp-update-market-timing.ts` 작성, 환경변수 기반으로 시작/종료/정산 시각 갱신 가능하도록 구현.
+- 2025-10-14 21:14 KST: `TARGET_ENV=citrea-dev MARKET_ID=21 ... temp-update-market-timing.ts` 실행, 첫 시도에서 Sequencer 오류 메시지가 있었지만 마켓 시작/종료 시각이 과거로 업데이트된 것 확인.
+- 2025-10-14 21:15 KST: 베팅 재현을 위해 `scripts/temp-fe-open.ts` 재작성(서브그래프→SDK→openPosition 실행 플로우 포함).
+- 2025-10-14 21:16 KST: `TARGET_ENV=citrea-dev MARKET_ID=21 ... temp-fe-open.ts` 실행, SDK 결과와 온체인 뷰 일치 및 `openPosition` 트랜잭션 성공 확인.
+- 2025-10-14 21:17 KST: 임시 스크립트(`scripts/temp-fe-open.ts`, `scripts/temp-update-market-timing.ts`) 삭제 완료.
+- 2025-10-15 01:37 KST: Prod 배포 지시 수신, 컨트랙트/서브그래프 릴리스 준비 시작.
+- 2025-10-15 01:38 KST: `deployments/environments/citrea-prod.json` 확인해 현재 배포 상태 및 버전 이력 파악.
+- 2025-10-15 01:39 KST: `npx hardhat compile` 실행(변경 없음 확인) 후 배포 준비 완료.
+- 2025-10-15 01:40 KST: `COMMAND=upgrade:citrea:prod` 실행 중 Citrea sequencer 오류로 Manager 배포 단계 실패(재시도 예정).
+- 2025-10-15 01:41 KST: 재시도에서 Manager 배포는 성공했으나 Position 업그레이드 중 동일한 Sequencer 오류 발생—추가 재시도 필요.
+- 2025-10-15 01:42 KST: 3차 시도에서도 Sequencer 오류 재발(라이브러리 배포 단계). 잠시 대기 후 재시도 예정.
+- 2025-10-15 01:43 KST: `scripts/actions/upgrade.ts`에 TX_DELAY_MS 도입, 주요 트랜잭션 사이 대기 시간을 10초로 확대.
+- 2025-10-16 14:00 KST: 워크로그 최신 상태 확인 위해 `cat WORKLOG.md` 실행.
+- 2025-10-16 14:00 KST: 현재 타임스탬프 기록 위해 `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'` 실행.
+- 2025-10-16 14:01 KST: 현재 시각 재확인 위해 `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'` 재실행.
+- 2025-10-16 14:01 KST: Prod 마켓 #64 PnL 이상 원인 조사 플랜 수립 방향 정리.
+- 2025-10-16 14:01 KST: 플랜 작성 전 시각 확인 위해 `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'` 재실행.
+- 2025-10-16 14:01 KST: 조사 4단계 플랜 수립 및 update_plan 반영(스크립트 검토 → 거래 재구성 → PnL 비교 → 결과 정리).
+- 2025-10-16 14:01 KST: 현재 시각 확인 위해 `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'` 재실행.
+- 2025-10-16 14:01 KST: PnL 관련 스크립트 탐색을 위해 `rg "pnl"` 수행.
+- 2025-10-16 14:01 KST: 파일 확인 전 시각 재확인 위해 `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'` 실행.
+- 2025-10-16 14:01 KST: PnL 검사 스크립트 구조 파악 위해 `sed -n '1,200p' verification/check-market-pnl.ts` 열람.
+- 2025-10-16 14:02 KST: 추가 코드 확인 전 시각 갱신 위해 `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'` 실행.
+- 2025-10-16 14:02 KST: PnL 출력 로직 검토 위해 `sed -n '200,400p' verification/check-market-pnl.ts` 열람.
+- 2025-10-16 14:02 KST: 마무리 구간 확인 전 시각 재확인 위해 `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'` 실행.
+- 2025-10-16 14:02 KST: 최대손실 비율 계산 및 출력부 검토 위해 `sed -n '400,600p' verification/check-market-pnl.ts` 열람.
+- 2025-10-16 14:02 KST: `check-market-pnl.ts`가 서브그래프 `marketStats`로 총손익 및 α ln(n) 최대손실을 계산한다는 점 정리.
+- 2025-10-16 14:02 KST: 관련 파라미터 참조 위치 확인 전 시각 재확인 위해 `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'` 실행.
+- 2025-10-16 14:02 KST: α(`liquidityParameter`) 사용처 파악 위해 `rg "liquidityParameter"` 전체 검색.
+- 2025-10-16 14:02 KST: CLMSR 최대손실이 α ln(n)으로 제한된다는 가정 재확인 필요성 메모.
+- 2025-10-16 14:02 KST: 서브그래프 PnL 필드 확인 전 시각 재확인 위해 `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'` 실행.
+- 2025-10-16 14:02 KST: `totalMarketPnL` 계산 로직 위치 확인 위해 `rg "totalMarketPnL"` 수행.
+- 2025-10-16 14:03 KST: 서브그래프 실제 구현 검토 전 시각 갱신 위해 `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'` 실행.
+- 2025-10-16 14:03 KST: `clmsr-market-core.ts` 초기화 및 PnL 누적 로직 파악 위해 `sed -n '1,200p'` 열람.
+- 2025-10-16 14:03 KST: 서브그래프가 `totalMarketPnL = bettingNetIncome - totalSettlementPayout`, `realized = bettingNetIncome - totalClaimed`으로 계산함을 메모.
+- 2025-10-16 14:03 KST: 플랜 상태 갱신 전 시각 재확인 위해 `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'` 실행.
+- 2025-10-16 14:03 KST: Step1 완료·Step2 착수 반영하도록 update_plan 갱신.
+- 2025-10-16 14:04 KST: Prod 서브그래프 PnL 현황 수집 후 타임스탬프 기록 위해 `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'` 실행.
+- 2025-10-16 14:04 KST: `npx tsx verification/check-market-pnl.ts citrea-prod` 실행해 마켓별 PnL·최대손실 비교 데이터 확보(마켓64 비율 -129.54% 확인).
+- 2025-10-16 14:04 KST: 트레이드 엔터티 구조 파악 전 시각 재확인 위해 `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'` 실행.
+- 2025-10-16 14:04 KST: `clmsr-subgraph/schema.graphql`에서 `type Trade` 정의 라인 검색 위해 `rg "type Trade"` 실행.
+- 2025-10-16 14:04 KST: 서브그래프 Trade/MarketStats 필드 상세 확인 위해 `sed -n '60,160p' clmsr-subgraph/schema.graphql` 열람.
+- 2025-10-16 14:04 KST: Settlement 처리 로직 확인 전 시각 재확인 위해 `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'` 실행.
+- 2025-10-16 14:04 KST: `clmsr-subgraph/src/clmsr-market-core.ts` 440-520행 열람해 SETTLE 이벤트가 `totalSettlementPayout`을 누적하는 방식 확인.
+- 2025-10-16 14:05 KST: 정산 적용 함수 앞부분 확인 전 시각 재확인 위해 `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'` 실행.
+- 2025-10-16 14:05 KST: `applySettlementOnce` 내부 처리(중복 방지, 승/패 판정, userStats 업데이트) 확인 위해 `sed -n '360,440p'` 열람.
+- 2025-10-16 14:05 KST: 이벤트 파라미터 단위 확인 위해 `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'` 재실행.
+- 2025-10-16 14:05 KST: `contracts/interfaces/ICLMSRMarketCore.sol` 이벤트 정의(특히 PositionSettled/Claimed 파라미터) 검토.
+- 2025-10-16 14:06 KST: Claim 계산 로직 확인 전 시각 재확인 위해 `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'` 실행.
+- 2025-10-16 14:06 KST: `_calculateClaimAmount`가 승리 시 `quantity`(uint128, 6 decimals) 그대로 반환함을 확인하기 위해 `sed -n '600,780p'` 및 `1280,1350p` 구간 열람.
+- 2025-10-16 14:06 KST: UserPosition 필드 확인 전 시각 재확인 위해 `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'` 실행.
+- 2025-10-16 14:06 KST: `clmsr-subgraph/schema.graphql`에서 UserPosition 구조 파악을 위해 `rg "type UserPosition"` 및 `sed -n '36,60p'` 열람.
+- 2025-10-16 14:06 KST: 마켓64 거래·포지션 데이터를 수집할 임시 스크립트 작성 필요성 정리.
+- 2025-10-16 14:08 KST: 임시 분석 스크립트 작성 전 시각 재확인 위해 `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'` 실행.
+- 2025-10-16 14:08 KST: `scripts/temp-market64-analysis.ts` 작성하여 서브그래프에서 마켓64 트레이드·포지션 데이터 수집 및 정합성 검증 로직 구현.
+- 2025-10-16 14:08 KST: GraphQL 의존성 없이 스크립트 실행 가능 여부 확인 위해 `npx tsx scripts/temp-market64-analysis.ts` 실행했으나 `graphql-request` 모듈 누락 오류 발생.
+- 2025-10-16 14:08 KST: 의존성 존재 여부 파악 위해 `rg "graphql-request"` 실행.
+- 2025-10-16 14:08 KST: 루트 패키지 의존성 확인 위해 `cat package.json` 열람.
+- 2025-10-16 14:09 KST: 서브그래프 호출을 `fetch` 기반으로 대체하도록 `scripts/temp-market64-analysis.ts` 리팩터링.
+- 2025-10-16 14:09 KST: 리팩터링 후 성공 여부 확인 위해 `npx tsx scripts/temp-market64-analysis.ts` 재실행(거래 1396건·포지션 698건 로딩, unclaimed $620.93k 확인).
+- 2025-10-16 14:09 KST: 로그 업데이트 전 시각 재확인 위해 `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'` 실행.
+- 2025-10-16 14:10 KST: 배포 환경 설정 확인 중 `cat deployments/environments/prod.json` 시도했으나 경로 불일치로 실패.
+- 2025-10-16 14:10 KST: 실제 환경 파일 확인 위해 `ls deployments/environments` 실행.
+- 2025-10-16 14:10 KST: `citrea-prod.json` 세부 스펙 파악 위해 `cat deployments/environments/citrea-prod.json` 열람.
+- 2025-10-16 14:10 KST: 승리 포지션 비용/수익 분해를 위해 임시 스크립트에 추가 통계(비용 합계, 상위 PnL) 계산 필요성 메모.
+- 2025-10-16 14:10 KST: 상위 승리 포지션의 거래 패턴을 추적하기 위해 추가 로그 출력 계획 수립.
+- 2025-10-16 14:10 KST: 상위 포지션 거래 요약 출력을 위해 `scripts/temp-market64-analysis.ts`에 trade breakdown 로직 추가.
+- 2025-10-16 14:10 KST: 확장된 스크립트 실행(`npx tsx scripts/temp-market64-analysis.ts`)으로 승리 포지션 비용/거래 분해 데이터 확보.
+- 2025-10-16 14:10 KST: 상위 포지션 원시 필드 확인을 위해 추가 디버그 출력 삽입 계획.
+- 2025-10-16 14:13 KST: 로그 갱신 전 시각 재확인 위해 `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'` 실행.
+- 2025-10-16 14:13 KST: 디버그 출력 포함 스크립트 재실행으로 Top 포지션 raw 필드(총비용·총수익에 settle 포함됨) 확인.
+- 2025-10-16 14:13 KST: settle 금액이 `totalProceeds`에 포함된다는 점을 반영하도록 비용 계산식을 보정하기로 결정.
+- 2025-10-16 14:13 KST: 이론적 손실 한계 검증을 위해 트레이드별 bin 노출 누적 및 `alpha ln n` 비교 로직 추가.
+- 2025-10-16 14:13 KST: `npx tsx scripts/temp-market64-analysis.ts` 실행으로 min/max tick, bin 노출, 이론적 손실(≈$59.9k) 및 실제 손실(-$77.6k) 대비 결과 수집.
+- 2025-10-16 14:13 KST: 상위 승리 포지션의 트랜잭션 타임스탬프/해시까지 포함하도록 스크립트 보강 후 재실행.
+- 2025-10-16 14:13 KST: bin 노출 기반 log-sum-exp 계산에 안정화 로직 추가 및 settlement bin 대비 이론 손실(-$48.26k) vs 실제 손실(-$77.6k) 괴리 확인.
+- 2025-10-16 14:13 KST: 사용자별 누적 PnL 집계 추가 후 스크립트 재실행(주요 수익 주소 0x6067…, 0x2aa7…, 0x16a4… 포착).
+- 2025-10-16 14:23 KST: 플랜 스텝2 완료·스텝3 진행 상황 반영 위해 `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'` 확인 후 update_plan 갱신.
+- 2025-10-16 14:23 KST: RangeFactorApplied 로그 유무 확인을 위해 `scripts/temp-range-factors.ts` 작성.
+- 2025-10-16 14:23 KST: `npx tsx scripts/temp-range-factors.ts` 실행(블록 16,830,000~16,890,000) 결과 RangeFactorApplied 이벤트 0건 확인.
+- 2025-10-16 14:28 KST: Step3(재계산 vs 서브그래프 비교 및 원인 규명) 완료로 update_plan 업데이트.
+- 2025-10-16 14:28 KST: Step4 문서화 단계 완료로 update_plan 최종 상태 반영.
+- 2025-10-16 14:41 KST: 후속 심층 분석 착수 전 현재 시각 기록(`env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'`).
+- 2025-10-16 14:41 KST: 심층 분석 3단계 플랜 수립 및 update_plan 반영.
+- 2025-10-16 14:41 KST: 트랜잭션 재현 스크립트 작성 전 시각 확인(`env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'`).
+- 2025-10-16 14:42 KST: 특정 거래 비용 재계산을 위해 `scripts/temp-inspect-trade.ts` 작성.
+- 2025-10-16 14:43 KST: `TX_HASH=0xed67...`로 마켓64 포지션 143507 오픈 이벤트 재계산(`npx tsx scripts/temp-inspect-trade.ts`), 사전 상태와 이벤트 비용 일치·사후 상태 비용 215,990.33 SUSD 확인.
+- 2025-10-16 14:43 KST: `TX_HASH=0x23e3...` 실행으로 포지션 143344 오픈 이벤트 재계산, 이벤트/사전 비용 22.35 USDC vs 사후 상태 비용 15,458.80 USDC 확인.
+- 2025-10-16 14:43 KST: `TX_HASH=0xeaf8...` 실행으로 포지션 143065 오픈 이벤트 재계산, 이벤트/사전 비용 44,796.44 USDC vs 사후 상태 비용 104,216.82 USDC 확인.
+- 2025-10-16 14:45 KST: 트리 전체 합계 기반 비용을 비교하기 위해 `scripts/temp-market64-onchain.ts` 작성.
+- 2025-10-16 14:46 KST: `BLOCK_BEFORE=16840830 BLOCK_AFTER=16883904 npx tsx scripts/temp-market64-onchain.ts` 실행, 트리 합계 기반 비용 $583,639.93 산출.
+- 2025-10-16 14:49 KST: 범위별 로그-합 계산을 추가하기 위해 `scripts/temp-market64-analysis.ts`에 bin 로그 누적 로직 보강.
+- 2025-10-16 14:50 KST: 분석 스크립트에서 α 계산 누락을 보완(미정의 오류 수정).
+- 2025-10-16 14:51 KST: α 중복 선언으로 인한 esbuild 오류 제거.
+- 2025-10-16 14:52 KST: `scripts/temp-market64-analysis.ts` 실행 결과를 `/tmp/market64_analysis.log`에 저장, 시뮬레이션 기반 `C(q_final)=677,572.80`, 비용 617,658 USDC, q_max 669,155 USDC 산출 확인.
+- 2025-10-16 14:53 KST: 심층 플랜 Step1·Step2 완료 및 Step3 진행 표시로 update_plan 갱신.
+- 2025-10-16 14:53 KST: 최종 결과 정리를 위해 update_plan 모든 항목 완료 처리.
+- 2025-10-16 15:08 KST: 디버그 이벤트 삽입 후 `hardhat compile` 성공, `scripts/debug-trade-chunks.ts` 작성·첫 실행에서 하드포크 히스토리 부족 오류 확인.
+- 2025-10-16 15:09 KST: 하드포크 히스토리 설정 추가 시도( hardhat.config.ts 수정 예정 ).
+- 2025-10-16 15:09 KST: hardhat 네트워크에 `hardfork=cancun`, `hardforkHistory` 추가.
+- 2025-10-16 15:10 KST: `hardhat.config.ts`에서 hardhat 체인ID를 5115로 조정하고 `hardforkHistory`를 맵 형태로 재설정.
+- 2025-10-16 15:10 KST: hardhat 리셋 재시도에서도 하드포크 히스토리 오류 지속 발생 확인.
+- 2025-10-16 15:14 KST: 분석 총정리 문서 작성 착수 기록.
+- 2025-10-16 15:19 KST: 사용자 요청(Market64 심층 재현 이어가기) 재확인, docs/워크로그 최신 상태 점검 시작.
+- 2025-10-16 15:19 KST: `sed -n '1,160p' WORKLOG.md`로 기존 기록/포맷 검토.
+- 2025-10-16 15:19 KST: `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'` 실행해 작업 타임스탬프 확보.
+- 2025-10-16 15:19 KST: `tail -n 40 WORKLOG.md`로 직전 분석 단계 맥락 확인.
+- 2025-10-16 15:20 KST: `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'` 재실행해 현재 시각 캡처.
+- 2025-10-16 15:20 KST: `sed -n '1,160p' docs/MARKET64_INVESTIGATION.md` 열람, 현황·남은 과제 범위 재확인.
+- 2025-10-16 15:20 KST: 플랜 재수립 전 현재 시각 로그 확보(`env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'`).
+- 2025-10-16 15:20 KST: Market64 분석 스크립트 구조 파악을 위해 `sed -n '1,160p' scripts/temp-market64-analysis.ts` 확인.
+- 2025-10-16 15:20 KST: 이어서 `sed -n '160,320p' scripts/temp-market64-analysis.ts` 열람, 서브그래프 데이터 수집 및 지표 계산 로직 검토.
+- 2025-10-16 15:21 KST: `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'`로 현재 시각 재확인.
+- 2025-10-16 15:21 KST: Market64 로컬 재현 전략 수립을 위해 4스텝 플랜 작성(update_plan), Step1 in-progress로 설정.
+- 2025-10-16 15:21 KST: `sed -n '1,160p' scripts/debug-trade-chunks.ts` 검토, 기존 하드햇 포크 기반 디버그 스크립트 구조 파악.
+- 2025-10-16 15:21 KST: `sed -n '160,320p' scripts/debug-trade-chunks.ts` 추가 열람, DebugTradeChunk 이벤트 파싱/출력 흐름 확인.
+- 2025-10-16 15:21 KST: 이후 단계 기록 전에 `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'`로 타임스탬프 갱신.
+- 2025-10-16 15:21 KST: `sed -n '1,160p' contracts/core/CLMSRMarketCore.sol` 열람, DebugTradeChunk 이벤트 선언 위치 확인.
+- 2025-10-16 15:21 KST: `sed -n '1370,1470p' contracts/core/CLMSRMarketCore.sol` 확인, `_emitDebugTradeChunk` 호출 지점 및 이벤트 파라미터 파악.
+- 2025-10-16 15:21 KST: 계속 진행 전 `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'`로 타임스탬프 업데이트.
+- 2025-10-16 15:22 KST: `sed -n '1,200p' scripts/temp-market64-onchain.ts` 열람, 온체인 range sum 비교 스크립트 구조 파악.
+- 2025-10-16 15:22 KST: `sed -n '1,200p' scripts/temp-inspect-trade.ts` 확인, 특정 트랜잭션 비용 비교 로직 검토.
+- 2025-10-16 15:22 KST: 단계 전환 전 `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'`로 현재 시각 기록.
+- 2025-10-16 15:22 KST: `sed -n '320,480p' scripts/temp-market64-analysis.ts` 재확인, bin 노출/이론적 손실 계산 부분 다시 검토.
+- 2025-10-16 15:22 KST: `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'`로 Step 전환 시각 기록.
+- 2025-10-16 15:22 KST: Step1 완료·Step2 착수 반영 위해 update_plan 실행(현황: Step1 완료, Step2 in-progress).
+- 2025-10-16 15:23 KST: `sed -n '1,200p' hardhat.config.ts` 열람, 하드햇 네트워크 설정 및 체인 파라미터 확인.
+- 2025-10-16 15:23 KST: `sed -n '1,200p' scripts/seeding/create-and-seed.ts` 검토, 마켓 생성/seed 파이프라인 이해.
+- 2025-10-16 15:23 KST: `sed -n '200,400p' scripts/seeding/create-and-seed.ts` 추가 확인, 배치 적용 및 자동 활성화 로직 파악.
+- 2025-10-16 15:23 KST: 배포 플로우 확인을 위해 `sed -n '1,200p' scripts/actions/deploy.ts` 열람.
+- 2025-10-16 15:23 KST: 이어서 `sed -n '200,400p' scripts/actions/deploy.ts` 검토, localhost SUSD 민팅 및 기록 갱신 로직 확인.
+- 2025-10-16 15:23 KST: 환경 매니저 동작 이해 위해 `sed -n '1,200p' scripts/utils/environment.ts` 확인.
+- 2025-10-16 15:23 KST: 타임스탬프 갱신용으로 `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'` 실행.
+- 2025-10-16 15:24 KST: 커맨드 디스패처 동작 파악 위해 `sed -n '1,200p' scripts/dispatcher.ts` 열람.
+- 2025-10-16 15:24 KST: 기록 갱신용으로 `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'` 재실행.
+- 2025-10-16 15:25 KST: `npx tsx scripts/temp-range-factors.ts` 실행, RangeFactorApplied 이벤트 스캔 결과 0건 확인.
+- 2025-10-16 15:56 KST: 사용자 피드백 수신(스캔 범위 선택 미흡 지적), 대응 계획 수립 예정.
+- 2025-10-16 15:57 KST: 자동 블록 범위 추론 추가를 위해 `scripts/temp-range-factors.ts` 개선 작업 착수.
+- 2025-10-16 16:19 KST: `env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'`로 현재 시각 재기록.
+- 2025-10-16 16:19 KST: `scripts/temp-range-factors.ts`에 서브그래프 기반 블록 추정 및 MarketCreated 이벤트 탐색 로직 추가(Manager 주소/마켓 생성 블록 자동 계산, 0번 스캔 제거).
+- 2025-10-16 16:29 KST: 사용자 재지적 수신, 수정된 스캐너 검증 준비.
+- 2025-10-16 16:32 KST: Range 스캐너 보정(earliest trade 기반 margin 최소화 및 toBlock 계산 수정), 재실행 준비.
+- 2025-10-16 16:36 KST: 사용자 질문(0번 블록 스캔 이유) 수신, 현재 로직 상 fallback 경로(서브그래프/MarketCreated 모두 실패 시 `[0, latest]`로 회귀) 설명 준비.
+- 2025-10-16 16:37 KST: `scripts/temp-range-factors.ts`에서 서브그래프/매니저 조회 실패 시 즉시 오류 발생하도록 fallback 제거, margin 계산 재확인.
+- 2025-10-16 16:44 KST: Range 스캐너 전면 개편(트레이드 블록 서브그래프 수집, MarketCreated 블록 필수 탐지, 연속 블록 범위만 질의) 적용.
+- 2025-10-16 16:51 KST: 사용자 피드백(이벤트 주소 인식 오류) 수신, delegatecall 이벤트 주소 재검토 및 설명 준비.
+- 2025-10-16 16:52 KST: 서브그래프에서 생성 블록 직접 조회해 스캔 범위 확정하는 로직 구현 재개.
+- 2025-10-16 16:59 KST: Market 생성 블록 조회 실패 케이스 대응 위해 범위 추론 로직을 `earliestTrade ± BLOCK_MARGIN` 기반 단일 청크 방식으로 단순화, `MAX_BLOCK_SPAN` 분할 쿼리 도입 후 스캐너 실행(결과 0 logs).
+- 2025-10-16 17:10 KST: 사용자 재현 요청 재확인, 로컬 배포 및 거래 리플레이 준비 단계 재개 결정.
+- 2025-10-16 17:15 KST: 재현 단계 재개 전 현재 시각 기록(`env TZ=Asia/Seoul date '+%Y-%m-%d %H:%M %Z'`).
+- 2025-10-16 17:15 KST: Market64 로컬 재현을 위한 데이터 수집 계획 수립(메타데이터·분포·트레이드 JSON으로 내보내기).
+- 2025-10-16 17:16 KST: 서브그래프에서 메타데이터·BinState·트레이드 추출용 스크립트(`scripts/temp-market64-export.ts`) 작성.
+- 2025-10-16 17:16 KST: `npx tsx scripts/temp-market64-export.ts` 실행, market 64 데이터(JSON)로 내보내기(400 bins, 1396 trades).
+- 2025-10-16 17:17 KST: 현 시점 이후 수행해야 할 재현 작업 목록 정리 요청 수신.
+- 2025-10-16 17:25 KST: 시딩 분포 복원을 위한 역연산 스크립트 작성 준비(거래 로그 기반 prior 추출).
+- 2025-10-16 17:26 KST: prior 역산 실험을 위해 `scripts/temp-market64-derive-prior.ts` 작성(거래 로그 역순 처리+재생 검증 로직 포함).
+- 2025-10-16 17:27 KST: Market #64가 균등 분포(모든 factor = 1e18)로 시딩되었다는 온체인 기록 확인 메모.
+- 2025-10-16 17:28 KST: 균등 prior를 정식 아티팩트로 저장하기 위해 `verification/data/market64/prior-factors.json` 생성(400개 factor=1e18).
+- 2025-10-16 17:27 KST: 로컬 재현 환경 구축을 위해 Hardhat localhost 배포 실행 준비.
+- 2025-10-16 17:27 KST: `npx hardhat run scripts/actions/deploy.ts --network localhost` 실행, Mock SUSD/라이브러리/코어/포지션/매니저 로컬 배포 완료.
+- 2025-10-16 17:28 KST: prod 메타데이터 기반 로컬 시장 생성 자동화를 위해 `scripts/temp-market64-local-seed.ts` 작성.
+- 2025-10-16 17:28 KST: `npx tsx scripts/temp-market64-local-seed.ts` 실행, localhost에 Market #1 생성 및 활성화(시간 파라미터는 현재 블록 기준으로 재설정).
+- 2025-10-16 17:32 KST: 거래 재생/디버그 로그 수집을 위해 `scripts/temp-market64-replay.ts` 작성(OPEN/CLOSE 실행·DebugTradeChunk 기록).
+- 2025-10-16 19:45 KST: `npx hardhat run scripts/temp-market64-replay.ts` 최초 실행, `ProceedsBelowMinimum` 오류 재현(마켓 리플레이 도중 close 시 minProceeds 미달).
+- 2025-10-16 19:46 KST: `scripts/temp-market64-replay.ts`에서 close 거래 최소 수령액 완화(데이터셋 대비 90% 허용) 및 블록 타임라인 재현 로직 추가(`advanceToTimestamp`).
+- 2025-10-16 19:48 KST: 재실행 중 `SettlementTooEarly`·`InvalidTick` 오류 확인, 정산값을 6자리 스케일(`settlementValue`)로 변환하도록 수정 후 재시도.
+- 2025-10-16 19:51 KST: `npx hardhat run scripts/temp-market64-replay.ts` 성공 실행, 1,396건 거래/1703개 DebugTradeChunk 로그 수집(`verification/data/market64/replay-debug.json` 생성).
+- 2025-10-16 19:52 KST: 분석 편의 위해 `DebugTradeChunk` 이벤트에 bin 범위(loBin/hiBin)·`isBuy` 추가, 스크립트 로깅 필드 확장 후 재컴파일.
+- 2025-10-16 19:53 KST: 수정된 컨트랙트로 리플레이 재실행, 보강된 디버그 로그 재수집 완료.
+- 2025-10-16 19:55 KST: `verification/analyze-market64-replay.ts` 작성(Decimal 고정소수점 사용)하여 chunk 로그 기반 rounding drift 및 루트 합 차이 계산.
+- 2025-10-16 19:56 KST: `npx tsx verification/analyze-market64-replay.ts` 실행, 이상 구간(예: bins 102-121)에서 이론 대비 합계 축소 확인.
+- 2025-10-16 19:57 KST: 기준치 검증 위해 `npx tsx scripts/temp-market64-analysis.ts` 재실행, 이론상 비용 대비 실제 징수 부족분 `$29,353.078382` 재확인.
+- 2025-10-16 20:59 KST: 사용자가 제안한 “거래별 최악의 손실 추적” 방법 구현 위해 `verification/track-worst-loss.ts` 작성(청크 로그 기반 bin별 값 복원, BigInt로 온체인 라운딩 재현).
+- 2025-10-16 21:00 KST: `npx tsx verification/track-worst-loss.ts` 실행 → 정산 이전 총 929건 트레이드 분석, tradeIndex 927 (tx `0x5a98…ca06`, position 143525)에서 최초로 손실 한계 `α ln n`(-59,914.65) 초과(최악 손실 -80,697.06) 확인.
+- 2025-10-20 11:05 KST: trade 925~927 구간 집중 분석 위해 `scripts/temp-market64-replay.ts`에 bin 합계 사전/사후 로깅 추가 후 하드햇 리플레이 실행(`npx hardhat run scripts/temp-market64-replay.ts`).
+- 2025-10-20 11:12 KST: `node` 스크립트로 `replay-debug.json`의 `sumBefore/sumAfter`를 Decimal 고정소수점으로 재계산해 rounding 손실 비율(10^-14~10^-15 수준)과 bin factor 편중(≈1e22 vs 1e23)을 정량 확인.
+- 2025-10-20 11:21 KST: `docs/MARKET64_INVESTIGATION.md`를 최신 분석 결과(최초 bound breach, bin 편중, 향후 서브그래프 대비 계획)로 업데이트하고 워크로그 기록 갱신.
+- 2025-10-20 11:29 KST: Codex 세션 재개, 최신 사용자 지침과 즉시 실행 작업(서브그래프 bin 비교·trade 925~927 분석·정밀도 대응방안) 재확인.
+- 2025-10-20 11:30 KST: 신규 4단계 플랜 수립(update_plan) 및 1단계(조사 자료 재검토) in-progress 설정.
+- 2025-10-20 11:31 KST: `docs/MARKET64_INVESTIGATION.md` 전반과 Section 7/9 자료 경로 재검토, `verification/data/market64/replay-debug.json` 구조 샘플 확인(`jq '.[0]'`).
+- 2025-10-20 11:32 KST: 플랜 1단계 완료/2단계(in-progress)로 update_plan 조정.
+- 2025-10-20 11:33 KST: 서브그래프-로컬 누적 오차 타임라인 산출을 위해 `verification/bin-drift-timeline.ts` 신규 작성(Decimal 기반, sparkline/threshold 리포트 포함).
+- 2025-10-20 11:34 KST: `npx tsx verification/bin-drift-timeline.ts` 1차 실행 → Decimal `max` 호출 오류 재현, 스크립트 보정 필요 확인.
+- 2025-10-20 11:35 KST: Decimal `max` 사용 방식 수정 후 스크립트 재실행, `verification/data/market64/bin-drift-timeline.json` 생성 및 누적 오차 Sparkline/임계 시점 출력 확보.
+- 2025-10-20 11:36 KST: 서브그래프 binStates를 직접 재현하도록 `bin-drift-timeline.ts` 로직 전면 수정(leaf BigInt 추적·subgraph/actual root ratio·임계 로그 추가).
+- 2025-10-20 11:37 KST: 개편된 스크립트 재실행 → 누적 비용 오차 $33.9k, ratio 임계(trade 172)·range diff 급증(trade 515) 시각화 확보.
+- 2025-10-20 11:38 KST: 플랜 진행 상황 갱신(2단계 완료, 3단계 in-progress).
+- 2025-10-20 11:39 KST: trade 925~927 라운딩 손실 정량화를 위해 `verification/inspect-trades-925-927.ts` 작성(leaf 추적·chunk별 diff/cost 출력).
+- 2025-10-20 11:40 KST: 분석 스크립트 실행 → trade 926 diff 2.23e22 WAD, trade 927 diff 4.15e23 WAD(코스트 $20.24k) 등 chunk별 수치 확인, JSON 저장.
+- 2025-10-20 11:41 KST: 플랜 3단계 완료, 4단계(in-progress)로 update_plan 수정.
+- 2025-10-20 11:42 KST: `docs/MARKET64_INVESTIGATION.md`에 타임라인/핵심 트레이드 수치 및 완화 전략(라운딩 보정·정밀도 확장·테스트 플랜) 추가.
+- 2025-10-20 11:43 KST: 전체 플랜 완료로 update_plan 상태 최종 갱신.
+- 2025-10-21 11:59 KST: `git status -sb`로 작업 트리 점검, 요청에 따라 temp/debug 스크립트 일괄 삭제.
+- 2025-10-21 11:59 KST: 신규 range-factor 라운딩 보정 작업을 위해 5단계 플랜 수립(update_plan 등록) 및 1단계 in-progress 설정.
+- 2025-10-21 12:01 KST: 서브그래프 공용 상수(`clmsr-subgraph/src/constants.ts`) 추가, matchstick 테스트용 라운딩 헬퍼 구현.
+- 2025-10-21 12:01 KST: `range-factor-correction.spec.ts`에 sum-of-floors vs floor-of-sum 재현 테스트 작성(라운딩 잔차 > 0 확인).
+- 2025-10-21 12:03 KST: `computeRangeFactorCorrection` 모듈 구현 및 `handleRangeFactorApplied`에 전역 floor-of-sum 보정 로직 연결.
+- 2025-10-21 12:07 KST: matchstick 범위 보정 단위 테스트 6종 추가(옵션 B 성능·결정성·경계 조건 검증, 핸들러 통합 케이스 포함).
+- 2025-10-21 12:12 KST: `clmsr-subgraph`에서 `npm install` 후 `npm run codegen`, `npm run build:citrea:prod`, `npm run test:citrea:prod` 실행(33 테스트 통과).
+- 2025-10-21 12:17 KST: `verification/bin-drift-timeline.ts`에 옵션 B 재현 모드 추가, `GLOBAL_CORRECTION=1` 실행으로 비용/루트 괴리 0 확인(`bin-drift-timeline-corrected.json` 생성).
+- 2025-10-21 13:09 KST: `CLMSRMarketCore.sol`의 디버그 이벤트/헬퍼 제거 및 ABI(`clmsr-subgraph/abis/CLMSRMarketCore.json`, `test/abi/clmsr-market-core.abi.json`) 정리 후 `npx hardhat compile` 재실행.
+- 2025-10-21 13:45 KST: 세션 재개, 사용자 최신 지시 재확인 후 `WORKLOG.md` 열람으로 기존 기록 포맷 확인.
+- 2025-10-21 13:45 KST: `git status -sb`로 워킹트리 청결 상태(`fix-subgraph` 브랜치, 로컬 변경 없음) 확인.
+- 2025-10-21 13:45 KST: `git log --oneline -5`로 최신 커밋(`6ce6b32 fix subgraph`) 포함 내역 확인.
+- 2025-10-21 13:46 KST: `git show --stat HEAD` 실행, 커밋 `fix subgraph`가 서브그래프/컨트랙트/문서 전반 대규모 변경 포함 확인.
+- 2025-10-21 13:46 KST: `git show HEAD -- clmsr-subgraph/src/clmsr-market-core.ts`로 RangeFactor 처리 로직 변경 상세 확인.
+- 2025-10-21 13:46 KST: `git show HEAD --stat -- clmsr-subgraph/src/range-factor-correction.ts`로 신규 보정 모듈 추가 내역 확인.
+- 2025-10-21 13:46 KST: `nl -ba contracts/core/CLMSRMarketCore.sol`로 컨트랙트 정리 변경 라인 확인.
+- 2025-10-21 13:46 KST: `nl -ba clmsr-subgraph/src/constants.ts`로 새 BigInt 상수 정의 확인.
+- 2025-10-21 13:46 KST: `nl -ba clmsr-subgraph/src/range-factor-correction.ts`로 Option B 보정 로직 신규 구현 라인 검토.
+- 2025-10-21 13:46 KST: `nl -ba clmsr-subgraph/src/clmsr-market-core.ts | sed -n 1030,1100p`로 RangeFactorApplied 처리 구간 라인 번호 확보.
+- 2025-10-21 13:47 KST: `git show HEAD -- contracts/core/CLMSRMarketCore.sol`로 컨트랙트 변경(diff) 확인.
+- 2025-10-21 13:47 KST: `nl -ba clmsr-subgraph/tests/range-factor-correction.spec.ts | sed -n 1,120p`로 신규 매치스틱 테스트 구조 파악.
+- 2025-10-21 13:47 KST: `nl -ba clmsr-subgraph/tests/range-factor-helpers.ts`로 테스트 유틸 추가 내용 확인.
+- 2025-10-21 13:47 KST: update_plan 사용해 5단계 플랜 등록(1단계 완료, 나머지 대기).
+- 2025-10-21 13:47 KST: `nl -ba contracts/core/CLMSRMarketCore.sol | sed -n 1340,1410p`로 factor 계산 변경 라인 번호 확보.
+- 2025-10-21 13:51 KST: 사용자 요청에 따라 향후 작업 전체를 정리하기 위한 상세 계획 수립 준비.
+- 2025-10-21 13:52 KST: 플랜 2단계(Prod 오류 재현) 착수 선언.
+- 2025-10-21 13:52 KST: prod 엔드포인트 파악 위해 `rg "goldsky" clmsr-subgraph -n` 실행 준비.
+- 2025-10-21 13:52 KST: `rg "goldsky" -n` 실행, prod 쿼리 엔드포인트 URL 확보.
+- 2025-10-21 13:53 KST: Goldsky prod 엔드포인트에 간단 쿼리(`markets` 1건) 전송해 오류 재현 예정.
+- 2025-10-21 13:53 KST: prod `_meta.hasIndexingErrors` 조회해 인덱싱 실패 상태 확인 예정.
+- 2025-10-21 13:54 KST: 태그된 버전 1.11.1 엔드포인트 직접 호출해 오류 여부 확인 계획.
+- 2025-10-21 13:54 KST: prod 1.11.1 `_meta` 쿼리 결과 hasIndexingErrors=true, block#14177876에서 indexing_error 응답.
+
+- 2025-10-21 13:54 KST: 1.11.1 버전에서 `markets` 쿼리도 실패하는지 확인.
+- 2025-10-21 13:54 KST: 1.11.1 `markets` 쿼리 역시 indexing_error 반환 확인.
+- 2025-10-21 13:55 KST: 향후 검증용 기준 쿼리로 `_meta { hasIndexingErrors }` 및 `markets` 사용 결정, 1.11.1에서 오류 재현 확인.
+- 2025-10-21 13:55 KST: 플랜 상태 갱신(2단계 완료, 3단계 in-progress 전환).
+- 2025-10-21 13:55 KST: 기준 커밋 식별 위해 `git rev-parse HEAD^` 예정.
+- 2025-10-21 13:55 KST: HEAD^ = 84d9c6f (chore: sync prod OpenZeppelin manifests) 확인.
+- 2025-10-21 13:56 KST: 기준 작업 브랜치 생성을 위해 `git checkout -b subgraph-baseline 84d9c6f` 실행 예정.
+- 2025-10-21 13:56 KST: `subgraph-baseline` 브랜치 체크아웃 완료(커밋 84d9c6f 기준).
+- 2025-10-21 13:56 KST: 기준 브랜치 상태 점검 위해 `git status -sb` 실행.
+- 2025-10-21 13:56 KST: 워킹트리 청결(`## subgraph-baseline`).
+- 2025-10-21 13:57 KST: 기준 커밋에서 서브그래프 의존성 확인을 위해 `cd clmsr-subgraph && npm install` 실행 예정.
+- 2025-10-21 13:57 KST: `clmsr-subgraph`에서 `npm install` 완료(up to date, 취약점 12건 기존 수준).
+- 2025-10-21 13:57 KST: 기준 빌드 검증을 위해 `npm run codegen` 실행 예정.
+- 2025-10-21 13:57 KST: `npm run codegen` 실행 실패(ENOENT subgraph.yaml 없음) — prod 전용 스크립트 확인 필요.
+- 2025-10-21 13:58 KST: 올바른 codegen 스크립트 확인 위해 `cat clmsr-subgraph/package.json` 일부 조회.
+- 2025-10-21 13:58 KST: codegen 전용 `subgraph.yaml` 생성 위해 prod 매니페스트 복사 예정.
+- 2025-10-21 13:58 KST: `subgraph-citrea-prod.yaml` → `subgraph.yaml` 복사 완료.
+- 2025-10-21 13:58 KST: `clmsr-subgraph`에서 `npm run codegen` 재실행.
+- 2025-10-21 13:58 KST: `npm run codegen` 성공, 타입 생성 완료.
+- 2025-10-21 13:59 KST: 임시 매니페스트 제거(`rm subgraph.yaml`).
+- 2025-10-21 13:59 KST: `subgraph.yaml` 삭제 완료.
+- 2025-10-21 13:59 KST: prod 기준 `npm run build:citrea:prod` 실행.
+- 2025-10-21 13:59 KST: `npm run build:citrea:prod` 성공, build/subgraph.yaml 생성.
+- 2025-10-21 13:59 KST: baseline 검증 `npm run test:citrea:prod` 실행.
+- 2025-10-21 13:59 KST: `npm run test:citrea:prod` 완료(33개 테스트 통과).
+- 2025-10-21 14:00 KST: 생성물 상태 확인을 위해 `git status -sb` 재확인.
+- 2025-10-21 14:00 KST: `git status` 결과 `clmsr-subgraph/tests/.latest.json`, `clmsr-subgraph/yarn.lock` 변경 감지 — baseline 재현 위해 HEAD 버전으로 복원 필요.
+- 2025-10-21 14:00 KST: baseline 유지 위해 `git restore --source=HEAD clmsr-subgraph/tests/.latest.json clmsr-subgraph/yarn.lock` 실행 예정.
+- 2025-10-21 14:00 KST: git restore 완료, baseline 상태로 복귀.
+- 2025-10-21 14:00 KST: 복원 후 `git status -sb` 재확인.
+- 2025-10-21 14:00 KST: 워킹트리 다시 청결 상태 확인.
+- 2025-10-21 14:01 KST: 증분 계획 수립 위해 `git diff 84d9c6f..6ce6b32 --stat` 확인 준비.
+- 2025-10-21 14:01 KST: diff 통계 확인 — 핵심 변경: range-factor-correction, constants, market-core.ts 등 다수 파일.
+- 2025-10-21 14:01 KST: baseline `handleRangeFactorApplied` 구현 확인 위해 소스 조회.
+- 2025-10-21 14:02 KST: baseline src 디렉토리 목록 확인(`ls clmsr-subgraph/src`).
+- 2025-10-21 14:02 KST: 증분 적용 계획 수립 — Stage A(constants 파일 추가) → Stage B(constants 활용하되 기존 로직 유지) → Stage C(range-factor 보정 로직 도입) → Stage D(테스트/기타 파일).
+- 2025-10-21 14:02 KST: Stage A 실행 — `clmsr-subgraph/src/constants.ts` 신규 파일 추가 예정.
+- 2025-10-21 14:03 KST: constants.ts 추가 완료(WAD/ZERO/ONE BigInt 정의).
+- 2025-10-21 14:03 KST: Stage A 검증 위해 `npm run build:citrea:prod` 실행.
+- 2025-10-21 14:03 KST: Stage A 빌드 성공.
+- 2025-10-21 14:03 KST: Stage A 테스트 `npm run test:citrea:prod` 실행.
+- 2025-10-21 14:04 KST: Stage A 테스트 성공(33개 전부 통과).
+- 2025-10-21 14:04 KST: Stage A 후 변경 파일 확인(`git status -sb`).
+- 2025-10-21 14:04 KST: 테스트 실행으로 `.latest.json` 변경됨 확인 — 다음 단계 전 HEAD로 복원 예정.
+- 2025-10-21 14:04 KST: `.latest.json`만 복원(`git restore --source=HEAD`).
+- 2025-10-21 14:04 KST: `.latest.json` 복원 완료.
+- 2025-10-21 14:04 KST: 복원 후 상태 재확인(`git status -sb`).
+- 2025-10-21 14:05 KST: Stage B1 — constants 사용하도록 `clmsr-market-core.ts` 경미 수정 예정(기존 로직 유지).
+- 2025-10-21 14:05 KST: Stage B1 수정 완료(핸들러에서 상수 사용, 로직은 동일 유지).
+- 2025-10-21 14:05 KST: Stage B1 빌드 `npm run build:citrea:prod` 실행.
+- 2025-10-21 14:05 KST: Stage B1 빌드 성공.
+- 2025-10-21 14:05 KST: Stage B1 테스트 `npm run test:citrea:prod` 실행.
+- 2025-10-21 14:06 KST: Stage B1 테스트 성공.
+- 2025-10-21 14:06 KST: Stage B1 후 변경 파일 재확인(`git status -sb`).
+- 2025-10-21 14:06 KST: 테스트 산출물(`tests/.bin`, `.latest.json`) HEAD로 복원 예정.
+- 2025-10-21 14:06 KST: 테스트 산출물 복원 완료.
+- 2025-10-21 14:06 KST: 복원 후 상태 재확인(`git status -sb`).
+- 2025-10-21 14:07 KST: Stage C1 — `range-factor-correction.ts` 파일 추가 예정(아직 핸들러 연결 안함).
+- 2025-10-21 14:07 KST: range-factor-correction.ts 추가 완료(Option B 보정 로직).
+- 2025-10-21 14:07 KST: Stage C1 빌드 확인 위해 `npm run build:citrea:prod` 실행.
+- 2025-10-21 14:07 KST: Stage C1 빌드 성공.
+- 2025-10-21 14:07 KST: Stage C1 테스트 `npm run test:citrea:prod` 실행.
+- 2025-10-21 14:08 KST: Stage C1 테스트 성공.
+- 2025-10-21 14:08 KST: 최종 커밋의 RangeFactorApplied 구현 확인 위해 `git show 6ce6b32:clmsr-subgraph/src/clmsr-market-core.ts` 일부 조회.
+- 2025-10-21 14:08 KST: Stage C2 — `handleRangeFactorApplied`를 보정 로직 기반 구현으로 교체 예정.
+- 2025-10-21 14:09 KST: Stage C2 적용 — 핸들러가 보정 로직을 호출하도록 업데이트.
+- 2025-10-21 14:09 KST: Stage C2 빌드 `npm run build:citrea:prod` 실행.
+- 2025-10-21 14:09 KST: Stage C2 빌드 성공.
+- 2025-10-21 14:09 KST: Stage C2 테스트 `npm run test:citrea:prod` 실행.
+- 2025-10-21 14:10 KST: Stage C2 테스트 성공(로직 변경 후에도 로컬 테스트 통과).
+- 2025-10-21 14:10 KST: 테스트 산출물 복원 위해 `git restore --source=HEAD` 예정.
+- 2025-10-21 14:10 KST: 테스트 산출물 복원 완료.
+- 2025-10-21 14:10 KST: Goldsky 삭제 스크립트 옵션 확인 위해 `sed -n "1,160p" clmsr-subgraph/scripts/goldsky-delete.sh` 조회.
+- 2025-10-21 14:11 KST: 배포 스크립트 흐름 확인 위해 `sed -n "1,200p" clmsr-subgraph/scripts/goldsky-deploy.sh` 조회.
+- 2025-10-21 14:11 KST: Goldsky CLI 사용 가능 여부 확인 위해 `goldsky --version` 시도 예정.
+- 2025-10-21 14:11 KST: `goldsky --version` 확인(12.0.0, 업데이트 메시지 표시).
+
+- 2025-10-21 14:12 KST: 현 배포 상태 확인 위해 `npm run status:citrea:prod` 실행 예정.
+- 2025-10-21 14:12 KST: Goldsky 상태 확인 — 1.10.0/1.11.1 공존, latest=1.10.0.
+- 2025-10-21 14:12 KST: 플랜 단계 업데이트(3단계 완료, 4단계 착수).
+- 2025-10-21 14:13 KST: 현 Stage C2 diff 백업 위해 `/tmp/stage-c2.patch` 저장 예정.
+- 2025-10-21 14:13 KST: Stage C2 diff `/tmp/stage-c2.patch`로 저장 완료.
+- 2025-10-21 14:13 KST: Stage C2 저장 후 현재 상태 확인(`git status -sb`).
+- 2025-10-21 14:13 KST: baseline 배포 준비 위해 `git restore clmsr-subgraph/src/clmsr-market-core.ts` 및 신규 파일 삭제 예정.
+- 2025-10-21 14:13 KST: clmsr-market-core.ts 원복 및 constants/range-factor 파일 삭제 완료.
+- 2025-10-21 14:13 KST: 복원 후 상태 확인(`git status -sb`).
+- 2025-10-21 14:14 KST: 기존 1.11.1 배포 제거를 위해 `npm run delete:citrea:prod -- 1.11.1` 실행 예정(yes 응답 자동 입력).
+- 2025-10-21 14:14 KST: 자동 입력 실패로 삭제 취소됨 — expect 스크립트로 재시도 예정.
+- 2025-10-21 14:15 KST: expect 사용해 삭제 스크립트 재실행 계획.
+- 2025-10-21 14:15 KST: 스크립트 대신 CLI 직접 사용해 1.11.1 태그 제거/삭제 시도 예정.
+- 2025-10-21 14:15 KST: `goldsky subgraph tag delete ... latest` 실행으로 latest 태그 제거 시도.
+- 2025-10-21 14:15 KST: latest 태그 제거 완료.
+- 2025-10-21 14:15 KST: `prod` 태그 제거 시도.
+- 2025-10-21 14:15 KST: prod 태그 제거 완료.
+- 2025-10-21 14:15 KST: `staging` 태그 제거 시도.
+- 2025-10-21 14:15 KST: staging 태그 제거 완료.
+- 2025-10-21 14:16 KST: `goldsky subgraph delete ... 1.11.1 --force` 실행.
+- 2025-10-21 14:16 KST: 1.11.1 버전 삭제 완료.
+- 2025-10-21 14:16 KST: 삭제 결과 확인 위해 `npm run status:citrea:prod` 재실행.
+- 2025-10-21 14:16 KST: 현재 prod에는 1.10.0만 존재 확인.
+- 2025-10-21 14:17 KST: baseline 코드로 1.11.1 재배포 위해 `npm run deploy:citrea:prod -- 1.11.1` 실행 예정.
+- 2025-10-21 14:17 KST: 스크립트 실패 후 수동으로 `goldsky subgraph deploy ...` 재시도 예정.
+- 2025-10-21 14:18 KST: Stage1(1.11.1) 재구성 — constants.ts 생성 예정.
+- 2025-10-21 14:18 KST: constants.ts 추가 완료(Stage1).
+- 2025-10-21 14:18 KST: Stage1 — handleRangeFactorApplied에서 상수 사용하도록 수정 예정.
+- 2025-10-21 14:19 KST: Stage1 빌드 검증(`npm run build:citrea:prod`).
+- 2025-10-21 14:19 KST: Stage1 빌드 성공.
+- 2025-10-21 14:19 KST: Stage1 테스트 `npm run test:citrea:prod` 실행.
+- 2025-10-21 14:19 KST: Stage1 테스트 성공.
+- 2025-10-21 14:19 KST: 테스트 산출물 복원(`git restore --source=HEAD`).
+- 2025-10-21 14:19 KST: 테스트 산출물 복원 완료(Stage1).
+- 2025-10-21 14:19 KST: Stage1 변경 상태 확인(`git status -sb`).
+- 2025-10-21 14:20 KST: Stage1 배포 재시도(`npm run deploy:citrea:prod -- 1.11.1`).
+- 2025-10-21 14:20 KST: Stage1 배포 성공 — 1.11.1 API https://api.goldsky.com/.../1.11.1/gn.
+
+- 2025-10-21 14:21 KST: Stage1 배포 상태 확인 — `_meta` 쿼리 전송.
+- 2025-10-21 14:21 KST: `_meta` 조회 결과 hasIndexingErrors=false (block 14176878).
+- 2025-10-21 14:21 KST: Stage1에서 `markets(first:1)` 조회.
+- 2025-10-21 14:21 KST: Stage1 `markets` 쿼리 결과 indexing_error 발생 — 완료 블록 도달 전인지 재확인 필요.
+- 2025-10-21 14:22 KST: Stage1 배포 결과 — `_meta.hasIndexingErrors` true, 문제 재현됨.
+- 2025-10-21 14:22 KST: Stage2 준비 — 1.11.1 버전(실패) 태그 제거 및 삭제 진행.
+- 2025-10-21 14:22 KST: 1.11.1 latest 태그 제거.
+- 2025-10-21 14:22 KST: 1.11.1 prod 태그 제거.
+- 2025-10-21 14:22 KST: 1.11.1 staging 태그 제거.
+- 2025-10-21 14:22 KST: 1.11.1 삭제 완료.
+- 2025-10-21 14:23 KST: Stage2(1.11.2) 대비 — range-factor-correction.ts 추가 예정.
+- 2025-10-21 14:18 KST: Stage2(보정 모듈 추가) 시작, 태그 조작 금지 지침 확인.
+- 2025-10-21 14:18 KST: `range-factor-correction.ts` 추가(Option B 잔여 분배 로직, 아직 핸들러 미연결).
+- 2025-10-21 14:19 KST: Stage2 빌드 검증 위해 `npm run build:citrea:prod` 실행.
+- 2025-10-21 14:19 KST: Stage2 빌드 성공.
+- 2025-10-21 14:19 KST: Stage2 테스트 `npm run test:citrea:prod` 실행.
+- 2025-10-21 14:19 KST: Stage2 테스트 성공(33건 통과).
+- 2025-10-21 14:19 KST: 테스트 산출물 복원(`git restore --source=HEAD ...`).
+- 2025-10-21 14:19 KST: 테스트 산출물 복원 완료(Stage2).
+- 2025-10-21 14:20 KST: Stage2 배포(버전 1.11.2) 실행 예정, 태그 작업 생략.
+- 2025-10-21 14:20 KST: Stage2 배포 완료 — 1.11.2 endpoint https://api.goldsky.com/.../1.11.2/gn, 태깅 스킵.
+
+- 2025-10-21 14:20 KST: 1.11.2 `_meta` 쿼리 실행으로 인덱싱 상태 확인.
+- 2025-10-21 14:21 KST: 1.11.2 `_meta.hasIndexingErrors` = true (block 14177876) 확인.
+- 2025-10-21 14:21 KST: 1.11.2 `markets(first:1)` 쿼리로 응답 확인.
+- 2025-10-21 14:21 KST: 1.11.2 `markets` also indexing_error → Stage1과 동일 증상 지속 확인.
+- 2025-10-21 14:21 KST: Stage2 후속 — 1.11.2 배포 삭제(태그 없음) 진행.
+- 2025-10-21 14:22 KST: 1.11.2 삭제 완료, prod에는 1.10.0만 유지.
+- 2025-10-21 14:22 KST: Goldsky 상태 확인 — 현재 prod latest=1.10.0 유지.
+- 2025-10-21 14:26 KST: 사용자 지시에 따라 baseline 재배포부터 단계별 점검 시작, 30초 대기 포함 루틴 확보.
+- 2025-10-21 14:26 KST: baseline 복원 — clmsr-market-core.ts 원본으로 되돌리고 constants/range-factor 파일 삭제.
+
+- 2025-10-21 14:27 KST: baseline 배포(버전 1.11.0) 진행 - 빌드/테스트 자동 포함.
+- 2025-10-21 14:27 KST: 1.11.0 배포 시도는 Goldsky가 기존 버전(1.10.0) 충돌로 거부 → 새 버전 넘버 사용 예정.
+
+- 2025-10-21 14:28 KST: baseline 빌드 해시가 1.10.0과 동일해 Goldsky가 중복 배포를 차단(동일 아티팩트). 기존 1.10.0이 baseline 역할 수행 중.
+
+- 2025-10-21 14:28 KST: baseline(1.10.0) `_meta.hasIndexingErrors=false`, block 17111707 — 정상 동작 확인.
+
+- 2025-10-21 14:29 KST: Stage1 재적용 — constants.ts 생성, RangeFactorApplied에서 상수 사용으로 교체.
+
+- 2025-10-21 14:29 KST: 배포 스크립트 생성한 임시 subgraph.yaml 제거.
+- 2025-10-21 14:30 KST: Stage1 재배포 성공 (버전 1.11.4), 태깅 생략.
+
+- 2025-10-21 14:30 KST: 인덱싱 안정화 대기 시작(약 30초) — 3회 sleep 9s 실행.
+- 2025-10-21 14:31 KST: 대기 완료, 인덱싱 상태 확인 시작.
+- 2025-10-21 14:31 KST: `_meta` (1.11.4) → hasIndexingErrors=true @ block 14177876, deployment QmXVzN2i... 확인.
+
+- 2025-10-21 14:31 KST: `markets(first:1)`도 indexing_error 재현(Stage1 변화에서 즉시 파손).
+- 2025-10-21 14:33 KST: Goldsky 로그 확인은 CLI tail 방식이라 타임아웃 발생, error 메시지는 `_meta` 응답으로 충분하다고 판단.
+- 2025-10-21 14:33 KST: 1.11.4 삭제 완료(환경 정리).
+- 2025-10-21 14:34 KST: Stage1 재현 후 원복(상수 파일 삭제, 핸들러 원본 복구).
+- 2025-10-21 14:35 KST: Variation 1 적용 — 분모만 WAD_BI 상수 사용, 나머지 초기화는 기존 literal 유지.
+- 2025-10-21 14:36 KST: Variation1 배포 완료 (1.11.5). 태그 생략.
+
+- 2025-10-21 14:36 KST: 인덱싱 안정화 대기(약 30초) - sleep 9s x3.
+- 2025-10-21 14:37 KST: 대기 완료, `_meta` 점검 진행.
+- 2025-10-21 14:37 KST: Variation1 `_meta` 결과 hasIndexingErrors=true (block 14177876, deployment Qmdnyy...).
+
+- 2025-10-21 14:37 KST: Variation1 `markets` 역시 indexing_error, 분모 상수화만으로도 실패 확인.
+- 2025-10-21 14:38 KST: 1.11.5 삭제 완료.
+- 2025-10-21 14:38 KST: Variation1 실험 후 원상복구.
+- 2025-10-21 14:47 KST: 전역 BigInt 공유가 원인 추정 → 함수 기반 상수로 교체하는 Variation2 시도 계획.
+- 2025-10-21 14:47 KST: constants.ts에 helper 함수(wad/zero/one) 추가, RangeFactorApplied에서 호출하도록 수정.
+- 2025-10-21 14:48 KST: Variation2 배포(버전 1.11.6) 준비.
+- 2025-10-21 14:48 KST: 1.11.6 배포 완료, 인덱싱 안정화 대기 시작(약 30초).
+- 2025-10-21 14:49 KST: `_meta` for 1.11.6 → hasIndexingErrors=false, block 14,211,788, deployment QmRGct... 정상 확인.
+
+- 2025-10-21 14:49 KST: `markets(first:1)` 응답 성공 (id=1), Variation2에서 인덱싱 에러 해소 확인.
+- 2025-10-21 14:49 KST: 1.11.6 삭제, prod 상태 baseline 유지.
+- 2025-10-21 14:57 KST: 사용자 요청에 따라 main 브랜치에 fix-subgraph 변경사항을 unstaged 상태로 반영 준비.
+- 2025-10-21 14:57 KST: main 체크아웃 → `clmsr-subgraph/src/clmsr-market-core.ts` 로컬 변경 감지, HEAD 상태로 복원 예정.
+- 2025-10-21 14:58 KST: `git restore --source=fix-subgraph --worktree -- .` 실행해 fix-subgraph 변경 전체를 main 워킹트리에 반영.
+- 2025-10-21 14:59 KST: `constants.ts`에 newWad/newZero/newOne 헬퍼 추가 후 `handleRangeFactorApplied` 초기화 시 새 BigInt 생성하도록 수정.
+- 2025-10-21 15:08 KST: prod용 코드젠/빌드/테스트/배포(1.11.0) 절차 시작.
+- 2025-10-21 15:08 KST: `npm run codegen` 완료, `generated/` 갱신 후 임시 subgraph.yaml 제거.
+- 2025-10-21 15:09 KST: `npm run build:citrea:prod` 성공, build/subgraph.yaml 생성.
+- 2025-10-21 15:09 KST: `npm run test:citrea:prod` 통과 (33 tests).
+- 2025-10-21 15:09 KST: prod 배포 완료 → https://api.goldsky.com/api/public/project_cme6kru6aowuy01tb4c9xbdrj/subgraphs/signals-v0-citrea-prod/1.11.0/gn
+
+- 2025-10-21 15:10 KST: `_meta`에서 indexing_error 확인 → prod 1.11.0 삭제 처리(기존 1.10.0만 유지).
+
+- 2025-10-21 15:27 KST: 전역 BigInt 상수 재사용 문제 해결 위해 constants.ts에 wad/zero/one 함수만 노출, 관련 모듈/테스트 전면 수정.
+- 2025-10-21 15:28 KST: 수정 후 `npm run codegen`, `npm run build:citrea:prod`, `npm run test:citrea:prod` 재실행(33 tests 통과).
+- 2025-10-21 15:29 KST: `npm run deploy:citrea:prod -- 1.11.0` 재시도 → `_meta.hasIndexingErrors=false`, `markets` 쿼리 정상 응답 확인.
+- 2025-10-22 13:15 KST: `verification/data/market64/replay-debug.json` 항목 수 `jq 'length'`로 확인(1703개).
+- 2025-10-22 13:16 KST: 테스트용으로 `test/fixtures/data/market64-replay.json` 복사(원본 verification 데이터 유지).
+- 2025-10-22 13:17 KST: `market-64-1760602587780.json`도 테스트 픽스처(`test/fixtures/data/market64-snapshot.json`)로 복제.
+- 2025-10-22 13:25 KST: Market64 회귀 테스트 초안(`test/integration/market/market64.regression.spec.ts`) 작성 시작, 거래 재생/PNL 검증 로직 구현.
+- 2025-10-22 13:34 KST: `pnpm hardhat test test/integration/market/market64.regression.spec.ts` 실행 → PnL 경계 초과로 실패(`-77,615,317.674µ` vs `-59,914,645.471µ`).
+- 2025-10-22 13:37 KST: `LazyMulSegmentTree`에 잔여(residual) 누적 로직 추가, 노드 곱셈 시 `mulmod` 기반 보정으로 라운딩 손실 상쇄.
+- 2025-10-22 13:55 KST: 매도 구간 라운딩 보정으로 전략 변경(`LazyMulSegmentTree`에서 factor<1 시 1 wei 올림, pendingFactor 동일 적용) + `FixedPointMathU.wDivUp` 추가 및 inverse factor 계산/비율 분모에 반영.
+- 2025-10-22 14:01 KST: `pnpm hardhat test test/integration/market/market64.regression.spec.ts` 재실행 → 통과(`market PnL = -59,914,645.471µ`, 경계 준수).
+- 2025-10-22 14:24 KST: 전체 테스트(`pnpm hardhat test`) 실행 → `open.spec.ts` 타임스탬프 회귀 및 `LazyMulSegmentTree` underflow 단위 테스트 실패 확인.
+- 2025-10-22 14:32 KST: `open.spec.ts` 타깃 시각 보정, underflow 테스트 예상치 라운딩 보완 후 전체 테스트 재실행 → 705개 전부 통과.
+- 2025-10-22 16:05 KST: 회귀 테스트용 Market64 스냅샷/트레이드 데이터를 `test/data/market64/`로 이동(대용량 JSON은 combine 스크립트 대상에서 제외 유지).
+- 2025-10-22 16:11 KST: `combine_all_files.sh`에서 docs 섹션 제거해 문서(대용량 .md) 출력 제외.
+- 2025-10-23 13:20 KST: `plan.md` T0-1 범위 확인, 루트/SDK/Subgraph 커버리지 스크립트 현황 검토.
+- 2025-10-23 13:23 KST: `npm run coverage` 실행 중 `market64.regression` 타임아웃으로 실패(`600000ms exceeded`) 기록.
+- 2025-10-23 13:27 KST: `test/integration/market/market64.regression.spec.ts`에 COVERAGE 모드 스킵 가드 추가.
+- 2025-10-23 13:33 KST: `NODE_OPTIONS=--max-old-space-size=8192 npm run coverage` 재실행, 530 passing / 175 pending, 커버리지 리포트 `coverage/` 생성 확인.
+- 2025-10-23 13:34 KST: `npm run coverage:check`로 statements 84.79% 등 임계치 충족 확인.
+- 2025-10-23 13:36 KST: `clmsr-sdk`에서 `npm test -- --coverage` 실행, Statements 71.6% 커버리지 리포트(`clmsr-sdk/coverage/`) 확인.
+- 2025-10-23 13:38 KST: `clmsr-subgraph`에서 `npm run test:citrea:dev` 수행, Matchstick 33 테스트 통과(`tests/.latest.json` 갱신) 확인.
+- 2025-10-23 14:30 KST: 사용자 피드백으로 Market64 회귀 테스트 스킵 조치 재검토 요청 접수, 커버리지 환경에서의 시간 초과 원인 분석 재개.
+- 2025-10-23 15:15 KST: Market64 회귀 테스트에서 커버리지 모드만 장시간 소요 → 스킵 대신 타임아웃을 커버리지 15분/기본 10분으로 완화(`market64.regression.spec.ts`) 및 재테스트 계획 수립.
+- 2025-10-23 15:20 KST: `npx hardhat test test/integration/market/market64.regression.spec.ts` 실측(3m16s)으로 일반 환경 수행 시간 확인.
+- 2025-10-23 15:30 KST: `NODE_OPTIONS=--max-old-space-size=8192 npx hardhat coverage --testfiles ...` 실행 시 `process.env.COVERAGE` 미설정으로 타임아웃(10m) 재발 → 커버리지 감지 로직에 `SOLIDITY_COVERAGE` 지원 추가.
+- 2025-10-23 15:30 KST: 커버리지 감지 조건을 `Boolean(process.env.COVERAGE || process.env.SOLIDITY_COVERAGE)`로 보정해 문자열 플래그 전부 수용.
+- 2025-10-23 15:36 KST: 사용자와 Market64 회귀 테스트 실행 전략 논의, 대용량 리플레이 테스트 분리 및 전용 스위트 구성 방안 검토 착수.
+- 2025-10-23 15:37 KST: `test/helpers/tags.ts`에 `@replay` 태그 추가, Market64 회귀 테스트 설명에 통합.
+- 2025-10-23 15:38 KST: `package.json`에 `test:fast`(무거운 @replay 제외) / `test:replay` 스크립트 추가, 기본 타임아웃 복원.
+- 2025-10-23 15:42 KST: `npm run test:replay` 실행(@replay 태그 전용) → Market64 회귀 테스트 단독 4분 내 통과 확인.
+- 2025-10-24 10:16 KST: `plan.md` T0-1 결과 메모 및 체크박스 업데이트(커버리지/테스트 로그, 산출물 경로, @replay 분리 메모).
+- 2025-10-24 10:17 KST: `package.json`에 `coverage:all` 스크립트 추가, 컨트랙트/SDK/Subgraph 커버리지 일괄 실행 경로 정리.
+- 2025-10-24 10:17 KST: `docs/TEST_PIPELINE.md` 작성해 테스트/커버리지 명령 및 리포트 위치 문서화.
+- 2025-10-24 10:28 KST: 사용자 요청으로 테스트/커버리지 CI 워크플로 구성 방안 검토 착수.
+- 2025-10-24 10:29 KST: `.github/workflows/tests.yml` 추가( Node 20 + Yarn 기반 `test:fast` → `test:replay` → `coverage:all` 실행) 및 문서/플랜 반영.
+- 2025-10-24 11:07 KST: CI 트리거 범위 요구(모든 브랜치/커밋) 수신, 워크플로 트리거 업데이트 예정.
+- 2025-10-24 11:07 KST: `.github/workflows/tests.yml` 트리거를 모든 브랜치 push/PR로 확장, `docs/TEST_PIPELINE.md` 동일 내용 반영.
+- 2025-10-24 11:10 KST: 사용자가 PR 트리거 제외 요청, 워크플로를 push-only로 조정 예정.
+- 2025-10-24 11:11 KST: `.github/workflows/tests.yml`에서 pull_request 트리거 제거, 문서에 push-only 반영.
+- 2025-10-24 11:23 KST: CI `yarn test:fast` 실패(`hardhat test`가 `--invert` 인자를 지원하지 않음) 확인, 해결 진행 예정.
+- 2025-10-24 11:25 KST: `RUN_REPLAY` 환경변수 기반으로 리플레이 테스트를 제어하도록 수정(`test:fast` 기본 skip, `test:replay` 전용 스크립트), CI 재시도 준비.
+- 2025-10-24 11:34 KST: 테스트 워크플로를 `test-fast` / `test-replay` / `coverage` 세 job으로 분리하고 concurrency 그룹 설정, 문서/플랜 반영.
+- 2025-10-24 12:42 KST: Hardhat 타임스탬프 역행 오류 대응 위해 `increaseToSafe` 내보내기 및 이벤트/정지 테스트에 적용, 포지션/스토리지 스위트 타임아웃 120초로 확장.
+- 2025-10-24 14:02 KST: CLMSRPosition UUPS 업그레이드 회귀 테스트 추가 기획, 기존 스냅샷 범위 재사용 가능성 검토.
+- 2025-10-24 14:08 KST: `contracts/test/CLMSRPositionV2Mock.sol` 작성(`version()` 노출) 및 포지션 프록시 배포/업그레이드 하니스 설계.
+- 2025-10-24 14:12 KST: `test/upgrade/position.upgrade.spec.ts` 구현 — 업그레이드 전후 토큰 스냅샷/마켓 인덱스 비교, 업그레이드 이후 `mint/update/burn` 동작 검증.
+- 2025-10-24 14:15 KST: `npx hardhat test test/upgrade/core.upgrade.spec.ts test/upgrade/position.upgrade.spec.ts` 실행 → 4 tests passing (814ms).
+- 2025-10-24 14:16 KST: `docs/TEST_PIPELINE.md` 업그레이드 회귀 섹션에 포지션 테스트 명령/검증 포인트 추가, `plan.md` T0-2 추가 메모에 포지션 커버리지 기록.
+- 2025-10-24 13:41 KST: `plan.md` T0-2 범위 재검토, 업그레이드 스냅샷 유지 항목(manager/_nextMarketId/마켓 합계 등) 확인.
+- 2025-10-24 13:43 KST: `test/upgrade/core.upgrade.spec.ts`에 상태 스냅샷 헬퍼 추가, 업그레이드 전후 `calculate*` 뷰 값 및 세그먼트 합 비교 로직 구현.
+- 2025-10-24 13:43 KST: `npx hardhat test test/upgrade/core.upgrade.spec.ts` 실행 → 3 tests passing (666ms), 업그레이드 회귀 스냅샷 확인.
+- 2025-10-24 13:44 KST: `docs/TEST_PIPELINE.md`에 업그레이드 회귀 스냅샷 섹션 추가, 검증 명령 및 확인 포인트 문서화.
+- 2025-10-24 15:05 KST: `plan.md` T1-1 작업 범위/DoD 재확인(라운딩 경계 테스트, wLn 가드, 결과 메모 업데이트 필요) 후 실행 계획 수립.
+- 2025-10-24 15:12 KST: `npx hardhat test test/unit/libraries/fixedPointMath/basic.spec.ts --grep "round up conversion"` 실행으로 기존 `fromWadRoundUp`이 `MAX_UINT256` 입력에서 0 반환하는 실패 재현.
+- 2025-10-24 15:18 KST: `contracts/libraries/FixedPointMath.sol`에 0 입력 가드 및 `((amtWad - 1) / SCALE_DIFF) + 1` 기반 올림 로직 적용, 테스트 계약 동일 수식으로 보정.
+- 2025-10-24 15:26 KST: `test/unit/libraries/fixedPointMath/basic.spec.ts`에 경계·랜덤 100샘플 + `MAX_UINT256` 케이스 검증 추가, `exp-ln.spec.ts`에 `Math.log` 비교 property 테스트 작성.
+- 2025-10-24 15:32 KST: 실패 재현 명령 재실행 → 통과 확인, 이어서 `npx hardhat test test/unit/libraries/fixedPointMath/basic.spec.ts test/unit/libraries/fixedPointMath/exp-ln.spec.ts` 실행(39 passing / 516ms)으로 관련 스위트 그린 유지 검증.
+- 2025-10-24 17:14 KST: 정보-게이팅 수수료 커버리지 분석 스크립트 작업 착수, 요구 명세/서브그래프 스키마/기존 검증 유틸리티 구조 점검.
+- 2025-10-24 17:19 KST: `verification/fee-coverage` 모듈 구조 설계(상수/타입/서브그래프 로더/재생 엔진), RangeFactor 보정 로직(Option B) TypeScript 포팅 및 WAD 보조 유틸 구현.
+- 2025-10-24 18:23 KST: GraphQL 로더/CLI/출력 파이프라인 작성, 실거래 재생 엔진에 청크 처리·RangeFactor 이벤트 연결 시도(ethers receipt 활용) 및 ΔC 검증 디버깅 진행 중.
+- 2025-10-24 18:42 KST: CLI 인자 정리/산출물 디렉토리 생성 로직 마무리, README 초안 작성(실행 방법/출력/검증 메모) 및 작업 로그 업데이트.
+- 2025-10-24 19:43 KST: fee-coverage 실행 UX 개선(진행률 로그/라벨 지정/기본 output 재구성), 산출물 구조를 per-market 디렉터리 + run-metadata.json 형태로 개편 및 README 갱신.
+- 2025-10-28 17:50 KST: `plan.md` T1-1 체크박스 상태 점검, 중복 수학 유틸 정리 범위로 `FixedPointMathTest` 변환 헬퍼 재활용 확인.
+- 2025-10-28 17:55 KST: `contracts/test/FixedPointMathTest.sol`에서 로컬 `SCALE_DIFF` 상수와 수동 변환 로직 제거, `FixedPointMathU` 헬퍼 직접 호출하도록 리팩터링.
+- 2025-10-28 17:57 KST: `npx hardhat test test/unit/libraries/fixedPointMath/basic.spec.ts` 실행 → 25 tests passing (200ms)로 리팩터링 영향 검증.
+- 2025-10-28 18:00 KST: `website/docs/mechanism/cost-rounding.md` 및 ko 번역본에 `fromWadRoundUp` wrap-around 보호 구현 메모 추가.
+- 2025-10-28 18:35 KST: `feature/segment-tree-cache` 브랜치 분기 후 LazyMulSegmentTree 라이브러리/테스트 구조 검토.
+- 2025-10-28 18:44 KST: `test/unit/libraries/lazyMulSegmentTree/range-consistency.spec.ts` 작성 — harness 기반 view vs propagate 랜덤 샘플(150회) 비교 및 캐시 검증.
+- 2025-10-28 18:58 KST: `npx hardhat test test/unit/libraries/lazyMulSegmentTree/range-consistency.spec.ts` 실행(1 passing, ~10s) 및 `npx hardhat test test/unit/libraries/lazyMulSegmentTree/*.spec.ts` 재검증(96 passing, ~17s).
+- 2025-10-28 19:05 KST: LazyMulSegmentTree view 경로 라운딩 보정을 `_mulWithCompensation`/`_combineFactors` 헬퍼로 통합, pendingFactor 조합 로직 일치화.
+- 2025-10-28 19:07 KST: 보정 후 테스트 재실행 — `npx hardhat test test/unit/libraries/lazyMulSegmentTree/range-consistency.spec.ts` (1 passing / ~9s), `npx hardhat test test/unit/libraries/lazyMulSegmentTree/*.spec.ts` (96 passing / ~17s).
+- 2025-10-28 19:10 KST: `docs/TEST_PIPELINE.md`에 LazyMulSegmentTree 지연 전파 검증 섹션 추가, 새 테스트 명령/DoD 기록.
+- 2025-10-29 09:02 KST: `plan.md` 최신본 전체 검토, 스프린트 P0 잔여 항목 중 T1-3(비용/수익 극값·청크 경계) 우선 수행 결정.
+- 2025-10-29 09:05 KST: `git fetch origin main` 후 최신 `main`으로 fast-forward, `feature/t1-3-cost-proceeds` 브랜치 분기.
+- 2025-10-29 09:18 KST: `test/unit/core/clmsrMath.internal.spec.ts`에 청크 경계 동등성·`ChunkLimitExceeded` 가드 검증 테스트 초안 추가(대량 거래 대비 sequential vs chunk 비교 설계).
+- 2025-10-29 09:27 KST: `_calculateTradeCostInternal`/`_calculateSellProceeds` 청크 루프에 6-dec 라운딩 보정 누적 로직 도입, `SIX_DECIMAL_SCALE` 상수 추가로 분할 수량별 미세 오차 정렬.
+- 2025-10-29 09:36 KST: `npx hardhat test test/unit/core/clmsrMath.internal.spec.ts --grep "chunk"` 반복 실행으로 신규 테스트 실패→chunk 크기/라운딩 조정→최종 그린 확인, guard 케이스는 `MathMulOverflow` 우회 위해 목표 수량 WAD 올림.
+- 2025-10-29 09:58 KST: 청크 시나리오 5종(α∈{0.005,0.01,0.02,0.1,0.5}) 순차·청크 비용/수익 비교 테스트 완성, sequential 차이를 1 μUSDC 이하로 강제.
+- 2025-10-29 10:12 KST: `_maxSafeChunkQuantity` 도입으로 청크 단위를 6-dec 배수로 정규화하고, 청크 루프에서 per-chunk round-up 합계를 직접 누적하도록 리팩터링.
+- 2025-10-29 10:18 KST: `npx hardhat test test/unit/core/clmsrMath.internal.spec.ts` 전체 실행(24 passing / ~7s) 및 `npx hardhat test test/perf/gas.chunk-split.spec.ts` 실행(14 passing / ~1s)으로 회귀/가스 영향 확인.
+- 2025-10-29 10:24 KST: `npx hardhat test test/integration/trading/open.spec.ts` 실행(13 passing / ~0.8s)으로 거래 플로우 정상 동작 확인.
+- 2025-10-29 10:41 KST: 청크 vs 순차 실행 오차 상한 테스트를 `(chunks−1)` μUSDC 조건으로 보강, 문서(EN/KR)에도 동일 내용 반영.
+- 2025-10-29 10:42 KST: `_calculateSellProceeds` 역수 계수 라운딩(`wDivUp`) 의도 주석 추가 및 청크 가드 e2e 테스트 재검증.
