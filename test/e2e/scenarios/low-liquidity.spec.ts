@@ -8,6 +8,8 @@ const describeMaybe = process.env.COVERAGE ? describe.skip : describe;
 
 const USDC_DECIMALS = 6;
 const SCALE_DIFF = 1_000_000_000_000n; // 1e12 for 6 -> 18 decimal conversions
+const WAD = 1_000_000_000_000_000_000n;
+const MAX_EXP_INPUT_WAD = 1_000_000_000_000_000_000n;
 const COST_BUFFER_BPS = 2_000n; // 20% buffer
 const BPS_DENOMINATOR = 10_000n;
 const LOW_ALPHA = ethers.parseEther("0.05"); // Very thin liquidity (~$15 depth)
@@ -26,6 +28,15 @@ const SETTLEMENT_TICK = MARKET_MIN_TICK + 10;
 
 const applyBuffer = (amount: bigint, buffer: bigint = COST_BUFFER_BPS) =>
   ((amount * (BPS_DENOMINATOR + buffer)) / BPS_DENOMINATOR) + 1n;
+
+function maxSafeChunkQuantity(alpha: bigint): bigint {
+  const raw = ((alpha * MAX_EXP_INPUT_WAD) / WAD) - 1n;
+  if (raw <= 0) {
+    return 0n;
+  }
+  const quantized = raw - (raw % SCALE_DIFF);
+  return quantized !== 0n ? quantized : raw;
+}
 
 async function createLowLiquidityMarket() {
   const contracts = await loadFixture(coreFixture);
@@ -93,7 +104,7 @@ describeMaybe(`${E2E_TAG} Low Liquidity Market Scenarios`, function () {
       const upperTick = WIDE_RANGE.upper;
       const extremeQuantity = ethers.parseUnits("50000000", USDC_DECIMALS); // $50m notional
 
-      const chunkSize = LOW_ALPHA - 1n; // alpha*wMul(1) - 1 in wad units
+      const chunkSize = maxSafeChunkQuantity(LOW_ALPHA);
       const quantityWad = extremeQuantity * SCALE_DIFF;
       const requiredChunks = (quantityWad + chunkSize - 1n) / chunkSize;
 

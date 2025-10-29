@@ -43,6 +43,8 @@ Large trades still honour the `MAX_EXP_INPUT_WAD` guard. `CLMSRMarketCore` slice
 
 During cost quotes the core contract reads the cached root (Σ_before) and narrows the affected range with `getRangeSum`. `_calculateTradeCostInternal` and `_calculateSellProceeds` keep those sums in step with each chunk so the logarithm always reflects the current tree state. Once the trade is authorised, `_applyFactorChunked` reuses the same chunk-splitting logic to mutate the tree and emits `RangeFactorApplied` events after every multiplier. This mirrors the whitepaper's requirement that prices change atomically across the entire range while keeping on-chain work sub-linear in the number of bins.
 
+Because the payment token uses six decimals, every chunk is quantised to a multiple of `1e12` WAD (`_maxSafeChunkQuantity`). The core rounds each chunked quote up to the nearest micro USDC and accumulates those rounded values, keeping the chunked result within `(chunks − 1)` micro units of executing the same size sequentially. Unit tests pin this behaviour across multiple α/quantity combinations to keep rounding parity explicit.
+
 ## Asymmetric rounding
 
 The whitepaper insists on one conversion per action, with direction fixed to close the “free trade” loophole:
