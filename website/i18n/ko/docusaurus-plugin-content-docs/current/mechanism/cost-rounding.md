@@ -66,7 +66,7 @@ CLMSR은 모든 지수 가중치를 희소한 지연 곱 세그먼트 트리에 
 ## 코드에서 확인할 위치
 
 - `LazyMulSegmentTree.sol`이 청크 분할과 지수 가중치 업데이트를 구현합니다.
-- `FixedPointMath.sol`에 라운딩 헬퍼(`fromWadRoundUp`, `fromWadFloor`)가 있습니다.
+- `FixedPointMath.sol`에는 현재 `fromWadRoundUp` 라운딩 헬퍼가 구현되어 있으며, 내림용 헬퍼는 라운딩 정책 전환과 함께 추가될 예정입니다.
 - 단위 테스트가 라운딩 방향과 청크 분할 에지 케이스를 검증합니다.
 
 이 루틴을 안전하게 유지하는 상수는 [안전 한계와 파라미터](safety-parameters.md) 장에서 이어서 다룹니다.
