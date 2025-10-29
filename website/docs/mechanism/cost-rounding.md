@@ -66,7 +66,7 @@ Ceiling rounding on buys plus the minimum trade size $\delta_{\min}$ guarantee t
 ## Where to look in code
 
 - LazyMulSegmentTree.sol implements the chunking logic and exponential weight updates.
-- FixedPointMath.sol houses the rounding helpers (fromWadRoundUp, fromWadFloor).
+- FixedPointMath.sol currently exposes the rounding helper (`fromWadRoundUp`); the floor variant will ship with the rounding policy transition.
 - Unit tests cover both rounding directions and chunk-splitting edge cases.
 
 For the bounds that ensure these routines remain safe, continue to [Safety Bounds & Parameters](safety-parameters.md).
