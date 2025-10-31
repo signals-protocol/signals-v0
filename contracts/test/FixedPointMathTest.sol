@@ -138,6 +138,18 @@ contract FixedPointMathTest {
         return FixedPointMathU.fromWadRoundUp(amtWad);
     }
 
+    function testFromWadNearest(uint256 amtWad) external pure returns (uint256) {
+        return FixedPointMathU.fromWadNearest(amtWad);
+    }
+
+    function testFromWadNearestMin1(uint256 amtWad) external pure returns (uint256) {
+        return FixedPointMathU.fromWadNearestMin1(amtWad);
+    }
+
+    function wMulNearest(uint256 a, uint256 b) public pure returns (uint256) {
+        return FixedPointMathU.wMulNearest(a, b);
+    }
+
     // ---------------------------------------------------------------------
     // Signed math via PRB SD59x18 wrappers
     // ---------------------------------------------------------------------

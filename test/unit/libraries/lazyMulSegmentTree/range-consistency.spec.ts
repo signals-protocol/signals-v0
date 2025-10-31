@@ -76,6 +76,34 @@ function randomFactor(rng: ReturnType<typeof createPrng>): bigint {
 }
 
 describe(`${UNIT_TAG} LazyMulSegmentTree - View vs Propagate consistency`, function () {
+  it("should use nearest rounding for sell-side factors (no upward bias)", async function () {
+    const { harness }: HarnessFixture = await loadFixture(
+      deployHarnessFixture
+    );
+
+    const increaseFactor = ethers.parseEther("1.75");
+    await harness.applyFactor(0, 0, increaseFactor);
+
+    const beforeDecrease = await harness.rangeSum(0, 0);
+    const decreaseFactor = ethers.parseEther("1") - 1n; // 0.999...999
+
+    await harness.applyFactor(0, 0, decreaseFactor);
+
+    const afterDecrease = await harness.rangeSum(0, 0);
+
+    const WAD = 1_000_000_000_000_000_000n;
+    const HALF_WAD = WAD / 2n;
+    const expected = (beforeDecrease * decreaseFactor + HALF_WAD) / WAD;
+
+    expect(
+      afterDecrease,
+      "sell-side rounding should match nearest rounding expectation"
+    ).to.equal(expected);
+    expect(afterDecrease, "sell should not increase the position value").to.be.lte(
+      beforeDecrease
+    );
+  });
+
   it("should keep getRangeSum and propagateLazy in sync across random samples", async function () {
     this.timeout(process.env.COVERAGE ? 120_000 : 60_000);
     const { harness }: HarnessFixture = await loadFixture(

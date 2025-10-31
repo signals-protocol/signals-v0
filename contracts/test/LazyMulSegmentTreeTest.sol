@@ -2,11 +2,13 @@
 pragma solidity ^0.8.30;
 
 import {CLMSRErrors as CE} from "../errors/CLMSRErrors.sol";
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {FixedPointMathU} from "../libraries/FixedPointMath.sol";
 
 /// @title LazyMulSegmentTreeTest
 /// @notice Simplified reference contract that mimics LazyMulSegmentTree behaviour for unit tests
 contract LazyMulSegmentTreeTest {
+    using FixedPointMathU for uint256;
+
     uint256 public constant ONE_WAD = 1e18;
     uint256 public constant MIN_FACTOR = 0.01e18;
     uint256 public constant MAX_FACTOR = 100e18;
@@ -115,6 +117,6 @@ contract LazyMulSegmentTreeTest {
 
     function _mulWad(uint256 a, uint256 b) private pure returns (uint256) {
         if (a == 0 || b == 0) return 0;
-        return Math.mulDiv(a, b, ONE_WAD);
+        return a.wMulNearest(b);
     }
 }
