@@ -6,26 +6,22 @@ import { unitFixture } from "../../../helpers/fixtures/core";
 
 const WAD = ethers.parseEther("1");
 const UNDERFLOW_FLUSH_THRESHOLD = 1_000_000_000_000_000n; // 1e15
+const HALF_WAD = WAD / 2n;
 const TREE_SIZE = 1024;
 const HALF_SIZE = TREE_SIZE / 2;
 const FULL_RANGE_LO = 0;
 const FULL_RANGE_HI = TREE_SIZE - 1;
 const LEFT_RANGE_HI = HALF_SIZE - 1;
 
-function mulWadAdaptive(a: bigint, b: bigint): bigint {
+function mulWadNearest(a: bigint, b: bigint): bigint {
   const product = a * b;
-  const truncated = product / WAD;
-  const remainder = product % WAD;
-  if (b < WAD && remainder !== 0n) {
-    return truncated + 1n;
-  }
-  return truncated;
+  return (product + HALF_WAD) / WAD;
 }
 
 function expectedRangeSum(length: number, factor: bigint, iterations: number): bigint {
   let result = BigInt(length) * WAD;
   for (let i = 0; i < iterations; i++) {
-    result = mulWadAdaptive(result, factor);
+    result = mulWadNearest(result, factor);
   }
   return result;
 }
@@ -33,7 +29,7 @@ function expectedRangeSum(length: number, factor: bigint, iterations: number): b
 function simulatePending(factor: bigint, iterations: number): bigint {
   let pending = WAD;
   for (let i = 0; i < iterations; i++) {
-    const candidate = mulWadAdaptive(pending, factor);
+    const candidate = mulWadNearest(pending, factor);
     pending = candidate < UNDERFLOW_FLUSH_THRESHOLD ? factor : candidate;
   }
   return pending;

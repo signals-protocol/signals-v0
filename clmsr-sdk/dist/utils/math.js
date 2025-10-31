@@ -3,13 +3,16 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MAX_FACTOR = exports.MIN_FACTOR = exports.MAX_CHUNKS_PER_TX = exports.MAX_EXP_INPUT_WAD = exports.USDC_PRECISION = exports.SCALE_DIFF = exports.WAD = void 0;
+exports.HALF_WAD = exports.MAX_FACTOR = exports.MIN_FACTOR = exports.MAX_CHUNKS_PER_TX = exports.MAX_EXP_INPUT_WAD = exports.USDC_PRECISION = exports.HALF_SCALE_DIFF = exports.SCALE_DIFF = exports.WAD = void 0;
 exports.toWad = toWad;
 exports.fromWad = fromWad;
 exports.fromWadRoundUp = fromWadRoundUp;
+exports.fromWadNearest = fromWadNearest;
+exports.fromWadNearestMin1 = fromWadNearestMin1;
 exports.wadToNumber = wadToNumber;
 exports.formatUSDC = formatUSDC;
 exports.wMul = wMul;
+exports.wMulNearest = wMulNearest;
 exports.wDiv = wDiv;
 exports.wExp = wExp;
 exports.wLn = wLn;
@@ -33,6 +36,7 @@ const types_1 = require("../types");
 exports.WAD = new big_js_1.default("1e18");
 /** Scale difference between USDC (6 decimals) and WAD (18 decimals): 1e12 */
 exports.SCALE_DIFF = new big_js_1.default("1e12");
+exports.HALF_SCALE_DIFF = exports.SCALE_DIFF.div(2);
 /** USDC precision constant: 1e6 */
 exports.USDC_PRECISION = new big_js_1.default("1000000");
 /** Maximum safe input for exp() function: 1.0 * 1e18 */
@@ -42,6 +46,7 @@ exports.MAX_CHUNKS_PER_TX = 1000;
 /** Minimum and maximum factor bounds for segment tree operations */
 exports.MIN_FACTOR = new big_js_1.default("0.01e18"); // 1%
 exports.MAX_FACTOR = new big_js_1.default("100e18"); // 100x
+exports.HALF_WAD = exports.WAD.div(2);
 // Big.js configuration for precision (optimized for performance)
 big_js_1.default.DP = 30; // 30 decimal places for internal calculations (sufficient for CLMSR precision)
 big_js_1.default.RM = big_js_1.default.roundHalfUp; // Round half up
@@ -75,6 +80,31 @@ function fromWadRoundUp(amtWad) {
     return new big_js_1.default(result.toFixed(6, big_js_1.default.roundUp));
 }
 /**
+ * Convert 18-decimal WAD format to 6-decimal USDC amount with nearest rounding (ties up)
+ * @param amtWad Amount in WAD format
+ * @returns Amount in 6-decimal format (rounded to nearest)
+ */
+function fromWadNearest(amtWad) {
+    if (amtWad.eq(0)) {
+        return new big_js_1.default(0);
+    }
+    const shifted = amtWad.plus(exports.HALF_SCALE_DIFF);
+    return shifted.div(exports.SCALE_DIFF).round(0, big_js_1.default.roundDown);
+}
+/**
+ * Convert 18-decimal WAD format to 6-decimal USDC amount with nearest rounding
+ * but enforce minimum 1 micro unit when the input is non-zero.
+ * @param amtWad Amount in WAD format
+ * @returns Amount in 6-decimal format (rounded to nearest, minimum 1 if non-zero)
+ */
+function fromWadNearestMin1(amtWad) {
+    if (amtWad.eq(0)) {
+        return new big_js_1.default(0);
+    }
+    const rounded = fromWadNearest(amtWad);
+    return rounded.eq(0) ? new big_js_1.default(1) : rounded;
+}
+/**
  * Convert WAD format to regular number (divide by 1e18)
  * @param amtWad Amount in WAD format
  * @returns Regular number
@@ -102,6 +132,19 @@ function formatUSDC(amount) {
  */
 function wMul(a, b) {
     return a.mul(b).div(exports.WAD);
+}
+/**
+ * WAD multiplication with nearest rounding (ties up)
+ * Mirrors on-chain wMulNearest helper.
+ * @param a First operand
+ * @param b Second operand
+ * @returns Product in WAD format rounded to nearest
+ */
+function wMulNearest(a, b) {
+    if (a.eq(0) || b.eq(0)) {
+        return new big_js_1.default(0);
+    }
+    return a.mul(b).plus(exports.HALF_WAD).div(exports.WAD).round(0, big_js_1.default.roundDown);
 }
 /**
  * WAD division: (a * WAD) / b

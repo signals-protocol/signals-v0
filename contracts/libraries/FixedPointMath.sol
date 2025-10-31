@@ -20,6 +20,8 @@ error FP_InvalidInput();
 library FixedPointMathU {
     uint256 internal constant WAD = 1e18;
     uint256 internal constant SCALE_DIFF = 1e12;   // 10^(18-6)
+    uint256 internal constant HALF_SCALE = SCALE_DIFF / 2;
+    uint256 internal constant HALF_WAD = WAD / 2;
 
     /*────────────────scaling─────────────*/
     /// @dev 6-decimal → 18-decimal (multiply by 1e12)
@@ -47,6 +49,30 @@ library FixedPointMathU {
         }
     }
 
+    /// @dev 18-decimal → 6-decimal with nearest-even style rounding (ties round up)
+    function fromWadNearest(uint256 amtWad) internal pure returns (uint256) {
+        uint256 quotient = amtWad / SCALE_DIFF;
+        uint256 remainder = amtWad % SCALE_DIFF;
+        if (remainder >= HALF_SCALE) {
+            unchecked {
+                quotient += 1;
+            }
+        }
+        return quotient;
+    }
+
+    /// @dev 18-decimal → 6-decimal nearest rounding with minimum 1 micro unit when input is non-zero
+    function fromWadNearestMin1(uint256 amtWad) internal pure returns (uint256) {
+        if (amtWad == 0) {
+            return 0;
+        }
+        uint256 result = fromWadNearest(amtWad);
+        if (result == 0) {
+            return 1;
+        }
+        return result;
+    }
+
     /*────────────────basic───────────────*/
     function wExp(uint256 x) external pure returns (uint256) {
         return unwrap(exp(wrap(x)));
@@ -72,6 +98,17 @@ library FixedPointMathU {
         require(b != 0, FP_DivisionByZero());
         uint256 result = mulDiv(a, WAD, b);
         if (mulmod(a, WAD, b) != 0) {
+            unchecked {
+                result += 1;
+            }
+        }
+        return result;
+    }
+
+    function wMulNearest(uint256 a, uint256 b) external pure returns (uint256) {
+        uint256 result = mulDiv(a, b, WAD);
+        uint256 remainder = mulmod(a, b, WAD);
+        if (remainder >= HALF_WAD) {
             unchecked {
                 result += 1;
             }

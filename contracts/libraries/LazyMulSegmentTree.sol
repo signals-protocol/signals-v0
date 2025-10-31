@@ -134,17 +134,7 @@ library LazyMulSegmentTree {
             return value;
         }
 
-        uint256 scaled = value.wMul(factor);
-        if (factor < ONE_WAD) {
-            uint256 remainder = mulmod(value, factor, ONE_WAD);
-            if (remainder != 0) {
-                unchecked {
-                    scaled += 1;
-                }
-            }
-        }
-
-        return scaled;
+        return value.wMulNearest(factor);
     }
 
     /// @dev Multiplies two lazy factors while preserving the compensation semantics used on sums.
@@ -153,17 +143,7 @@ library LazyMulSegmentTree {
             return lhs;
         }
 
-        uint256 combined = lhs.wMul(rhs);
-        if (rhs < ONE_WAD) {
-            uint256 remainder = mulmod(lhs, rhs, ONE_WAD);
-            if (remainder != 0) {
-                unchecked {
-                    combined += 1;
-                }
-            }
-        }
-
-        return combined;
+        return lhs.wMulNearest(rhs);
     }
 
     /// @notice Pack two uint32 values into uint64 child pointer
@@ -399,7 +379,7 @@ library LazyMulSegmentTree {
         }
         
         // Apply current node's lazy to accumulated lazy
-        uint256 newAccFactor = accFactor.wMul(node.pendingFactor);
+        uint256 newAccFactor = accFactor.wMulNearest(uint256(node.pendingFactor));
         
         // Partial overlap - recurse with accumulated lazy
         uint32 mid = l + (r - l) / 2;
