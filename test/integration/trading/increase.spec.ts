@@ -210,4 +210,66 @@ describe(`${INTEGRATION_TAG} Position Increase`, function () {
     const cost = await core.calculateIncreaseCost(positionId, SMALL_QUANTITY);
     expect(cost).to.be.gt(0);
   });
+
+  it("Uses nearest rounding with min-one guard and keeps tree sums monotonic when increasing", async function () {
+    const { core, alice, mockPosition, marketId } = await loadFixture(
+      createActiveMarketFixture
+    );
+
+    await core
+      .connect(alice)
+      .openPosition(
+        marketId,
+        100450,
+        100550,
+        MEDIUM_QUANTITY,
+        MEDIUM_COST
+      );
+
+    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positionId = positions[0];
+
+    const market = await core.getMarket(marketId);
+    const minTick = market.minTick;
+    const maxTick = market.maxTick;
+
+    const additionalQuantity = 1n;
+    const estimatedCost = await core.calculateIncreaseCost(
+      positionId,
+      additionalQuantity
+    );
+    expect(estimatedCost).to.equal(1n);
+
+    const totalBefore = await core.getRangeSum(marketId, minTick, maxTick);
+
+    const maxCost = estimatedCost + 1n;
+    const tx = await core
+      .connect(alice)
+      .increasePosition(positionId, additionalQuantity, maxCost);
+    const receipt = await tx.wait();
+
+    const increasedLog = receipt.logs
+      .map((log) => {
+        try {
+          return core.interface.parseLog(log);
+        } catch {
+          return undefined;
+        }
+      })
+      .find((parsed) => parsed && parsed.name === "PositionIncreased");
+
+    expect(increasedLog, "PositionIncreased event not found").to.not.be
+      .undefined;
+    const actualCost = (increasedLog!.args.cost as bigint) ?? 0n;
+
+    expect(actualCost).to.be.gte(1n);
+    const delta =
+      actualCost >= estimatedCost
+        ? actualCost - estimatedCost
+        : estimatedCost - actualCost;
+    expect(delta).to.be.lte(1n);
+
+    const totalAfter = await core.getRangeSum(marketId, minTick, maxTick);
+    expect(totalAfter).to.be.gte(totalBefore);
+  });
 });

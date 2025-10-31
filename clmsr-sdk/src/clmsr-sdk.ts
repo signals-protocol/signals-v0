@@ -85,16 +85,16 @@ export class CLMSRSDK {
     // 2. Calculate sum after trade - 컨트랙트와 동일
     const sumAfter = sumBefore
       .minus(affectedSum)
-      .plus(MathUtils.wMul(affectedSum, factor));
+      .plus(MathUtils.wMulNearest(affectedSum, factor));
 
     // 3. Calculate cost: α * ln(sumAfter / sumBefore) - 컨트랙트와 동일
-    const ratio = MathUtils.wDiv(sumAfter, sumBefore);
+    const ratio = MathUtils.wDivUp(sumAfter, sumBefore);
     const lnRatio = MathUtils.wLn(ratio);
     const costWad = MathUtils.wMul(alpha, lnRatio);
 
     // 계산 완료
 
-    const cost = MathUtils.fromWadRoundUp(costWad);
+    const cost = MathUtils.fromWadNearestMin1(costWad);
 
     // Calculate average price with proper formatting
     // cost는 micro USDC, quantity도 micro USDC이므로 결과는 USDC/USDC = 비율
@@ -529,19 +529,19 @@ export class CLMSRSDK {
     // 🎯 컨트랙트와 정확히 동일한 LMSR sell 공식 구현
     // 1. Calculate inverse factor: exp(-quantity / α) = 1 / exp(quantity / α) - safe chunking 사용
     const factor = MathUtils.safeExp(quantityWad, alpha);
-    const inverseFactor = MathUtils.wDiv(MathUtils.WAD, factor);
+    const inverseFactor = MathUtils.wDivUp(MathUtils.WAD, factor);
 
     // 2. Calculate sum after sell
     const sumAfter = sumBefore
       .minus(affectedSum)
-      .plus(MathUtils.wMul(affectedSum, inverseFactor));
+      .plus(MathUtils.wMulNearest(affectedSum, inverseFactor));
 
     // 3. Calculate proceeds: α * ln(sumBefore / sumAfter)
-    const ratio = MathUtils.wDiv(sumBefore, sumAfter);
+    const ratio = MathUtils.wDivUp(sumBefore, sumAfter);
     const lnRatio = MathUtils.wLn(ratio);
     const proceedsWad = MathUtils.wMul(alpha, lnRatio);
 
-    const proceeds = MathUtils.fromWadRoundUp(proceedsWad);
+    const proceeds = MathUtils.fromWadNearest(proceedsWad);
 
     // Calculate average price with proper formatting
     const averagePrice = proceeds.div(sellQuantity);

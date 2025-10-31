@@ -34,8 +34,10 @@ contract CLMSRMarketCore is
     using {
         FixedPointMathU.toWad,
         FixedPointMathU.fromWad,
-        FixedPointMathU.fromWadRoundUp,
+        FixedPointMathU.fromWadNearest,
+        FixedPointMathU.fromWadNearestMin1,
         FixedPointMathU.wMul,
+        FixedPointMathU.wMulNearest,
         FixedPointMathU.wDiv,
         FixedPointMathU.wDivUp,
         FixedPointMathU.wExp,
@@ -425,7 +427,7 @@ contract CLMSRMarketCore is
         
         // Calculate trade cost and convert to 6-decimal with round-up to prevent zero-cost attacks
         uint256 costWad = _calcCostInWad(marketId, lowerTick, upperTick, quantity);
-        uint256 cost6 = costWad.fromWadRoundUp();
+        uint256 cost6 = costWad.fromWadNearestMin1();
         
         require(cost6 <= maxCost, CE.CostExceedsMaximum(cost6, maxCost));
         
@@ -481,7 +483,7 @@ contract CLMSRMarketCore is
             position.upperTick,
             uint256(additionalQuantity).toWad()
         );
-        uint256 cost6 = costWad.fromWadRoundUp();
+        uint256 cost6 = costWad.fromWadNearestMin1();
         
         require(cost6 <= maxCost, CE.CostExceedsMaximum(cost6, maxCost));
         
@@ -526,7 +528,7 @@ contract CLMSRMarketCore is
             position.upperTick,
             uint256(sellQuantity).toWad()
         );
-        proceeds = proceedsWad.fromWadRoundUp();
+        proceeds = proceedsWad.fromWadNearest();
         
         require(proceeds >= minProceeds, CE.ProceedsBelowMinimum(proceeds, minProceeds));
         
@@ -603,7 +605,7 @@ contract CLMSRMarketCore is
             position.upperTick,
             positionQuantityWad
         );
-        proceeds = FixedPointMathU.fromWadRoundUp(proceedsWad);
+        proceeds = FixedPointMathU.fromWadNearest(proceedsWad);
 
         require(proceeds >= minProceeds, CE.ProceedsBelowMinimum(proceeds, minProceeds));
 
@@ -659,7 +661,7 @@ contract CLMSRMarketCore is
         uint256 quantityWad = uint256(quantity).toWad();
         uint256 costWad = _calculateTradeCostInternal(marketId, lowerTick, upperTick, quantityWad);
         // Convert cost back to 6-decimal for external interface with round-up
-        return costWad.fromWadRoundUp();
+        return costWad.fromWadNearestMin1();
     }
     
     /// @inheritdoc ICLMSRMarketCore
@@ -675,7 +677,7 @@ contract CLMSRMarketCore is
             position.upperTick,
             quantityWad
         );
-        return costWad.fromWadRoundUp();
+        return costWad.fromWadNearestMin1();
     }
     
     /// @inheritdoc ICLMSRMarketCore
@@ -691,7 +693,7 @@ contract CLMSRMarketCore is
             position.upperTick,
             quantityWad
         );
-        return proceedsWad.fromWadRoundUp();
+        return proceedsWad.fromWadNearest();
     }
     
     /// @inheritdoc ICLMSRMarketCore
@@ -706,7 +708,7 @@ contract CLMSRMarketCore is
             position.upperTick,
             quantityWad
         );
-        return proceedsWad.fromWadRoundUp();
+        return proceedsWad.fromWadNearest();
     }
 
     
@@ -1064,17 +1066,14 @@ contract CLMSRMarketCore is
                     CE.MathMulOverflow()
                 );
                 
-                newAffectedSum = currentAffectedSum.wMul(factor);
+                newAffectedSum = currentAffectedSum.wMulNearest(factor);
                 uint256 sumAfter = currentSumBefore - currentAffectedSum + newAffectedSum;
                 
                 // Calculate cost for this chunk: α * ln(sumAfter / sumBefore)
                 require(sumAfter > currentSumBefore, CE.NonIncreasingSum(currentSumBefore, sumAfter));
                 uint256 ratio = sumAfter.wDivUp(currentSumBefore);
                 uint256 chunkCost = alpha.wMul(ratio.wLn());
-                uint256 chunkCostMicro = chunkCost / SIX_DECIMAL_SCALE;
-                if (chunkCost % SIX_DECIMAL_SCALE != 0) {
-                    chunkCostMicro += 1;
-                }
+                uint256 chunkCostMicro = chunkCost.fromWadNearestMin1();
                 sequentialCostMicro += chunkCostMicro;
 
                 // Ensure we make progress to prevent infinite loops
@@ -1123,7 +1122,7 @@ contract CLMSRMarketCore is
             return _calculateTradeCostInternal(marketId, lowerTick, upperTick, quantity);
         }
         
-        uint256 sumAfter = sumBefore - affectedSum + affectedSum.wMul(factor);
+        uint256 sumAfter = sumBefore - affectedSum + affectedSum.wMulNearest(factor);
         // Regular trade: C = α * ln(Σ_after / Σ_before)
         if (sumAfter <= sumBefore) {
             return 0; // No cost if sum doesn't increase
@@ -1217,7 +1216,7 @@ contract CLMSRMarketCore is
                     CE.MathMulOverflow()
                 );
                 
-                newAffectedSum = currentAffectedSum.wMul(inverseFactor);
+                newAffectedSum = currentAffectedSum.wMulNearest(inverseFactor);
                 uint256 sumAfter = currentSumBefore - currentAffectedSum + newAffectedSum;
                 
                 // Safety check: ensure sumAfter > 0 to prevent division by zero
@@ -1227,10 +1226,7 @@ contract CLMSRMarketCore is
                 if (currentSumBefore > sumAfter) {
                     uint256 ratio = currentSumBefore.wDivUp(sumAfter);
                     uint256 chunkProceeds = alpha.wMul(ratio.wLn());
-                    uint256 chunkProceedsMicro = chunkProceeds / SIX_DECIMAL_SCALE;
-                    if (chunkProceeds % SIX_DECIMAL_SCALE != 0) {
-                        chunkProceedsMicro += 1;
-                    }
+                    uint256 chunkProceedsMicro = chunkProceeds.fromWadNearest();
                     sequentialProceedsMicro += chunkProceedsMicro;
                 }
 
@@ -1278,7 +1274,7 @@ contract CLMSRMarketCore is
             return _calculateSellProceeds(marketId, lowerTick, upperTick, quantity);
         }
         
-        uint256 sumAfter = sumBefore - affectedSum + affectedSum.wMul(inverseFactor);
+        uint256 sumAfter = sumBefore - affectedSum + affectedSum.wMulNearest(inverseFactor);
         
         // Safety check: ensure sumAfter > 0 to prevent division by zero
         require(sumAfter != 0, CE.SumAfterZero());

@@ -229,7 +229,57 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
 
     // Position should still exist with reduced quantity
     const positionData = await mockPosition.getPosition(positionId);
-    expect(positionData.quantity).to.be.lt(quantity);
-    expect(positionData.quantity).to.be.gt(0);
+   expect(positionData.quantity).to.be.lt(quantity);
+   expect(positionData.quantity).to.be.gt(0);
+  });
+
+  it("Uses nearest rounding for close proceeds and keeps tree sums non-increasing", async function () {
+    const { core, alice, mockPosition, marketId } = await loadFixture(
+      createActiveMarketFixture
+    );
+
+    await core
+      .connect(alice)
+      .openPosition(
+        marketId,
+        100450,
+        100550,
+        MEDIUM_QUANTITY,
+        MEDIUM_COST
+      );
+    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positionId = positions[0];
+
+    const market = await core.getMarket(marketId);
+    const minTick = market.minTick;
+    const maxTick = market.maxTick;
+
+    const estimatedProceeds = await core.calculateCloseProceeds(positionId);
+    const totalBefore = await core.getRangeSum(marketId, minTick, maxTick);
+
+    const tx = await core.connect(alice).closePosition(positionId, 0);
+    const receipt = await tx.wait();
+
+    const closedLog = receipt.logs
+      .map((log) => {
+        try {
+          return core.interface.parseLog(log);
+        } catch {
+          return undefined;
+        }
+      })
+      .find((parsed) => parsed && parsed.name === "PositionClosed");
+
+    expect(closedLog, "PositionClosed event not found").to.not.be.undefined;
+    const actualProceeds = (closedLog!.args.proceeds as bigint) ?? 0n;
+
+    const delta =
+      actualProceeds >= estimatedProceeds
+        ? actualProceeds - estimatedProceeds
+        : estimatedProceeds - actualProceeds;
+    expect(delta).to.be.lte(1n);
+
+    const totalAfter = await core.getRangeSum(marketId, minTick, maxTick);
+    expect(totalAfter).to.be.lte(totalBefore);
   });
 });
