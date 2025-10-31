@@ -15,6 +15,7 @@ export const WAD = new Big("1e18");
 
 /** Scale difference between USDC (6 decimals) and WAD (18 decimals): 1e12 */
 export const SCALE_DIFF = new Big("1e12");
+export const HALF_SCALE_DIFF = SCALE_DIFF.div(2);
 
 /** USDC precision constant: 1e6 */
 export const USDC_PRECISION = new Big("1000000");
@@ -28,6 +29,8 @@ export const MAX_CHUNKS_PER_TX = 1000;
 /** Minimum and maximum factor bounds for segment tree operations */
 export const MIN_FACTOR = new Big("0.01e18"); // 1%
 export const MAX_FACTOR = new Big("100e18"); // 100x
+
+export const HALF_WAD = WAD.div(2);
 
 // Big.js configuration for precision (optimized for performance)
 Big.DP = 30; // 30 decimal places for internal calculations (sufficient for CLMSR precision)
@@ -67,6 +70,35 @@ export function fromWadRoundUp(amtWad: WADAmount): USDCAmount {
 }
 
 /**
+ * Convert 18-decimal WAD format to 6-decimal USDC amount with nearest rounding (ties up)
+ * @param amtWad Amount in WAD format
+ * @returns Amount in 6-decimal format (rounded to nearest)
+ */
+export function fromWadNearest(amtWad: WADAmount): USDCAmount {
+  if (amtWad.eq(0)) {
+    return new Big(0);
+  }
+
+  const shifted = amtWad.plus(HALF_SCALE_DIFF);
+  return shifted.div(SCALE_DIFF).round(0, Big.roundDown);
+}
+
+/**
+ * Convert 18-decimal WAD format to 6-decimal USDC amount with nearest rounding
+ * but enforce minimum 1 micro unit when the input is non-zero.
+ * @param amtWad Amount in WAD format
+ * @returns Amount in 6-decimal format (rounded to nearest, minimum 1 if non-zero)
+ */
+export function fromWadNearestMin1(amtWad: WADAmount): USDCAmount {
+  if (amtWad.eq(0)) {
+    return new Big(0);
+  }
+
+  const rounded = fromWadNearest(amtWad);
+  return rounded.eq(0) ? new Big(1) : rounded;
+}
+
+/**
  * Convert WAD format to regular number (divide by 1e18)
  * @param amtWad Amount in WAD format
  * @returns Regular number
@@ -100,6 +132,21 @@ export function wMul(a: WADAmount, b: WADAmount): WADAmount {
 }
 
 /**
+ * WAD multiplication with nearest rounding (ties up)
+ * Mirrors on-chain wMulNearest helper.
+ * @param a First operand
+ * @param b Second operand
+ * @returns Product in WAD format rounded to nearest
+ */
+export function wMulNearest(a: WADAmount, b: WADAmount): WADAmount {
+  if (a.eq(0) || b.eq(0)) {
+    return new Big(0);
+  }
+
+  return a.mul(b).plus(HALF_WAD).div(WAD).round(0, Big.roundDown);
+}
+
+/**
  * WAD division: (a * WAD) / b
  * @param a Dividend
  * @param b Divisor
@@ -110,6 +157,27 @@ export function wDiv(a: WADAmount, b: WADAmount): WADAmount {
     throw new ValidationError("Division by zero");
   }
   return a.mul(WAD).div(b);
+}
+
+/**
+ * WAD division with rounding up: ceil((a * WAD) / b)
+ * @param a Dividend
+ * @param b Divisor
+ * @returns Quotient in WAD format rounded up
+ */
+export function wDivUp(a: WADAmount, b: WADAmount): WADAmount {
+  if (b.eq(0)) {
+    throw new ValidationError("Division by zero");
+  }
+
+  const numerator = a.mul(WAD);
+  const baseQuotient = numerator.div(b).round(0, Big.roundDown);
+
+  if (baseQuotient.mul(b).eq(numerator)) {
+    return baseQuotient;
+  }
+
+  return baseQuotient.plus(1);
 }
 
 /**

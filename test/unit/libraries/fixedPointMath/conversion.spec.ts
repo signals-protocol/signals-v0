@@ -6,6 +6,9 @@ import { unitFixture } from "../../../helpers/fixtures/core";
 
 describe(`${UNIT_TAG} FixedPointMath - Conversion & Utility Functions`, function () {
   const WAD = ethers.parseEther("1");
+  const SCALE_DIFF = 1_000_000_000_000n;
+  const HALF_SCALE = SCALE_DIFF / 2n;
+  const HALF_WAD = WAD / 2n;
 
   async function deployFixture() {
     const { fixedPointMathU } = await unitFixture();
@@ -76,6 +79,44 @@ describe(`${UNIT_TAG} FixedPointMath - Conversion & Utility Functions`, function
       expect(roundedResult2).to.equal(1n); // Should round up to 1 micro-unit
     });
 
+    it("Should round to nearest micro unit in fromWadNearest conversion", async function () {
+      const { test } = await loadFixture(deployFixture);
+
+      const oneMicro = ethers.parseUnits("1", 6);
+
+      // Remainder below half should round down
+      const justBelowHalf = WAD + (HALF_SCALE - 1n);
+      const roundedDown = await test.testFromWadNearest(justBelowHalf);
+      expect(roundedDown).to.equal(oneMicro);
+
+      // Remainder equal to half should round up
+      const atHalf = WAD + HALF_SCALE;
+      const roundedHalf = await test.testFromWadNearest(atHalf);
+      expect(roundedHalf).to.equal(oneMicro + 1n);
+
+      // Larger value sanity check
+      const largeValue = WAD * 1234n + HALF_SCALE + 3n;
+      const roundedLarge = await test.testFromWadNearest(largeValue);
+      const expectedLarge =
+        (largeValue / SCALE_DIFF) +
+        (largeValue % SCALE_DIFF >= HALF_SCALE ? 1n : 0n);
+      expect(roundedLarge).to.equal(expectedLarge);
+    });
+
+    it("Should enforce minimum 1 micro unit when using fromWadNearestMin1", async function () {
+      const { test } = await loadFixture(deployFixture);
+
+      const tinyValue = 1n; // 1e-18 WAD
+      const resultTiny = await test.testFromWadNearestMin1(tinyValue);
+      expect(resultTiny).to.equal(1n);
+
+      const zeroValue = await test.testFromWadNearestMin1(0n);
+      expect(zeroValue).to.equal(0n);
+
+      const largerValue = await test.testFromWadNearestMin1(WAD + HALF_SCALE);
+      expect(largerValue).to.equal(ethers.parseUnits("1", 6) + 1n);
+    });
+
     it("Should maintain precision in round-trip conversions", async function () {
       const { test } = await loadFixture(deployFixture);
 
@@ -92,6 +133,39 @@ describe(`${UNIT_TAG} FixedPointMath - Conversion & Utility Functions`, function
         const backTo6 = await test.testFromWad(wad);
         expect(backTo6).to.equal(value6);
       }
+    });
+  });
+
+  describe("Nearest rounding helpers", function () {
+    it("Should round down when remainder is below half for wMulNearest", async function () {
+      const { test } = await loadFixture(deployFixture);
+
+      const a = WAD + HALF_WAD - 1n;
+      const b = WAD + 1n;
+      const product = a * b;
+      const expected = product / WAD; // remainder < HALF_WAD
+      const result = await test.wMulNearest(a, b);
+      expect(result).to.equal(expected);
+    });
+
+    it("Should round up on half or greater remainder in wMulNearest", async function () {
+      const { test } = await loadFixture(deployFixture);
+
+      const tieA = WAD + HALF_WAD;
+      const tieB = WAD + 1n;
+      const tieProduct = tieA * tieB;
+      const tieExpected =
+        tieProduct / WAD + (tieProduct % WAD >= HALF_WAD ? 1n : 0n);
+      const tieResult = await test.wMulNearest(tieA, tieB);
+      expect(tieResult).to.equal(tieExpected);
+
+      const aboveA = WAD + HALF_WAD + 1n;
+      const aboveB = WAD + 1n;
+      const aboveProduct = aboveA * aboveB;
+      const aboveExpected =
+        aboveProduct / WAD + (aboveProduct % WAD >= HALF_WAD ? 1n : 0n);
+      const aboveResult = await test.wMulNearest(aboveA, aboveB);
+      expect(aboveResult).to.equal(aboveExpected);
     });
   });
 

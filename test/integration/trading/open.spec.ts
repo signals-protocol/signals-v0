@@ -205,6 +205,59 @@ describe(`${INTEGRATION_TAG} Position Opening`, function () {
     ).to.not.be.reverted;
   });
 
+  it("Uses nearest rounding with min-one safeguard and keeps tree sums monotonic", async function () {
+    const { core, alice, marketId } = await loadFixture(
+      createActiveMarketFixture
+    );
+
+    const market = await core.getMarket(marketId);
+    const minTick = market.minTick;
+    const maxTick = market.maxTick;
+
+    const quantity = 1n; // 1 micro USDC
+    const lowerTick = 100450;
+    const upperTick = 100550;
+
+    const estimatedCost = await core.calculateOpenCost(
+      marketId,
+      lowerTick,
+      upperTick,
+      quantity
+    );
+    expect(estimatedCost).to.equal(1n);
+
+    const totalBefore = await core.getRangeSum(marketId, minTick, maxTick);
+
+    const maxCost = estimatedCost + 1n;
+    const tx = await core
+      .connect(alice)
+      .openPosition(marketId, lowerTick, upperTick, quantity, maxCost);
+    const receipt = await tx.wait();
+
+    const openedLog = receipt.logs
+      .map((log) => {
+        try {
+          return core.interface.parseLog(log);
+        } catch {
+          return undefined;
+        }
+      })
+      .find((parsed) => parsed && parsed.name === "PositionOpened");
+
+    expect(openedLog, "PositionOpened event not found").to.not.be.undefined;
+    const actualCost = (openedLog!.args.cost as bigint) ?? 0n;
+
+    expect(actualCost).to.be.gte(1n);
+    const delta =
+      actualCost >= estimatedCost
+        ? actualCost - estimatedCost
+        : estimatedCost - actualCost;
+    expect(delta).to.be.lte(1n);
+
+    const totalAfter = await core.getRangeSum(marketId, minTick, maxTick);
+    expect(totalAfter).to.be.gte(totalBefore);
+  });
+
   // Note: Authorization test removed - Router was removed, all users can now directly access Core
   // openPosition is now public since Router authorization layer was eliminated
 

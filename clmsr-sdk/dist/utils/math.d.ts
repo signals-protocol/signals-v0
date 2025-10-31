@@ -4,6 +4,7 @@ import { WADAmount, USDCAmount } from "../types";
 export declare const WAD: Big.Big;
 /** Scale difference between USDC (6 decimals) and WAD (18 decimals): 1e12 */
 export declare const SCALE_DIFF: Big.Big;
+export declare const HALF_SCALE_DIFF: Big.Big;
 /** USDC precision constant: 1e6 */
 export declare const USDC_PRECISION: Big.Big;
 /** Maximum safe input for exp() function: 1.0 * 1e18 */
@@ -13,6 +14,7 @@ export declare const MAX_CHUNKS_PER_TX = 1000;
 /** Minimum and maximum factor bounds for segment tree operations */
 export declare const MIN_FACTOR: Big.Big;
 export declare const MAX_FACTOR: Big.Big;
+export declare const HALF_WAD: Big.Big;
 /**
  * Convert 6-decimal USDC amount to 18-decimal WAD format
  * @param amt6 Amount in 6-decimal format
@@ -33,6 +35,19 @@ export declare function fromWad(amtWad: WADAmount): USDCAmount;
  */
 export declare function fromWadRoundUp(amtWad: WADAmount): USDCAmount;
 /**
+ * Convert 18-decimal WAD format to 6-decimal USDC amount with nearest rounding (ties up)
+ * @param amtWad Amount in WAD format
+ * @returns Amount in 6-decimal format (rounded to nearest)
+ */
+export declare function fromWadNearest(amtWad: WADAmount): USDCAmount;
+/**
+ * Convert 18-decimal WAD format to 6-decimal USDC amount with nearest rounding
+ * but enforce minimum 1 micro unit when the input is non-zero.
+ * @param amtWad Amount in WAD format
+ * @returns Amount in 6-decimal format (rounded to nearest, minimum 1 if non-zero)
+ */
+export declare function fromWadNearestMin1(amtWad: WADAmount): USDCAmount;
+/**
  * Convert WAD format to regular number (divide by 1e18)
  * @param amtWad Amount in WAD format
  * @returns Regular number
@@ -51,6 +66,14 @@ export declare function formatUSDC(amount: USDCAmount): USDCAmount;
  * @returns Product in WAD format
  */
 export declare function wMul(a: WADAmount, b: WADAmount): WADAmount;
+/**
+ * WAD multiplication with nearest rounding (ties up)
+ * Mirrors on-chain wMulNearest helper.
+ * @param a First operand
+ * @param b Second operand
+ * @returns Product in WAD format rounded to nearest
+ */
+export declare function wMulNearest(a: WADAmount, b: WADAmount): WADAmount;
 /**
  * WAD division: (a * WAD) / b
  * @param a Dividend

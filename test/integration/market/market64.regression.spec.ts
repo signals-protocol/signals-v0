@@ -45,6 +45,8 @@ const SNAPSHOT: SnapshotData = JSON.parse(
 );
 
 const TRADES = SNAPSHOT.trades;
+const COST_TOLERANCE = 1_000_000n; // 1 micro USDC
+const ROOT_TOLERANCE_WAD = 1_000_000_000_000n; // 1 micro WAD tolerance for tree sums
 
 const shouldRunReplay = process.env.RUN_REPLAY === "1";
 const describeMaybe = shouldRunReplay ? describe : describe.skip;
@@ -149,9 +151,17 @@ describeMaybe(`${INTEGRATION_TAG} ${REPLAY_TAG} Market64 Regression`, function (
     let totalCloseProceeds = 0n;
     let totalSettlementPayout = 0n;
 
+    const openCostDeltas: bigint[] = [];
+    const closeProceedsDeltas: bigint[] = [];
+    let worstOpenRootDrop = 0n;
+    let worstCloseRootIncrease = 0n;
+
     const consumeReceipt = async (tx: any) => {
       const response = await tx;
       const receipt = await response.wait();
+      let openCost: bigint | null = null;
+      let closeProceeds: bigint | null = null;
+      let claimPayout: bigint | null = null;
       for (const log of receipt.logs) {
         try {
           const parsed = core.interface.parseLog(log);
@@ -159,16 +169,19 @@ describeMaybe(`${INTEGRATION_TAG} ${REPLAY_TAG} Market64 Regression`, function (
             case "PositionOpened": {
               const cost = parsed.args.cost as bigint;
               totalCost += cost;
+               openCost = cost;
               break;
             }
             case "PositionClosed": {
               const proceeds = parsed.args.proceeds as bigint;
               totalCloseProceeds += proceeds;
+               closeProceeds = proceeds;
               break;
             }
             case "PositionClaimed": {
               const payout = parsed.args.payout as bigint;
               totalSettlementPayout += payout;
+               claimPayout = payout;
               break;
             }
             default:
@@ -178,7 +191,7 @@ describeMaybe(`${INTEGRATION_TAG} ${REPLAY_TAG} Market64 Regression`, function (
           // Ignore logs that are not from core contract
         }
       }
-      return receipt;
+      return { receipt, openCost, closeProceeds, claimPayout };
     };
 
     const openAndCloseTrades: TradeEntry[] = [];
@@ -195,6 +208,12 @@ describeMaybe(`${INTEGRATION_TAG} ${REPLAY_TAG} Market64 Regression`, function (
       if (trade.type === "OPEN") {
         const { address, signer } = assignSigner(trade.positionId);
         await ensureFunds(address);
+
+        const totalRangeBefore = await core.getRangeSum(
+          marketId,
+          minTick,
+          maxTick
+        );
 
         const quantity = BigInt(trade.quantity);
         const lowerTick = BigInt(trade.lowerTick);
@@ -219,7 +238,39 @@ describeMaybe(`${INTEGRATION_TAG} ${REPLAY_TAG} Market64 Regression`, function (
         const tx = await core
           .connect(signer)
           .openPosition(marketId, lowerTick, upperTick, quantity, maxCost);
-        await consumeReceipt(tx);
+        const { openCost } = await consumeReceipt(tx);
+
+        if (openCost === null) {
+          throw new Error(`Missing PositionOpened event for trade ${trade.id}`);
+        }
+
+        const totalRangeAfter = await core.getRangeSum(
+          marketId,
+          minTick,
+          maxTick
+        );
+
+        if (totalRangeBefore > totalRangeAfter) {
+          const drop = totalRangeBefore - totalRangeAfter;
+          if (drop > worstOpenRootDrop) {
+            worstOpenRootDrop = drop;
+          }
+        }
+
+        expect(
+          totalRangeAfter + ROOT_TOLERANCE_WAD,
+          `Root sum should not decrease after OPEN trade ${trade.id}`
+        ).to.be.gte(totalRangeBefore);
+
+        const costDelta =
+          openCost >= estimatedCost
+            ? openCost - estimatedCost
+            : estimatedCost - openCost;
+        openCostDeltas.push(costDelta);
+        expect(
+          costDelta,
+          `OPEN cost delta should stay within 1 micro USDC for trade ${trade.id}`
+        ).to.be.lte(COST_TOLERANCE);
       } else if (trade.type === "CLOSE") {
         const localId = datasetPositionToLocalId.get(trade.positionId);
         if (localId === undefined) {
@@ -234,8 +285,50 @@ describeMaybe(`${INTEGRATION_TAG} ${REPLAY_TAG} Market64 Regression`, function (
           throw new Error(`Missing signer instance for address ${address}`);
         }
 
+        const totalRangeBefore = await core.getRangeSum(
+          marketId,
+          minTick,
+          maxTick
+        );
+
+        const estimatedProceeds = await core.calculateCloseProceeds(localId);
+
         const tx = await core.connect(signer).closePosition(localId, 0n);
-        await consumeReceipt(tx);
+        const { closeProceeds } = await consumeReceipt(tx);
+
+        if (closeProceeds === null) {
+          throw new Error(
+            `Missing PositionClosed event for trade ${trade.id}`
+          );
+        }
+
+        const totalRangeAfter = await core.getRangeSum(
+          marketId,
+          minTick,
+          maxTick
+        );
+
+        if (totalRangeAfter > totalRangeBefore) {
+          const increase = totalRangeAfter - totalRangeBefore;
+          if (increase > worstCloseRootIncrease) {
+            worstCloseRootIncrease = increase;
+          }
+        }
+
+        expect(
+          totalRangeAfter,
+          `Root sum should not increase after CLOSE trade ${trade.id}`
+        ).to.be.lte(totalRangeBefore + ROOT_TOLERANCE_WAD);
+
+        const proceedsDelta =
+          closeProceeds >= estimatedProceeds
+            ? closeProceeds - estimatedProceeds
+            : estimatedProceeds - closeProceeds;
+        closeProceedsDeltas.push(proceedsDelta);
+        expect(
+          proceedsDelta,
+          `CLOSE proceeds delta should stay within 1 micro USDC for trade ${trade.id}`
+        ).to.be.lte(COST_TOLERANCE);
 
         datasetPositionToLocalId.delete(trade.positionId);
         datasetPositionToAddress.delete(trade.positionId);
@@ -272,6 +365,22 @@ describeMaybe(`${INTEGRATION_TAG} ${REPLAY_TAG} Market64 Regression`, function (
 
     const bettingNetIncome = totalCost - totalCloseProceeds;
     const marketPnl = bettingNetIncome - totalSettlementPayout;
+
+    const maxOpenDelta = openCostDeltas.reduce(
+      (max, delta) => (delta > max ? delta : max),
+      0n
+    );
+    const maxCloseDelta = closeProceedsDeltas.reduce(
+      (max, delta) => (delta > max ? delta : max),
+      0n
+    );
+
+    console.log(
+      `Market64 replay summary → max OPEN cost delta: ${maxOpenDelta} μUSDC, max CLOSE proceeds delta: ${maxCloseDelta} μUSDC`
+    );
+    console.log(
+      `Market64 replay root sum deviations → worst OPEN drop: ${worstOpenRootDrop} WAD, worst CLOSE increase: ${worstCloseRootIncrease} WAD`
+    );
 
     const alphaFloat = Number(alphaWad / 10n ** 18n);
     const maxLossBoundMicro = BigInt(

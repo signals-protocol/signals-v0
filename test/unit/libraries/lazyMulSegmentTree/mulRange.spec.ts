@@ -12,10 +12,15 @@ describe(`${UNIT_TAG} LazyMulSegmentTree - ApplyRangeFactor Operations`, functio
   const MAX_FACTOR = ethers.parseEther("100");
 
   async function deployFixture() {
-    await unitFixture();
+    const libs = await unitFixture();
 
     const LazyMulSegmentTreeTest = await ethers.getContractFactory(
-      "LazyMulSegmentTreeTest"
+      "LazyMulSegmentTreeTest",
+      {
+        libraries: {
+          FixedPointMathU: await libs.fixedPointMathU.getAddress(),
+        },
+      }
     );
     const test = await LazyMulSegmentTreeTest.deploy();
     await test.waitForDeployment();

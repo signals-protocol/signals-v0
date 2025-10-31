@@ -27,6 +27,16 @@
 - 커버리지 실행에는 시간이 오래 걸릴 수 있으므로 CI에서는 `test:fast` → `coverage:all` 순서를 권장하며, 리플레이는 야간 혹은 전용 스텝에서 실행합니다.
 - GitHub Actions 워크플로(`.github/workflows/tests.yml`)는 모든 브랜치의 push마다 `test-fast` job을 먼저 실행한 뒤, 성공 시 `test-replay`와 `coverage` job을 병렬로 실행합니다.
 
+## SDK / Subgraph 라운딩 정합성
+
+- 명령:
+  - `npm test --prefix clmsr-sdk`
+  - `npx hardhat test test/unit/sdk/cost-proceeds.parity.spec.ts`
+  - `npm run test:citrea:dev --prefix clmsr-subgraph`
+- 검증 범위:
+  - SDK 최근접 라운딩 헬퍼(`wDivUp`, `wMulNearest`)가 코어 비용/수익 경로와 동일하게 동작하는지 랜덤·청크 시나리오 파리티 테스트로 확인.
+  - Subgraph `computeRangeFactorCorrection`이 residual 분배를 통해 코어 합계와 오차 ≤ 0을 유지하는지 Matchstick 유닛 테스트로 검증.
+
 ## 업그레이드 회귀 스냅샷
 
 - 명령:

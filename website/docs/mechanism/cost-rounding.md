@@ -38,6 +38,7 @@ The CLMSR keeps every exponential weight in a sparse lazy multiplication segment
 - `applyRangeFactor` multiplies every leaf in the target range but walks only the nodes on the search path. Lazy propagation keeps both writes and reads at $O(\log n)$ even when markets span hundreds of bins.
 - Pending multipliers accumulate until they cross the flush threshold; the tree then pushes factors to both children and resets the parent so numerical error never compounds.
 - Every mutation refreshes the cached root sum, which is the denominator in price quotes. `CLMSRMarketCore` consumes that cached value when quoting trades and publishing events.
+- 모든 곱셈은 `wMulNearest`를 사용해 최근접(동일 시 올림) 라운딩으로 계산되며, 동일한 규칙이 pendingFactor 조합에도 적용된다. 덕분에 하향 편향이 사라지고, 뷰/갱신 경로가 동일한 라운딩 결과를 유지한다.
 
 Large trades still honour the `MAX_EXP_INPUT_WAD` guard. `CLMSRMarketCore` slices them into safe chunks before each tree update so every exponent passed to PRB-Math remains bounded.
 
@@ -45,17 +46,17 @@ During cost quotes the core contract reads the cached root (Σ_before) and narro
 
 Because the payment token uses six decimals, every chunk is quantised to a multiple of `1e12` WAD (`_maxSafeChunkQuantity`). The core rounds each chunked quote up to the nearest micro USDC and accumulates those rounded values, keeping the chunked result within `(chunks − 1)` micro units of executing the same size sequentially. Unit tests pin this behaviour across multiple α/quantity combinations to keep rounding parity explicit.
 
-## Asymmetric rounding
+## Nearest rounding policy
 
-The whitepaper insists on one conversion per action, with direction fixed to close the “free trade” loophole:
+The rounding layer now applies a symmetric rule that removes the systematic buy/sell bias while preserving the minimum-cost guarantee:
 
 | Action | Conversion | Helper |
 | --- | --- | --- |
-| Buy / Increase | Round **up** | fromWadRoundUp |
-| Sell / Decrease / Close | Round **down** | fromWadFloor |
-| Settlement payout | Round **down** | fromWadFloor |
+| Buy / Increase | Nearest (ties up) **with min 1 μUSDC** | fromWadNearestMin1 |
+| Sell / Decrease / Close | Nearest (ties up) | fromWadNearest |
+| Settlement payout | Position quantity (already 6 decimals) | — |
 
-**Implementation status:** buys already round up. Sells and payouts currently round up in the deployed contracts but are slated to switch to floor rounding to match the spec. Until that ships, dashboards should note that live proceeds may be marginally higher than the post-update expectation.
+**Implementation status:** the core contracts, SDK, and scripts are migrating to the nearest policy as part of Sprint R. Dashboards should treat buy quotes as at least one micro unit and assume sell/close proceeds may move up or down by ≤1 μUSDC compared to the raw WAD output.
 
 ## Minimum cost guarantee
 
@@ -63,10 +64,20 @@ Ceiling rounding on buys plus the minimum trade size $\delta_{\min}$ guarantee t
 
 > **Implementation detail:** `fromWadRoundUp` subtracts 1 before dividing by $10^{12}$, so even an input of `type(uint256).max` rounds to a positive micro amount instead of wrapping to zero. This hardens the zero-cost attack fix for extreme WAD values.
 
+## Nearest-rounding helpers (transition)
+
+Signals is rolling out a symmetric, nearest-rounding policy to remove the cumulative bias observed in Market #64. The Solidity helpers landed first so downstream integrations (core, SDK, subgraph) can adopt them in lockstep:
+
+- `fromWadNearest` converts WAD to 6-decimals using ties-up nearest rounding.
+- `fromWadNearestMin1` guarantees at least one micro unit when the input is non-zero.
+- `wMulNearest` mirrors PRB `mulDiv` but rounds the result to the nearest WAD.
+
+These utilities coexist with `fromWadRoundUp` during the migration window; once every caller switches to the nearest policy, the asymmetric helper will be retired.
+
 ## Where to look in code
 
 - LazyMulSegmentTree.sol implements the chunking logic and exponential weight updates.
-- FixedPointMath.sol currently exposes the rounding helper (`fromWadRoundUp`); the floor variant will ship with the rounding policy transition.
+- FixedPointMath.sol exposes the rounding helpers (`fromWadRoundUp`, `fromWadNearest`, `fromWadNearestMin1`, `wMulNearest`) used across core, SDK, and scripts.
 - Unit tests cover both rounding directions and chunk-splitting edge cases.
 
 For the bounds that ensure these routines remain safe, continue to [Safety Bounds & Parameters](safety-parameters.md).

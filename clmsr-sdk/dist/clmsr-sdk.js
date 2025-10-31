@@ -89,13 +89,13 @@ class CLMSRSDK {
         // 2. Calculate sum after trade - 컨트랙트와 동일
         const sumAfter = sumBefore
             .minus(affectedSum)
-            .plus(MathUtils.wMul(affectedSum, factor));
+            .plus(MathUtils.wMulNearest(affectedSum, factor));
         // 3. Calculate cost: α * ln(sumAfter / sumBefore) - 컨트랙트와 동일
         const ratio = MathUtils.wDiv(sumAfter, sumBefore);
         const lnRatio = MathUtils.wLn(ratio);
         const costWad = MathUtils.wMul(alpha, lnRatio);
         // 계산 완료
-        const cost = MathUtils.fromWadRoundUp(costWad);
+        const cost = MathUtils.fromWadNearestMin1(costWad);
         // Calculate average price with proper formatting
         // cost는 micro USDC, quantity도 micro USDC이므로 결과는 USDC/USDC = 비율
         const averagePrice = cost.div(quantity);
@@ -349,12 +349,12 @@ class CLMSRSDK {
         // 2. Calculate sum after sell
         const sumAfter = sumBefore
             .minus(affectedSum)
-            .plus(MathUtils.wMul(affectedSum, inverseFactor));
+            .plus(MathUtils.wMulNearest(affectedSum, inverseFactor));
         // 3. Calculate proceeds: α * ln(sumBefore / sumAfter)
         const ratio = MathUtils.wDiv(sumBefore, sumAfter);
         const lnRatio = MathUtils.wLn(ratio);
         const proceedsWad = MathUtils.wMul(alpha, lnRatio);
-        const proceeds = MathUtils.fromWadRoundUp(proceedsWad);
+        const proceeds = MathUtils.fromWadNearest(proceedsWad);
         // Calculate average price with proper formatting
         const averagePrice = proceeds.div(sellQuantity);
         const formattedAveragePrice = new big_js_1.default(averagePrice.toFixed(6, big_js_1.default.roundDown)); // 6자리 정밀도로 충분

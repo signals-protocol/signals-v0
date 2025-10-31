@@ -4,8 +4,8 @@ import { BigInt } from "@graphprotocol/graph-ts";
 import { test, assert } from "matchstick-as/assembly/index";
 
 import {
-  floorOfSumAfter,
-  sumOfFloorsAfter,
+  nearestOfSumAfter,
+  sumOfNearestAfter,
   toWadFromInt,
   sumBigIntVector,
 } from "./range-factor-helpers";
@@ -22,49 +22,40 @@ import {
 } from "./clmsr-market-core-utils";
 import { BinState } from "../generated/schema";
 
-test("sum-of-floors underestimates floor-of-sum for heterogeneous bins", () => {
+test("sum-of-nearest matches global nearest rounding for heterogeneous bins", () => {
   const phiInt = BigInt.fromString("367879441171442322"); // e^-1 rounded up
 
   const bins = createDiverseBins();
 
   const sumBefore = sumBigIntVector(bins);
-  const targetAfter = floorOfSumAfter(sumBefore, phiInt);
-  const grouped = sumOfFloorsAfter(bins, phiInt);
-
-  const diff = targetAfter.minus(grouped.tildeSum);
-  const isPositive = diff.gt(zero());
-  const isLess = grouped.tildeSum.lt(targetAfter);
+  const targetAfter = nearestOfSumAfter(sumBefore, phiInt);
+  const grouped = sumOfNearestAfter(bins, phiInt);
 
   assert.stringEquals(
-    isPositive ? "1" : "0",
-    "1",
-    "Expected floor-of-sum - sum-of-floors residual to be positive"
-  );
-  assert.stringEquals(
-    isLess ? "1" : "0",
-    "1",
-    "Expected per-bin floored sum to remain strictly below contract target"
+    grouped.tildeSum.toString(),
+    targetAfter.toString(),
+    "Per-bin nearest rounding should match contract nearest rounding"
   );
 });
 
-test("global correction aligns sum to contract floor-of-sum exactly", () => {
+test("global correction aligns sum to contract nearest rounding exactly", () => {
   const phiInt = BigInt.fromString("367879441171442322");
   const bins = createDiverseBins();
 
   const correction = computeRangeFactorCorrection(bins, phiInt);
   const sumBefore = sumBigIntVector(bins);
-  const targetAfter = floorOfSumAfter(sumBefore, phiInt);
-  const naive = sumOfFloorsAfter(bins, phiInt);
+  const targetAfter = nearestOfSumAfter(sumBefore, phiInt);
+  const naive = sumOfNearestAfter(bins, phiInt);
 
   assert.stringEquals(
     correction.targetAfter.toString(),
     targetAfter.toString(),
-    "Expected targetAfter to match contract floor-of-sum"
+    "Expected targetAfter to match contract nearest rounding"
   );
   assert.stringEquals(
     correction.afterSum.toString(),
     targetAfter.toString(),
-    "Corrected values must sum to contract floor-of-sum"
+    "Corrected values must sum to contract nearest rounding"
   );
   const residualExpected = targetAfter.minus(naive.tildeSum);
   assert.stringEquals(
@@ -103,7 +94,7 @@ test("handler applying correction matches contract target sum", () => {
   const phiInt = BigInt.fromString("367879441171442322");
   const bins = createDiverseBins();
   const sumBefore = sumBigIntVector(bins);
-  const targetAfter = floorOfSumAfter(sumBefore, phiInt);
+  const targetAfter = nearestOfSumAfter(sumBefore, phiInt);
 
   for (let i = 0; i < bins.length; i++) {
     const binId = buildBinStateId(marketId, i);
@@ -154,7 +145,7 @@ test("handler applying correction matches contract target sum", () => {
   assert.stringEquals(
     afterSum.toString(),
     targetAfter.toString(),
-    "Persisted bins must sum to contract floor-of-sum"
+    "Persisted bins must sum to contract nearest rounding"
   );
 });
 
@@ -166,7 +157,7 @@ test("no correction when products align with integer boundaries", () => {
   bins.push(wad().times(BigInt.fromI32(7)));
 
   const correction = computeRangeFactorCorrection(bins, phiInt);
-  const naive = sumOfFloorsAfter(bins, phiInt);
+  const naive = sumOfNearestAfter(bins, phiInt);
 
   assert.stringEquals(
     correction.residual.toString(),
@@ -227,7 +218,7 @@ test("factor zero collapses all values to zero deterministically", () => {
   assert.stringEquals(
     correction.targetAfter.toString(),
     zero().toString(),
-    "Floor-of-sum should be zero when factor is zero"
+    "Nearest rounded sum should be zero when factor is zero"
   );
   assert.stringEquals(
     correction.afterSum.toString(),
@@ -243,36 +234,100 @@ test("factor zero collapses all values to zero deterministically", () => {
   }
 });
 
-test("tie-breaker favours lower indices when remainders match exactly", () => {
-  const phiInt = BigInt.fromString("1500000000000000000"); // 1.5x
+test("bins with remainder >= halfWad round up", () => {
+  const phiInt = BigInt.fromString("1500000000000000001");
   const bins = new Array<BigInt>();
-  bins.push(wad());
-  bins.push(wad());
+  bins.push(BigInt.fromString("333333333333333333"));
 
   const correction = computeRangeFactorCorrection(bins, phiInt);
-  const expectedFirst = wad().times(BigInt.fromI32(2));
-  const expectedSecond = wad();
+
+  const product = bins[0].times(phiInt);
+  const expected = product.plus(halfWad()).div(wad());
 
   assert.stringEquals(
-    correction.residual.toString(),
-    one().toString(),
-    "Residual should equal one when two identical bins share remainder"
-  );
-  assert.stringEquals(
     correction.correctedValues[0].toString(),
-    expectedFirst.toString(),
-    "Lower index bin should absorb the extra unit"
+    expected.toString(),
+    "Nearest rounding should bump values when remainder >= half"
   );
   assert.stringEquals(
-    correction.correctedValues[1].toString(),
-    expectedSecond.toString(),
-    "Second bin should remain at floored value"
+    correction.residual.toString(),
+    zero().toString(),
+    "Residual should vanish under nearest rounding"
   );
-  const expectedSum = expectedFirst.plus(expectedSecond);
+});
+
+test("positive residual distributes to bins with largest remainders", () => {
+  const phiInt = BigInt.fromString("1100000000000000000"); // 1.1x factor
+  const bins = new Array<BigInt>();
+  bins.push(wad());
+  bins.push(wad().times(BigInt.fromI32(2)).div(BigInt.fromI32(5))); // 0.4 WAD
+
+  const naive = sumOfNearestAfter(bins, phiInt);
+  const correction = computeRangeFactorCorrection(bins, phiInt);
+
+  const residual = correction.targetAfter.minus(naive.tildeSum);
   assert.stringEquals(
-    correction.afterSum.toString(),
-    expectedSum.toString(),
-    "Corrected sum must equal contract target after tie-break"
+    residual.toString(),
+    wad().toString(),
+    "Residual should equal one WAD for this scenario"
+  );
+
+  let increments = 0;
+  for (let i = 0; i < correction.correctedValues.length; i++) {
+    const diff = correction.correctedValues[i].minus(naive.afters[i]);
+    if (diff.equals(wad())) {
+      increments++;
+    } else {
+      assert.stringEquals(
+        diff.toString(),
+        zero().toString(),
+        "Only bins with largest remainder should increase"
+      );
+    }
+  }
+
+  assert.i32Equals(
+    increments,
+    1,
+    "Exactly one bin should absorb the positive residual"
+  );
+});
+
+test("negative residual subtracts from bins with smallest remainders", () => {
+  const phiInt = BigInt.fromString("1100000000000000000"); // 1.1x factor
+  const bins = new Array<BigInt>();
+  const sixTenths = wad().times(BigInt.fromI32(6)).div(BigInt.fromI32(10)); // 0.6 WAD
+  bins.push(sixTenths);
+  bins.push(sixTenths);
+
+  const naive = sumOfNearestAfter(bins, phiInt);
+  const correction = computeRangeFactorCorrection(bins, phiInt);
+
+  const residual = correction.targetAfter.minus(naive.tildeSum);
+  assert.stringEquals(
+    residual.toString(),
+    wad().times(BigInt.fromI32(-1)).toString(),
+    "Residual should equal minus one WAD for this scenario"
+  );
+
+  let decrements = 0;
+  for (let i = 0; i < correction.correctedValues.length; i++) {
+    const diff = correction.correctedValues[i].minus(naive.afters[i]);
+    if (diff.equals(wad().times(BigInt.fromI32(-1)))) {
+      decrements++;
+    } else {
+      assert.stringEquals(
+        diff.toString(),
+        zero().toString(),
+        "Only bins with smallest remainder should decrease"
+      );
+    }
+  }
+
+  assert.i32Equals(
+    decrements,
+    1,
+    "Exactly one bin should donate the negative residual"
   );
 });
 

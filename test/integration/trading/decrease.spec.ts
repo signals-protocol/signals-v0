@@ -294,4 +294,63 @@ describe(`${INTEGRATION_TAG} Position Decrease`, function () {
       core.connect(alice).decreasePosition(positionId, excessiveSell, 0)
     ).to.be.revertedWithCustomError(core, "InsufficientPositionQuantity");
   });
+
+  it("Uses nearest rounding for decrease proceeds and keeps tree sums non-increasing", async function () {
+    const { core, alice, mockPosition, marketId } = await loadFixture(
+      createActiveMarketFixture
+    );
+
+    await core
+      .connect(alice)
+      .openPosition(
+        marketId,
+        100450,
+        100550,
+        MEDIUM_QUANTITY,
+        MEDIUM_COST
+      );
+
+    const positions = await mockPosition.getPositionsByOwner(alice.address);
+    const positionId = positions[0];
+
+    const market = await core.getMarket(marketId);
+    const minTick = market.minTick;
+    const maxTick = market.maxTick;
+
+    const sellQuantity = 1n;
+    const estimatedProceeds = await core.calculateDecreaseProceeds(
+      positionId,
+      sellQuantity
+    );
+
+    const totalBefore = await core.getRangeSum(marketId, minTick, maxTick);
+
+    const tx = await core
+      .connect(alice)
+      .decreasePosition(positionId, sellQuantity, 0);
+    const receipt = await tx.wait();
+
+    const decreasedLog = receipt.logs
+      .map((log) => {
+        try {
+          return core.interface.parseLog(log);
+        } catch {
+          return undefined;
+        }
+      })
+      .find((parsed) => parsed && parsed.name === "PositionDecreased");
+
+    expect(decreasedLog, "PositionDecreased event not found").to.not.be
+      .undefined;
+    const actualProceeds = (decreasedLog!.args.proceeds as bigint) ?? 0n;
+
+    const delta =
+      actualProceeds >= estimatedProceeds
+        ? actualProceeds - estimatedProceeds
+        : estimatedProceeds - actualProceeds;
+    expect(delta).to.be.lte(1n);
+
+    const totalAfter = await core.getRangeSum(marketId, minTick, maxTick);
+    expect(totalAfter).to.be.lte(totalBefore);
+  });
 });
