@@ -1,8 +1,6 @@
-// Performs Option B correction: per-bin floors plus deterministic residual distribution
-// so that range sums match the contract's single floor(sumBefore * factor).
 import { BigInt, log } from "@graphprotocol/graph-ts";
 
-import { one, wad, zero } from "./constants";
+import { wad, zero } from "./constants";
 
 class CorrectionRow {
   index: i32;
@@ -13,6 +11,51 @@ class CorrectionRow {
     this.index = index;
     this.quotient = quotient;
     this.remainder = remainder;
+  }
+}
+
+function adjustResidual(rows: Array<CorrectionRow>, residual: BigInt): void {
+  if (residual.equals(zero())) {
+    return;
+  }
+
+  const step = wad();
+  const positive = residual.gt(zero());
+  let remaining = positive ? residual : residual.times(BigInt.fromI32(-1));
+  const steps = remaining.div(step).toI32();
+
+  if (steps === 0) {
+    return;
+  }
+
+  for (let s = 0; s < steps; s++) {
+    let target = rows[0];
+    for (let i = 1; i < rows.length; i++) {
+      const candidate = rows[i];
+      if (positive) {
+        if (
+          candidate.remainder.gt(target.remainder) ||
+          (candidate.remainder.equals(target.remainder) &&
+            candidate.index < target.index)
+        ) {
+          target = candidate;
+        }
+      } else {
+        if (
+          candidate.remainder.lt(target.remainder) ||
+          (candidate.remainder.equals(target.remainder) &&
+            candidate.index < target.index)
+        ) {
+          target = candidate;
+        }
+      }
+    }
+
+    if (positive) {
+      target.quotient = target.quotient.plus(step);
+    } else {
+      target.quotient = target.quotient.minus(step);
+    }
   }
 }
 
@@ -41,11 +84,6 @@ export class RangeFactorCorrectionResult {
   }
 }
 
-function clampResidual(residual: BigInt): BigInt {
-  const baseline = zero();
-  return residual.lt(baseline) ? baseline : residual;
-}
-
 export function computeRangeFactorCorrection(
   values: Array<BigInt>,
   factor: BigInt
@@ -54,49 +92,28 @@ export function computeRangeFactorCorrection(
   const rows = new Array<CorrectionRow>(size);
   let sumBefore = zero();
   let tildeSum = zero();
+  const half = wad().div(BigInt.fromI32(2));
 
   for (let i = 0; i < size; i++) {
     const value = values[i];
     sumBefore = sumBefore.plus(value);
 
     const product = value.times(factor);
-    const quotient = product.div(wad());
+    const quotient = product.plus(half).div(wad());
     const remainder = product.mod(wad());
 
     rows[i] = new CorrectionRow(i, quotient, remainder);
     tildeSum = tildeSum.plus(quotient);
   }
 
-  const targetAfter = sumBefore.times(factor).div(wad());
-  let residual = clampResidual(targetAfter.minus(tildeSum));
-
-  const sorted = rows.slice(0);
-  if (!residual.equals(zero())) {
-    sorted.sort((a: CorrectionRow, b: CorrectionRow): i32 => {
-      if (a.remainder.equals(b.remainder)) {
-        return a.index - b.index;
-      }
-      if (a.remainder.gt(b.remainder)) {
-        return -1;
-      }
-      return 1;
-    });
-
-    const maxAlloc = sorted.length;
-    let limit = residual.toI32();
-    if (limit > maxAlloc) {
-      limit = maxAlloc;
-    }
-
-    for (let i = 0; i < limit; i++) {
-      sorted[i].quotient = sorted[i].quotient.plus(one());
-    }
-  }
+  const targetAfter = sumBefore.times(factor).plus(half).div(wad());
+  const residual = targetAfter.minus(tildeSum);
 
   const correctedValues = new Array<BigInt>(size);
+  adjustResidual(rows, residual);
   let afterSum = zero();
-  for (let i = 0; i < sorted.length; i++) {
-    const row = sorted[i];
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
     correctedValues[row.index] = row.quotient;
   }
 
@@ -117,6 +134,6 @@ export function computeRangeFactorCorrection(
     targetAfter,
     tildeSum,
     afterSum,
-    residual
+    targetAfter.minus(afterSum)
   );
 }
