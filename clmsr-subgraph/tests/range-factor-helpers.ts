@@ -17,11 +17,18 @@ export function toWadFromInt(value: i32): BigInt {
   return BigInt.fromI32(value).times(wad());
 }
 
-export function floorOfSumAfter(sumBefore: BigInt, phiInt: BigInt): BigInt {
-  return sumBefore.times(phiInt).div(wad());
+export function halfWad(): BigInt {
+  return wad().div(BigInt.fromI32(2));
 }
 
-export function sumOfFloorsAfter(
+export function nearestOfSumAfter(sumBefore: BigInt, phiInt: BigInt): BigInt {
+  return sumBefore
+    .times(phiInt)
+    .plus(halfWad())
+    .div(wad());
+}
+
+export function sumOfNearestAfter(
   bins: Array<BigInt>,
   phiInt: BigInt
 ): SumOfFloorsResult {
@@ -31,8 +38,12 @@ export function sumOfFloorsAfter(
   for (let i = 0; i < bins.length; i++) {
     const value = bins[i];
     const product = value.times(phiInt);
-    const quotient = product.div(wad());
+    let quotient = product.div(wad());
     const remainder = product.mod(wad());
+
+    if (remainder.ge(halfWad())) {
+      quotient = quotient.plus(BigInt.fromI32(1));
+    }
 
     result.afters[i] = quotient;
     result.remainders[i] = remainder;
