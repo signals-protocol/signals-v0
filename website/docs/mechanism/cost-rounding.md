@@ -44,40 +44,37 @@ Large trades still honour the `MAX_EXP_INPUT_WAD` guard. `CLMSRMarketCore` slice
 
 During cost quotes the core contract reads the cached root (Σ_before) and narrows the affected range with `getRangeSum`. `_calculateTradeCostInternal` and `_calculateSellProceeds` keep those sums in step with each chunk so the logarithm always reflects the current tree state. Once the trade is authorised, `_applyFactorChunked` reuses the same chunk-splitting logic to mutate the tree and emits `RangeFactorApplied` events after every multiplier. This mirrors the whitepaper's requirement that prices change atomically across the entire range while keeping on-chain work sub-linear in the number of bins.
 
-Because the payment token uses six decimals, every chunk is quantised to a multiple of `1e12` WAD (`_maxSafeChunkQuantity`). The core rounds each chunked quote up to the nearest micro USDC and accumulates those rounded values, keeping the chunked result within `(chunks − 1)` micro units of executing the same size sequentially. Unit tests pin this behaviour across multiple α/quantity combinations to keep rounding parity explicit.
+Because the payment token uses six decimals, every chunk is quantised to a multiple of `1e12` WAD (`_maxSafeChunkQuantity`). The core rounds each chunked quote up to the next micro USDC and accumulates those rounded values, keeping the chunked result within `(chunks − 1)` micro units of executing the same size sequentially. Unit tests pin this behaviour across multiple α/quantity combinations to keep rounding parity explicit.
 
-## Nearest rounding policy
+## Directional rounding policy
 
-The rounding layer now applies a symmetric rule that removes the systematic buy/sell bias while preserving the minimum-cost guarantee:
+The rounding layer now enforces the asymmetric rule described in the whitepaper: buys pay at least one extra micro unit while sells/settlements never round up.
 
 | Action | Conversion | Helper |
 | --- | --- | --- |
-| Buy / Increase | Nearest (ties up) **with min 1 μUSDC** | fromWadNearestMin1 |
-| Sell / Decrease / Close | Nearest (ties up) | fromWadNearest |
+| Buy / Increase | Ceiling (round up, minimum 1 μUSDC) | fromWadRoundUp |
+| Sell / Decrease / Close | Floor (round down) | fromWad |
 | Settlement payout | Position quantity (already 6 decimals) | — |
 
-**Implementation status:** the core contracts, SDK, and scripts are migrating to the nearest policy as part of Sprint R. Dashboards should treat buy quotes as at least one micro unit and assume sell/close proceeds may move up or down by ≤1 μUSDC compared to the raw WAD output.
+**Implementation status:** the core contracts, SDK, and scripts convert to micro USDC exactly once per trade using the helpers above. Each endpoint performs a single `_roundDebit` or `_roundCredit` call before pulling or pushing funds, so any future change that adds a second conversion must do so explicitly. Splitting a trade into chunks can only increase the rounded buy cost or decrease the rounded sell proceeds, and the monotonicity tests lock this behaviour in place.
 
 ## Minimum cost guarantee
 
 Ceiling rounding on buys plus the minimum trade size $\delta_{\min}$ guarantee that every successful trade removes at least one micro unit of SUSD. Attackers cannot leave zero-cost dust positions on the books, and auditors can assume that every position reflects real capital at risk.
 
-> **Implementation detail:** `fromWadRoundUp` subtracts 1 before dividing by $10^{12}$, so even an input of `type(uint256).max` rounds to a positive micro amount instead of wrapping to zero. This hardens the zero-cost attack fix for extreme WAD values.
+> **Implementation detail:** `fromWadRoundUp` adds $10^{12} - 1$ before dividing by $10^{12}$, so any positive WAD input produces at least one micro unit while still returning an integer result. This hardens the zero-cost attack fix for extreme WAD values.
 
-## Nearest-rounding helpers (transition)
+## Rounding helper reference
 
-Signals is rolling out a symmetric, nearest-rounding policy to remove the cumulative bias observed in Market #64. The Solidity helpers landed first so downstream integrations (core, SDK, subgraph) can adopt them in lockstep:
-
-- `fromWadNearest` converts WAD to 6-decimals using ties-up nearest rounding.
-- `fromWadNearestMin1` guarantees at least one micro unit when the input is non-zero.
-- `wMulNearest` mirrors PRB `mulDiv` but rounds the result to the nearest WAD.
-
-These utilities coexist with `fromWadRoundUp` during the migration window; once every caller switches to the nearest policy, the asymmetric helper will be retired.
+- `fromWadRoundUp` performs the buy-side ceiling conversion with the minimum 1 μUSDC guarantee.
+- `fromWad` floors sell-side conversions, ensuring proceeds never benefit from rounding up.
+- `wMulNearest` mirrors the on-chain `wMulNearest` helper for multiplicative operations inside the segment tree.
+- Legacy helpers (`fromWadNearest`, `fromWadNearestMin1`) remain available for analytics and backward compatibility but are no longer used in live trade paths.
 
 ## Where to look in code
 
 - LazyMulSegmentTree.sol implements the chunking logic and exponential weight updates.
-- FixedPointMath.sol exposes the rounding helpers (`fromWadRoundUp`, `fromWadNearest`, `fromWadNearestMin1`, `wMulNearest`) used across core, SDK, and scripts.
+- FixedPointMath.sol exposes the rounding helpers (`fromWadRoundUp`, `fromWad`, `wMulNearest`) used across core, SDK, and scripts, while keeping the legacy nearest helpers for tooling.
 - Unit tests cover both rounding directions and chunk-splitting edge cases.
 
 For the bounds that ensure these routines remain safe, continue to [Safety Bounds & Parameters](safety-parameters.md).

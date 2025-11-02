@@ -33,9 +33,6 @@ contract CLMSRMarketCore is
     using SafeERC20 for IERC20;
     using {
         FixedPointMathU.toWad,
-        FixedPointMathU.fromWad,
-        FixedPointMathU.fromWadNearest,
-        FixedPointMathU.fromWadNearestMin1,
         FixedPointMathU.wMul,
         FixedPointMathU.wMulNearest,
         FixedPointMathU.wDiv,
@@ -79,6 +76,17 @@ contract CLMSRMarketCore is
         uint256 quantized = raw - (raw % SIX_DECIMAL_SCALE);
         return quantized != 0 ? quantized : raw;
     }
+
+    /// @dev Centralized debit rounding helper (ceil converts WAD to 6-decimal units)
+    function _roundDebit(uint256 wadAmount) internal pure returns (uint256) {
+        return FixedPointMathU.fromWadRoundUp(wadAmount);
+    }
+
+    /// @dev Centralized credit rounding helper (floor converts WAD to 6-decimal units)
+    function _roundCredit(uint256 wadAmount) internal pure returns (uint256) {
+        return FixedPointMathU.fromWad(wadAmount);
+    }
+
 
     // ========================================
     // STATE VARIABLES
@@ -427,7 +435,7 @@ contract CLMSRMarketCore is
         
         // Calculate trade cost and convert to 6-decimal with round-up to prevent zero-cost attacks
         uint256 costWad = _calcCostInWad(marketId, lowerTick, upperTick, quantity);
-        uint256 cost6 = costWad.fromWadNearestMin1();
+        uint256 cost6 = _roundDebit(costWad);
         
         require(cost6 <= maxCost, CE.CostExceedsMaximum(cost6, maxCost));
         
@@ -483,7 +491,7 @@ contract CLMSRMarketCore is
             position.upperTick,
             uint256(additionalQuantity).toWad()
         );
-        uint256 cost6 = costWad.fromWadNearestMin1();
+        uint256 cost6 = _roundDebit(costWad);
         
         require(cost6 <= maxCost, CE.CostExceedsMaximum(cost6, maxCost));
         
@@ -528,7 +536,7 @@ contract CLMSRMarketCore is
             position.upperTick,
             uint256(sellQuantity).toWad()
         );
-        proceeds = proceedsWad.fromWadNearest();
+        proceeds = _roundCredit(proceedsWad);
         
         require(proceeds >= minProceeds, CE.ProceedsBelowMinimum(proceeds, minProceeds));
         
@@ -605,7 +613,7 @@ contract CLMSRMarketCore is
             position.upperTick,
             positionQuantityWad
         );
-        proceeds = FixedPointMathU.fromWadNearest(proceedsWad);
+        proceeds = _roundCredit(proceedsWad);
 
         require(proceeds >= minProceeds, CE.ProceedsBelowMinimum(proceeds, minProceeds));
 
@@ -661,7 +669,7 @@ contract CLMSRMarketCore is
         uint256 quantityWad = uint256(quantity).toWad();
         uint256 costWad = _calculateTradeCostInternal(marketId, lowerTick, upperTick, quantityWad);
         // Convert cost back to 6-decimal for external interface with round-up
-        return costWad.fromWadNearestMin1();
+        return _roundDebit(costWad);
     }
     
     /// @inheritdoc ICLMSRMarketCore
@@ -677,7 +685,7 @@ contract CLMSRMarketCore is
             position.upperTick,
             quantityWad
         );
-        return costWad.fromWadNearestMin1();
+        return _roundDebit(costWad);
     }
     
     /// @inheritdoc ICLMSRMarketCore
@@ -693,7 +701,7 @@ contract CLMSRMarketCore is
             position.upperTick,
             quantityWad
         );
-        return proceedsWad.fromWadNearest();
+        return _roundCredit(proceedsWad);
     }
     
     /// @inheritdoc ICLMSRMarketCore
@@ -708,7 +716,7 @@ contract CLMSRMarketCore is
             position.upperTick,
             quantityWad
         );
-        return proceedsWad.fromWadNearest();
+        return _roundCredit(proceedsWad);
     }
 
     
@@ -751,7 +759,7 @@ contract CLMSRMarketCore is
         uint256 quantityWad = _calculateQuantityFromCostInternal(marketId, lowerTick, upperTick, costWad);
         
         // Convert quantity back to 6-decimal for external interface
-        uint256 quantityValue = quantityWad.fromWad();
+        uint256 quantityValue = _roundCredit(quantityWad);
         
         // Ensure result fits in uint128
         require(quantityValue <= type(uint128).max, CE.QuantityOverflow());
@@ -1022,7 +1030,7 @@ contract CLMSRMarketCore is
             require(requiredChunks <= MAX_CHUNKS_PER_TX, CE.ChunkLimitExceeded(requiredChunks, MAX_CHUNKS_PER_TX));
             
             // Chunk-split with cumulative state tracking
-            uint256 sequentialCostMicro = 0;
+            uint256 cumulativeCostWad = 0;
             uint256 remainingQuantity = totalQuantity;
             uint256 currentSumBefore = sumBefore;
             uint256 currentAffectedSum = affectedSum;
@@ -1073,8 +1081,7 @@ contract CLMSRMarketCore is
                 require(sumAfter > currentSumBefore, CE.NonIncreasingSum(currentSumBefore, sumAfter));
                 uint256 ratio = sumAfter.wDivUp(currentSumBefore);
                 uint256 chunkCost = alpha.wMul(ratio.wLn());
-                uint256 chunkCostMicro = chunkCost.fromWadNearestMin1();
-                sequentialCostMicro += chunkCostMicro;
+                cumulativeCostWad += chunkCost;
 
                 // Ensure we make progress to prevent infinite loops
                 require(chunkQuantity != 0, CE.NoChunkProgress());
@@ -1089,7 +1096,7 @@ contract CLMSRMarketCore is
             // Additional safety check
             require(remainingQuantity == 0, CE.ResidualQuantity(remainingQuantity));
 
-            return sequentialCostMicro * SIX_DECIMAL_SCALE;
+            return cumulativeCostWad;
         }
     }
     
@@ -1168,7 +1175,7 @@ contract CLMSRMarketCore is
             require(requiredChunks <= MAX_CHUNKS_PER_TX, CE.ChunkLimitExceeded(requiredChunks, MAX_CHUNKS_PER_TX));
             
             // Chunk-split with cumulative state tracking
-            uint256 sequentialProceedsMicro = 0;
+            uint256 cumulativeProceedsWad = 0;
             uint256 remainingQuantity = totalQuantity;
             uint256 currentSumBefore = sumBefore;
             uint256 currentAffectedSum = affectedSum;
@@ -1226,8 +1233,7 @@ contract CLMSRMarketCore is
                 if (currentSumBefore > sumAfter) {
                     uint256 ratio = currentSumBefore.wDivUp(sumAfter);
                     uint256 chunkProceeds = alpha.wMul(ratio.wLn());
-                    uint256 chunkProceedsMicro = chunkProceeds.fromWadNearest();
-                    sequentialProceedsMicro += chunkProceedsMicro;
+                    cumulativeProceedsWad += chunkProceeds;
                 }
 
                 // Ensure we make progress to prevent infinite loops
@@ -1243,7 +1249,7 @@ contract CLMSRMarketCore is
             // Additional safety check
             require(remainingQuantity == 0, CE.ResidualQuantity(remainingQuantity));
 
-            return sequentialProceedsMicro * SIX_DECIMAL_SCALE;
+            return cumulativeProceedsWad;
         }
     }
     

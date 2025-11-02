@@ -210,7 +210,7 @@ export async function unitFixture() {
 /**
  * Component fixture - Core + Mocks
  */
-export async function coreFixture() {
+async function buildCoreFixture(contractName: string) {
   const baseFixture = await unitFixture();
   const { deployer, keeper, alice, bob, charlie, manager } = baseFixture as any;
 
@@ -232,7 +232,7 @@ export async function coreFixture() {
 
   // Deploy core contract (upgradeable)
   const CLMSRMarketCoreFactory = await ethers.getContractFactory(
-    "CLMSRMarketCore",
+    contractName,
     {
       libraries: {
         FixedPointMathU: await baseFixture.fixedPointMathU.getAddress(),
@@ -370,6 +370,10 @@ export async function coreFixture() {
     manager,
     deployer,
   };
+}
+
+export async function coreFixture() {
+  return buildCoreFixture("CLMSRMarketCore");
 }
 
 /**
