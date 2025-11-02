@@ -15,6 +15,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
   const EXTREME_COST = ethers.parseUnits("1000", 6); // 1000 USDC
   const TICK_COUNT = 100;
   const WAD = ethers.parseEther("1"); // 1e18
+  const MICRO_USDC = 1n;
 
   describe("Cost Consistency Invariants", function () {
     it("Should maintain cost consistency: buy then sell should be near-neutral", async function () {
@@ -544,7 +545,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       );
     });
 
-    it("Should demonstrate zero expected value for round-trip trades", async function () {
+    it("Should bound round-trip wedge within 1 micro USDC", async function () {
       const { core, alice, paymentToken, mockPosition, keeper } = await loadFixture(
         coreFixture
       );
@@ -599,24 +600,28 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
         // Calculate net delta (negative = loss, positive = gain)
         const netDelta = balanceAfter - balanceBefore;
         deltas.push(netDelta);
-
-        console.log(`Quantity ${qty}: Net delta = ${netDelta} micro USDC`);
       }
 
       // Calculate average delta
       const sumDelta = deltas.reduce((a, b) => a + b, 0n);
-      const avgDelta = Number(sumDelta) / deltas.length;
+      const avgDelta = sumDelta / BigInt(deltas.length);
 
-      console.log(
-        `Average delta over ${deltas.length} trades: ${avgDelta} micro USDC`
-      );
+      for (const delta of deltas) {
+        expect(delta, "Round-trip delta should never be positive").to.be.lte(0n);
+        expect(
+          delta,
+          "Round-trip delta should not exceed 1 micro USDC loss per trade"
+        ).to.be.gte(-MICRO_USDC);
+      }
 
-      // With Up/Up policy, average should be close to 0 (fair)
-      // Allow some tolerance due to market state changes
-      expect(Math.abs(avgDelta)).to.be.lt(
-        1.0,
-        "Average rounding delta should be close to 0 (fair Up/Up policy)"
-      );
+      expect(
+        avgDelta,
+        "Average round-trip delta should remain within the one micro wedge"
+      ).to.be.lte(0n);
+      expect(
+        avgDelta,
+        "Average round-trip delta should not lose more than one micro"
+      ).to.be.gte(-MICRO_USDC);
     });
 
     it("Should prevent zero-cost attacks while maintaining fairness", async function () {

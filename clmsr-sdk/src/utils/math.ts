@@ -55,7 +55,11 @@ export function toWad(amt6: USDCAmount): WADAmount {
  * @returns Amount in 6-decimal format
  */
 export function fromWad(amtWad: WADAmount): USDCAmount {
-  return amtWad.div(SCALE_DIFF);
+  if (amtWad.eq(0)) {
+    return new Big(0);
+  }
+
+  return amtWad.div(SCALE_DIFF).round(0, Big.roundDown);
 }
 
 /**
@@ -65,8 +69,12 @@ export function fromWad(amtWad: WADAmount): USDCAmount {
  * @returns Amount in 6-decimal format (rounded up)
  */
 export function fromWadRoundUp(amtWad: WADAmount): USDCAmount {
-  const result = amtWad.plus(SCALE_DIFF.minus(1)).div(SCALE_DIFF);
-  return new Big(result.toFixed(6, Big.roundUp));
+  if (amtWad.eq(0)) {
+    return new Big(0);
+  }
+
+  const numerator = amtWad.plus(SCALE_DIFF.minus(1));
+  return numerator.div(SCALE_DIFF).round(0, Big.roundDown);
 }
 
 /**

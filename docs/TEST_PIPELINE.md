@@ -34,7 +34,7 @@
   - `npx hardhat test test/unit/sdk/cost-proceeds.parity.spec.ts`
   - `npm run test:citrea:dev --prefix clmsr-subgraph`
 - 검증 범위:
-  - SDK 최근접 라운딩 헬퍼(`wDivUp`, `wMulNearest`)가 코어 비용/수익 경로와 동일하게 동작하는지 랜덤·청크 시나리오 파리티 테스트로 확인.
+  - SDK 라운딩 헬퍼(`fromWadRoundUp`, `fromWad`, `wDivUp`, `wMulNearest`)가 코어 비용/수익 경로와 동일하게 동작하는지 랜덤·청크 시나리오 파리티 테스트로 확인.
   - Subgraph `computeRangeFactorCorrection`이 residual 분배를 통해 코어 합계와 오차 ≤ 0을 유지하는지 Matchstick 유닛 테스트로 검증.
 
 ## 업그레이드 회귀 스냅샷

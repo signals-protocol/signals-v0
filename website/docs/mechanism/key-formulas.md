@@ -24,7 +24,7 @@ Keep this page handy when you need the CLMSR math without re-reading the entire 
 - **Currency to WAD**: multiply SUSD amounts by `10^12`; divide by the same factor to convert back.
 - **Rounding policy**:
   - Buys and increases: round up (`fromWadRoundUp`).
-  - Sells, decreases, closes, and payouts: round down (`fromWadFloor`).
+  - Sells, decreases, closes, and payouts: round down (`fromWad`).
   - Recommended minimum trade size: $\delta_{\min} = 0.01$ SUSD (UI enforced until the Solidity guard ships).
 
 ## Guard rails

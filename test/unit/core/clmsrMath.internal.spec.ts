@@ -262,6 +262,11 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
             : sequentialCost - totalCost;
         const maxAllowed =
           chunkMultiplier > 0n ? (chunkMultiplier - 1n) * MICRO_USDC : 0n;
+
+        expect(
+          sequentialCost,
+          `buy monotonicity alpha=${alpha}, chunks=${chunkMultiplier}`
+        ).to.be.gte(totalCost);
         expect(
           diff,
           `chunk cost diff alpha=${alpha}, chunks=${chunkMultiplier}`
@@ -331,11 +336,60 @@ describe(`${UNIT_TAG} CLMSR Math Internal Functions`, function () {
             : sequentialProceeds - totalProceeds;
         const maxAllowed =
           chunkMultiplier > 0n ? (chunkMultiplier - 1n) * MICRO_USDC : 0n;
+
+        expect(
+          sequentialProceeds,
+          `sell monotonicity alpha=${alpha}, chunks=${chunkMultiplier}`
+        ).to.be.lte(totalProceeds);
         expect(
           diff,
           `chunk proceeds diff alpha=${alpha}, chunks=${chunkMultiplier}`
         ).to.be.lte(maxAllowed);
       }
+    });
+
+    it("Should keep round-trip wedge within 1 micro USDC", async function () {
+      const { core, alice, mockPosition, marketId } =
+        await loadFixture(createActiveMarketFixture);
+
+      const quantity = SMALL_QUANTITY;
+      const lowerTick = DEFAULT_LOWER_TICK;
+      const upperTick = DEFAULT_UPPER_TICK;
+
+      const quotedCost = await core.calculateOpenCost(
+        marketId,
+        lowerTick,
+        upperTick,
+        quantity
+      );
+
+      await core
+        .connect(alice)
+        .openPosition(
+          marketId,
+          lowerTick,
+          upperTick,
+          quantity,
+          quotedCost
+        );
+
+      const positions = await mockPosition.getPositionsByOwner(alice.address);
+      const positionId = positions[0];
+
+      const quotedProceeds = await core.calculateDecreaseProceeds(
+        positionId,
+        quantity
+      );
+
+      expect(
+        quotedProceeds,
+        "Sell proceeds should not exceed buy cost"
+      ).to.be.lte(quotedCost);
+
+      const wedge = quotedCost - quotedProceeds;
+
+      expect(wedge, "Round-trip wedge should be non-negative").to.be.gte(0n);
+      expect(wedge, "Round-trip wedge bounded by 1 micro").to.be.lte(MICRO_USDC);
     });
 
     it("Should revert with ChunkLimitExceeded when required chunks exceed limit", async function () {
