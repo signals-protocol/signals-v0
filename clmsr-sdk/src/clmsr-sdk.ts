@@ -94,7 +94,7 @@ export class CLMSRSDK {
 
     // 계산 완료
 
-    const cost = MathUtils.fromWadNearestMin1(costWad);
+    const cost = MathUtils.fromWadRoundUp(costWad);
 
     // Calculate average price with proper formatting
     // cost는 micro USDC, quantity도 micro USDC이므로 결과는 USDC/USDC = 비율
@@ -541,7 +541,7 @@ export class CLMSRSDK {
     const lnRatio = MathUtils.wLn(ratio);
     const proceedsWad = MathUtils.wMul(alpha, lnRatio);
 
-    const proceeds = MathUtils.fromWadNearest(proceedsWad);
+    const proceeds = MathUtils.fromWad(proceedsWad);
 
     // Calculate average price with proper formatting
     const averagePrice = proceeds.div(sellQuantity);

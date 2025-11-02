@@ -220,17 +220,42 @@ library LazyMulSegmentTree {
             if (left == 0) {
                 left = _allocateNode(tree, l, mid);
             }
-            _applyFactorToNode(tree, left, pendingFactorVal);
             
             // Auto-allocate right child if needed
             if (right == 0) {
                 right = _allocateNode(tree, mid + 1, r);
             }
+            _applyFactorToNode(tree, left, pendingFactorVal);
             _applyFactorToNode(tree, right, pendingFactorVal);
+
+            uint256 combined = tree.nodes[left].sum + tree.nodes[right].sum;
+            uint256 target = node.sum;
+
+            if (combined != target) {
+                if (combined < target) {
+                    tree.nodes[right].sum += target - combined;
+                } else {
+                    uint256 surplus = combined - target;
+                    uint256 rightSum = tree.nodes[right].sum;
+                    if (surplus <= rightSum) {
+                        tree.nodes[right].sum = rightSum - surplus;
+                    } else {
+                        uint256 remaining = surplus - rightSum;
+                        tree.nodes[right].sum = 0;
+                        uint256 leftSum = tree.nodes[left].sum;
+                        require(remaining <= leftSum, CE.MathMulOverflow());
+                        tree.nodes[left].sum = leftSum - remaining;
+                    }
+                }
+            }
             
             // Update packed children
             node.childPtr = _packChildPtr(left, right);
             node.pendingFactor = uint192(ONE_WAD);
+
+            if (nodeIndex == tree.root) {
+                tree.cachedRootSum = node.sum;
+            }
         }
     }
     
@@ -286,26 +311,28 @@ library LazyMulSegmentTree {
         
         // Complete overlap - apply lazy update with smart auto-flush
         if (l >= lo && r <= hi) {
+            uint256 priorPending = uint256(node.pendingFactor);
+            uint256 combinedPending = _combineFactors(priorPending, factor);
+
+            if (
+                priorPending != ONE_WAD &&
+                (combinedPending < UNDERFLOW_FLUSH_THRESHOLD || combinedPending > FLUSH_THRESHOLD)
+            ) {
+                _pushPendingFactor(tree, nodeIndex, l, r);
+                priorPending = uint256(node.pendingFactor);
+            }
+
             _scaleNodeSum(node, factor);
 
-            uint256 priorPending = uint256(node.pendingFactor);
             uint256 newPendingFactor = _combineFactors(priorPending, factor);
-            
+
             if (newPendingFactor < UNDERFLOW_FLUSH_THRESHOLD) {
-                // Mirror the overflow flush: push accumulated lazy when it shrinks too far
-                if (node.pendingFactor != uint192(ONE_WAD)) {
-                    _pushPendingFactor(tree, nodeIndex, l, r);
-                }
                 node.pendingFactor = uint192(factor);
             } else if (newPendingFactor > FLUSH_THRESHOLD) {
-                // Force push current pendingFactor first, then apply new factor
-                if (node.pendingFactor != uint192(ONE_WAD)) {
-                    _pushPendingFactor(tree, nodeIndex, l, r);
-                }
-                // Now apply the new factor
                 node.pendingFactor = uint192(factor);
+                _pushPendingFactor(tree, nodeIndex, l, r);
+                node.pendingFactor = uint192(ONE_WAD);
             } else {
-                // Normal case: accumulate the factor
                 require(newPendingFactor <= type(uint192).max, CE.LazyFactorOverflow());
                 node.pendingFactor = uint192(newPendingFactor);
             }
@@ -320,24 +347,36 @@ library LazyMulSegmentTree {
         // Partial overlap - push down and recurse
         _pushPendingFactor(tree, nodeIndex, l, r);
         
-        (uint32 leftChild, uint32 rightChild) = _unpackChildPtr(node.childPtr);
+        Node storage current = tree.nodes[nodeIndex];
+        (uint32 leftChild, uint32 rightChild) = _unpackChildPtr(current.childPtr);
         uint32 mid = l + (r - l) / 2;
-        
-        // Auto-allocate children if needed for partial overlap
-        if (leftChild == 0 && lo <= mid) {
-            leftChild = _allocateNode(tree, l, mid);
+
+        if (lo <= mid) {
+            if (leftChild == 0) {
+                leftChild = _allocateNode(tree, l, mid);
+            }
+            _applyFactorRecursive(tree, leftChild, l, mid, lo, hi, factor);
         }
-        if (rightChild == 0 && hi > mid) {
-            rightChild = _allocateNode(tree, mid + 1, r);
+        if (hi > mid) {
+            if (rightChild == 0) {
+                rightChild = _allocateNode(tree, mid + 1, r);
+            }
+            _applyFactorRecursive(tree, rightChild, mid + 1, r, lo, hi, factor);
         }
         
-        // Update children references
-        node.childPtr = _packChildPtr(leftChild, rightChild);
+        current.childPtr = _packChildPtr(leftChild, rightChild);
+
+        uint256 leftSum = (leftChild != 0)
+            ? tree.nodes[leftChild].sum
+            : _defaultSum(l, mid);
+        uint256 rightSum = (rightChild != 0)
+            ? tree.nodes[rightChild].sum
+            : _defaultSum(mid + 1, r);
+        current.sum = leftSum + rightSum;
         
-        _applyFactorRecursive(tree, leftChild, l, mid, lo, hi, factor);
-        _applyFactorRecursive(tree, rightChild, mid + 1, r, lo, hi, factor);
-        
-        _pullUpSum(tree, nodeIndex, l, r);
+        if (nodeIndex == tree.root) {
+            tree.cachedRootSum = current.sum;
+        }
     }
     
     /// @notice On-the-fly query with accumulated lazy (true view function)

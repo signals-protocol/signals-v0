@@ -1,28 +1,34 @@
 import Big from "big.js";
 import {
   toWAD,
-  fromWadNearest,
-  fromWadNearestMin1,
+  fromWad,
+  fromWadRoundUp,
   wMulNearest,
   wDivUp,
   WAD,
 } from "../src/utils/math";
 
-describe("Nearest rounding helpers", () => {
-  it("rounds to nearest micro USDC with ties up", () => {
-    const halfUp = toWAD("0.0000005");
-    const justBelowHalf = toWAD("0.000000499999");
-    const justAboveHalf = toWAD("0.000000500001");
+describe("Rounding policy helpers", () => {
+  it("rounds buys up to the next micro unit", () => {
+    const fractional = toWAD("0.0000001"); // 0.1 μUSDC in WAD
+    const rounded = fromWadRoundUp(fractional);
+    expect(rounded.toString()).toBe("1");
 
-    expect(fromWadNearest(halfUp).toString()).toBe("1");
-    expect(fromWadNearest(justBelowHalf).toString()).toBe("0");
-    expect(fromWadNearest(justAboveHalf).toString()).toBe("1");
+    const exact = toWAD("5");
+    const roundedExact = fromWadRoundUp(exact);
+    expect(roundedExact.toString()).toBe("5000000");
   });
 
-  it("enforces minimum 1 micro USDC when input is non-zero", () => {
-    const tiny = toWAD("0.000000000000000001");
-    expect(fromWadNearestMin1(tiny).toString()).toBe("1");
-    expect(fromWadNearestMin1(new Big(0)).toString()).toBe("0");
+  it("floors sells to the lower micro unit", () => {
+    const fractionalMicro = toWAD("0.0000004"); // 0.4 μUSDC
+    expect(fromWad(fractionalMicro).toString()).toBe("0");
+
+    const justBelowWhole = toWAD("0.999999"); // slightly below 1 USDC
+    expect(fromWad(justBelowWhole).toString()).toBe("999999");
+
+    const exact = toWAD("12.5");
+    const flooredExact = fromWad(exact);
+    expect(flooredExact.toString()).toBe("12500000");
   });
 
   it("matches nearest rounding for WAD multiplication", () => {
