@@ -13,8 +13,6 @@ import type { Environment } from "../types/environment";
 
 const VALID_ENVIRONMENTS: readonly Environment[] = [
   "localhost",
-  "base-dev",
-  "base-prod",
   "citrea-dev",
   "citrea-prod",
 ];

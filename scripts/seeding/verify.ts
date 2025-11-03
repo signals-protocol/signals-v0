@@ -101,8 +101,6 @@ export async function verifyDistribution(
 // CLI execution
 const VALID_ENVIRONMENTS: readonly Environment[] = [
   "localhost",
-  "base-dev",
-  "base-prod",
   "citrea-dev",
   "citrea-prod",
 ];

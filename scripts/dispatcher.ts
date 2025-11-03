@@ -14,22 +14,16 @@ if (!COMMAND) {
   
 📦 Deploy Commands:
   deploy:localhost          - Deploy to localhost
-  deploy:base:dev           - Deploy to base dev
-  deploy:base:prod          - Deploy to base prod
   deploy:citrea:dev         - Deploy to citrea dev
   deploy:citrea:prod        - Deploy to citrea prod
   
 ⬆️ Upgrade Commands:
   upgrade:localhost         - Upgrade localhost contracts
-  upgrade:base:dev          - Upgrade base dev contracts  
-  upgrade:base:prod         - Upgrade base prod contracts
   upgrade:citrea:dev        - Upgrade citrea dev contracts
   upgrade:citrea:prod       - Upgrade citrea prod contracts
   
 🏪 Market Commands:
   create-market:localhost   - Create market on localhost
-  create-market:base:dev    - Create market on base dev
-  create-market:base:prod   - Create market on base prod
   create-market:citrea:dev  - Create market on citrea dev
   create-market:citrea:prod - Create market on citrea prod
   set-market-active:ENV     - Toggle activation (MARKET_ID, ACTIVE env vars)
@@ -38,75 +32,55 @@ if (!COMMAND) {
   
 🏁 Settlement Commands:
   settle-market:localhost   - Settle market on localhost
-  settle-market:base:dev    - Settle market on base dev
-  settle-market:base:prod   - Settle market on base prod
   settle-market:citrea:dev  - Settle market on citrea dev
   settle-market:citrea:prod - Settle market on citrea prod
   
 🚫 Market Close Commands:
   close-market:localhost    - Close market on localhost (stops trading)
-  close-market:base:dev     - Close market on base dev (stops trading)
-  close-market:base:prod    - Close market on base prod (stops trading)
   close-market:citrea:dev   - Close market on citrea dev (stops trading)
   close-market:citrea:prod  - Close market on citrea prod (stops trading)
+  
 🔄 Market Reopen Commands:
   reopen-market:localhost   - Reopen settled market on localhost
-  reopen-market:base:dev    - Reopen settled market on base dev
-  reopen-market:base:prod   - Reopen settled market on base prod
   reopen-market:citrea:dev  - Reopen settled market on citrea dev
   reopen-market:citrea:prod - Reopen settled market on citrea prod
   
 ⏸️ Market Pause Commands:
   pause-market:localhost    - Pause market contract on localhost
-  pause-market:base:dev     - Pause market contract on base dev
-  pause-market:base:prod    - Pause market contract on base prod
   pause-market:citrea:dev   - Pause market contract on citrea dev
   pause-market:citrea:prod  - Pause market contract on citrea prod
   
 ▶️ Market Unpause Commands:
   unpause-market:localhost  - Unpause market contract on localhost
-  unpause-market:base:dev   - Unpause market contract on base dev
-  unpause-market:base:prod  - Unpause market contract on base prod
   unpause-market:citrea:dev - Unpause market contract on citrea dev
   unpause-market:citrea:prod- Unpause market contract on citrea prod
   
 📢 Position Events Commands:
   emit-position-settled:localhost   - Emit position settled events on localhost
-  emit-position-settled:base:dev    - Emit position settled events on base dev
-  emit-position-settled:base:prod   - Emit position settled events on base prod
   emit-position-settled:citrea:dev  - Emit position settled events on citrea dev
   emit-position-settled:citrea:prod - Emit position settled events on citrea prod
   
 🔍 Position Status Commands:
   check-position-status:localhost   - Check position emission status on localhost
-  check-position-status:base:dev    - Check position emission status on base dev
-  check-position-status:base:prod   - Check position emission status on base prod
   check-position-status:citrea:dev  - Check position emission status on citrea dev
   check-position-status:citrea:prod - Check position emission status on citrea prod
   
 ⏰ Market Timing Commands:
   update-market-timing:localhost   - Update market timing on localhost (hardcoded values)
-  update-market-timing:base:dev    - Update market timing on base dev (hardcoded values)
-  update-market-timing:base:prod   - Update market timing on base prod (hardcoded values)
   update-market-timing:citrea:dev  - Update market timing on citrea dev (hardcoded values)
   update-market-timing:citrea:prod - Update market timing on citrea prod (hardcoded values)
   
 📊 Status Commands:
   status:localhost          - Show localhost status
-  status:base:dev           - Show base dev status
-  status:base:prod          - Show base prod status
   status:citrea:dev         - Show citrea dev status
   status:citrea:prod        - Show citrea prod status
 
   
 💰 SUSD Commands:
-  deploy-susd:base:dev      - Deploy SUSD to base dev
   deploy-susd:citrea:dev    - Deploy SUSD to citrea dev
   
 🛡️ Safety Commands:
   safety-check:localhost    - Run safety checks for localhost
-  safety-check:base:dev     - Run safety checks for base dev
-  safety-check:base:prod    - Run safety checks for base prod
   safety-check:citrea:dev   - Run safety checks for citrea dev
   safety-check:citrea:prod  - Run safety checks for citrea prod
 
@@ -123,14 +97,11 @@ if (!COMMAND) {
 
 🔍 Query Commands:
   range-sum:localhost       - Get range sum for market on localhost
-  range-sum:base:dev        - Get range sum for market on base dev
-  range-sum:base:prod       - Get range sum for market on base prod
   range-sum:citrea:dev      - Get range sum for market on citrea dev
   range-sum:citrea:prod     - Get range sum for market on citrea prod
 
 Usage:
   COMMAND=deploy:localhost npx hardhat run scripts/dispatcher.ts --network localhost
-  COMMAND=upgrade:base:prod npx hardhat run scripts/dispatcher.ts --network base-prod
   COMMAND=deploy:citrea:dev npx hardhat run scripts/dispatcher.ts --network citrea-dev
   COMMAND=upgrade:citrea:prod npx hardhat run scripts/dispatcher.ts --network citrea-prod
 `);
@@ -142,12 +113,12 @@ async function dispatch() {
     const [action, ...envParts] = COMMAND!.split(":");
     const env = envParts.join(":"); // safety-check:base:prod → base:prod
 
-    // 환경명 정규화: base:dev → base-dev, base:prod → base-prod, citrea:dev → citrea-dev, citrea:prod → citrea-prod
+    // 환경명 정규화: citrea:dev → citrea-dev, citrea:prod → citrea-prod
     let environment = env || "localhost";
     if (environment.includes(":")) {
       const parts = environment.split(":");
-      if (parts[0] === "citrea" || parts[0] === "base") {
-        environment = `${parts[0]}-${parts[1]}`; // citrea:dev → citrea-dev, base:dev → base-dev
+      if (parts[0] === "citrea") {
+        environment = `${parts[0]}-${parts[1]}`; // citrea:dev → citrea-dev
       } else {
         environment = parts[1]; // fallback
       }

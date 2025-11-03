@@ -1,4 +1,4 @@
-import { ethers as hardhatEthers } from "hardhat";
+import { ethers as hardhatEthers, network } from "hardhat";
 import { ethers, parseEther, Contract, Wallet, JsonRpcProvider } from "ethers";
 import { envManager } from "../utils/environment";
 import type { Environment } from "../types/environment";
@@ -6,26 +6,26 @@ import * as dotenv from "dotenv";
 
 dotenv.config();
 
-// 환경별 RPC URL 매핑
-function getRpcUrl(environment: Environment): string {
-  const rpcUrls: Record<string, string> = {
-    localhost: "http://127.0.0.1:8545",
-    "citrea-dev": "https://citrea-testnet.g.alchemy.com/v2/***REMOVED***",
-    "citrea-prod": "https://citrea-testnet.g.alchemy.com/v2/***REMOVED***",
-    "base-dev": "https://base-mainnet.g.allthatnode.com/archive/evm/***REMOVED***",
-    "base-prod": "https://base-mainnet.g.allthatnode.com/archive/evm/***REMOVED***",
-  };
-  
-  return rpcUrls[environment] || rpcUrls.localhost;
-}
-
 export async function createMarketAction(
   environment: Environment
 ): Promise<void> {
   console.log(`🏪 마켓 생성 시작 on ${environment}`);
 
+  // RPC URL을 환경변수 또는 네트워크 설정에서 가져오기
+  const networkRpcUrl =
+    typeof network.config === "object" && "url" in network.config
+      ? (network.config as { url?: string }).url
+      : undefined;
+  
+  const rpcUrl = process.env.PINNED_RPC_URL || process.env.RPC_URL || networkRpcUrl;
+  
+  if (!rpcUrl) {
+    throw new Error(
+      "RPC URL not found. Set PINNED_RPC_URL, RPC_URL, or configure network in hardhat.config.ts"
+    );
+  }
+
   // 직접 ethers Provider와 Wallet 사용 (하드햇 우회)
-  const rpcUrl = getRpcUrl(environment);
   const provider = new JsonRpcProvider(rpcUrl);
   
   const privateKey = process.env.PRIVATE_KEY;
