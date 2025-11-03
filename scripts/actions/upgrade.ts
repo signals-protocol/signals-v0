@@ -6,19 +6,9 @@ import { UpgradeSafetyChecker } from "../safety-checks";
 import { OpenZeppelinManifestManager } from "../manage-manifest";
 
 const TX_DELAY_MS = Number(process.env.TX_DELAY_MS ?? "10000");
-const networkRpcUrl =
-  typeof network.config === "object" && "url" in network.config
-    ? (network.config as { url?: string }).url
-    : undefined;
 
-const PINNED_RPC_URL =
-  process.env.PINNED_RPC_URL ?? process.env.RPC_URL ?? networkRpcUrl;
-
-if (!PINNED_RPC_URL) {
-  throw new Error(
-    "PINNED_RPC_URL (or network RPC URL) must be set to bypass Hardhat provider entirely."
-  );
-}
+// RPC URL (환경변수 또는 기본 Citrea public RPC)
+const PINNED_RPC_URL = process.env.CITREA_RPC_URL || "https://rpc.testnet.citrea.xyz";
 
 const pinnedProvider = new ethers.JsonRpcProvider(PINNED_RPC_URL);
 

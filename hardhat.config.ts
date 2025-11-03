@@ -25,18 +25,6 @@ const config: HardhatUserConfig = {
     },
   },
   networks: {
-    // Arbitrum Sepolia Testnet
-    "arbitrum-sepolia": {
-      url: "https://sepolia-rollup.arbitrum.io/rpc",
-      chainId: 421614,
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-    },
-    // World Chain Sepolia Testnet
-    "worldchain-sepolia": {
-      url: "https://worldchain-sepolia.g.alchemy.com/public",
-      chainId: 4801,
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-    },
     // Citrea Testnet Tangerine (Production)
     "citrea-prod": {
       url: process.env.CITREA_RPC_URL || "https://rpc.testnet.citrea.xyz",

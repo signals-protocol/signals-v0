@@ -17,20 +17,9 @@ function parseBoolean(value: string | undefined, fallback: boolean): boolean {
 export async function setMarketActiveAction(
   environment: Environment
 ): Promise<void> {
-  // RPC URL을 환경변수 또는 네트워크 설정에서 가져오기
-  const networkRpcUrl =
-    typeof network.config === "object" && "url" in network.config
-      ? (network.config as { url?: string }).url
-      : undefined;
-  
+  // RPC URL (환경변수 또는 기본 Citrea public RPC)
   const pinnedRpcUrl =
-    process.env.PINNED_RPC_URL || process.env.RPC_URL || networkRpcUrl;
-  
-  if (!pinnedRpcUrl) {
-    throw new Error(
-      "RPC URL not found. Set PINNED_RPC_URL, RPC_URL, or configure network in hardhat.config.ts"
-    );
-  }
+    process.env.CITREA_RPC_URL || "https://rpc.testnet.citrea.xyz";
 
   const privateKey =
     process.env.DEPLOYER_PRIVATE_KEY ?? process.env.PRIVATE_KEY;
