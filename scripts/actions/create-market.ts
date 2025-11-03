@@ -1,14 +1,39 @@
-import { ethers } from "hardhat";
-import { parseEther } from "ethers";
+import { ethers as hardhatEthers } from "hardhat";
+import { ethers, parseEther, Contract, Wallet, JsonRpcProvider } from "ethers";
 import { envManager } from "../utils/environment";
 import type { Environment } from "../types/environment";
+import * as dotenv from "dotenv";
+
+dotenv.config();
+
+// 환경별 RPC URL 매핑
+function getRpcUrl(environment: Environment): string {
+  const rpcUrls: Record<string, string> = {
+    localhost: "http://127.0.0.1:8545",
+    "citrea-dev": "https://citrea-testnet.g.alchemy.com/v2/***REMOVED***",
+    "citrea-prod": "https://citrea-testnet.g.alchemy.com/v2/***REMOVED***",
+    "base-dev": "https://base-mainnet.g.allthatnode.com/archive/evm/***REMOVED***",
+    "base-prod": "https://base-mainnet.g.allthatnode.com/archive/evm/***REMOVED***",
+  };
+  
+  return rpcUrls[environment] || rpcUrls.localhost;
+}
 
 export async function createMarketAction(
   environment: Environment
 ): Promise<void> {
   console.log(`🏪 마켓 생성 시작 on ${environment}`);
 
-  const [deployer] = await ethers.getSigners();
+  // 직접 ethers Provider와 Wallet 사용 (하드햇 우회)
+  const rpcUrl = getRpcUrl(environment);
+  const provider = new JsonRpcProvider(rpcUrl);
+  
+  const privateKey = process.env.PRIVATE_KEY;
+  if (!privateKey) {
+    throw new Error("PRIVATE_KEY not found in .env");
+  }
+  
+  const deployer = new Wallet(privateKey, provider);
   console.log("호출자 주소:", deployer.address);
 
   const addresses = envManager.getDeployedAddresses(environment);
@@ -17,10 +42,19 @@ export async function createMarketAction(
     throw new Error(`Core proxy not deployed in ${environment} environment`);
   }
 
-  // 컨트랙트 연결
-  const core = await ethers.getContractAt(
-    "CLMSRMarketCore",
-    addresses.CLMSRMarketCoreProxy
+  // ABI 가져오기 (하드햇에서만 가능) - 라이브러리 링킹 포함
+  const coreArtifact = await hardhatEthers.getContractFactory("CLMSRMarketCore", {
+    libraries: {
+      FixedPointMathU: addresses.FixedPointMathU!,
+      LazyMulSegmentTree: addresses.LazyMulSegmentTree!,
+    },
+  });
+  
+  // 컨트랙트 연결 (직접 ethers 사용)
+  const core = new Contract(
+    addresses.CLMSRMarketCoreProxy,
+    coreArtifact.interface,
+    deployer
   );
 
   // BTC Daily 2025.09.29 마켓 파라미터 설정
@@ -32,22 +66,17 @@ export async function createMarketAction(
   const numBins = (maxTick - minTick) / tickSpacing; // 400개의 bin
   const numValidTicks = numBins + 1; // 401개의 유효한 틱 포인트
 
-  // BTC Daily 마켓 타임스탬프 설정
-  // openTime: 2025-09-28 23:00:00 UTC
-  // closeTime: 2025-09-29 23:00:00 UTC
-  // settlementTime: 2025-09-30 00:00:00 UTC
-  const startTimestamp = Math.floor(
-    new Date("2025-09-28T23:00:00Z").getTime() / 1000
-  );
-  const endTimestamp = Math.floor(
-    new Date("2025-09-29T23:00:00Z").getTime() / 1000
-  );
-  const settlementTimestamp = Math.floor(
-    new Date("2025-09-30T00:00:00Z").getTime() / 1000
-  );
+  // 마켓 타임스탬프 설정 (종료 10일 후)
+  // 시작: 현재
+  // 종료: 10일 후
+  // 정산: 종료 1시간 후
+  const now = Math.floor(Date.now() / 1000);
+  const startTimestamp = now;
+  const endTimestamp = now + 10 * 24 * 60 * 60; // 10일 후
+  const settlementTimestamp = endTimestamp + 60 * 60; // 종료 1시간 후
 
-  // liquidityParameter: 100000000000000000000000 (100,000 ETH)
-  const liquidityParameter = parseEther("100000");
+  // liquidityParameter: 1000 ETH (α = 1000)
+  const liquidityParameter = parseEther("1000");
 
   console.log("\n📊 BTC Daily 2025.09.29 마켓 설정:");
   console.log("  - 마켓 ID: 자동 생성됨");

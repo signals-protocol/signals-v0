@@ -120,6 +120,9 @@ const config: HardhatUserConfig = {
       },
     ],
   },
+  sourcify: {
+    enabled: true,
+  },
   docgen: {
     outputDir: "../website/docs/contracts",
     pages: "items",

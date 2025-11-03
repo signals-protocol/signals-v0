@@ -1,4 +1,4 @@
-import { ethers, upgrades } from "hardhat";
+import { ethers, upgrades, network } from "hardhat";
 import { envManager } from "../utils/environment";
 import type { Environment } from "../types/environment";
 import { safeTxOptsPinned, delay } from "../utils/txOpts";
@@ -6,12 +6,17 @@ import { UpgradeSafetyChecker } from "../safety-checks";
 import { OpenZeppelinManifestManager } from "../manage-manifest";
 
 const TX_DELAY_MS = Number(process.env.TX_DELAY_MS ?? "10000");
+const networkRpcUrl =
+  typeof network.config === "object" && "url" in network.config
+    ? (network.config as { url?: string }).url
+    : undefined;
+
 const PINNED_RPC_URL =
-  process.env.PINNED_RPC_URL ?? process.env.RPC_URL;
+  process.env.PINNED_RPC_URL ?? process.env.RPC_URL ?? networkRpcUrl;
 
 if (!PINNED_RPC_URL) {
   throw new Error(
-    "PINNED_RPC_URL must be set to bypass Hardhat provider entirely."
+    "PINNED_RPC_URL (or network RPC URL) must be set to bypass Hardhat provider entirely."
   );
 }
 
@@ -309,6 +314,34 @@ export async function upgradeAction(environment: Environment): Promise<void> {
 
   const addresses = envManager.getDeployedAddresses(environment);
 
+  const txOpts = await safeTxOptsPinned(pinnedProvider);
+
+  console.log("📚 Deploying new FixedPointMathU library...");
+  const FixedPointMathUFactory = await ethers.getContractFactory(
+    "FixedPointMathU",
+    { signer: deployer }
+  );
+  const newFixedPointMathU = await withRetry(
+    () => FixedPointMathUFactory.deploy(txOpts),
+    5
+  );
+  await withRetry(() => newFixedPointMathU.waitForDeployment(), 5);
+  const newFixedPointMathUAddress = await withRetry(
+    () => newFixedPointMathU.getAddress(),
+    5
+  );
+  envManager.updateContract(
+    environment,
+    "libraries",
+    "FixedPointMathU",
+    newFixedPointMathUAddress
+  );
+  addresses.FixedPointMathU = newFixedPointMathUAddress;
+  console.log(
+    "✅ New FixedPointMathU deployed:",
+    newFixedPointMathUAddress
+  );
+
   if (!addresses.CLMSRMarketCoreProxy) {
     throw new Error(`Core proxy not deployed in ${environment} environment`);
   }
@@ -389,8 +422,6 @@ export async function upgradeAction(environment: Environment): Promise<void> {
 
   // 새 라이브러리 배포 (FLUSH_THRESHOLD 등 신기능 포함)
   console.log("📚 Deploying new LazyMulSegmentTree library...");
-  const txOpts = await safeTxOptsPinned(pinnedProvider);
-
   const LazyMulSegmentTree = await ethers.getContractFactory(
     "LazyMulSegmentTree",
     {
