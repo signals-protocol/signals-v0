@@ -34,24 +34,33 @@ type BinState @entity(immutable: false) {
 
 # 사용자별 포지션 현황 (실시간 업데이트)
 type UserPosition @entity(immutable: false) {
+  # ===== 기본 정보 =====
   id: String! # positionId
   positionId: BigInt!
   user: Bytes! # address
-  stats: UserStats! # reference to UserStats (리네이밍)
+  stats: UserStats! # reference to UserStats
   market: Market!
   lowerTick: BigInt! # int256
   upperTick: BigInt! # int256
+  # ===== 현재 보유 상태 =====
   currentQuantity: BigInt! # 현재 보유량 (6 decimals, raw USDC)
-  totalCostBasis: BigInt! # 총 매수 비용 (6 decimals, raw USDC)
-  averageEntryPrice: BigInt! # 평균 진입가 (6 decimals, raw cost per raw quantity)
+  currentCost: BigInt! # 현재 포지션 비용 (DECREASE 시 비례 감소) (6 decimals, raw USDC)
+  averageEntryPrice: BigInt! # 평균 진입가 (currentCost / currentQuantity) (6 decimals, raw cost per raw quantity)
+  # ===== 매수 누적 =====
+  totalCosts: BigInt! # 총 매수 비용 누적 (OPEN + INCREASE, 절대 감소 안 함) (6 decimals, raw USDC)
   totalQuantityBought: BigInt! # 총 매수량 (6 decimals, raw USDC)
-  totalQuantitySold: BigInt! # 총 매도량 (6 decimals, raw USDC)
+  # ===== 매도 누적 =====
   totalProceeds: BigInt! # 총 매도 수익 (6 decimals, raw USDC)
-  realizedPnL: BigInt! # 실현 손익 (6 decimals, raw USDC, signed)
+  totalQuantitySold: BigInt! # 총 매도량 (6 decimals, raw USDC)
+  # ===== 손익 =====
+  realizedPnL: BigInt! # 실현 손익 (totalProceeds - totalCosts) (6 decimals, raw USDC, signed)
+  # ===== 상태 및 타임스탬프 =====
   outcome: PositionOutcome! # 포지션 상태 (OPEN/CLOSED/WIN/LOSS)
   isClaimed: Boolean! # 승리 포지션 수령 여부
   createdAt: BigInt!
   lastUpdated: BigInt!
+
+  # ===== 포인트 계산용 =====
   activityRemaining: BigInt! # OPEN+INCREASE 누적, DECREASE/CLOSE/CLAIM로 차감 (6 decimals)
   weightedEntryTime: BigInt! # 모든 남은 수량의 가중 평균 진입 시각
 }

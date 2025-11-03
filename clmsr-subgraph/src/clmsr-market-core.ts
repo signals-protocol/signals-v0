@@ -402,9 +402,10 @@ function applySettlementOnce(
   if (userPosition.outcome != "OPEN") return;
 
   userPosition.outcome = payout.gt(BigInt.fromI32(0)) ? "WIN" : "LOSS";
-  let calculatedPnL = payout.minus(userPosition.totalCostBasis);
-  userPosition.realizedPnL = calculatedPnL;
   userPosition.totalProceeds = userPosition.totalProceeds.plus(payout);
+  // realizedPnL = totalProceeds - totalCosts
+  let calculatedPnL = userPosition.totalProceeds.minus(userPosition.totalCosts);
+  userPosition.realizedPnL = calculatedPnL;
   userPosition.isClaimed = false;
   userPosition.lastUpdated = ts;
 
@@ -525,7 +526,7 @@ export function handlePositionClosed(event: PositionClosedEvent): void {
   if (userPosition == null) return;
   let closedQuantity = userPosition.currentQuantity;
   let tradeRealizedPnL = event.params.proceeds.minus(
-    userPosition.totalCostBasis
+    userPosition.currentCost
   );
 
   userPosition.currentQuantity = BigInt.fromI32(0);
@@ -538,7 +539,10 @@ export function handlePositionClosed(event: PositionClosedEvent): void {
   let originalActivityRemaining = userPosition.activityRemaining;
   let originalWeightedEntryTime = userPosition.weightedEntryTime;
 
-  userPosition.realizedPnL = tradeRealizedPnL;
+  // totalCosts는 유지 (절대 변경 안 함)
+  userPosition.currentCost = BigInt.fromI32(0); // 현재 포지션 비용 0으로 리셋
+  // realizedPnL = totalProceeds - totalCosts
+  userPosition.realizedPnL = userPosition.totalProceeds.minus(userPosition.totalCosts);
   userPosition.outcome = "CLOSED";
   userPosition.activityRemaining = BigInt.fromI32(0);
   userPosition.weightedEntryTime = BigInt.fromI32(0);
@@ -665,14 +669,15 @@ export function handlePositionDecreased(event: PositionDecreasedEvent): void {
     );
     return;
   }
-  let costPortion = userPosition.totalCostBasis
+  let costPortion = userPosition.currentCost
     .times(event.params.sellQuantity)
     .div(oldQuantity);
 
   let tradeRealizedPnL = event.params.proceeds.minus(costPortion);
 
   userPosition.currentQuantity = event.params.newQuantity;
-  userPosition.totalCostBasis = userPosition.totalCostBasis.minus(costPortion);
+  // totalCosts는 유지 (절대 감소하지 않음)
+  userPosition.currentCost = userPosition.currentCost.minus(costPortion); // 현재 포지션 비용만 비례 감소
   userPosition.totalQuantitySold = userPosition.totalQuantitySold.plus(
     event.params.sellQuantity
   );
@@ -682,7 +687,7 @@ export function handlePositionDecreased(event: PositionDecreasedEvent): void {
   userPosition.realizedPnL = userPosition.realizedPnL.plus(tradeRealizedPnL);
 
   userPosition.averageEntryPrice = calculateRawPrice(
-    userPosition.totalCostBasis,
+    userPosition.currentCost,
     userPosition.currentQuantity
   );
 
@@ -809,16 +814,15 @@ export function handlePositionIncreased(event: PositionIncreasedEvent): void {
   );
   if (userPosition == null) return;
 
-  userPosition.totalCostBasis = userPosition.totalCostBasis.plus(
-    event.params.cost
-  );
+  userPosition.totalCosts = userPosition.totalCosts.plus(event.params.cost); // 총 매수 비용 누적
+  userPosition.currentCost = userPosition.currentCost.plus(event.params.cost); // 현재 포지션 비용 증가
   userPosition.totalQuantityBought = userPosition.totalQuantityBought.plus(
     event.params.additionalQuantity
   );
   userPosition.currentQuantity = event.params.newQuantity;
 
   userPosition.averageEntryPrice = calculateRawPrice(
-    userPosition.totalCostBasis,
+    userPosition.currentCost,
     userPosition.currentQuantity
   );
 
@@ -919,7 +923,8 @@ export function handlePositionOpened(event: PositionOpenedEvent): void {
   userPosition.upperTick = event.params.upperTick;
 
   userPosition.currentQuantity = event.params.quantity;
-  userPosition.totalCostBasis = event.params.cost;
+  userPosition.totalCosts = event.params.cost; // 신규: 총 매수 비용 누적
+  userPosition.currentCost = event.params.cost; // 신규: 현재 포지션 비용
   userPosition.averageEntryPrice = calculateRawPrice(
     event.params.cost,
     event.params.quantity
