@@ -5,12 +5,12 @@
     "signals-v0-citrea-dev": {
       "path": "./build/subgraph.yaml",
       "chain": "citrea-testnet-tangerine",
-      "version": "1.0.0"
+      "version": "1.8.0"
     },
     "signals-v0-citrea-prod": {
       "path": "./build/subgraph.yaml",
       "chain": "citrea-testnet-tangerine",
-      "version": "1.0.0"
+      "version": "1.14.0"
     }
   }
 }

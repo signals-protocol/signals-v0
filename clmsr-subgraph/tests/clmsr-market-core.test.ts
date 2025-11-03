@@ -284,7 +284,7 @@ describe("CLMSR Market Core Tests", () => {
 
     // UserPosition 기본 검증만
     assert.fieldEquals("UserPosition", "1", "currentQuantity", "500000"); // 0.5 in 6-decimal
-    assert.fieldEquals("UserPosition", "1", "totalCostBasis", "2000000"); // 2.0 USDC in 6-decimal
+    assert.fieldEquals("UserPosition", "1", "currentCost", "2000000"); // 2.0 USDC in 6-decimal
     assert.fieldEquals("UserPosition", "1", "outcome", "OPEN");
     assert.fieldEquals("UserPosition", "1", "totalQuantityBought", "500000"); // 0.5 in 6-decimal
     assert.fieldEquals("UserPosition", "1", "totalQuantitySold", "0"); // 0.0 in 6-decimal
@@ -400,8 +400,8 @@ describe("CLMSR Market Core Tests", () => {
     assert.fieldEquals("UserPosition", "1", "totalQuantitySold", "300000");
     assert.fieldEquals("UserPosition", "1", "totalProceeds", "180000");
 
-    // totalCostBasis 검증: 2000000 - 1200000 = 800000
-    assert.fieldEquals("UserPosition", "1", "totalCostBasis", "800000");
+    // currentCost 검증: 2000000 - 1200000 = 800000
+    assert.fieldEquals("UserPosition", "1", "currentCost", "800000");
 
     // realizedPnL 검증: proceeds - costPortion = 180000 - 1200000 = -1020000 (손실)
     assert.fieldEquals("UserPosition", "1", "realizedPnL", "-1020000");
@@ -427,7 +427,7 @@ describe("CLMSR Market Core Tests", () => {
     assert.fieldEquals("UserPosition", "1", "currentQuantity", "0");
     assert.fieldEquals("UserPosition", "1", "averageEntryPrice", "0");
     assert.fieldEquals("UserPosition", "1", "outcome", "CLOSED");
-    assert.fieldEquals("UserPosition", "1", "totalCostBasis", "0");
+    assert.fieldEquals("UserPosition", "1", "currentCost", "0");
   });
 
   test("Position Increase - Test", () => {
@@ -487,7 +487,7 @@ describe("CLMSR Market Core Tests", () => {
     assert.entityCount("UserPosition", 1);
     assert.entityCount("Trade", 2); // OPEN + INCREASE
     assert.fieldEquals("UserPosition", "1", "currentQuantity", "1000000"); // 0.5 + 0.5 = 1.0 in 6-decimal
-    assert.fieldEquals("UserPosition", "1", "totalCostBasis", "3500000"); // 2.0 + 1.5 = 3.5 USDC in 6-decimal
+    assert.fieldEquals("UserPosition", "1", "currentCost", "3500000"); // 2.0 + 1.5 = 3.5 USDC in 6-decimal
     assert.fieldEquals("UserPosition", "1", "totalQuantityBought", "1000000"); // 누적 구매량
 
     // 가중 평균 진입 가격 재계산: 3500000 * 1e6 / 1000000 = 3500000
@@ -599,7 +599,8 @@ describe("CLMSR Market Core Tests", () => {
     assert.fieldEquals("UserPosition", "1", "totalQuantitySold", "500000"); // 전량 판매
     assert.fieldEquals("UserPosition", "1", "totalProceeds", "1800000"); // 1.8 USDC 회수
     assert.fieldEquals("UserPosition", "1", "realizedPnL", "-200000"); // 0.2 USDC 손실
-    assert.fieldEquals("UserPosition", "1", "totalCostBasis", "2000000"); // 업데이트 안됨 (그대로 유지)
+    assert.fieldEquals("UserPosition", "1", "currentCost", "0"); // CLOSE 후 0으로 리셋
+    assert.fieldEquals("UserPosition", "1", "totalCosts", "2000000"); // 총 매수 비용은 유지
     assert.fieldEquals("UserPosition", "1", "averageEntryPrice", "0");
 
     // Activity 완전 소진
@@ -790,7 +791,7 @@ describe("CLMSR Market Core Tests", () => {
 
     // Basic assertions
     assert.fieldEquals("UserPosition", "1", "currentQuantity", "10000000");
-    assert.fieldEquals("UserPosition", "1", "totalCostBasis", "100000000");
+    assert.fieldEquals("UserPosition", "1", "currentCost", "100000000");
   });
 
   test("🚀 WeightedEntryTime - Accurate Risk Bonus Calculation", () => {
@@ -1155,7 +1156,7 @@ describe("CLMSR Market Core Tests", () => {
 
     // 5. UserPosition 상태 및 PnL 검증
     assert.fieldEquals("UserPosition", "1", "outcome", "WIN");
-    // PnL = payout - totalCostBasis = 10000000 - 50000000 = -40000000 (loss despite winning due to low payout)
+    // PnL = totalProceeds - totalCosts = 10000000 - 50000000 = -40000000 (loss despite winning due to low payout)
     assert.fieldEquals("UserPosition", "1", "realizedPnL", "-40000000");
     assert.fieldEquals("UserPosition", "1", "totalProceeds", "10000000");
     assert.fieldEquals("UserPosition", "1", "isClaimed", "false");
@@ -1454,7 +1455,7 @@ describe("CLMSR Market Core Tests", () => {
 
     // 5. UserPosition 상태 및 PnL 검증
     assert.fieldEquals("UserPosition", "2", "outcome", "LOSS");
-    // PnL = payout - totalCostBasis = 0 - 25000000 = -25000000 (total loss)
+    // PnL = totalProceeds - totalCosts = 0 - 25000000 = -25000000 (total loss)
     assert.fieldEquals("UserPosition", "2", "realizedPnL", "-25000000");
     assert.fieldEquals("UserPosition", "2", "totalProceeds", "0");
     assert.fieldEquals("UserPosition", "2", "activityRemaining", "0"); // Reset to 0 after settlement
@@ -1524,7 +1525,7 @@ describe("CLMSR Market Core Tests", () => {
 
     // Verify position created with zero quantity
     assert.fieldEquals("UserPosition", "1", "currentQuantity", "0");
-    assert.fieldEquals("UserPosition", "1", "totalCostBasis", "1000000");
+    assert.fieldEquals("UserPosition", "1", "currentCost", "1000000");
     assert.fieldEquals("UserPosition", "1", "averageEntryPrice", "0"); // Should handle division by zero
 
     // Verify UserStats still updated
@@ -1583,7 +1584,7 @@ describe("CLMSR Market Core Tests", () => {
     assert.fieldEquals(
       "UserPosition",
       "1",
-      "totalCostBasis",
+      "currentCost",
       maxValue.toString()
     );
 
@@ -2221,5 +2222,167 @@ describe("CLMSR Market Core Tests", () => {
     assert.fieldEquals("Market", "1", "settlementTimestamp", "1086400"); // fallback (endTimestamp)
     assert.fieldEquals("Market", "2", "settlementTimestamp", "2090000"); // updated
     assert.fieldEquals("Market", "3", "settlementTimestamp", "3086400"); // fallback (endTimestamp)
+  });
+
+  test("Position Lifecycle - totalCosts vs currentCost tracking", () => {
+    clearStore();
+
+    // 1. Market 생성
+    let marketId = BigInt.fromI32(1);
+    let marketCreatedEvent = createMarketCreatedEvent(
+      marketId,
+      BigInt.fromI32(1000000),
+      BigInt.fromI32(2000000),
+      BigInt.fromI32(100),
+      BigInt.fromI32(200),
+      BigInt.fromI32(10),
+      BigInt.fromI32(10),
+      BigInt.fromString("1000000000000000000")
+    );
+    handleMarketCreated(marketCreatedEvent);
+
+    let trader = Address.fromString(
+      "0x1234567890123456789012345678901234567890"
+    );
+    let positionId = BigInt.fromI32(1);
+
+    // 2. OPEN: 100 USDC로 10 quantity 매수
+    let openEvent = createPositionOpenedEvent(
+      positionId,
+      trader,
+      marketId,
+      BigInt.fromI32(110),
+      BigInt.fromI32(120),
+      BigInt.fromI32(10000000), // 10.0 quantity
+      BigInt.fromI32(100000000) // 100.0 USDC cost
+    );
+    stamp(openEvent, 1);
+    handlePositionOpened(openEvent);
+
+    // 검증: OPEN 직후
+    assert.fieldEquals(
+      "UserPosition",
+      "1",
+      "totalCosts",
+      "100000000"
+    ); // 100.0 USDC
+    assert.fieldEquals(
+      "UserPosition",
+      "1",
+      "currentCost",
+      "100000000"
+    ); // 100.0 USDC
+    assert.fieldEquals(
+      "UserPosition",
+      "1",
+      "currentQuantity",
+      "10000000"
+    ); // 10.0 quantity
+
+    // 3. INCREASE: 50 USDC로 5 quantity 추가 매수
+    let increaseEvent = createPositionIncreasedEvent(
+      positionId,
+      trader,
+      BigInt.fromI32(5000000), // 5.0 additional quantity
+      BigInt.fromI32(15000000), // 15.0 new total quantity
+      BigInt.fromI32(50000000) // 50.0 USDC cost
+    );
+    stamp(increaseEvent, 2);
+    handlePositionIncreased(increaseEvent);
+
+    // 검증: INCREASE 후
+    assert.fieldEquals(
+      "UserPosition",
+      "1",
+      "totalCosts",
+      "150000000"
+    ); // 100 + 50 = 150.0 USDC
+    assert.fieldEquals(
+      "UserPosition",
+      "1",
+      "currentCost",
+      "150000000"
+    ); // 100 + 50 = 150.0 USDC
+    assert.fieldEquals(
+      "UserPosition",
+      "1",
+      "currentQuantity",
+      "15000000"
+    ); // 15.0 quantity
+
+    // 4. DECREASE: 5 quantity 매도 (proceeds = 60 USDC)
+    let decreaseEvent = createPositionDecreasedEvent(
+      positionId,
+      trader,
+      BigInt.fromI32(5000000), // 5.0 sell quantity
+      BigInt.fromI32(10000000), // 10.0 new quantity
+      BigInt.fromI32(60000000) // 60.0 USDC proceeds
+    );
+    stamp(decreaseEvent, 3);
+    handlePositionDecreased(decreaseEvent);
+
+    // 검증: DECREASE 후
+    // totalCosts는 유지 (절대 감소하지 않음)
+    assert.fieldEquals(
+      "UserPosition",
+      "1",
+      "totalCosts",
+      "150000000"
+    ); // 150.0 USDC 유지!
+    // currentCost는 비례 감소: 150 * (10/15) = 100
+    assert.fieldEquals(
+      "UserPosition",
+      "1",
+      "currentCost",
+      "100000000"
+    ); // 100.0 USDC (비례 감소)
+    assert.fieldEquals(
+      "UserPosition",
+      "1",
+      "currentQuantity",
+      "10000000"
+    ); // 10.0 quantity
+    assert.fieldEquals(
+      "UserPosition",
+      "1",
+      "totalProceeds",
+      "60000000"
+    ); // 60.0 USDC
+
+    // 5. CLOSE: 전량 매도 (proceeds = 130 USDC)
+    let closeEvent = createPositionClosedEvent(
+      positionId,
+      trader,
+      BigInt.fromI32(130000000) // 130.0 USDC proceeds
+    );
+    stamp(closeEvent, 4);
+    handlePositionClosed(closeEvent);
+
+    // 검증: CLOSE 후
+    // totalCosts는 여전히 유지
+    assert.fieldEquals(
+      "UserPosition",
+      "1",
+      "totalCosts",
+      "150000000"
+    ); // 150.0 USDC 유지!
+    // currentCost는 0으로 리셋
+    assert.fieldEquals("UserPosition", "1", "currentCost", "0");
+    assert.fieldEquals("UserPosition", "1", "currentQuantity", "0");
+    // totalProceeds = 60 + 130 = 190
+    assert.fieldEquals(
+      "UserPosition",
+      "1",
+      "totalProceeds",
+      "190000000"
+    ); // 190.0 USDC
+    // realizedPnL = totalProceeds - totalCosts = 190 - 150 = 40
+    assert.fieldEquals(
+      "UserPosition",
+      "1",
+      "realizedPnL",
+      "40000000"
+    ); // 40.0 USDC profit!
+    assert.fieldEquals("UserPosition", "1", "outcome", "CLOSED");
   });
 });
