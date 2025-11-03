@@ -11,28 +11,17 @@ export async function createMarketAction(
 ): Promise<void> {
   console.log(`🏪 마켓 생성 시작 on ${environment}`);
 
-  // RPC URL을 환경변수 또는 네트워크 설정에서 가져오기
-  const networkRpcUrl =
-    typeof network.config === "object" && "url" in network.config
-      ? (network.config as { url?: string }).url
-      : undefined;
-  
-  const rpcUrl = process.env.PINNED_RPC_URL || process.env.RPC_URL || networkRpcUrl;
-  
-  if (!rpcUrl) {
-    throw new Error(
-      "RPC URL not found. Set PINNED_RPC_URL, RPC_URL, or configure network in hardhat.config.ts"
-    );
-  }
+  // RPC URL (환경변수 또는 기본 Citrea public RPC)
+  const rpcUrl = process.env.CITREA_RPC_URL || "https://rpc.testnet.citrea.xyz";
 
   // 직접 ethers Provider와 Wallet 사용 (하드햇 우회)
   const provider = new JsonRpcProvider(rpcUrl);
-  
+
   const privateKey = process.env.PRIVATE_KEY;
   if (!privateKey) {
     throw new Error("PRIVATE_KEY not found in .env");
   }
-  
+
   const deployer = new Wallet(privateKey, provider);
   console.log("호출자 주소:", deployer.address);
 
@@ -43,13 +32,16 @@ export async function createMarketAction(
   }
 
   // ABI 가져오기 (하드햇에서만 가능) - 라이브러리 링킹 포함
-  const coreArtifact = await hardhatEthers.getContractFactory("CLMSRMarketCore", {
-    libraries: {
-      FixedPointMathU: addresses.FixedPointMathU!,
-      LazyMulSegmentTree: addresses.LazyMulSegmentTree!,
-    },
-  });
-  
+  const coreArtifact = await hardhatEthers.getContractFactory(
+    "CLMSRMarketCore",
+    {
+      libraries: {
+        FixedPointMathU: addresses.FixedPointMathU!,
+        LazyMulSegmentTree: addresses.LazyMulSegmentTree!,
+      },
+    }
+  );
+
   // 컨트랙트 연결 (직접 ethers 사용)
   const core = new Contract(
     addresses.CLMSRMarketCoreProxy,
