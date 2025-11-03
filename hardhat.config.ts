@@ -37,27 +37,15 @@ const config: HardhatUserConfig = {
       chainId: 4801,
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
     },
-    // Base Mainnet (Production) - Alchemy RPC
-    "base-prod": {
-      url: "https://base-mainnet.g.allthatnode.com/archive/evm/***REMOVED***",
-      chainId: 8453,
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-    },
-    // Base Mainnet (Development) - Alchemy RPC
-    "base-dev": {
-      url: "https://base-mainnet.g.allthatnode.com/archive/evm/***REMOVED***",
-      chainId: 8453,
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-    },
     // Citrea Testnet Tangerine (Production)
     "citrea-prod": {
-      url: "https://citrea-testnet.g.alchemy.com/v2/***REMOVED***",
+      url: process.env.CITREA_RPC_URL || "https://rpc.testnet.citrea.xyz",
       chainId: 5115,
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
     },
     // Citrea Testnet Tangerine (Development)
     "citrea-dev": {
-      url: "https://citrea-testnet.g.alchemy.com/v2/***REMOVED***",
+      url: process.env.CITREA_RPC_URL || "https://rpc.testnet.citrea.xyz",
       chainId: 5115,
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
     },
@@ -94,9 +82,6 @@ const config: HardhatUserConfig = {
   },
   etherscan: {
     apiKey: {
-      // Base networks
-      "base-prod": process.env.BASESCAN_API_KEY || "",
-      "base-dev": process.env.BASESCAN_API_KEY || "",
       // Citrea networks (Blockscout doesn't require API key)
       "citrea-dev": "dummy",
       "citrea-prod": "dummy",
