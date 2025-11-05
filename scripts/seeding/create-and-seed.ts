@@ -139,6 +139,7 @@ async function main() {
     endTimestamp: market.endTimestamp,
     settlementTimestamp: market.settlementTimestamp,
     liquidityParameter: parseEther(market.alpha),
+    feePolicy: market.feePolicy ?? ethers.ZeroAddress,
   };
 
   const seedHash = keccak256(
@@ -154,7 +155,8 @@ async function main() {
     params.startTimestamp,
     params.endTimestamp,
     params.settlementTimestamp,
-    params.liquidityParameter
+    params.liquidityParameter,
+    params.feePolicy
   );
 
   const createTx = await coreWithOwner.createMarket(
@@ -164,7 +166,8 @@ async function main() {
     params.startTimestamp,
     params.endTimestamp,
     params.settlementTimestamp,
-    params.liquidityParameter
+    params.liquidityParameter,
+    params.feePolicy
   );
   console.log("⏳ Creating market...", createTx.hash);
   const createReceipt = await createTx.wait();

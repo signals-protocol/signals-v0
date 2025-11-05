@@ -42,7 +42,8 @@ describe(`${INTEGRATION_TAG} Market Creation`, function () {
         startTime,
         endTime,
         settlementTime,
-        ALPHA
+        ALPHA,
+        ethers.ZeroAddress
       );
 
     const tx = core
@@ -54,7 +55,8 @@ describe(`${INTEGRATION_TAG} Market Creation`, function () {
         startTime,
         endTime,
         settlementTime,
-        ALPHA
+        ALPHA,
+        ethers.ZeroAddress
       );
 
     await expect(tx)
@@ -113,12 +115,22 @@ describe(`${INTEGRATION_TAG} Market Creation`, function () {
         startTime,
         endTime,
         settlementTime,
-        ALPHA
+        ALPHA,
+        ethers.ZeroAddress
       );
 
     await core
       .connect(keeper)
-      .createMarket(1000, 1099, 1, startTime, endTime, settlementTime, ALPHA);
+      .createMarket(
+        1000,
+        1099,
+        1,
+        startTime,
+        endTime,
+        settlementTime,
+        ALPHA,
+        ethers.ZeroAddress
+      );
 
     for (let i = 0; i < 10; i++) {
       const actualTick = 1000 + i;

@@ -64,7 +64,8 @@ async function main() {
     startTime,
     endTime,
     settlementTime,
-    alphaWad
+    alphaWad,
+    ethers.ZeroAddress
   );
 
   await (
@@ -75,7 +76,8 @@ async function main() {
       startTime,
       endTime,
       settlementTime,
-      alphaWad
+      alphaWad,
+      ethers.ZeroAddress
     )
   ).wait();
   console.log("Market created", marketId.toString());

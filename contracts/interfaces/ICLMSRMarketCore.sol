@@ -28,6 +28,7 @@ interface ICLMSRMarketCore {
         
         int256 settlementValue;         // Original settlement value with 6 decimals (only if settled)
         uint64 settlementTimestamp;     // Settlement reference time (when settlement data should be retrieved)
+        address feePolicy;              // Fee policy assigned to this market
     }
 
     /// @notice Parameter bundle for market creation
@@ -39,6 +40,7 @@ interface ICLMSRMarketCore {
         uint64 endTimestamp;
         uint64 settlementTimestamp;
         uint256 liquidityParameter;
+        address feePolicy;
     }
     
 
@@ -159,6 +161,27 @@ interface ICLMSRMarketCore {
         address indexed newManager
     );
 
+    event MarketFeePolicySet(
+        uint256 indexed marketId,
+        address indexed oldPolicy,
+        address indexed newPolicy
+    );
+
+    event FeeRecipientUpdated(
+        address indexed oldRecipient,
+        address indexed newRecipient
+    );
+
+    event TradeFeeCharged(
+        address indexed trader,
+        uint256 indexed marketId,
+        uint256 indexed positionId,
+        bool isBuy,
+        uint256 baseAmount,
+        uint256 feeAmount,
+        address policy
+    );
+
     /// @notice Emitted when range multiplication factor is applied
     /// @param marketId Market identifier
     /// @param lo Lower tick boundary (inclusive)
@@ -185,6 +208,7 @@ interface ICLMSRMarketCore {
     /// @param endTimestamp Market end time (unix timestamp, must be > startTimestamp)
     /// @param settlementTimestamp Settlement reference time (must be > endTimestamp)
     /// @param liquidityParameter Alpha parameter for CLMSR formula (1e18 scale, between MIN_LIQUIDITY_PARAMETER and MAX_LIQUIDITY_PARAMETER)
+    /// @param feePolicy Fee policy contract address applied to the market (zero address disables fees)
     /// @return marketId Auto-generated market identifier
     function createMarket(
         int256 minTick,
@@ -193,7 +217,8 @@ interface ICLMSRMarketCore {
         uint64 startTimestamp,
         uint64 endTimestamp,
         uint64 settlementTimestamp,
-        uint256 liquidityParameter
+        uint256 liquidityParameter,
+        address feePolicy
     ) external returns (uint256 marketId);
 
     /// @notice Settle a market (only callable by Owner)
@@ -236,6 +261,14 @@ interface ICLMSRMarketCore {
     // ========================================
 
     function setManager(address newManager) external;
+
+    function setMarketFeePolicy(uint256 marketId, address newPolicy) external;
+
+    function setFeeRecipient(address newRecipient) external;
+
+    function getMarketFeePolicy(uint256 marketId) external view returns (address);
+
+    function getFeeRecipient() external view returns (address);
 
     // ========================================
     // EXECUTION FUNCTIONS
@@ -360,6 +393,32 @@ interface ICLMSRMarketCore {
         int256 upperTick,
         uint256 cost
     ) external view returns (uint128 quantity);
+
+    /// @notice Preview fee amount for opening or increasing a position
+    /// @param marketId Market identifier
+    /// @param lowerTick Lower tick bound (inclusive)
+    /// @param upperTick Upper tick bound (exclusive)
+    /// @param quantity Trade quantity (6 decimals)
+    /// @param cost Base cost used for the fee quote (6 decimals)
+    /// @return fee Quoted fee amount
+    function previewOpenFee(
+        uint256 marketId,
+        int256 lowerTick,
+        int256 upperTick,
+        uint128 quantity,
+        uint256 cost
+    ) external view returns (uint256 fee);
+
+    /// @notice Preview fee amount for decreasing or closing a position
+    /// @param positionId Position identifier
+    /// @param sellQuantity Quantity to sell (6 decimals)
+    /// @param proceeds Base proceeds used for the fee quote (6 decimals)
+    /// @return fee Quoted fee amount
+    function previewSellFee(
+        uint256 positionId,
+        uint128 sellQuantity,
+        uint256 proceeds
+    ) external view returns (uint256 fee);
 
     // ========================================
     // STATE QUERY FUNCTIONS

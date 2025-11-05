@@ -470,7 +470,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       const currentTime = await time.latest();
       const startTime = currentTime + 2000; // Large buffer for invariant tests
       const endTime = startTime + 86400;
-      const createArgs: [number, number, number, number, number, number, bigint] = [
+      const createArgs: [number, number, number, number, number, number, bigint, string] = [
         100000,
         100990,
         10,
@@ -478,6 +478,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
         endTime,
         endTime + 3600,
         ethers.parseEther("1"),
+        ethers.ZeroAddress,
       ];
 
       const marketIdBig = await core
@@ -552,7 +553,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
       const currentTime = await time.latest();
       const startTime = currentTime + 2000; // Large buffer for invariant tests
       const endTime = startTime + 86400;
-      const createArgs: [number, number, number, number, number, number, bigint] = [
+      const createArgs: [number, number, number, number, number, number, bigint, string] = [
         100000,
         100990,
         10,
@@ -560,6 +561,7 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
         endTime,
         endTime + 3600,
         ethers.parseEther("1"),
+        ethers.ZeroAddress,
       ];
 
       const marketIdBig = await core
@@ -639,7 +641,8 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
           startTime,
           endTime,
           endTime + 3600,
-          smallAlpha
+          smallAlpha,
+          ethers.ZeroAddress
         );
 
       await core
@@ -651,7 +654,8 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
           startTime,
           endTime,
           endTime + 3600,
-          smallAlpha
+          smallAlpha,
+          ethers.ZeroAddress
         );
       const marketId = Number(createdMarketId);
       await core.connect(keeper).setMarketActive(marketId, true);
@@ -694,7 +698,8 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
           startTime,
           endTime,
           endTime + 3600,
-          ethers.parseEther("1")
+          ethers.parseEther("1"),
+          ethers.ZeroAddress
         );
 
       await core
@@ -706,7 +711,8 @@ describe(`${INVARIANT_TAG} Core Roundtrip Invariants`, function () {
           startTime,
           endTime,
           endTime + 3600,
-          ethers.parseEther("1")
+          ethers.parseEther("1"),
+          ethers.ZeroAddress
         );
       const marketId = Number(createdMarketId);
       await core.connect(keeper).setMarketActive(marketId, true);

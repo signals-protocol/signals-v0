@@ -84,7 +84,8 @@ describe(`${INTEGRATION_TAG} Market Settlement`, function () {
       startTime,
       newEndTime,
       settlementTime,
-      ALPHA
+      ALPHA,
+      ethers.ZeroAddress
     );
 
     await core.connect(keeper).createMarket(
@@ -94,7 +95,8 @@ describe(`${INTEGRATION_TAG} Market Settlement`, function () {
       startTime,
       newEndTime,
       settlementTime,
-      ALPHA
+      ALPHA,
+      ethers.ZeroAddress
     );
 
     await time.increaseTo(settlementTime + 1);
@@ -109,7 +111,8 @@ describe(`${INTEGRATION_TAG} Market Settlement`, function () {
       startTime + 10,
       newEndTime + 10,
       settlementTime + 10,
-      ALPHA
+      ALPHA,
+      ethers.ZeroAddress
     );
 
     await core.connect(keeper).createMarket(
@@ -119,7 +122,8 @@ describe(`${INTEGRATION_TAG} Market Settlement`, function () {
       startTime + 10,
       newEndTime + 10,
       settlementTime + 10,
-      ALPHA
+      ALPHA,
+      ethers.ZeroAddress
     );
 
     await time.increaseTo(settlementTime + 11);

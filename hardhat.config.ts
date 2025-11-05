@@ -21,6 +21,7 @@ const config: HardhatUserConfig = {
       },
       metadata: {
         bytecodeHash: "none", // Remove metadata hash to save additional bytes
+        useLiteralContent: true,
       },
     },
   },

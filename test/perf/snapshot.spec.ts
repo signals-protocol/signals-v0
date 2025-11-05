@@ -63,7 +63,8 @@ describeMaybe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, functi
           startTime,
           endTime,
           settlementTime,
-          ALPHA
+          ALPHA,
+          ethers.ZeroAddress
         );
 
       const receipt = await tx.wait();
@@ -387,7 +388,8 @@ describeMaybe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, functi
           startTime,
           endTime,
           settlementTime,
-          ALPHA
+          ALPHA,
+          ethers.ZeroAddress
         );
 
       const receipt = await tx.wait();

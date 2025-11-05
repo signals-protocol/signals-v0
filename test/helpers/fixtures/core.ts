@@ -84,10 +84,10 @@ export async function settleMarketUsingRange(
 export async function createMarketWithId(
   core: any,
   signer: any,
-  args: [number, number, number, number, number, number, bigint]
+  args: [number, number, number, number, number, number, bigint, string]
 ) {
   const createMarket = core.connect(signer)[
-    "createMarket(int256,int256,int256,uint64,uint64,uint64,uint256)"
+    "createMarket(int256,int256,int256,uint64,uint64,uint64,uint256,address)"
   ];
 
   const marketIdBig = await createMarket.staticCall(...args);
@@ -106,6 +106,7 @@ export async function createMarketWithConfig(
     endTime: number;
     liquidityParameter: bigint;
     settlementTime?: number;
+    feePolicy?: string;
   }
 ) {
   const {
@@ -116,6 +117,7 @@ export async function createMarketWithConfig(
     endTime,
     liquidityParameter,
     settlementTime = endTime + 3600,
+    feePolicy = ethers.ZeroAddress,
   } = config;
 
   return createMarketWithId(core, signer, [
@@ -126,6 +128,7 @@ export async function createMarketWithConfig(
     endTime,
     settlementTime,
     liquidityParameter,
+    feePolicy,
   ]);
 }
 
@@ -302,6 +305,7 @@ async function buildCoreFixture(contractName: string) {
             endTs,
             settlementTimestamp,
             liquidity,
+            ethers.ZeroAddress,
           ];
         }
       }
@@ -392,7 +396,7 @@ export async function marketFixture() {
   const maxTick = minTick + (TICK_COUNT - 1) * 10;
   const tickSpacing = 10;
 
-  const createArgs: [number, number, number, number, number, number, bigint] = [
+  const createArgs: [number, number, number, number, number, number, bigint, string] = [
     minTick,
     maxTick,
     tickSpacing,
@@ -400,6 +404,7 @@ export async function marketFixture() {
     endTime,
     settlementTime,
     ALPHA,
+    ethers.ZeroAddress,
   ];
 
   const marketId = await createMarketWithId(core, keeper, createArgs);
@@ -426,7 +431,7 @@ export async function createActiveMarket(contracts: any) {
   const maxTick = minTick + (TICK_COUNT - 1) * 10;
   const tickSpacing = 10;
 
-  const createArgs: [number, number, number, number, number, number, bigint] = [
+  const createArgs: [number, number, number, number, number, number, bigint, string] = [
     minTick,
     maxTick,
     tickSpacing,
@@ -434,6 +439,7 @@ export async function createActiveMarket(contracts: any) {
     endTime,
     settlementTime,
     ALPHA,
+    ethers.ZeroAddress,
   ];
 
   const marketId = await createMarketWithId(
@@ -476,7 +482,7 @@ export async function createActiveMarketFixture() {
   const maxTick = minTick + (TICK_COUNT - 1) * 10;
   const tickSpacing = 10;
 
-  const createArgs: [number, number, number, number, number, number, bigint] = [
+  const createArgs: [number, number, number, number, number, number, bigint, string] = [
     minTick,
     maxTick,
     tickSpacing,
@@ -484,6 +490,7 @@ export async function createActiveMarketFixture() {
     endTime,
     settlementTime,
     ALPHA,
+    ethers.ZeroAddress,
   ];
 
   const marketId = await createMarketWithId(core, keeper, createArgs);
@@ -518,7 +525,7 @@ export async function createExtremeMarket(
   const maxTick = minTick + (TICK_COUNT - 1) * 10;
   const tickSpacing = 10;
 
-  const createArgs: [number, number, number, number, number, number, bigint] = [
+  const createArgs: [number, number, number, number, number, number, bigint, string] = [
     minTick,
     maxTick,
     tickSpacing,
@@ -526,6 +533,7 @@ export async function createExtremeMarket(
     endTime,
     settlementTime,
     extremeAlpha,
+    ethers.ZeroAddress,
   ];
 
   const marketId = await createMarketWithId(
@@ -644,7 +652,7 @@ export async function setupCustomMarket(
   const maxTick = minTick + (numTicks - 1) * 10;
   const tickSpacing = 10;
 
-  const createArgs: [number, number, number, number, number, number, bigint] = [
+  const createArgs: [number, number, number, number, number, number, bigint, string] = [
     minTick,
     maxTick,
     tickSpacing,
@@ -652,6 +660,7 @@ export async function setupCustomMarket(
     endTime,
     settlementTime,
     alpha,
+    ethers.ZeroAddress,
   ];
 
   const actualMarketId = await createMarketWithId(
