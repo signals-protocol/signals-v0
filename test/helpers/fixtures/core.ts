@@ -278,40 +278,9 @@ async function buildCoreFixture(contractName: string) {
       contract[key] = patched;
     };
 
-    patchFunction("createMarket", async (args) => {
-      if (args.length === 7) {
-        const secondValue = Number(args[1]);
-        const thirdValue = Number(args[2]);
-
-        if (!Number.isNaN(secondValue) && !Number.isNaN(thirdValue) && thirdValue > secondValue) {
-          const [
-            _legacyMarketId,
-            minTick,
-            maxTick,
-            tickSpacing,
-            startTs,
-            endTs,
-            liquidity,
-          ] = args;
-          const endTimestampNumber =
-            typeof endTs === "bigint" ? Number(endTs) : Number(endTs);
-          const settlementTimestamp = endTimestampNumber + 3600;
-
-          return [
-            minTick,
-            maxTick,
-            tickSpacing,
-            startTs,
-            endTs,
-            settlementTimestamp,
-            liquidity,
-            ethers.ZeroAddress,
-          ];
-        }
-      }
-
-      return args;
-    });
+    patchFunction("createMarket", async (args) =>
+      args.length === 7 ? [...args, ethers.ZeroAddress] : args
+    );
 
     patchFunction("openPosition", async (args) => {
       if (args.length === 6 && typeof args[0] === "string") {
