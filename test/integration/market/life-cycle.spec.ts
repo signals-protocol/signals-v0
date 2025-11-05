@@ -72,7 +72,8 @@ describe(`${INTEGRATION_TAG} Market Lifecycle`, function () {
         start,
         end,
         settlementTime,
-        ALPHA
+        ALPHA,
+        ethers.ZeroAddress
       );
       await core.connect(keeper).createMarket(
         MIN_TICK,
@@ -81,7 +82,8 @@ describe(`${INTEGRATION_TAG} Market Lifecycle`, function () {
         start,
         end,
         settlementTime,
-        ALPHA
+        ALPHA,
+        ethers.ZeroAddress
       );
       marketIds.push(Number(marketId));
     }

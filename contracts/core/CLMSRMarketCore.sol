@@ -11,6 +11,7 @@ import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "../interfaces/ICLMSRMarketCore.sol";
 import "../interfaces/ICLMSRPosition.sol";
+import "../fees/interfaces/ICLMSRFeePolicy.sol";
 import {LazyMulSegmentTree} from "../libraries/LazyMulSegmentTree.sol";
 import {FixedPointMathU} from "../libraries/FixedPointMath.sol";
 import "../errors/CLMSRErrors.sol";
@@ -87,6 +88,40 @@ contract CLMSRMarketCore is
         return FixedPointMathU.fromWad(wadAmount);
     }
 
+    function _resolveFeeRecipient() internal view returns (address) {
+        address recipient = feeRecipient;
+        return recipient != address(0) ? recipient : owner();
+    }
+
+    function _quoteFee(
+        bool isBuy,
+        address trader,
+        uint256 marketId,
+        int256 lowerTick,
+        int256 upperTick,
+        uint128 quantity,
+        uint256 baseAmount
+    ) internal view returns (uint256) {
+        ICLMSRMarketCore.Market storage market = markets[marketId];
+        address policyAddress = market.feePolicy;
+        if (policyAddress == address(0)) {
+            return 0;
+        }
+
+        ICLMSRFeePolicy.QuoteParams memory params = ICLMSRFeePolicy.QuoteParams({
+            trader: trader,
+            marketId: marketId,
+            lowerTick: lowerTick,
+            upperTick: upperTick,
+            quantity: quantity,
+            baseAmount: baseAmount,
+            isBuy: isBuy,
+            context: bytes32(0)
+        });
+
+        return ICLMSRFeePolicy(policyAddress).quoteFee(params);
+    }
+
 
     // ========================================
     // STATE VARIABLES
@@ -153,6 +188,40 @@ contract CLMSRMarketCore is
         manager = newManager;
     }
 
+    /// @notice Updates the fee policy for a specific market
+    function setMarketFeePolicy(uint256 marketId, address newPolicy)
+        external
+        override
+        onlyOwner
+        whenNotPaused
+        marketExists(marketId)
+    {
+        (marketId, newPolicy);
+        _delegateToManager();
+    }
+
+    /// @notice Updates the fee recipient address (defaults to owner when unset)
+    function setFeeRecipient(address newRecipient) external override onlyOwner {
+        emit FeeRecipientUpdated(feeRecipient, newRecipient);
+        feeRecipient = newRecipient;
+    }
+
+    /// @notice Returns the configured fee policy address for a specific market
+    function getMarketFeePolicy(uint256 marketId)
+        external
+        view
+        override
+        marketExists(marketId)
+        returns (address)
+    {
+        return markets[marketId].feePolicy;
+    }
+
+    /// @notice Returns the configured fee recipient (zero implies owner)
+    function getFeeRecipient() external view override returns (address) {
+        return feeRecipient;
+    }
+
     /// @dev 설정된 매니저로 delegatecall 수행, 실패 시 revert 데이터를 버블링한다.
     function _delegateToManager() private returns (bytes memory) {
         address implementation = manager;
@@ -163,7 +232,7 @@ contract CLMSRMarketCore is
         (bool ok, bytes memory ret) = implementation.delegatecall(msg.data);
         if (!ok) {
             if (ret.length == 0) revert("ManagerDelegateFailed");
-            assembly {
+            assembly ("memory-safe") {
                 revert(add(ret, 0x20), mload(ret))
             }
         }
@@ -184,10 +253,10 @@ contract CLMSRMarketCore is
         uint64 startTimestamp,
         uint64 endTimestamp,
         uint64 settlementTimestamp,
-        uint256 liquidityParameter
+        uint256 liquidityParameter,
+        address feePolicy
     ) external override onlyOwner whenNotPaused returns (uint256 marketId) {
-        // Parameters are forwarded via msg.data to the manager.
-        (minTick, maxTick, tickSpacing, startTimestamp, endTimestamp, settlementTimestamp, liquidityParameter);
+        (minTick, maxTick, tickSpacing, startTimestamp, endTimestamp, settlementTimestamp, liquidityParameter, feePolicy);
         bytes memory ret = _delegateToManager();
         return abi.decode(ret, (uint256));
     }
@@ -255,6 +324,36 @@ contract CLMSRMarketCore is
         external view override returns (Market memory market) {
         require(_marketExists(marketId), CE.MarketNotFound(marketId));
         return markets[marketId];
+    }
+
+    /// @notice Preview overlay fee for opening or increasing positions
+    function previewOpenFee(
+        uint256 marketId,
+        int256 lowerTick,
+        int256 upperTick,
+        uint128 quantity,
+        uint256 cost
+    ) external view override returns (uint256) {
+        require(_marketExists(marketId), CE.MarketNotFound(marketId));
+        return _quoteFee(true, msg.sender, marketId, lowerTick, upperTick, quantity, cost);
+    }
+
+    /// @notice Preview overlay fee for decreasing or closing positions
+    function previewSellFee(
+        uint256 positionId,
+        uint128 sellQuantity,
+        uint256 proceeds
+    ) external view override returns (uint256) {
+        ICLMSRPosition.Position memory position = positionContract.getPosition(positionId);
+        return _quoteFee(
+            false,
+            msg.sender,
+            position.marketId,
+            position.lowerTick,
+            position.upperTick,
+            sellQuantity,
+            proceeds
+        );
     }
     
     /// @notice Get range sum for market ticks (public view function)
@@ -438,9 +537,15 @@ contract CLMSRMarketCore is
         uint256 cost6 = _roundDebit(costWad);
         
         require(cost6 <= maxCost, CE.CostExceedsMaximum(cost6, maxCost));
+
+        uint256 fee6 = _quoteFee(true, msg.sender, marketId, lowerTick, upperTick, quantity, cost6);
         
         // Transfer payment from caller (msg.sender)
         _pullUSDC(msg.sender, cost6);
+        if (fee6 > 0) {
+            _pullUSDC(msg.sender, fee6);
+            _pushUSDC(_resolveFeeRecipient(), fee6);
+        }
         
         // Update market state using WAD quantity
         uint256 qtyWad = uint256(quantity).toWad();
@@ -464,6 +569,18 @@ contract CLMSRMarketCore is
             quantity,
             cost6
         );
+
+        if (fee6 > 0) {
+            emit TradeFeeCharged(
+                msg.sender,
+                marketId,
+                positionId,
+                true,
+                cost6,
+                fee6,
+                market.feePolicy
+            );
+        }
     }
     
     /// @inheritdoc ICLMSRMarketCore
@@ -494,9 +611,23 @@ contract CLMSRMarketCore is
         uint256 cost6 = _roundDebit(costWad);
         
         require(cost6 <= maxCost, CE.CostExceedsMaximum(cost6, maxCost));
+
+        uint256 fee6 = _quoteFee(
+            true,
+            msg.sender,
+            position.marketId,
+            position.lowerTick,
+            position.upperTick,
+            additionalQuantity,
+            cost6
+        );
         
         // Transfer payment from caller
         _pullUSDC(msg.sender, cost6);
+        if (fee6 > 0) {
+            _pullUSDC(msg.sender, fee6);
+            _pushUSDC(_resolveFeeRecipient(), fee6);
+        }
         
         // Update market state
         uint256 deltaWad = uint256(additionalQuantity).toWad();
@@ -507,6 +638,18 @@ contract CLMSRMarketCore is
         positionContract.updateQuantity(positionId, newQuantity);
         
         emit PositionIncreased(positionId, msg.sender, additionalQuantity, newQuantity, cost6);
+
+        if (fee6 > 0) {
+            emit TradeFeeCharged(
+                msg.sender,
+                position.marketId,
+                positionId,
+                true,
+                cost6,
+                fee6,
+                market.feePolicy
+            );
+        }
     }
     
     /// @inheritdoc ICLMSRMarketCore
@@ -536,16 +679,34 @@ contract CLMSRMarketCore is
             position.upperTick,
             uint256(sellQuantity).toWad()
         );
-        proceeds = _roundCredit(proceedsWad);
+        uint256 baseProceeds = _roundCredit(proceedsWad);
         
-        require(proceeds >= minProceeds, CE.ProceedsBelowMinimum(proceeds, minProceeds));
+        require(baseProceeds >= minProceeds, CE.ProceedsBelowMinimum(baseProceeds, minProceeds));
+
+        uint256 fee6 = _quoteFee(
+            false,
+            msg.sender,
+            position.marketId,
+            position.lowerTick,
+            position.upperTick,
+            sellQuantity,
+            baseProceeds
+        );
+
+        if (fee6 > baseProceeds) {
+            revert CE.FeeExceedsBase(fee6, baseProceeds);
+        }
+        uint256 netProceeds = baseProceeds - fee6;
         
         // Update market state
         uint256 sellDeltaWad = uint256(sellQuantity).toWad();
         _applyFactorChunked(position.marketId, position.lowerTick, position.upperTick, sellDeltaWad, market.liquidityParameter, false);
         
         // Transfer proceeds to caller
-        _pushUSDC(msg.sender, proceeds);
+        _pushUSDC(msg.sender, netProceeds);
+        if (fee6 > 0) {
+            _pushUSDC(_resolveFeeRecipient(), fee6);
+        }
         
         // Update position quantity
         newQuantity = position.quantity - sellQuantity;
@@ -556,7 +717,21 @@ contract CLMSRMarketCore is
             positionContract.updateQuantity(positionId, newQuantity);
         }
         
-        emit PositionDecreased(positionId, msg.sender, sellQuantity, newQuantity, proceeds);
+        emit PositionDecreased(positionId, msg.sender, sellQuantity, newQuantity, baseProceeds);
+
+        if (fee6 > 0) {
+            emit TradeFeeCharged(
+                msg.sender,
+                position.marketId,
+                positionId,
+                false,
+                baseProceeds,
+                fee6,
+                market.feePolicy
+            );
+        }
+
+        proceeds = netProceeds;
     }
     
     /// @inheritdoc ICLMSRMarketCore
@@ -613,9 +788,24 @@ contract CLMSRMarketCore is
             position.upperTick,
             positionQuantityWad
         );
-        proceeds = _roundCredit(proceedsWad);
+        uint256 baseProceeds = _roundCredit(proceedsWad);
 
-        require(proceeds >= minProceeds, CE.ProceedsBelowMinimum(proceeds, minProceeds));
+        require(baseProceeds >= minProceeds, CE.ProceedsBelowMinimum(baseProceeds, minProceeds));
+
+        uint256 fee6 = _quoteFee(
+            false,
+            msg.sender,
+            position.marketId,
+            position.lowerTick,
+            position.upperTick,
+            position.quantity,
+            baseProceeds
+        );
+
+        if (fee6 > baseProceeds) {
+            revert CE.FeeExceedsBase(fee6, baseProceeds);
+        }
+        uint256 netProceeds = baseProceeds - fee6;
 
         // Update market state (selling entire position)
         _applyFactorChunked(
@@ -628,12 +818,29 @@ contract CLMSRMarketCore is
         );
 
         // Transfer proceeds to caller
-        _pushUSDC(msg.sender, proceeds);
+        _pushUSDC(msg.sender, netProceeds);
+        if (fee6 > 0) {
+            _pushUSDC(_resolveFeeRecipient(), fee6);
+        }
 
         // Burn position NFT
         positionContract.burn(positionId);
 
-        emit PositionClosed(positionId, msg.sender, proceeds);
+        emit PositionClosed(positionId, msg.sender, baseProceeds);
+
+        if (fee6 > 0) {
+            emit TradeFeeCharged(
+                msg.sender,
+                position.marketId,
+                positionId,
+                false,
+                baseProceeds,
+                fee6,
+                market.feePolicy
+            );
+        }
+
+        proceeds = netProceeds;
     }
 
     // ========================================

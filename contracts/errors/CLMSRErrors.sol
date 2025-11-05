@@ -19,6 +19,8 @@ interface CLMSRErrors {
     error InvalidTickSpacing(int256 tick, int256 tickSpacing);
     error InvalidQuantity(uint128 qty);
     error CostExceedsMaximum(uint256 cost, uint256 maxAllowed);
+    error FeeExceedsBase(uint256 fee, uint256 baseAmount);
+    error InvalidFeePolicy(address policy);
     error InvalidMarketParameters(int256 minTick, int256 maxTick, int256 tickSpacing);
 
     /* ───────────────────── Access control ───────────────────── */

@@ -68,6 +68,12 @@ contract CLMSRMarketManager is
         bool isWin
     );
 
+    event MarketFeePolicySet(
+        uint256 indexed marketId,
+        address indexed oldPolicy,
+        address indexed newPolicy
+    );
+
     address private immutable self;
 
     constructor() {
@@ -92,7 +98,8 @@ contract CLMSRMarketManager is
         uint64 startTimestamp,
         uint64 endTimestamp,
         uint64 settlementTimestamp,
-        uint256 liquidityParameter
+        uint256 liquidityParameter,
+        address feePolicy
     ) external onlyOwner whenNotPaused onlyDelegated returns (uint256 marketId) {
         ICLMSRMarketCore.MarketCreationParams memory params = ICLMSRMarketCore.MarketCreationParams({
             minTick: minTick,
@@ -101,11 +108,13 @@ contract CLMSRMarketManager is
             startTimestamp: startTimestamp,
             endTimestamp: endTimestamp,
             settlementTimestamp: settlementTimestamp,
-            liquidityParameter: liquidityParameter
+            liquidityParameter: liquidityParameter,
+            feePolicy: feePolicy
         });
 
         (marketId, ) = _createMarketInternal(params, false);
         emit MarketActivationUpdated(marketId, false);
+        return marketId;
     }
 
     function settleMarket(uint256 marketId, int256 settlementValue)
@@ -247,6 +256,27 @@ contract CLMSRMarketManager is
         emit MarketActivationUpdated(marketId, active);
     }
 
+    function setMarketFeePolicy(uint256 marketId, address newPolicy)
+        external
+        onlyOwner
+        whenNotPaused
+        onlyDelegated
+    {
+        require(_marketExists(marketId), CE.MarketNotFound(marketId));
+        if (newPolicy != address(0) && newPolicy.code.length == 0) {
+            revert CE.InvalidFeePolicy(newPolicy);
+        }
+
+        ICLMSRMarketCore.Market storage market = markets[marketId];
+        address oldPolicy = market.feePolicy;
+        if (oldPolicy == newPolicy) {
+            return;
+        }
+
+        market.feePolicy = newPolicy;
+        emit MarketFeePolicySet(marketId, oldPolicy, newPolicy);
+    }
+
     function _createMarketInternal(
         ICLMSRMarketCore.MarketCreationParams memory params,
         bool activate
@@ -266,6 +296,10 @@ contract CLMSRMarketManager is
                 params.liquidityParameter <= MAX_LIQUIDITY_PARAMETER,
             CE.InvalidLiquidityParameter()
         );
+
+        if (params.feePolicy != address(0)) {
+            require(params.feePolicy.code.length > 0, CE.InvalidFeePolicy(params.feePolicy));
+        }
 
         numBins = _calculateNumBins(params.minTick, params.maxTick, params.tickSpacing);
 
@@ -288,7 +322,8 @@ contract CLMSRMarketManager is
             positionEventsCursor: 0,
             positionEventsEmitted: false,
             settlementValue: 0,
-            settlementTimestamp: params.settlementTimestamp
+            settlementTimestamp: params.settlementTimestamp,
+            feePolicy: params.feePolicy
         });
 
         LazyMulSegmentTree.init(marketTrees[marketId], numBins);
@@ -303,6 +338,11 @@ contract CLMSRMarketManager is
             numBins,
             params.liquidityParameter
         );
+
+        if (params.feePolicy != address(0)) {
+            emit MarketFeePolicySet(marketId, address(0), params.feePolicy);
+        }
+
         emit SettlementTimestampUpdated(marketId, params.settlementTimestamp);
 
         return (marketId, numBins);

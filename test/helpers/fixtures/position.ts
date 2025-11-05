@@ -15,7 +15,7 @@ const DEFAULT_POSITION_MAX_COST = ethers.parseUnits("1000", 6);
 async function createMarketAndReturnId(
   core: any,
   signer: any,
-  args: [number, number, number, number, number, number, bigint],
+  args: [number, number, number, number, number, number, bigint, string],
   activate: boolean = true
 ) {
   const marketIdBig = await core.connect(signer).createMarket.staticCall(...args);
@@ -188,7 +188,7 @@ export async function positionMarketFixture() {
   const tickSpacing = 10;
   const settlementTime = endTime + 3600;
 
-  const createArgs: [number, number, number, number, number, number, bigint] = [
+  const createArgs: [number, number, number, number, number, number, bigint, string] = [
     minTick,
     maxTick,
     tickSpacing,
@@ -196,6 +196,7 @@ export async function positionMarketFixture() {
     endTime,
     settlementTime,
     ALPHA,
+    ethers.ZeroAddress,
   ];
 
   const marketId = await createMarketAndReturnId(core, keeper, createArgs);
@@ -228,7 +229,7 @@ export async function activePositionMarketFixture() {
   const maxTick = minTick + (TICK_COUNT - 1) * 10;
   const tickSpacing = 10;
 
-  const createArgs: [number, number, number, number, number, number, bigint] = [
+  const createArgs: [number, number, number, number, number, number, bigint, string] = [
     minTick,
     maxTick,
     tickSpacing,
@@ -236,6 +237,7 @@ export async function activePositionMarketFixture() {
     endTime,
     settlementTime,
     ALPHA,
+    ethers.ZeroAddress,
   ];
 
   const marketId = await createMarketAndReturnId(core, keeper, createArgs);

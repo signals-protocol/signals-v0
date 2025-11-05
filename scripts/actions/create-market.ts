@@ -108,7 +108,8 @@ export async function createMarketAction(
       startTimestamp,
       endTimestamp,
       settlementTimestamp,
-      liquidityParameter
+      liquidityParameter,
+      ethers.ZeroAddress
     );
 
     console.log("\n⏳ 마켓 생성 트랜잭션 대기 중...");
