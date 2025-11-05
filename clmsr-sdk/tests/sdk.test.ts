@@ -5,6 +5,7 @@ import {
   MarketDistribution,
   mapDistribution,
   MarketDistributionRaw,
+  FeePolicyKind,
 } from "../src/types";
 import { toWAD, toMicroUSDC } from "../src/index";
 import Big from "big.js";
@@ -769,6 +770,104 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
         highLiquidityMarket
       );
       expect(sellResult.proceeds.gt(0)).toBe(true);
+    });
+  });
+
+  describe("💰 Fee policy integration", () => {
+    const feeDescriptor = JSON.stringify({
+      policy: "percentage",
+      params: {
+        bps: "150", // 1.5%
+        name: "OnePointFive",
+      },
+    });
+
+    test("calculateOpenCost attaches fee breakdown when descriptor provided", () => {
+      const range = { lower: 115000, upper: 125000 };
+      const quantity = toMicroUSDC("50");
+      const marketWithFee = {
+        ...market,
+        feePolicyDescriptor: feeDescriptor,
+      };
+
+      const result = sdk.calculateOpenCost(
+        range.lower,
+        range.upper,
+        quantity,
+        distribution,
+        marketWithFee
+      );
+
+      expect(result.feeAmount).toBeDefined();
+      expect(result.feeRate).toBeDefined();
+      expect(result.feeInfo).toBeDefined();
+      const expectedFee = MathUtils.formatUSDC(
+        result.cost.mul(150).div(10000).round(0, Big.roundDown)
+      );
+      expect(result.feeAmount.toString()).toBe(expectedFee.toString());
+      expect(result.feeRate.eq(new Big("0.015"))).toBe(true);
+      const feeInfo = result.feeInfo;
+      expect(feeInfo.policy).toBe(FeePolicyKind.Percentage);
+      if (feeInfo.policy !== FeePolicyKind.Percentage) {
+        throw new Error("expected percentage fee info");
+      }
+      expect(feeInfo.bps?.toString()).toBe("150");
+      expect(feeInfo.descriptor).toBe(feeDescriptor);
+      expect(result.cost.plus(result.feeAmount).toString()).toBe(
+        result.cost.plus(expectedFee).toString()
+      );
+    });
+
+    test("calculateDecreaseProceeds reports net proceeds and fee", () => {
+      const position = {
+        lowerTick: 115000,
+        upperTick: 125000,
+        quantity: toMicroUSDC("120"),
+      };
+      const sellQuantity = toMicroUSDC("40");
+      const marketWithFee = {
+        ...market,
+        feePolicyDescriptor: feeDescriptor,
+      };
+
+      const result = sdk.calculateDecreaseProceeds(
+        position,
+        sellQuantity,
+        distribution,
+        marketWithFee
+      );
+
+      expect(result.feeAmount).toBeDefined();
+      expect(result.feeRate).toBeDefined();
+      expect(result.feeInfo).toBeDefined();
+      const expectedFee = MathUtils.formatUSDC(
+        result.proceeds.mul(150).div(10000).round(0, Big.roundDown)
+      );
+      expect(result.feeAmount.toString()).toBe(expectedFee.toString());
+      expect(result.feeRate.eq(new Big("0.015"))).toBe(true);
+      const feeInfo = result.feeInfo;
+      expect(feeInfo.policy).toBe(FeePolicyKind.Percentage);
+      expect(feeInfo.descriptor).toBe(feeDescriptor);
+      if (feeInfo.policy !== FeePolicyKind.Percentage) {
+        throw new Error("expected percentage fee info");
+      }
+      expect(feeInfo.bps?.toString()).toBe("150");
+      expect(result.proceeds.minus(result.feeAmount).toString()).toBe(
+        result.proceeds.minus(expectedFee).toString()
+      );
+    });
+
+    test("calculateOpenCost leaves fee undefined when descriptor omitted", () => {
+      const result = sdk.calculateOpenCost(
+        115000,
+        125000,
+        toMicroUSDC("10"),
+        distribution,
+        market
+      );
+      expect(result.feeAmount.eq(new Big(0))).toBe(true);
+      expect(result.feeRate.eq(new Big(0))).toBe(true);
+      expect(result.feeInfo.policy).toBe(FeePolicyKind.Null);
     });
   });
 });

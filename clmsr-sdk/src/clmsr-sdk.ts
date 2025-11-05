@@ -14,15 +14,38 @@ import {
   USDCAmount,
   Quantity,
   Tick,
+  FeeInfo,
+  FeePolicyKind,
   ValidationError,
   CalculationError,
 } from "./types";
 
 import * as MathUtils from "./utils/math";
+import {
+  Bytes32Like,
+  TradeSide,
+  quoteOpenFee,
+  quoteSellFee,
+  resolveFeePolicyWithMetadata,
+  NullFeePolicy,
+} from "./fees";
 
 // Re-export types and utilities for easy access
 export * from "./types";
 export { toWAD, toMicroUSDC } from "./utils/math";
+
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+const ZERO_CONTEXT: Bytes32Like = `0x${"00".repeat(32)}` as Bytes32Like;
+
+function bigToBigInt(value: Big): bigint {
+  const rounded = value.round(0, Big.roundDown);
+  if (!rounded.eq(value)) {
+    throw new CalculationError(
+      "Fee calculations require integer micro-USDC amounts"
+    );
+  }
+  return BigInt(rounded.toFixed(0, Big.roundDown));
+}
 
 /**
  * CLMSR SDK - 컨트랙트 뷰함수들과 역함수 제공
@@ -48,8 +71,10 @@ export class CLMSRSDK {
     distribution: MarketDistribution,
     market: Market
   ): OpenCostResult {
+    const normalizedQuantity = MathUtils.formatUSDC(new Big(quantity));
+
     // Input validation
-    if (new Big(quantity).lte(0)) {
+    if (normalizedQuantity.lte(0)) {
       throw new ValidationError("Quantity must be positive");
     }
 
@@ -63,12 +88,14 @@ export class CLMSRSDK {
     this.validateTickRange(lowerTick, upperTick, market);
 
     // 시장별 최대 수량 검증 (UX 개선)
-    this._assertQuantityWithinLimit(quantity, market.liquidityParameter);
+    this._assertQuantityWithinLimit(
+      normalizedQuantity,
+      market.liquidityParameter
+    );
 
     // Convert to WAD for calculations
     const alpha = market.liquidityParameter;
-    // quantity는 이미 micro-USDC(6 decimals) 정수이므로 바로 WAD로 변환
-    const quantityWad = MathUtils.toWad(quantity);
+    const quantityWad = MathUtils.toWad(normalizedQuantity);
 
     // Get current state
     const sumBefore = distribution.totalSum;
@@ -94,19 +121,33 @@ export class CLMSRSDK {
 
     // 계산 완료
 
-    const cost = MathUtils.fromWadRoundUp(costWad);
+    const cost = MathUtils.formatUSDC(MathUtils.fromWadRoundUp(costWad));
 
     // Calculate average price with proper formatting
     // cost는 micro USDC, quantity도 micro USDC이므로 결과는 USDC/USDC = 비율
-    const averagePrice = cost.div(quantity);
+    const averagePrice = cost.div(normalizedQuantity);
     const formattedAveragePrice = new Big(
       averagePrice.toFixed(6, Big.roundDown)
     ); // 6자리 정밀도로 충분
 
-    return {
-      cost: MathUtils.formatUSDC(cost),
+    const feeOverlay = this.computeFeeOverlay(
+      "BUY",
+      cost,
+      normalizedQuantity,
+      lowerTick,
+      upperTick,
+      market.feePolicyDescriptor
+    );
+
+    const result: OpenCostResult = {
+      cost,
       averagePrice: formattedAveragePrice,
+      feeAmount: feeOverlay.amount,
+      feeRate: feeOverlay.rate,
+      feeInfo: feeOverlay.info,
     };
+
+    return result;
   }
 
   /**
@@ -129,6 +170,9 @@ export class CLMSRSDK {
     return {
       additionalCost: result.cost,
       averagePrice: result.averagePrice,
+      feeAmount: result.feeAmount,
+      feeRate: result.feeRate,
+      feeInfo: result.feeInfo,
     };
   }
 
@@ -141,14 +185,33 @@ export class CLMSRSDK {
     distribution: MarketDistribution,
     market: Market
   ): DecreaseProceedsResult {
-    return this._calcSellProceeds(
+    const normalizedSellQuantity = MathUtils.formatUSDC(new Big(sellQuantity));
+
+    const baseResult = this._calcSellProceeds(
       position.lowerTick,
       position.upperTick,
-      sellQuantity,
+      normalizedSellQuantity,
       position.quantity,
       distribution,
       market
     );
+
+    const feeOverlay = this.computeFeeOverlay(
+      "SELL",
+      baseResult.proceeds,
+      normalizedSellQuantity,
+      position.lowerTick,
+      position.upperTick,
+      market.feePolicyDescriptor
+    );
+
+    return {
+      proceeds: baseResult.proceeds,
+      averagePrice: baseResult.averagePrice,
+      feeAmount: feeOverlay.amount,
+      feeRate: feeOverlay.rate,
+      feeInfo: feeOverlay.info,
+    };
   }
 
   /**
@@ -169,6 +232,9 @@ export class CLMSRSDK {
     return {
       proceeds: result.proceeds,
       averagePrice: result.averagePrice,
+      feeAmount: result.feeAmount,
+      feeRate: result.feeRate,
+      feeInfo: result.feeInfo,
     };
   }
 
@@ -212,7 +278,7 @@ export class CLMSRSDK {
     distribution: MarketDistribution,
     market: Market
   ): DecreaseProceedsResult {
-    return this._calcSellProceeds(
+    const base = this._calcSellProceeds(
       position.lowerTick,
       position.upperTick,
       sellQuantity,
@@ -220,6 +286,17 @@ export class CLMSRSDK {
       distribution,
       market
     );
+
+    return {
+      proceeds: base.proceeds,
+      averagePrice: base.averagePrice,
+      feeAmount: MathUtils.formatUSDC(new Big(0)),
+      feeRate: new Big(0),
+      feeInfo: {
+        policy: FeePolicyKind.Null,
+        name: "NullFeePolicy",
+      },
+    };
   }
 
   /**
@@ -498,7 +575,7 @@ export class CLMSRSDK {
     positionQuantity: Quantity,
     distribution: MarketDistribution,
     market: Market
-  ): DecreaseProceedsResult {
+  ): { proceeds: USDCAmount; averagePrice: USDCAmount } {
     this.validateTickRange(lowerTick, upperTick, market);
 
     // Input validation
@@ -552,6 +629,114 @@ export class CLMSRSDK {
     return {
       proceeds: MathUtils.formatUSDC(proceeds),
       averagePrice: formattedAveragePrice,
+    };
+  }
+
+  private computeFeeOverlay(
+    side: TradeSide,
+    baseAmount: USDCAmount,
+    quantity: USDCAmount,
+    lowerTick: Tick,
+    upperTick: Tick,
+    descriptor?: string
+  ): { amount: USDCAmount; rate: Big; info: FeeInfo } {
+    const makeZeroOverlay = (descriptorString?: string, policyName?: string) => ({
+      amount: MathUtils.formatUSDC(new Big(0)),
+      rate: new Big(0),
+      info: {
+        policy: FeePolicyKind.Null,
+        ...(descriptorString ? { descriptor: descriptorString } : {}),
+        name: policyName ?? "NullFeePolicy",
+      },
+    });
+
+    if (!descriptor || descriptor.trim().length === 0) {
+      return makeZeroOverlay();
+    }
+
+    const resolved = resolveFeePolicyWithMetadata(descriptor);
+    const baseAmountInt = bigToBigInt(baseAmount);
+    const quantityInt = bigToBigInt(quantity);
+
+    const trader = ZERO_ADDRESS;
+    const marketId = 0;
+    const context = ZERO_CONTEXT;
+
+    const feeBigInt =
+      side === "BUY"
+        ? quoteOpenFee(resolved.policy, {
+            trader,
+            marketId,
+            lowerTick,
+            upperTick,
+            quantity6: quantityInt,
+            cost6: baseAmountInt,
+            context,
+          })
+        : quoteSellFee(resolved.policy, {
+            trader,
+            marketId,
+            lowerTick,
+            upperTick,
+            sellQuantity6: quantityInt,
+            proceeds6: baseAmountInt,
+            context,
+          });
+
+    const feeAmount = MathUtils.formatUSDC(new Big(feeBigInt.toString()));
+    const parsedDescriptor = resolved.descriptor;
+    const descriptorString = parsedDescriptor?.descriptor ?? descriptor;
+    const policyName =
+      parsedDescriptor?.name ??
+      (typeof resolved.policy.name === "string"
+        ? resolved.policy.name
+        : undefined);
+
+    if (!descriptorString || descriptorString.length === 0) {
+      return makeZeroOverlay();
+    }
+
+    if (parsedDescriptor?.policy === "null" || resolved.policy === NullFeePolicy) {
+      return {
+        amount: feeAmount,
+        rate: new Big(0),
+        info: {
+          policy: FeePolicyKind.Null,
+          descriptor: descriptorString,
+          name: policyName ?? "NullFeePolicy",
+        },
+      };
+    }
+
+    if (parsedDescriptor?.policy === "percentage") {
+      const bps = new Big(parsedDescriptor.bps!.toString());
+      const rate = bps.div(new Big("10000"));
+
+      return {
+        amount: feeAmount,
+        rate,
+        info: {
+          policy: FeePolicyKind.Percentage,
+          descriptor: descriptorString,
+          name: policyName,
+          bps,
+        },
+      };
+    }
+
+    const effectiveRate =
+      baseAmount.gt(0) && feeAmount.gt(0)
+        ? feeAmount.div(baseAmount)
+        : new Big(0);
+
+    return {
+      amount: feeAmount,
+      rate: effectiveRate,
+      info: {
+        policy: FeePolicyKind.Custom,
+        descriptor: descriptorString,
+        name: policyName,
+      },
     };
   }
 

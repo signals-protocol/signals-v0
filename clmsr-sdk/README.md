@@ -147,6 +147,46 @@ console.log(`Sell quantity: ${inverseSell.quantity.toString()}`);
 console.log(`Actual proceeds: ${inverseSell.actualProceeds.toString()}`);
 ```
 
+### 4. Overlay Fee Helpers (Pure Functions)
+
+```typescript
+import { FeePolicyKind } from "@whworjs7946/clmsr-v0";
+import { CLMSRSDK } from "@whworjs7946/clmsr-v0";
+
+// Descriptor published by on-chain policy contracts / subgraph 이벤트
+const percentageDescriptor = JSON.stringify({
+  policy: "percentage",
+  params: {
+    bps: "150", // 1.5%
+    name: "OnePointFive",
+  },
+});
+
+// 서브그래프에서 전달받은 market 객체에 디스크립터를 포함시킵니다.
+market.feePolicyDescriptor = percentageDescriptor;
+
+// 이후 계산 함수에서 feeAmount, feeRate, feeInfo 를 확인할 수 있습니다.
+const sdk = new CLMSRSDK();
+const open = sdk.calculateOpenCost(
+  115000,
+  125000,
+  toMicroUSDC("50"),
+  distribution,
+  market
+);
+if (open.feeInfo.policy === FeePolicyKind.Percentage) {
+  console.log(
+    open.feeAmount.toString(), // fee amount (micro USDC)
+    open.feeRate.toString(), // decimal fee rate
+    open.feeInfo.bps?.toString() // raw basis points (150)
+  );
+  const totalCostWithFee = open.cost.plus(open.feeAmount);
+  console.log(totalCostWithFee.toString());
+}
+```
+
+> ℹ️ 정책 문자열을 받아 그대로 SDK에 전달하면, 프런트는 정책 구조를 몰라도 수수료 계산과 라벨(정책명, 비율 등)을 함께 받아볼 수 있습니다. 디스크립터 문자열은 온체인 이벤트 또는 서브그래프에서 최신 값만 유지해 주세요.
+
 ## 📖 API Reference
 
 ### Data Types
@@ -173,6 +213,7 @@ interface MarketRaw {
   minTick: number;
   maxTick: number;
   tickSpacing: number;
+  feePolicyDescriptor?: string;
 }
 ```
 
@@ -198,6 +239,7 @@ interface Market {
   minTick: number;
   maxTick: number;
   tickSpacing: number;
+  feePolicyDescriptor?: string;
 }
 ```
 

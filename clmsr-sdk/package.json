@@ -39,7 +39,8 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "big.js": "^6.2.1"
+    "big.js": "^6.2.1",
+    "ethers": "^6.14.3"
   },
   "files": [
     "dist"
