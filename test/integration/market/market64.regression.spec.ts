@@ -108,6 +108,7 @@ describeMaybe(`${INTEGRATION_TAG} ${REPLAY_TAG} Market64 Regression`, function (
       endTime,
       settlementTime,
       alphaWad,
+      ethers.ZeroAddress,
     ]);
 
     await setMarketActivation(core, keeper, marketId, true);
