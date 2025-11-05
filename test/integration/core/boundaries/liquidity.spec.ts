@@ -327,7 +327,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
       const alpha = ethers.parseEther("0.1");
 
       const createMarket = core.connect(keeper)[
-        "createMarket(int256,int256,int256,uint64,uint64,uint64,uint256)"
+        "createMarket(int256,int256,int256,uint64,uint64,uint64,uint256,address)"
       ];
 
       // Test zero tick count - create market with minTick >= maxTick
@@ -366,7 +366,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Liquidity Parameter Boundaries`, fu
       const endTime = startTime + 86400;
 
       const createMarket = core.connect(keeper)[
-        "createMarket(int256,int256,int256,uint64,uint64,uint64,uint256)"
+        "createMarket(int256,int256,int256,uint64,uint64,uint64,uint256,address)"
       ];
 
       const settlementTime = endTime + 3600;
