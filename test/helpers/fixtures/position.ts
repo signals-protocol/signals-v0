@@ -7,6 +7,7 @@ import {
   ALPHA,
   TICK_COUNT,
   MARKET_DURATION,
+  applyCoreCompatibility,
 } from "./core";
 
 const DEFAULT_POSITION_QUANTITY = ethers.parseUnits("10", 6);
@@ -63,6 +64,7 @@ export async function positionFixture() {
 
   const core = await CLMSRMarketCoreFactory.deploy();
   await core.waitForDeployment();
+  applyCoreCompatibility(core);
 
   // Initialize upgradeable contract
   await core.initialize(
@@ -138,6 +140,7 @@ export async function activePositionFixture() {
   // Deploy core and initialize with position address
   const core = await CLMSRMarketCoreFactory.deploy();
   await core.waitForDeployment();
+  applyCoreCompatibility(core);
 
   await core.initialize(
     await paymentToken.getAddress(),

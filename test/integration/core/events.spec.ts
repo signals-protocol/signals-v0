@@ -88,7 +88,8 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
         startTime,
         endTime,
         settlementTime,
-        ALPHA
+        ALPHA,
+        ethers.ZeroAddress
       );
 
       const numBins = BigInt((MAX_TICK - MIN_TICK) / TICK_SPACING);
@@ -102,7 +103,8 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
           startTime,
           endTime,
           settlementTime,
-          ALPHA
+          ALPHA,
+          ethers.ZeroAddress
         );
 
       await expect(tx)
@@ -137,7 +139,8 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
         startTime,
         endTime,
         settlementTime,
-        ALPHA
+        ALPHA,
+        ethers.ZeroAddress
       );
 
       await core
@@ -149,7 +152,8 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
           startTime,
           endTime,
           settlementTime,
-          ALPHA
+          ALPHA,
+          ethers.ZeroAddress
         );
 
       await increaseToSafe(startTime + 1);
@@ -177,7 +181,8 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
         startTime,
         endTime,
         settlementTime,
-        ALPHA
+        ALPHA,
+        ethers.ZeroAddress
       );
 
       await core
@@ -189,7 +194,8 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
           startTime,
           endTime,
           settlementTime,
-          ALPHA
+          ALPHA,
+          ethers.ZeroAddress
         );
 
       await increaseToSafe(endTime + 1);
@@ -593,7 +599,8 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
         startTime,
         endTime,
         settlementTime,
-        ALPHA
+        ALPHA,
+        ethers.ZeroAddress
       );
 
       // Market creation
@@ -606,7 +613,8 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
           startTime,
           endTime,
           settlementTime,
-          ALPHA
+          ALPHA,
+          ethers.ZeroAddress
         );
 
       await expect(createTx)

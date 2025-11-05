@@ -11,6 +11,7 @@ import {
   toSettlementValue,
   getTickValue,
   createMarketWithConfig,
+  increaseToSafe,
 } from "../../helpers/fixtures/core";
 import { COMPONENT_TAG } from "../../helpers/tags";
 
@@ -62,12 +63,12 @@ describeMaybe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
       expect(market.startTimestamp).to.be.gt(await time.latest());
 
       // Fast forward to market start
-      await time.increaseTo(startTime + 1);
+      await increaseToSafe(startTime + 1);
       market = await core.getMarket(marketId);
       expect(market.startTimestamp).to.be.lte(await time.latest());
 
       // Fast forward past market end
-      await time.increaseTo(endTime + 1);
+      await increaseToSafe(endTime + 1);
       market = await core.getMarket(marketId);
       expect(market.endTimestamp).to.be.lte(await time.latest());
       expect(market.settled).to.be.false;
@@ -385,7 +386,7 @@ describeMaybe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
       const positionId = Number(positions[0]);
 
       // Fast forward past market end
-      await time.increaseTo(endTime + 1);
+      await increaseToSafe(endTime + 1);
 
       // Settle market with winning outcome in range
       await settleMarketAtTick(core, keeper, marketId, 100150);
@@ -441,7 +442,7 @@ describeMaybe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
       );
 
       const currentTime = await time.latest();
-      const startTime = currentTime + 100;
+      const startTime = currentTime + 1000;
       const endTime = startTime + MARKET_DURATION;
       const settlementTime = endTime + 3600;
 
@@ -697,7 +698,7 @@ describeMaybe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
 
       // PENDING state - before market starts
       let market = await core.getMarket(marketId);
-      expect(market.startTimestamp).to.be.gt(await time.latest());
+      expect(market.startTimestamp).to.equal(BigInt(startTime));
 
       const lowerTick = 100100;
       const upperTick = 100200;
@@ -713,7 +714,7 @@ describeMaybe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
       expect(preCost).to.be.gt(0);
 
       // ACTIVE state - during market
-      await time.increaseTo(startTime + 1);
+      await increaseToSafe(startTime + 1);
       const activeCost = await core.calculateOpenCost(
         marketId,
         lowerTick,
@@ -737,7 +738,7 @@ describeMaybe(`${COMPONENT_TAG} CLMSRMarketCore - State Getters`, function () {
       const positionId = Number(positions[0]);
 
       // ENDED state - after market ends
-      await time.increaseTo(endTime + 1);
+      await increaseToSafe(endTime + 1);
       market = await core.getMarket(marketId);
       expect(market.endTimestamp).to.be.lte(await time.latest());
 

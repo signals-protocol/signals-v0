@@ -37,6 +37,167 @@ export async function increaseToSafe(targetTimestamp: number) {
   await time.increaseTo(safeTarget);
 }
 
+const CORE_COMPAT_SYMBOL = Symbol.for("clmsr.core.compat-applied");
+const CORE_CONNECT_PATCH_SYMBOL = Symbol.for("clmsr.core.compat-connect");
+
+function toNumber(value: any): number {
+  if (typeof value === "number") return value;
+  if (typeof value === "bigint") return Number(value);
+  return Number.NaN;
+}
+
+function cloneWithZeroAddress(args: any[]): any[] {
+  const copy = [...args];
+  copy.push(ethers.ZeroAddress);
+  return copy;
+}
+
+function ensureCoreCompatibility(contract: any) {
+  if (!contract || contract[CORE_COMPAT_SYMBOL]) {
+    return contract;
+  }
+
+  Object.defineProperty(contract, CORE_COMPAT_SYMBOL, {
+    value: true,
+    enumerable: false,
+    configurable: false,
+  });
+
+  const applyCostBuffer = (value: bigint) => (value * 1000n) / 10000n + 1n + value;
+
+  const patchFunction = (
+    key: string,
+    mapper: (args: any[]) => Promise<any[]>
+  ) => {
+    if (typeof contract[key] !== "function") {
+      return;
+    }
+
+    const originalFn = contract[key].bind(contract);
+    const originalStatic = contract[key].staticCall
+      ? contract[key].staticCall.bind(contract)
+      : undefined;
+
+    const patched = async (...args: any[]) => {
+      const mappedArgs = await mapper(args);
+      return originalFn(...mappedArgs);
+    };
+
+    if (originalStatic) {
+      patched.staticCall = async (...args: any[]) => {
+        const mappedArgs = await mapper(args);
+        return originalStatic(...mappedArgs);
+      };
+    }
+
+    contract[key] = patched;
+  };
+
+  const handleCreateMarketArgs = async (args: any[]) => {
+    if (args.length === 7) {
+      const maybeLegacy =
+        Number.isFinite(toNumber(args[2])) &&
+        Number.isFinite(toNumber(args[1])) &&
+        toNumber(args[2]) > toNumber(args[1]);
+
+      if (maybeLegacy) {
+        const [
+          ,
+          minTick,
+          maxTick,
+          tickSpacing,
+          startTs,
+          endTs,
+          liquidity,
+        ] = args;
+
+        const settlementRaw =
+          typeof endTs === "bigint" ? endTs + 3600n : Number(endTs) + 3600;
+
+        return [
+          minTick,
+          maxTick,
+          tickSpacing,
+          startTs,
+          endTs,
+          settlementRaw,
+          liquidity,
+          ethers.ZeroAddress,
+        ];
+      }
+
+      return cloneWithZeroAddress(args);
+    }
+
+    if (args.length === 8 && (args[7] === undefined || args[7] === null)) {
+      const copy = [...args];
+      copy[7] = ethers.ZeroAddress;
+      return copy;
+    }
+
+    return args;
+  };
+
+  patchFunction("createMarket", handleCreateMarketArgs);
+  patchFunction(
+    "createMarket(int256,int256,int256,uint64,uint64,uint64,uint256)",
+    handleCreateMarketArgs
+  );
+  patchFunction(
+    "createMarket(int256,int256,int256,uint64,uint64,uint64,uint256,address)",
+    handleCreateMarketArgs
+  );
+
+  patchFunction("openPosition", async (args) => {
+    if (args.length === 6 && typeof args[0] === "string") {
+      return args.slice(1);
+    }
+
+    if (args.length === 4) {
+      const [marketId, lowerTick, upperTick, quantity] = args;
+      const baseCost: bigint = await contract.calculateOpenCost(
+        marketId,
+        lowerTick,
+        upperTick,
+        quantity
+      );
+      const maxCost = applyCostBuffer(baseCost);
+      return [marketId, lowerTick, upperTick, quantity, maxCost];
+    }
+
+    return args;
+  });
+
+  return contract;
+}
+
+export function applyCoreCompatibility(contract: any) {
+  if (!contract) {
+    return contract;
+  }
+
+  if (
+    typeof contract.connect === "function" &&
+    !contract[CORE_CONNECT_PATCH_SYMBOL]
+  ) {
+    const originalConnect = contract.connect.bind(contract);
+    const patchedConnect = (signer: any) => {
+      const connected = originalConnect(signer);
+      return applyCoreCompatibility(connected);
+    };
+
+    Object.defineProperty(contract, CORE_CONNECT_PATCH_SYMBOL, {
+      value: true,
+      enumerable: false,
+      configurable: false,
+    });
+
+    contract.connect = patchedConnect;
+  }
+
+  return ensureCoreCompatibility(contract);
+}
+
 export function toSettlementValueFromRange(
   lowerTick: number | bigint,
   upperTick: number | bigint
@@ -162,6 +323,7 @@ export async function legacyCreateMarket(
     endTime,
     effectiveSettlement,
     liquidityParameter,
+    ethers.ZeroAddress,
   ]);
 }
 
@@ -247,71 +409,7 @@ async function buildCoreFixture(contractName: string) {
   const core = await CLMSRMarketCoreFactory.deploy();
   await core.waitForDeployment();
 
-  const patchCoreCompatibility = (contract: any) => {
-    const applyCostBuffer = (value: bigint) => (value * 1000n) / 10000n + 1n + value;
-
-    const patchFunction = (
-      key: string,
-      mapper: (args: any[]) => Promise<any[]>
-    ) => {
-      if (typeof contract[key] !== "function") {
-        return;
-      }
-
-      const originalFn = contract[key].bind(contract);
-      const originalStatic = contract[key].staticCall
-        ? contract[key].staticCall.bind(contract)
-        : undefined;
-
-      const patched = async (...args: any[]) => {
-        const mappedArgs = await mapper(args);
-        return originalFn(...mappedArgs);
-      };
-
-      if (originalStatic) {
-        patched.staticCall = async (...args: any[]) => {
-          const mappedArgs = await mapper(args);
-          return originalStatic(...mappedArgs);
-        };
-      }
-
-      contract[key] = patched;
-    };
-
-    patchFunction("createMarket", async (args) =>
-      args.length === 7 ? [...args, ethers.ZeroAddress] : args
-    );
-
-    patchFunction("openPosition", async (args) => {
-      if (args.length === 6 && typeof args[0] === "string") {
-        return args.slice(1);
-      }
-
-      if (args.length === 4) {
-        const [marketId, lowerTick, upperTick, quantity] = args;
-        const baseCost: bigint = await contract.calculateOpenCost(
-          marketId,
-          lowerTick,
-          upperTick,
-          quantity
-        );
-        const maxCost = applyCostBuffer(baseCost);
-        return [marketId, lowerTick, upperTick, quantity, maxCost];
-      }
-
-      return args;
-    });
-
-    return contract;
-  };
-
-  const originalConnect = core.connect.bind(core);
-  core.connect = (signer: any) => {
-    const connected = originalConnect(signer);
-    return patchCoreCompatibility(connected);
-  };
-
-  patchCoreCompatibility(core);
+  applyCoreCompatibility(core);
 
   // Initialize upgradeable contract
   await core.initialize(

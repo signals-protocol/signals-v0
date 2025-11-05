@@ -9,6 +9,7 @@ import {
   INITIAL_SUPPLY,
   MARKET_DURATION,
   TICK_COUNT,
+  applyCoreCompatibility,
 } from "../helpers/fixtures/core";
 
 const PROXIABLE_UUID = ethers.toBeHex(
@@ -223,6 +224,8 @@ async function deployCoreProxyFixture() {
   );
   await core.waitForDeployment();
 
+  applyCoreCompatibility(core);
+
   await core.connect(deployer).setManager(await manager.getAddress());
   await paymentToken.mint(await core.getAddress(), INITIAL_SUPPLY);
   await mockPosition.setCore(await core.getAddress());
@@ -264,6 +267,7 @@ async function createActiveMarketProxyFixture() {
     endTime,
     settlementTime,
     ALPHA,
+    ethers.ZeroAddress,
   ]);
 
   await setMarketActivation(core, keeper, marketId, true);

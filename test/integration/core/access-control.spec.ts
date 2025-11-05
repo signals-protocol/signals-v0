@@ -249,7 +249,8 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Access Control`, function () {
             startTime,
             endTime,
             settlementTime,
-            ALPHA
+            ALPHA,
+            ethers.ZeroAddress
           )
       ).to.be.revertedWithCustomError(core, "ManagerNotSet");
     });
