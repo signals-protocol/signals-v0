@@ -2,6 +2,13 @@ import * as fs from "fs";
 import * as path from "path";
 import type { Environment } from "../types/environment";
 
+export interface FeeContracts {
+  policies: Record<string, string | null>;
+  activePolicy?: string | null;
+  activePolicyLabel?: string | null;
+  feeRecipient?: string | null;
+}
+
 export interface EnvironmentConfig {
   environment: string;
   network: string;
@@ -25,6 +32,7 @@ export interface EnvironmentConfig {
       PointsGranterProxy: string | null;
       PointsGranterImplementation: string | null;
     };
+    fees?: FeeContracts;
   };
   deploymentHistory: DeploymentRecord[];
   lastUpdated: string | null;
@@ -73,7 +81,20 @@ export class EnvironmentManager {
     }
 
     const content = fs.readFileSync(envPath, "utf8");
-    return JSON.parse(content);
+    const parsed = JSON.parse(content) as EnvironmentConfig;
+
+    // Backward compatibility: ensure fees container exists
+    const existingFees = parsed.contracts.fees;
+    if (!existingFees) {
+      parsed.contracts.fees = { policies: {} };
+    } else if (!existingFees.policies) {
+      // Legacy format where fees was a Record<string,string>
+      parsed.contracts.fees = {
+        policies: { ...(existingFees as unknown as Record<string, string | null>) },
+      };
+    }
+
+    return parsed;
   }
 
   /**
@@ -105,6 +126,93 @@ export class EnvironmentManager {
     console.log(
       `📝 Updated ${contractType}.${contractName} = ${address} in ${env}`
     );
+  }
+
+  /**
+   * 수수료 정책 주소 업데이트
+   */
+  updateFeePolicy(
+    env: Environment,
+    policyLabel: string,
+    address: string | null
+  ): void {
+    const config = this.loadEnvironment(env);
+    if (!config.contracts.fees) {
+      config.contracts.fees = { policies: {} };
+    }
+    config.contracts.fees.policies[policyLabel] = address;
+
+    if (
+      config.contracts.fees.activePolicyLabel === policyLabel &&
+      address
+    ) {
+      config.contracts.fees.activePolicy = address;
+    }
+
+    this.saveEnvironment(env, config);
+    console.log(
+      `📝 Updated fee policy "${policyLabel}" = ${
+        address ?? "null"
+      } in ${env}`
+    );
+  }
+
+  /**
+   * 활성 수수료 정책 기록
+   */
+  setActiveFeePolicy(
+    env: Environment,
+    policyAddress: string | null,
+    policyLabel?: string | null
+  ): void {
+    const config = this.loadEnvironment(env);
+    if (!config.contracts.fees) {
+      config.contracts.fees = { policies: {} };
+    }
+    config.contracts.fees.activePolicy = policyAddress ?? null;
+    if (policyLabel !== undefined) {
+      config.contracts.fees.activePolicyLabel = policyLabel;
+    }
+    this.saveEnvironment(env, config);
+    console.log(
+      `📝 Active fee policy set to ${
+        policyAddress ?? "null"
+      } (label=${policyLabel ?? "n/a"}) in ${env}`
+    );
+  }
+
+  /**
+   * 수수료 수취인 기록
+   */
+  setFeeRecipient(env: Environment, recipient: string | null): void {
+    const config = this.loadEnvironment(env);
+    if (!config.contracts.fees) {
+      config.contracts.fees = { policies: {} };
+    }
+    config.contracts.fees.feeRecipient = recipient ?? null;
+    this.saveEnvironment(env, config);
+    console.log(
+      `📝 Fee recipient set to ${recipient ?? "null"} in ${env}`
+    );
+  }
+
+  /**
+   * 저장된 수수료 정책 주소 조회
+   */
+  getFeePolicyAddress(
+    env: Environment,
+    policyLabel: string
+  ): string | null {
+    const config = this.loadEnvironment(env);
+    return config.contracts.fees?.policies?.[policyLabel] ?? null;
+  }
+
+  /**
+   * 활성 수수료 정책 주소 조회
+   */
+  getActiveFeePolicy(env: Environment): string | null {
+    const config = this.loadEnvironment(env);
+    return config.contracts.fees?.activePolicy ?? null;
   }
 
   /**
@@ -151,12 +259,26 @@ export class EnvironmentManager {
     });
 
     // Points contracts
-    if ((config.contracts as any).points) {
-      Object.entries((config.contracts as any).points).forEach(
-        ([name, address]) => {
-          if (address) addresses[name] = address as string;
+    if (config.contracts.points) {
+      Object.entries(config.contracts.points).forEach(([name, address]) => {
+        if (address) addresses[name] = address;
+      });
+    }
+
+    if (config.contracts.fees) {
+      Object.entries(config.contracts.fees.policies).forEach(
+        ([label, address]) => {
+          if (address) {
+            addresses[`FeePolicy:${label}`] = address;
+          }
         }
       );
+      if (config.contracts.fees.activePolicy) {
+        addresses["FeePolicy:active"] = config.contracts.fees.activePolicy;
+      }
+      if (config.contracts.fees.feeRecipient) {
+        addresses["FeeRecipient"] = config.contracts.fees.feeRecipient;
+      }
     }
 
     return addresses;
@@ -218,13 +340,30 @@ export class EnvironmentManager {
       console.log(`  ${name}: ${address || "❌ Not deployed"}`);
     });
 
-    if ((config.contracts as any).points) {
+    if (config.contracts.points) {
       console.log(`\n🎯 Points Contracts:`);
-      Object.entries((config.contracts as any).points).forEach(
-        ([name, address]) => {
-          console.log(`  ${name}: ${address || "❌ Not deployed"}`);
-        }
+      Object.entries(config.contracts.points).forEach(([name, address]) => {
+        console.log(`  ${name}: ${address || "❌ Not deployed"}`);
+      });
+    }
+
+    if (config.contracts.fees) {
+      console.log(`\n💸 Fee Policies:`);
+      const { policies, activePolicy, activePolicyLabel, feeRecipient } =
+        config.contracts.fees;
+      if (Object.keys(policies).length === 0) {
+        console.log("  (none recorded)");
+      } else {
+        Object.entries(policies).forEach(([label, address]) => {
+          console.log(`  ${label}: ${address || "❌ Not deployed"}`);
+        });
+      }
+      console.log(
+        `  Active Policy: ${activePolicy || "not set"}${
+          activePolicyLabel ? ` (label: ${activePolicyLabel})` : ""
+        }`
       );
+      console.log(`  Fee Recipient: ${feeRecipient || "not set"}`);
     }
 
     console.log(
@@ -315,6 +454,12 @@ export class EnvironmentManager {
         points: {
           PointsGranterProxy: null,
           PointsGranterImplementation: null,
+        },
+        fees: {
+          policies: {},
+          activePolicy: null,
+          activePolicyLabel: null,
+          feeRecipient: null,
         },
       },
       deploymentHistory: [],

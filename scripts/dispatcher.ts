@@ -16,12 +16,16 @@ if (!COMMAND) {
   deploy:localhost          - Deploy to localhost
   deploy:citrea:dev         - Deploy to citrea dev
   deploy:citrea:prod        - Deploy to citrea prod
-  
+  deploy-fee-policy:ENV     - Deploy a fee policy contract (Null/Custom)
+
 ⬆️ Upgrade Commands:
   upgrade:localhost         - Upgrade localhost contracts
   upgrade:citrea:dev        - Upgrade citrea dev contracts
   upgrade:citrea:prod       - Upgrade citrea prod contracts
-  
+
+💸 Fee Policy Commands:
+  set-fee-policy:ENV        - Configure core fee policy / recipient
+
 🏪 Market Commands:
   create-market:localhost   - Create market on localhost
   create-market:citrea:dev  - Create market on citrea dev
@@ -132,6 +136,13 @@ async function dispatch() {
         await deployAction(environment as Environment);
         break;
 
+      case "deploy-fee-policy":
+        const { deployFeePolicyAction } = await import(
+          "./actions/deploy-fee-policy"
+        );
+        await deployFeePolicyAction(environment as Environment);
+        break;
+
       case "upgrade":
         const { upgradeAction } = await import("./actions/upgrade");
         await upgradeAction(environment as Environment);
@@ -160,6 +171,13 @@ async function dispatch() {
       case "pause-market":
         const { pauseMarketAction } = await import("./actions/pause-market");
         await pauseMarketAction(environment as Environment);
+        break;
+
+      case "set-fee-policy":
+        const { setFeePolicyAction } = await import(
+          "./actions/set-fee-policy"
+        );
+        await setFeePolicyAction(environment as Environment);
         break;
 
       case "unpause-market":
