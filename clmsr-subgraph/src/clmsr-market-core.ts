@@ -2,6 +2,7 @@ import {
   BigInt,
   BigDecimal,
   Bytes,
+  Address,
   dataSource,
   log,
 } from "@graphprotocol/graph-ts";
@@ -32,6 +33,8 @@ import {
   SettlementTimestampUpdated as SettlementTimestampUpdatedEvent,
   RangeFactorApplied as RangeFactorAppliedEvent,
   MarketActivationUpdated as MarketActivationUpdatedEvent,
+  MarketFeePolicySet as MarketFeePolicySetEvent,
+  TradeFeeCharged as TradeFeeChargedEvent,
 } from "../generated/CLMSRMarketCore/CLMSRMarketCore";
 
 import {
@@ -42,6 +45,7 @@ import {
   MarketStats,
   BinState,
 } from "../generated/schema";
+import { ICLMSRFeePolicy } from "../generated/CLMSRMarketCore/ICLMSRFeePolicy";
 
 // ============= ID HELPER FUNCTIONS =============
 
@@ -93,6 +97,7 @@ export function getOrCreateUserStats(userAddress: Bytes): UserStats {
     userStats.totalProceeds = BigInt.fromI32(0);
     userStats.totalRealizedPnL = BigInt.fromI32(0);
     userStats.totalGasFees = BigInt.fromI32(0);
+    userStats.totalFeesPaid = BigInt.fromI32(0);
     userStats.netPnL = BigInt.fromI32(0);
     userStats.activePositionsCount = BigInt.fromI32(0);
     userStats.winningTrades = BigInt.fromI32(0);
@@ -269,6 +274,10 @@ export function handleMarketCreated(event: MarketCreatedEvent): void {
   market.settlementValue = null;
   market.settlementTick = null;
   market.lastUpdated = event.block.timestamp;
+  market.feePolicyAddress = Bytes.fromHexString(
+    "0x0000000000000000000000000000000000000000"
+  ) as Bytes;
+  market.feePolicyDescriptor = null;
   market.save();
 
   let marketStats = getOrCreateMarketStats(marketIdStr);
@@ -384,6 +393,102 @@ export function handleMarketActivationUpdated(
   market.isActive = event.params.isActive;
   market.lastUpdated = event.block.timestamp;
   market.save();
+
+  const stats = getOrCreateMarketStats(market.id);
+  stats.lastUpdated = event.block.timestamp;
+  stats.save();
+}
+
+export function handleMarketFeePolicySet(
+  event: MarketFeePolicySetEvent
+): void {
+  const marketId = buildMarketId(event.params.marketId);
+  const market = loadMarketOrSkip(marketId, "handleMarketFeePolicySet");
+  if (market == null) return;
+  const newPolicy = event.params.newPolicy;
+  market.feePolicyAddress = newPolicy;
+
+  market.feePolicyDescriptor = null;
+  if (!newPolicy.equals(Address.zero())) {
+    let policyContract = ICLMSRFeePolicy.bind(newPolicy);
+    let descriptorResult = policyContract.try_descriptor();
+    if (!descriptorResult.reverted) {
+      market.feePolicyDescriptor = descriptorResult.value;
+    }
+  }
+
+  market.lastUpdated = event.block.timestamp;
+  market.save();
+
+  const stats = getOrCreateMarketStats(marketId);
+  stats.lastUpdated = event.block.timestamp;
+  stats.save();
+}
+
+export function handleTradeFeeCharged(event: TradeFeeChargedEvent): void {
+  const marketIdStr = buildMarketId(event.params.marketId);
+  const logIndex = event.logIndex.toI32();
+  let matched = false;
+
+  // Search backwards for a matching trade within the same tx
+  for (let offset = 1; offset <= 16 && logIndex - offset >= 0; offset++) {
+    let candidateId = event.transaction.hash.concatI32(logIndex - offset);
+    let trade = Trade.load(candidateId);
+    if (trade == null) {
+      continue;
+    }
+
+    if (trade.market != marketIdStr) {
+      continue;
+    }
+    if (!trade.positionId.equals(event.params.positionId)) {
+      continue;
+    }
+    if (!trade.feeAmount.equals(BigInt.fromI32(0))) {
+      continue;
+    }
+
+    let isMatchingType = event.params.isBuy
+      ? trade.type == "OPEN" || trade.type == "INCREASE"
+      : trade.type == "DECREASE" || trade.type == "CLOSE";
+
+    if (!isMatchingType) {
+      continue;
+    }
+
+    trade.feeAmount = event.params.feeAmount;
+    trade.feePolicyAddress = event.params.policy;
+    trade.save();
+
+    let userPosition = UserPosition.load(trade.userPosition);
+    if (userPosition != null) {
+      userPosition.totalFeesPaid = userPosition.totalFeesPaid.plus(
+        event.params.feeAmount
+      );
+      userPosition.save();
+
+      let userStats = getOrCreateUserStats(userPosition.user);
+      userStats.totalFeesPaid = userStats.totalFeesPaid.plus(
+        event.params.feeAmount
+      );
+      userStats.save();
+    }
+
+    matched = true;
+    break;
+  }
+
+  if (!matched) {
+    log.warning(
+      "[handleTradeFeeCharged] Matching trade not found for tx {} log {}",
+      [event.transaction.hash.toHex(), event.logIndex.toString()]
+    );
+  }
+
+  let marketStats = getOrCreateMarketStats(marketIdStr);
+  marketStats.totalFees = marketStats.totalFees.plus(event.params.feeAmount);
+  marketStats.lastUpdated = event.block.timestamp;
+  marketStats.save();
 }
 
 function applySettlementOnce(
@@ -457,6 +562,8 @@ function applySettlementOnce(
   trade.timestamp = ts;
   trade.blockNumber = BigInt.fromI32(0);
   trade.transactionHash = txHash;
+  trade.feeAmount = BigInt.fromI32(0);
+  trade.feePolicyAddress = Address.zero();
   trade.activityPt = BigInt.fromI32(0);
   trade.performancePt = performancePt;
   trade.riskBonusPt = riskBonusPt;
@@ -548,6 +655,7 @@ export function handlePositionClosed(event: PositionClosedEvent): void {
   userPosition.weightedEntryTime = BigInt.fromI32(0);
   userPosition.averageEntryPrice = BigInt.fromI32(0);
   userPosition.lastUpdated = event.block.timestamp;
+  userPosition.tradeCount = userPosition.tradeCount.plus(BigInt.fromI32(1));
   userPosition.save();
 
   let userStats = getOrCreateUserStats(event.params.trader);
@@ -609,6 +717,8 @@ export function handlePositionClosed(event: PositionClosedEvent): void {
   trade.timestamp = event.block.timestamp;
   trade.blockNumber = event.block.number;
   trade.transactionHash = event.transaction.hash;
+  trade.feeAmount = BigInt.fromI32(0);
+  trade.feePolicyAddress = Address.zero();
 
   trade.activityPt = BigInt.fromI32(0);
   trade.performancePt = performancePt;
@@ -712,6 +822,7 @@ export function handlePositionDecreased(event: PositionDecreasedEvent): void {
     userStats.save();
   }
 
+  userPosition.tradeCount = userPosition.tradeCount.plus(BigInt.fromI32(1));
   userPosition.lastUpdated = event.block.timestamp;
   userPosition.save();
 
@@ -761,6 +872,8 @@ export function handlePositionDecreased(event: PositionDecreasedEvent): void {
   trade.timestamp = event.block.timestamp;
   trade.blockNumber = event.block.number;
   trade.transactionHash = event.transaction.hash;
+  trade.feeAmount = BigInt.fromI32(0);
+  trade.feePolicyAddress = Address.zero();
 
   trade.activityPt = BigInt.fromI32(0);
   trade.performancePt = performancePt;
@@ -835,6 +948,7 @@ export function handlePositionIncreased(event: PositionIncreasedEvent): void {
     .plus(currentTime.times(event.params.additionalQuantity))
     .div(userPosition.currentQuantity);
 
+  userPosition.tradeCount = userPosition.tradeCount.plus(BigInt.fromI32(1));
   userPosition.lastUpdated = event.block.timestamp;
   userPosition.save();
 
@@ -868,6 +982,8 @@ export function handlePositionIncreased(event: PositionIncreasedEvent): void {
   trade.timestamp = event.block.timestamp;
   trade.blockNumber = event.block.number;
   trade.transactionHash = event.transaction.hash;
+  trade.feeAmount = BigInt.fromI32(0);
+  trade.feePolicyAddress = Address.zero();
 
   trade.activityPt = activityPt;
   trade.performancePt = BigInt.fromI32(0);
@@ -932,7 +1048,9 @@ export function handlePositionOpened(event: PositionOpenedEvent): void {
   userPosition.totalQuantityBought = event.params.quantity;
   userPosition.totalQuantitySold = BigInt.fromI32(0);
   userPosition.totalProceeds = BigInt.fromI32(0);
+  userPosition.totalFeesPaid = BigInt.fromI32(0);
   userPosition.realizedPnL = BigInt.fromI32(0);
+  userPosition.tradeCount = BigInt.fromI32(1);
   userPosition.outcome = "OPEN";
   userPosition.isClaimed = false;
   userPosition.createdAt = event.block.timestamp;
@@ -968,6 +1086,8 @@ export function handlePositionOpened(event: PositionOpenedEvent): void {
   trade.timestamp = event.block.timestamp;
   trade.blockNumber = event.block.number;
   trade.transactionHash = event.transaction.hash;
+  trade.feeAmount = BigInt.fromI32(0);
+  trade.feePolicyAddress = Address.zero();
 
   trade.activityPt = activityPt;
   trade.performancePt = BigInt.fromI32(0);
