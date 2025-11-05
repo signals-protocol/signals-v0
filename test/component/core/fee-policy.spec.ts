@@ -116,6 +116,31 @@ describe(`${COMPONENT_TAG} Core Fee Policy Overlay`, function () {
     expect(recipientAfter).to.equal(recipientBefore + expectedFee);
   });
 
+  it("reverts when maxCost does not include overlay fee", async function () {
+    const {
+      core,
+      keeper,
+      alice,
+      marketId,
+    } = await loadFixture(createActiveMarketFixture);
+
+    const feeBps = 1500n; // 15%
+    const policy = await deployPercentPolicy(feeBps, keeper);
+    await (core.connect(keeper) as any).setMarketFeePolicy(marketId, await policy.getAddress());
+
+    const quantity = ethers.parseUnits("1", 6);
+    const cost = await core.calculateOpenCost(marketId, LOWER_TICK, UPPER_TICK, quantity);
+    const expectedFee = (cost * feeBps) / 10_000n;
+    expect(expectedFee).to.be.gt(0n);
+
+    const tightMaxCost = cost + expectedFee - 1n;
+    await expect(
+      core
+        .connect(alice)
+        .openPosition(marketId, LOWER_TICK, UPPER_TICK, quantity, tightMaxCost)
+    ).to.be.revertedWithCustomError(core, "CostExceedsMaximum");
+  });
+
   it("deducts overlay fee from sell proceeds when policy is set", async function () {
     const {
       core,
@@ -175,6 +200,42 @@ describe(`${COMPONENT_TAG} Core Fee Policy Overlay`, function () {
 
     expect(traderAfter).to.equal(traderBefore + proceeds - expectedFee);
     expect(recipientAfter).to.equal(recipientBefore + expectedFee);
+  });
+
+  it("reverts when minProceeds exceeds net proceeds after fee", async function () {
+    const {
+      core,
+      keeper,
+      alice,
+      marketId,
+      mockPosition,
+    } = await loadFixture(createActiveMarketFixture);
+
+    const feeBps = 200n; // 2%
+    const policy = await deployPercentPolicy(feeBps, keeper);
+    await (core.connect(keeper) as any).setMarketFeePolicy(marketId, await policy.getAddress());
+
+    const quantity = ethers.parseUnits("1", 6);
+    const cost = await core.calculateOpenCost(marketId, LOWER_TICK, UPPER_TICK, quantity);
+    const openFee = (cost * feeBps) / 10_000n;
+    expect(openFee).to.be.gt(0n);
+    const nextId = await mockPosition.getNextId();
+    const openMaxCost = cost + openFee + ethers.parseUnits("1", 6);
+
+    await core
+      .connect(alice)
+      .openPosition(marketId, LOWER_TICK, UPPER_TICK, quantity, openMaxCost);
+
+    const sellQuantity = SMALL_QUANTITY;
+    const baseProceeds = await core.calculateDecreaseProceeds(nextId, sellQuantity);
+    const expectedFee = (baseProceeds * feeBps) / 10_000n;
+    expect(expectedFee).to.be.gt(0n);
+    const netProceeds = baseProceeds - expectedFee;
+    const minProceeds = netProceeds + 1n;
+
+    await expect(
+      core.connect(alice).decreasePosition(nextId, sellQuantity, minProceeds)
+    ).to.be.revertedWithCustomError(core, "ProceedsBelowMinimum");
   });
 
   it("allows the policy owner to update basis points", async function () {
