@@ -15,6 +15,8 @@ type Market @entity(immutable: false) {
   settlementValue: BigInt # int256 (6 decimals, original value)
   settlementTick: BigInt # int256 (calculated from settlementValue)
   lastUpdated: BigInt!
+  feePolicyAddress: Bytes!
+  feePolicyDescriptor: String
   # 관계 필드들
   bins: [BinState!]! @derivedFrom(field: "market")
 }
@@ -52,6 +54,8 @@ type UserPosition @entity(immutable: false) {
   # ===== 매도 누적 =====
   totalProceeds: BigInt! # 총 매도 수익 (6 decimals, raw USDC)
   totalQuantitySold: BigInt! # 총 매도량 (6 decimals, raw USDC)
+  totalFeesPaid: BigInt! # 이 포지션에서 낸 총 수수료 (6 decimals, raw USDC)
+  tradeCount: BigInt! # 포지션 단위 체결 횟수
   # ===== 손익 =====
   realizedPnL: BigInt! # 실현 손익 (totalProceeds - totalCosts) (6 decimals, raw USDC, signed)
   # ===== 상태 및 타임스탬프 =====
@@ -83,6 +87,8 @@ type Trade @entity(immutable: true) {
   timestamp: BigInt!
   blockNumber: BigInt!
   transactionHash: Bytes!
+  feeAmount: BigInt! # 거래에 부과된 수수료 (6 decimals, raw USDC)
+  feePolicyAddress: Bytes! # 수수료 정책 주소
   activityPt: BigInt! # OPEN·INCREASE에서 발생하는 Activity 포인트 (6 decimals)
   performancePt: BigInt! # DECREASE·CLOSE·SETTLE에서 PnL 기반 Performance 포인트 (6 decimals)
   riskBonusPt: BigInt! # DECREASE·CLOSE·SETTLE에서 조건 충족 시 Risk Bonus 포인트 (6 decimals)
@@ -111,6 +117,7 @@ type UserStats @entity(immutable: false) {
   totalVolume: BigInt! # 총 거래 금액 (매수: cost, 매도: proceeds) (6 decimals, raw USDC)
   totalCosts: BigInt! # 총 매수 비용 (6 decimals, raw USDC)
   totalProceeds: BigInt! # 총 매도 수익 (6 decimals, raw USDC)
+  totalFeesPaid: BigInt! # 총 납부 수수료 (6 decimals, raw USDC)
   totalRealizedPnL: BigInt! # 총 실현 손익 (6 decimals, raw USDC, signed)
   totalGasFees: BigInt! # 총 가스 비용 (wei 단위)
   netPnL: BigInt! # 순 손익 (6 decimals, raw USDC, signed)

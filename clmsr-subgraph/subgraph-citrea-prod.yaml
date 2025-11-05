@@ -26,11 +26,15 @@ dataSources:
       abis:
         - name: CLMSRMarketCore
           file: ./abis/CLMSRMarketCore.json
+        - name: ICLMSRFeePolicy
+          file: ./abis/ICLMSRFeePolicy.json
       eventHandlers:
         - event: MarketCreated(indexed uint256,uint64,uint64,int256,int256,int256,uint32,uint256)
           handler: handleMarketCreated
         - event: MarketActivationUpdated(indexed uint256,bool)
           handler: handleMarketActivationUpdated
+        - event: MarketFeePolicySet(indexed uint256,indexed address,indexed address)
+          handler: handleMarketFeePolicySet
         - event: MarketSettled(indexed uint256,int256)
           handler: handleMarketSettled
         - event: MarketReopened(indexed uint256)
@@ -55,6 +59,8 @@ dataSources:
           handler: handleMarketSettlementValueSubmitted
         - event: SettlementTimestampUpdated(indexed uint256,uint64)
           handler: handleSettlementTimestampUpdated
+        - event: TradeFeeCharged(indexed address,indexed uint256,indexed uint256,bool,uint256,uint256,address)
+          handler: handleTradeFeeCharged
       file: ./src/clmsr-market-core.ts
 
   # ===== PointsGranter 컨트랙트 =====

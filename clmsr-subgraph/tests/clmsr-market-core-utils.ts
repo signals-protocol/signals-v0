@@ -41,6 +41,8 @@ import {
   PositionSettled,
   RangeFactorApplied,
   SettlementTimestampUpdated,
+  TradeFeeCharged,
+  MarketFeePolicySet,
 } from "../generated/CLMSRMarketCore/CLMSRMarketCore";
 
 export function createMarketCreatedEvent(
@@ -188,6 +190,85 @@ export function createMarketReopenedEvent(
   );
 
   return stamp(marketReopenedEvent);
+}
+
+export function createMarketFeePolicySetEvent(
+  marketId: BigInt,
+  oldPolicy: Address,
+  newPolicy: Address,
+  timestamp: BigInt
+): MarketFeePolicySet {
+  let event = changetype<MarketFeePolicySet>(newMockEvent());
+  setupMockEvent(event);
+  event.block.timestamp = timestamp;
+
+  event.parameters = new Array();
+  event.parameters.push(
+    new ethereum.EventParam(
+      "marketId",
+      ethereum.Value.fromUnsignedBigInt(marketId)
+    )
+  );
+  event.parameters.push(
+    new ethereum.EventParam("oldPolicy", ethereum.Value.fromAddress(oldPolicy))
+  );
+  event.parameters.push(
+    new ethereum.EventParam("newPolicy", ethereum.Value.fromAddress(newPolicy))
+  );
+
+  return stamp(event);
+}
+
+export function createTradeFeeChargedEvent(
+  trader: Address,
+  marketId: BigInt,
+  positionId: BigInt,
+  isBuy: boolean,
+  baseAmount: BigInt,
+  feeAmount: BigInt,
+  policy: Address,
+  timestamp: BigInt
+): TradeFeeCharged {
+  let event = changetype<TradeFeeCharged>(newMockEvent());
+  setupMockEvent(event);
+  event.block.timestamp = timestamp;
+
+  event.parameters = new Array();
+  event.parameters.push(
+    new ethereum.EventParam("trader", ethereum.Value.fromAddress(trader))
+  );
+  event.parameters.push(
+    new ethereum.EventParam(
+      "marketId",
+      ethereum.Value.fromUnsignedBigInt(marketId)
+    )
+  );
+  event.parameters.push(
+    new ethereum.EventParam(
+      "positionId",
+      ethereum.Value.fromUnsignedBigInt(positionId)
+    )
+  );
+  event.parameters.push(
+    new ethereum.EventParam("isBuy", ethereum.Value.fromBoolean(isBuy))
+  );
+  event.parameters.push(
+    new ethereum.EventParam(
+      "baseAmount",
+      ethereum.Value.fromUnsignedBigInt(baseAmount)
+    )
+  );
+  event.parameters.push(
+    new ethereum.EventParam(
+      "feeAmount",
+      ethereum.Value.fromUnsignedBigInt(feeAmount)
+    )
+  );
+  event.parameters.push(
+    new ethereum.EventParam("policy", ethereum.Value.fromAddress(policy))
+  );
+
+  return stamp(event);
 }
 
 export function createMarketTimingUpdatedEvent(
