@@ -36,6 +36,7 @@ export {
   ClaimResult,
   QuantityFromCostResult,
   QuantityFromProceedsResult,
+  FeeInfo,
 
   // Errors
   ValidationError,

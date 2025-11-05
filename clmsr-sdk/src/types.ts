@@ -39,6 +39,7 @@ export interface MarketRaw {
   minTick: number;
   maxTick: number;
   tickSpacing: number;
+  feePolicyDescriptor?: string;
   isSettled?: boolean; // 마켓 정산 여부
   settlementValue?: string; // 정산값 (6 decimal) - "115500000"
   settlementTick?: number; // 정산 틱 (정수) - 115
@@ -54,6 +55,7 @@ export interface Market {
   minTick: Tick;
   maxTick: Tick;
   tickSpacing: Tick;
+  feePolicyDescriptor?: string;
   isSettled?: boolean; // 마켓 정산 여부
   settlementValue?: USDCAmount; // 정산값 (6 decimal)
   settlementTick?: Tick; // 정산 틱 (정수)
@@ -80,6 +82,40 @@ export interface Position {
 }
 
 // ============================================================================
+// FEE DETAILS
+// ============================================================================
+
+export const FeePolicyKind = {
+  Null: "null",
+  Percentage: "percentage",
+  Custom: "custom",
+} as const;
+
+export type FeePolicyKind =
+  (typeof FeePolicyKind)[keyof typeof FeePolicyKind];
+
+interface BaseFeeInfo {
+  policy: FeePolicyKind;
+  descriptor?: string;
+  name?: string;
+}
+
+interface NullFeeInfo extends BaseFeeInfo {
+  policy: typeof FeePolicyKind.Null;
+}
+
+interface PercentageFeeInfo extends BaseFeeInfo {
+  policy: typeof FeePolicyKind.Percentage;
+  bps: Big;
+}
+
+interface CustomFeeInfo extends BaseFeeInfo {
+  policy: typeof FeePolicyKind.Custom;
+}
+
+export type FeeInfo = NullFeeInfo | PercentageFeeInfo | CustomFeeInfo;
+
+// ============================================================================
 // DATA ADAPTERS (GraphQL ↔ SDK 타입 변환)
 // ============================================================================
 
@@ -94,6 +130,9 @@ export function mapMarket(raw: MarketRaw): Market {
     minTick: raw.minTick,
     maxTick: raw.maxTick,
     tickSpacing: raw.tickSpacing,
+    ...(raw.feePolicyDescriptor !== undefined && {
+      feePolicyDescriptor: raw.feePolicyDescriptor,
+    }),
     ...(raw.isSettled !== undefined && { isSettled: raw.isSettled }),
     ...(raw.settlementValue !== undefined && {
       settlementValue: new Big(raw.settlementValue),
@@ -139,24 +178,36 @@ export function mapDistribution(
 export interface OpenCostResult {
   cost: USDCAmount;
   averagePrice: USDCAmount;
+  feeAmount: USDCAmount;
+  feeRate: Big;
+  feeInfo: FeeInfo;
 }
 
 /** calculateIncreaseCost 결과 */
 export interface IncreaseCostResult {
   additionalCost: USDCAmount;
   averagePrice: USDCAmount;
+  feeAmount: USDCAmount;
+  feeRate: Big;
+  feeInfo: FeeInfo;
 }
 
 /** calculateDecreaseProceeds 결과 */
 export interface DecreaseProceedsResult {
   proceeds: USDCAmount;
   averagePrice: USDCAmount;
+  feeAmount: USDCAmount;
+  feeRate: Big;
+  feeInfo: FeeInfo;
 }
 
 /** calculateCloseProceeds 결과 */
 export interface CloseProceedsResult {
   proceeds: USDCAmount;
   averagePrice: USDCAmount;
+  feeAmount: USDCAmount;
+  feeRate: Big;
+  feeInfo: FeeInfo;
 }
 
 /** calculateClaim 결과 */
