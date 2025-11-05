@@ -535,11 +535,11 @@ contract CLMSRMarketCore is
         // Calculate trade cost and convert to 6-decimal with round-up to prevent zero-cost attacks
         uint256 costWad = _calcCostInWad(marketId, lowerTick, upperTick, quantity);
         uint256 cost6 = _roundDebit(costWad);
-        
-        require(cost6 <= maxCost, CE.CostExceedsMaximum(cost6, maxCost));
 
         uint256 fee6 = _quoteFee(true, msg.sender, marketId, lowerTick, upperTick, quantity, cost6);
-        
+        uint256 totalCost = cost6 + fee6;
+        require(totalCost <= maxCost, CE.CostExceedsMaximum(totalCost, maxCost));
+
         // Transfer payment from caller (msg.sender)
         _pullUSDC(msg.sender, cost6);
         if (fee6 > 0) {
@@ -609,8 +609,6 @@ contract CLMSRMarketCore is
             uint256(additionalQuantity).toWad()
         );
         uint256 cost6 = _roundDebit(costWad);
-        
-        require(cost6 <= maxCost, CE.CostExceedsMaximum(cost6, maxCost));
 
         uint256 fee6 = _quoteFee(
             true,
@@ -621,6 +619,8 @@ contract CLMSRMarketCore is
             additionalQuantity,
             cost6
         );
+        uint256 totalCost = cost6 + fee6;
+        require(totalCost <= maxCost, CE.CostExceedsMaximum(totalCost, maxCost));
         
         // Transfer payment from caller
         _pullUSDC(msg.sender, cost6);
@@ -681,8 +681,6 @@ contract CLMSRMarketCore is
         );
         uint256 baseProceeds = _roundCredit(proceedsWad);
         
-        require(baseProceeds >= minProceeds, CE.ProceedsBelowMinimum(baseProceeds, minProceeds));
-
         uint256 fee6 = _quoteFee(
             false,
             msg.sender,
@@ -697,6 +695,8 @@ contract CLMSRMarketCore is
             revert CE.FeeExceedsBase(fee6, baseProceeds);
         }
         uint256 netProceeds = baseProceeds - fee6;
+        
+        require(netProceeds >= minProceeds, CE.ProceedsBelowMinimum(netProceeds, minProceeds));
         
         // Update market state
         uint256 sellDeltaWad = uint256(sellQuantity).toWad();
@@ -790,8 +790,6 @@ contract CLMSRMarketCore is
         );
         uint256 baseProceeds = _roundCredit(proceedsWad);
 
-        require(baseProceeds >= minProceeds, CE.ProceedsBelowMinimum(baseProceeds, minProceeds));
-
         uint256 fee6 = _quoteFee(
             false,
             msg.sender,
@@ -806,6 +804,8 @@ contract CLMSRMarketCore is
             revert CE.FeeExceedsBase(fee6, baseProceeds);
         }
         uint256 netProceeds = baseProceeds - fee6;
+
+        require(netProceeds >= minProceeds, CE.ProceedsBelowMinimum(netProceeds, minProceeds));
 
         // Update market state (selling entire position)
         _applyFactorChunked(
