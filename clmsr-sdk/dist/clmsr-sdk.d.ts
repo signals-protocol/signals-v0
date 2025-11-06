@@ -76,6 +76,7 @@ export declare class CLMSRSDK {
      * @returns 매도 수익
      */
     private _calcSellProceeds;
+    private computeFeeOverlay;
     private validateTickRange;
     private getAffectedSum;
 }

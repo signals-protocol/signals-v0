@@ -24,6 +24,7 @@ export interface MarketRaw {
     minTick: number;
     maxTick: number;
     tickSpacing: number;
+    feePolicyDescriptor?: string;
     isSettled?: boolean;
     settlementValue?: string;
     settlementTick?: number;
@@ -34,6 +35,7 @@ export interface Market {
     minTick: Tick;
     maxTick: Tick;
     tickSpacing: Tick;
+    feePolicyDescriptor?: string;
     isSettled?: boolean;
     settlementValue?: USDCAmount;
     settlementTick?: Tick;
@@ -55,6 +57,28 @@ export interface Position {
     upperTick: Tick;
     quantity: Quantity;
 }
+export declare const FeePolicyKind: {
+    readonly Null: "null";
+    readonly Percentage: "percentage";
+    readonly Custom: "custom";
+};
+export type FeePolicyKind = (typeof FeePolicyKind)[keyof typeof FeePolicyKind];
+interface BaseFeeInfo {
+    policy: FeePolicyKind;
+    descriptor?: string;
+    name?: string;
+}
+interface NullFeeInfo extends BaseFeeInfo {
+    policy: typeof FeePolicyKind.Null;
+}
+interface PercentageFeeInfo extends BaseFeeInfo {
+    policy: typeof FeePolicyKind.Percentage;
+    bps: Big;
+}
+interface CustomFeeInfo extends BaseFeeInfo {
+    policy: typeof FeePolicyKind.Custom;
+}
+export type FeeInfo = NullFeeInfo | PercentageFeeInfo | CustomFeeInfo;
 /**
  * Convert raw GraphQL market data to SDK calculation format
  * @param raw Raw market data from GraphQL
@@ -71,21 +95,33 @@ export declare function mapDistribution(raw: MarketDistributionRaw): MarketDistr
 export interface OpenCostResult {
     cost: USDCAmount;
     averagePrice: USDCAmount;
+    feeAmount: USDCAmount;
+    feeRate: Big;
+    feeInfo: FeeInfo;
 }
 /** calculateIncreaseCost 결과 */
 export interface IncreaseCostResult {
     additionalCost: USDCAmount;
     averagePrice: USDCAmount;
+    feeAmount: USDCAmount;
+    feeRate: Big;
+    feeInfo: FeeInfo;
 }
 /** calculateDecreaseProceeds 결과 */
 export interface DecreaseProceedsResult {
     proceeds: USDCAmount;
     averagePrice: USDCAmount;
+    feeAmount: USDCAmount;
+    feeRate: Big;
+    feeInfo: FeeInfo;
 }
 /** calculateCloseProceeds 결과 */
 export interface CloseProceedsResult {
     proceeds: USDCAmount;
     averagePrice: USDCAmount;
+    feeAmount: USDCAmount;
+    feeRate: Big;
+    feeInfo: FeeInfo;
 }
 /** calculateClaim 결과 */
 export interface ClaimResult {
@@ -107,3 +143,4 @@ export declare class ValidationError extends Error {
 export declare class CalculationError extends Error {
     constructor(message: string);
 }
+export {};

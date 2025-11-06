@@ -3,10 +3,18 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CalculationError = exports.ValidationError = void 0;
+exports.CalculationError = exports.ValidationError = exports.FeePolicyKind = void 0;
 exports.mapMarket = mapMarket;
 exports.mapDistribution = mapDistribution;
 const big_js_1 = __importDefault(require("big.js"));
+// ============================================================================
+// FEE DETAILS
+// ============================================================================
+exports.FeePolicyKind = {
+    Null: "null",
+    Percentage: "percentage",
+    Custom: "custom",
+};
 // ============================================================================
 // DATA ADAPTERS (GraphQL ↔ SDK 타입 변환)
 // ============================================================================
@@ -21,6 +29,9 @@ function mapMarket(raw) {
         minTick: raw.minTick,
         maxTick: raw.maxTick,
         tickSpacing: raw.tickSpacing,
+        ...(raw.feePolicyDescriptor !== undefined && {
+            feePolicyDescriptor: raw.feePolicyDescriptor,
+        }),
         ...(raw.isSettled !== undefined && { isSettled: raw.isSettled }),
         ...(raw.settlementValue !== undefined && {
             settlementValue: new big_js_1.default(raw.settlementValue),
