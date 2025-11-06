@@ -28,10 +28,11 @@ async function main() {
   const nullPolicy = await NullFeePolicy.deploy();
   await nullPolicy.waitForDeployment();
 
-  const PercentFeePolicy = await ethers.getContractFactory(
-    "PercentFeePolicy"
+  const PercentFeePolicy100bps = await ethers.getContractFactory(
+    "PercentFeePolicy100bps"
   );
-  const percentPolicy = await PercentFeePolicy.deploy(100n); // 1% fee
+  const percentPolicy = await PercentFeePolicy100bps.deploy();
+  // 1% fee overlay (100 bps)
   await percentPolicy.waitForDeployment();
 
   await core.connect(deployer).setFeePolicy(await nullPolicy.getAddress());
