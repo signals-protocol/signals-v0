@@ -14,6 +14,7 @@ exports.formatUSDC = formatUSDC;
 exports.wMul = wMul;
 exports.wMulNearest = wMulNearest;
 exports.wDiv = wDiv;
+exports.wDivUp = wDivUp;
 exports.wExp = wExp;
 exports.wLn = wLn;
 exports.wSqrt = wSqrt;
@@ -67,7 +68,10 @@ function toWad(amt6) {
  * @returns Amount in 6-decimal format
  */
 function fromWad(amtWad) {
-    return amtWad.div(exports.SCALE_DIFF);
+    if (amtWad.eq(0)) {
+        return new big_js_1.default(0);
+    }
+    return amtWad.div(exports.SCALE_DIFF).round(0, big_js_1.default.roundDown);
 }
 /**
  * Convert 18-decimal WAD format to 6-decimal USDC amount with round-up
@@ -76,8 +80,11 @@ function fromWad(amtWad) {
  * @returns Amount in 6-decimal format (rounded up)
  */
 function fromWadRoundUp(amtWad) {
-    const result = amtWad.plus(exports.SCALE_DIFF.minus(1)).div(exports.SCALE_DIFF);
-    return new big_js_1.default(result.toFixed(6, big_js_1.default.roundUp));
+    if (amtWad.eq(0)) {
+        return new big_js_1.default(0);
+    }
+    const numerator = amtWad.plus(exports.SCALE_DIFF.minus(1));
+    return numerator.div(exports.SCALE_DIFF).round(0, big_js_1.default.roundDown);
 }
 /**
  * Convert 18-decimal WAD format to 6-decimal USDC amount with nearest rounding (ties up)
@@ -157,6 +164,23 @@ function wDiv(a, b) {
         throw new types_1.ValidationError("Division by zero");
     }
     return a.mul(exports.WAD).div(b);
+}
+/**
+ * WAD division with rounding up: ceil((a * WAD) / b)
+ * @param a Dividend
+ * @param b Divisor
+ * @returns Quotient in WAD format rounded up
+ */
+function wDivUp(a, b) {
+    if (b.eq(0)) {
+        throw new types_1.ValidationError("Division by zero");
+    }
+    const numerator = a.mul(exports.WAD);
+    const baseQuotient = numerator.div(b).round(0, big_js_1.default.roundDown);
+    if (baseQuotient.mul(b).eq(numerator)) {
+        return baseQuotient;
+    }
+    return baseQuotient.plus(1);
 }
 /**
  * WAD exponentiation: e^x

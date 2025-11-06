@@ -6,11 +6,20 @@
 
 TypeScript SDK for CLMSR (Constant Logarithmic Market Scoring Rule) prediction market calculations.
 
-**v1.8.0** introduces an enhanced settlement logic for improved user experience and exact price transparency.
+**v1.11.0** adds overlay-fee awareness across all pricing helpers while keeping the underlying mathematics pure and deterministic.
 
-## 🔄 v1.8.0 Settlement Enhancement
+## 🔄 What's new in v1.11.0
 
-**Settlement Logic Update**: The settlement mechanism has been simplified from range-based to exact tick value.
+- **Overlay fee descriptors** (e.g. `{"policy":"percentage","params":{"bps":"50"}}`) are now propagated through the SDK.  
+  - All buy/sell helpers return `feeAmount`, `feeRate`, and rich `feeInfo`.
+  - Pure helpers in `fees.ts` allow frontends to preview on-chain fee policies without importing ABIs.
+- **Flexible fee metadata**: descriptors can embed labels such as `"name": "PercentFeePolicy50bps"`, which the SDK surfaces to your UI.
+- **Ethers v6 dependency**: the SDK now bundles lightweight resolver helpers built on top of `ethers@6.x`.
+
+> ⚠️ **TypeScript breaking change:** the additional fields on `OpenCostResult`, `IncreaseCostResult`, `DecreaseProceedsResult`, and `CloseProceedsResult` are mandatory.  
+> Update any local mocks or adapters that instantiate these interfaces before upgrading.
+
+## 🔁 Prior release: v1.8.0 settlement enhancement
 
 - **Previous**: `calculateClaim(position, settlementLowerTick, settlementUpperTick)`
 - **Enhanced**: `calculateClaim(position, settlementTick)`
@@ -147,13 +156,13 @@ console.log(`Sell quantity: ${inverseSell.quantity.toString()}`);
 console.log(`Actual proceeds: ${inverseSell.actualProceeds.toString()}`);
 ```
 
-### 4. Overlay Fee Helpers (Pure Functions)
+### 4. Overlay fee helpers (pure functions)
 
 ```typescript
 import { FeePolicyKind } from "@whworjs7946/clmsr-v0";
 import { CLMSRSDK } from "@whworjs7946/clmsr-v0";
 
-// Descriptor published by on-chain policy contracts / subgraph 이벤트
+// Descriptor published by on-chain fee policy contracts or the subgraph
 const percentageDescriptor = JSON.stringify({
   policy: "percentage",
   params: {
@@ -162,10 +171,9 @@ const percentageDescriptor = JSON.stringify({
   },
 });
 
-// 서브그래프에서 전달받은 market 객체에 디스크립터를 포함시킵니다.
+// Attach the descriptor to the market object (e.g. value fetched from the subgraph)
 market.feePolicyDescriptor = percentageDescriptor;
 
-// 이후 계산 함수에서 feeAmount, feeRate, feeInfo 를 확인할 수 있습니다.
 const sdk = new CLMSRSDK();
 const open = sdk.calculateOpenCost(
   115000,
@@ -185,7 +193,7 @@ if (open.feeInfo.policy === FeePolicyKind.Percentage) {
 }
 ```
 
-> ℹ️ 정책 문자열을 받아 그대로 SDK에 전달하면, 프런트는 정책 구조를 몰라도 수수료 계산과 라벨(정책명, 비율 등)을 함께 받아볼 수 있습니다. 디스크립터 문자열은 온체인 이벤트 또는 서브그래프에서 최신 값만 유지해 주세요.
+> ℹ️ As long as you forward the descriptor string from the chain or subgraph, the SDK can resolve the fee calculation, display labels, and expose the raw basis points without any additional configuration. Keep the descriptor in sync with the latest on-chain value to guarantee accurate previews.
 
 ## 📖 API Reference
 

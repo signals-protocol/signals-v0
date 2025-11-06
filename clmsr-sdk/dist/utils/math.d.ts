@@ -82,6 +82,13 @@ export declare function wMulNearest(a: WADAmount, b: WADAmount): WADAmount;
  */
 export declare function wDiv(a: WADAmount, b: WADAmount): WADAmount;
 /**
+ * WAD division with rounding up: ceil((a * WAD) / b)
+ * @param a Dividend
+ * @param b Divisor
+ * @returns Quotient in WAD format rounded up
+ */
+export declare function wDivUp(a: WADAmount, b: WADAmount): WADAmount;
+/**
  * WAD exponentiation: e^x
  * Uses Taylor series expansion for accurate results
  * @param x Exponent in WAD format

@@ -44,11 +44,21 @@ exports.createCLMSRSDK = createCLMSRSDK;
 const big_js_1 = __importDefault(require("big.js"));
 const types_1 = require("./types");
 const MathUtils = __importStar(require("./utils/math"));
+const fees_1 = require("./fees");
 // Re-export types and utilities for easy access
 __exportStar(require("./types"), exports);
 var math_1 = require("./utils/math");
 Object.defineProperty(exports, "toWAD", { enumerable: true, get: function () { return math_1.toWAD; } });
 Object.defineProperty(exports, "toMicroUSDC", { enumerable: true, get: function () { return math_1.toMicroUSDC; } });
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+const ZERO_CONTEXT = `0x${"00".repeat(32)}`;
+function bigToBigInt(value) {
+    const rounded = value.round(0, big_js_1.default.roundDown);
+    if (!rounded.eq(value)) {
+        throw new types_1.CalculationError("Fee calculations require integer micro-USDC amounts");
+    }
+    return BigInt(rounded.toFixed(0, big_js_1.default.roundDown));
+}
 /**
  * CLMSR SDK - 컨트랙트 뷰함수들과 역함수 제공
  */
@@ -66,8 +76,9 @@ class CLMSRSDK {
      */
     // Tick boundary in absolute ticks; internally maps to inclusive bin indices [loBin, hiBin]
     calculateOpenCost(lowerTick, upperTick, quantity, distribution, market) {
+        const normalizedQuantity = MathUtils.formatUSDC(new big_js_1.default(quantity));
         // Input validation
-        if (new big_js_1.default(quantity).lte(0)) {
+        if (normalizedQuantity.lte(0)) {
             throw new types_1.ValidationError("Quantity must be positive");
         }
         if (!distribution) {
@@ -76,11 +87,10 @@ class CLMSRSDK {
         // Tick range 검증
         this.validateTickRange(lowerTick, upperTick, market);
         // 시장별 최대 수량 검증 (UX 개선)
-        this._assertQuantityWithinLimit(quantity, market.liquidityParameter);
+        this._assertQuantityWithinLimit(normalizedQuantity, market.liquidityParameter);
         // Convert to WAD for calculations
         const alpha = market.liquidityParameter;
-        // quantity는 이미 micro-USDC(6 decimals) 정수이므로 바로 WAD로 변환
-        const quantityWad = MathUtils.toWad(quantity);
+        const quantityWad = MathUtils.toWad(normalizedQuantity);
         // Get current state
         const sumBefore = distribution.totalSum;
         const affectedSum = this.getAffectedSum(lowerTick, upperTick, distribution, market);
@@ -91,19 +101,24 @@ class CLMSRSDK {
             .minus(affectedSum)
             .plus(MathUtils.wMulNearest(affectedSum, factor));
         // 3. Calculate cost: α * ln(sumAfter / sumBefore) - 컨트랙트와 동일
-        const ratio = MathUtils.wDiv(sumAfter, sumBefore);
+        const ratio = MathUtils.wDivUp(sumAfter, sumBefore);
         const lnRatio = MathUtils.wLn(ratio);
         const costWad = MathUtils.wMul(alpha, lnRatio);
         // 계산 완료
-        const cost = MathUtils.fromWadNearestMin1(costWad);
+        const cost = MathUtils.formatUSDC(MathUtils.fromWadRoundUp(costWad));
         // Calculate average price with proper formatting
         // cost는 micro USDC, quantity도 micro USDC이므로 결과는 USDC/USDC = 비율
-        const averagePrice = cost.div(quantity);
+        const averagePrice = cost.div(normalizedQuantity);
         const formattedAveragePrice = new big_js_1.default(averagePrice.toFixed(6, big_js_1.default.roundDown)); // 6자리 정밀도로 충분
-        return {
-            cost: MathUtils.formatUSDC(cost),
+        const feeOverlay = this.computeFeeOverlay("BUY", cost, normalizedQuantity, lowerTick, upperTick, market.feePolicyDescriptor);
+        const result = {
+            cost,
             averagePrice: formattedAveragePrice,
+            feeAmount: feeOverlay.amount,
+            feeRate: feeOverlay.rate,
+            feeInfo: feeOverlay.info,
         };
+        return result;
     }
     /**
      * calculateIncreaseCost - 기존 포지션 증가 비용 계산
@@ -113,13 +128,25 @@ class CLMSRSDK {
         return {
             additionalCost: result.cost,
             averagePrice: result.averagePrice,
+            feeAmount: result.feeAmount,
+            feeRate: result.feeRate,
+            feeInfo: result.feeInfo,
         };
     }
     /**
      * Decrease position 비용 계산
      */
     calculateDecreaseProceeds(position, sellQuantity, distribution, market) {
-        return this._calcSellProceeds(position.lowerTick, position.upperTick, sellQuantity, position.quantity, distribution, market);
+        const normalizedSellQuantity = MathUtils.formatUSDC(new big_js_1.default(sellQuantity));
+        const baseResult = this._calcSellProceeds(position.lowerTick, position.upperTick, normalizedSellQuantity, position.quantity, distribution, market);
+        const feeOverlay = this.computeFeeOverlay("SELL", baseResult.proceeds, normalizedSellQuantity, position.lowerTick, position.upperTick, market.feePolicyDescriptor);
+        return {
+            proceeds: baseResult.proceeds,
+            averagePrice: baseResult.averagePrice,
+            feeAmount: feeOverlay.amount,
+            feeRate: feeOverlay.rate,
+            feeInfo: feeOverlay.info,
+        };
     }
     /**
      * Close position 비용 계산
@@ -129,6 +156,9 @@ class CLMSRSDK {
         return {
             proceeds: result.proceeds,
             averagePrice: result.averagePrice,
+            feeAmount: result.feeAmount,
+            feeRate: result.feeRate,
+            feeInfo: result.feeInfo,
         };
     }
     /**
@@ -161,7 +191,17 @@ class CLMSRSDK {
      * @returns 예상 수익
      */
     calculateSellProceeds(position, sellQuantity, distribution, market) {
-        return this._calcSellProceeds(position.lowerTick, position.upperTick, sellQuantity, position.quantity, distribution, market);
+        const base = this._calcSellProceeds(position.lowerTick, position.upperTick, sellQuantity, position.quantity, distribution, market);
+        return {
+            proceeds: base.proceeds,
+            averagePrice: base.averagePrice,
+            feeAmount: MathUtils.formatUSDC(new big_js_1.default(0)),
+            feeRate: new big_js_1.default(0),
+            feeInfo: {
+                policy: types_1.FeePolicyKind.Null,
+                name: "NullFeePolicy",
+            },
+        };
     }
     /**
      * 주어진 비용으로 살 수 있는 수량 계산 (역산)
@@ -345,22 +385,108 @@ class CLMSRSDK {
         // 🎯 컨트랙트와 정확히 동일한 LMSR sell 공식 구현
         // 1. Calculate inverse factor: exp(-quantity / α) = 1 / exp(quantity / α) - safe chunking 사용
         const factor = MathUtils.safeExp(quantityWad, alpha);
-        const inverseFactor = MathUtils.wDiv(MathUtils.WAD, factor);
+        const inverseFactor = MathUtils.wDivUp(MathUtils.WAD, factor);
         // 2. Calculate sum after sell
         const sumAfter = sumBefore
             .minus(affectedSum)
             .plus(MathUtils.wMulNearest(affectedSum, inverseFactor));
         // 3. Calculate proceeds: α * ln(sumBefore / sumAfter)
-        const ratio = MathUtils.wDiv(sumBefore, sumAfter);
+        const ratio = MathUtils.wDivUp(sumBefore, sumAfter);
         const lnRatio = MathUtils.wLn(ratio);
         const proceedsWad = MathUtils.wMul(alpha, lnRatio);
-        const proceeds = MathUtils.fromWadNearest(proceedsWad);
+        const proceeds = MathUtils.fromWad(proceedsWad);
         // Calculate average price with proper formatting
         const averagePrice = proceeds.div(sellQuantity);
         const formattedAveragePrice = new big_js_1.default(averagePrice.toFixed(6, big_js_1.default.roundDown)); // 6자리 정밀도로 충분
         return {
             proceeds: MathUtils.formatUSDC(proceeds),
             averagePrice: formattedAveragePrice,
+        };
+    }
+    computeFeeOverlay(side, baseAmount, quantity, lowerTick, upperTick, descriptor) {
+        const makeZeroOverlay = (descriptorString, policyName) => ({
+            amount: MathUtils.formatUSDC(new big_js_1.default(0)),
+            rate: new big_js_1.default(0),
+            info: {
+                policy: types_1.FeePolicyKind.Null,
+                ...(descriptorString ? { descriptor: descriptorString } : {}),
+                name: policyName ?? "NullFeePolicy",
+            },
+        });
+        if (!descriptor || descriptor.trim().length === 0) {
+            return makeZeroOverlay();
+        }
+        const resolved = (0, fees_1.resolveFeePolicyWithMetadata)(descriptor);
+        const baseAmountInt = bigToBigInt(baseAmount);
+        const quantityInt = bigToBigInt(quantity);
+        const trader = ZERO_ADDRESS;
+        const marketId = 0;
+        const context = ZERO_CONTEXT;
+        const feeBigInt = side === "BUY"
+            ? (0, fees_1.quoteOpenFee)(resolved.policy, {
+                trader,
+                marketId,
+                lowerTick,
+                upperTick,
+                quantity6: quantityInt,
+                cost6: baseAmountInt,
+                context,
+            })
+            : (0, fees_1.quoteSellFee)(resolved.policy, {
+                trader,
+                marketId,
+                lowerTick,
+                upperTick,
+                sellQuantity6: quantityInt,
+                proceeds6: baseAmountInt,
+                context,
+            });
+        const feeAmount = MathUtils.formatUSDC(new big_js_1.default(feeBigInt.toString()));
+        const parsedDescriptor = resolved.descriptor;
+        const descriptorString = parsedDescriptor?.descriptor ?? descriptor;
+        const policyName = parsedDescriptor?.name ??
+            (typeof resolved.policy.name === "string"
+                ? resolved.policy.name
+                : undefined);
+        if (!descriptorString || descriptorString.length === 0) {
+            return makeZeroOverlay();
+        }
+        if (parsedDescriptor?.policy === "null" || resolved.policy === fees_1.NullFeePolicy) {
+            return {
+                amount: feeAmount,
+                rate: new big_js_1.default(0),
+                info: {
+                    policy: types_1.FeePolicyKind.Null,
+                    descriptor: descriptorString,
+                    name: policyName ?? "NullFeePolicy",
+                },
+            };
+        }
+        if (parsedDescriptor?.policy === "percentage") {
+            const bps = new big_js_1.default(parsedDescriptor.bps.toString());
+            const rate = bps.div(new big_js_1.default("10000"));
+            return {
+                amount: feeAmount,
+                rate,
+                info: {
+                    policy: types_1.FeePolicyKind.Percentage,
+                    descriptor: descriptorString,
+                    name: policyName,
+                    bps,
+                },
+            };
+        }
+        const effectiveRate = baseAmount.gt(0) && feeAmount.gt(0)
+            ? feeAmount.div(baseAmount)
+            : new big_js_1.default(0);
+        return {
+            amount: feeAmount,
+            rate: effectiveRate,
+            info: {
+                policy: types_1.FeePolicyKind.Custom,
+                descriptor: descriptorString,
+                name: policyName,
+            },
         };
     }
     validateTickRange(lowerTick, upperTick, market) {
