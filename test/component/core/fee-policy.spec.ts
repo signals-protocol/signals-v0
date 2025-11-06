@@ -12,12 +12,22 @@ const LOWER_TICK = 100450;
 const UPPER_TICK = 100550;
 
 describe(`${COMPONENT_TAG} Core Fee Policy Overlay`, function () {
-  async function deployPercentPolicy(feeBps: bigint, signer = undefined) {
+  const FIXED_PERCENT_POLICIES = {
+    "10": { name: "PercentFeePolicy10bps", feeBps: 10n },
+    "50": { name: "PercentFeePolicy50bps", feeBps: 50n },
+    "100": { name: "PercentFeePolicy100bps", feeBps: 100n },
+    "200": { name: "PercentFeePolicy200bps", feeBps: 200n },
+  } as const;
+  type FixedPercentKey = keyof typeof FIXED_PERCENT_POLICIES;
+  const BPS_DENOMINATOR = 10_000n;
+
+  async function deployPercentPolicy(feeBps: FixedPercentKey, signer = undefined) {
     const deployer = signer ?? (await ethers.getSigners())[0];
-    const factory = await ethers.getContractFactory("PercentFeePolicy", deployer);
-    const policy = await factory.deploy(feeBps);
+    const { name, feeBps: feeBpsValue } = FIXED_PERCENT_POLICIES[feeBps];
+    const factory = await ethers.getContractFactory(name, deployer);
+    const policy = await factory.deploy();
     await policy.waitForDeployment();
-    return policy;
+    return { policy, feeBps: feeBpsValue };
   }
 
   async function deployExcessivePolicy(signer = undefined) {
@@ -70,15 +80,14 @@ describe(`${COMPONENT_TAG} Core Fee Policy Overlay`, function () {
       marketId,
     } = await loadFixture(createActiveMarketFixture);
 
-    const feeBps = 100n; // 1%
-    const policy = await deployPercentPolicy(feeBps, keeper);
+    const { policy, feeBps } = await deployPercentPolicy("100", keeper);
     const coreWithPolicy = core.connect(keeper) as any;
     await coreWithPolicy.setMarketFeePolicy(marketId, await policy.getAddress());
     await coreWithPolicy.setFeeRecipient(charlie.address);
 
     const quantity = MEDIUM_QUANTITY;
     const cost = await core.calculateOpenCost(marketId, LOWER_TICK, UPPER_TICK, quantity);
-    const expectedFee = (cost * feeBps) / 10000n;
+    const expectedFee = (cost * feeBps) / BPS_DENOMINATOR;
     const preview = await (core.connect(alice) as any).previewOpenFee(
       marketId,
       LOWER_TICK,
@@ -124,13 +133,12 @@ describe(`${COMPONENT_TAG} Core Fee Policy Overlay`, function () {
       marketId,
     } = await loadFixture(createActiveMarketFixture);
 
-    const feeBps = 1500n; // 15%
-    const policy = await deployPercentPolicy(feeBps, keeper);
+    const { policy, feeBps } = await deployPercentPolicy("200", keeper);
     await (core.connect(keeper) as any).setMarketFeePolicy(marketId, await policy.getAddress());
 
     const quantity = ethers.parseUnits("1", 6);
     const cost = await core.calculateOpenCost(marketId, LOWER_TICK, UPPER_TICK, quantity);
-    const expectedFee = (cost * feeBps) / 10_000n;
+    const expectedFee = (cost * feeBps) / BPS_DENOMINATOR;
     expect(expectedFee).to.be.gt(0n);
 
     const tightMaxCost = cost + expectedFee - 1n;
@@ -152,8 +160,7 @@ describe(`${COMPONENT_TAG} Core Fee Policy Overlay`, function () {
       marketId,
     } = await loadFixture(createActiveMarketFixture);
 
-    const feeBps = 250n; // 2.5%
-    const policy = await deployPercentPolicy(feeBps, keeper);
+    const { policy, feeBps } = await deployPercentPolicy("200", keeper);
     const coreWithPolicy = core.connect(keeper) as any;
     await coreWithPolicy.setMarketFeePolicy(marketId, await policy.getAddress());
     await coreWithPolicy.setFeeRecipient(bob.address);
@@ -168,7 +175,7 @@ describe(`${COMPONENT_TAG} Core Fee Policy Overlay`, function () {
 
     const sellQuantity = SMALL_QUANTITY;
     const proceeds = await core.calculateDecreaseProceeds(nextId, sellQuantity);
-    const expectedFee = (proceeds * feeBps) / 10000n;
+    const expectedFee = (proceeds * feeBps) / BPS_DENOMINATOR;
     const preview = await (core.connect(alice) as any).previewSellFee(
       nextId,
       sellQuantity,
@@ -211,13 +218,12 @@ describe(`${COMPONENT_TAG} Core Fee Policy Overlay`, function () {
       mockPosition,
     } = await loadFixture(createActiveMarketFixture);
 
-    const feeBps = 200n; // 2%
-    const policy = await deployPercentPolicy(feeBps, keeper);
+    const { policy, feeBps } = await deployPercentPolicy("200", keeper);
     await (core.connect(keeper) as any).setMarketFeePolicy(marketId, await policy.getAddress());
 
     const quantity = ethers.parseUnits("1", 6);
     const cost = await core.calculateOpenCost(marketId, LOWER_TICK, UPPER_TICK, quantity);
-    const openFee = (cost * feeBps) / 10_000n;
+    const openFee = (cost * feeBps) / BPS_DENOMINATOR;
     expect(openFee).to.be.gt(0n);
     const nextId = await mockPosition.getNextId();
     const openMaxCost = cost + openFee + ethers.parseUnits("1", 6);
@@ -228,7 +234,7 @@ describe(`${COMPONENT_TAG} Core Fee Policy Overlay`, function () {
 
     const sellQuantity = SMALL_QUANTITY;
     const baseProceeds = await core.calculateDecreaseProceeds(nextId, sellQuantity);
-    const expectedFee = (baseProceeds * feeBps) / 10_000n;
+    const expectedFee = (baseProceeds * feeBps) / BPS_DENOMINATOR;
     expect(expectedFee).to.be.gt(0n);
     const netProceeds = baseProceeds - expectedFee;
     const minProceeds = netProceeds + 1n;
@@ -238,49 +244,9 @@ describe(`${COMPONENT_TAG} Core Fee Policy Overlay`, function () {
     ).to.be.revertedWithCustomError(core, "ProceedsBelowMinimum");
   });
 
-  it("allows the policy owner to update basis points", async function () {
-    const {
-      core,
-      keeper,
-      alice,
-      marketId,
-    } = await loadFixture(createActiveMarketFixture);
-
-    const policy = await deployPercentPolicy(100n, keeper);
-    await (core.connect(keeper) as any).setMarketFeePolicy(marketId, await policy.getAddress());
-
-    const quantity = MEDIUM_QUANTITY;
-    const cost = await core.calculateOpenCost(marketId, LOWER_TICK, UPPER_TICK, quantity);
-
-    const previewBefore = await (core.connect(alice) as any).previewOpenFee(
-      marketId,
-      LOWER_TICK,
-      UPPER_TICK,
-      quantity,
-      cost
-    );
-    expect(previewBefore).to.equal((cost * 100n) / 10_000n);
-
-    await expect(policy.connect(alice).setFeeBps(300n))
-      .to.be.revertedWithCustomError(policy, "OwnableUnauthorizedAccount");
-
-    await expect(policy.connect(keeper).setFeeBps(300n))
-      .to.emit(policy, "FeeBpsUpdated")
-      .withArgs(100n, 300n);
-
-    const previewAfter = await (core.connect(alice) as any).previewOpenFee(
-      marketId,
-      LOWER_TICK,
-      UPPER_TICK,
-      quantity,
-      cost
-    );
-    expect(previewAfter).to.equal((cost * 300n) / 10_000n);
-  });
-
   it("enforces owner-only access for fee controls", async function () {
     const { core, keeper, alice, marketId } = await loadFixture(createActiveMarketFixture);
-    const policy = await deployPercentPolicy(100n, keeper);
+    const { policy } = await deployPercentPolicy("100", keeper);
 
     await expect(
       (core.connect(alice) as any).setMarketFeePolicy(marketId, await policy.getAddress())
@@ -313,14 +279,13 @@ describe(`${COMPONENT_TAG} Core Fee Policy Overlay`, function () {
       marketId,
     } = await loadFixture(createActiveMarketFixture);
 
-    const feeBps = 200n;
-    const policy = await deployPercentPolicy(feeBps, keeper);
+    const { policy, feeBps } = await deployPercentPolicy("200", keeper);
     await (core.connect(keeper) as any).setMarketFeePolicy(marketId, await policy.getAddress());
     // recipient intentionally left unset -> fallback to owner (keeper)
 
     const quantity = MEDIUM_QUANTITY;
     const cost = await core.calculateOpenCost(marketId, LOWER_TICK, UPPER_TICK, quantity);
-    const expectedFee = (cost * feeBps) / 10_000n;
+    const expectedFee = (cost * feeBps) / BPS_DENOMINATOR;
     const nextId = await mockPosition.getNextId();
 
     const keeperBefore = await paymentToken.balanceOf(keeper.address);
@@ -355,14 +320,13 @@ describe(`${COMPONENT_TAG} Core Fee Policy Overlay`, function () {
       marketId,
     } = await loadFixture(createActiveMarketFixture);
 
-    const feeBps = 300n; // 3%
-    const policy = await deployPercentPolicy(feeBps, keeper);
+    const { policy, feeBps } = await deployPercentPolicy("200", keeper);
     await (core.connect(keeper) as any).setMarketFeePolicy(marketId, await policy.getAddress());
     await (core.connect(keeper) as any).setFeeRecipient(charlie.address);
 
     const quantity = MEDIUM_QUANTITY;
     const cost = await core.calculateOpenCost(marketId, LOWER_TICK, UPPER_TICK, quantity);
-    const openFee = (cost * feeBps) / 10_000n;
+    const openFee = (cost * feeBps) / BPS_DENOMINATOR;
     const nextId = await mockPosition.getNextId();
     const openMaxCost = cost + openFee + ethers.parseUnits("1", 6);
 
@@ -371,7 +335,7 @@ describe(`${COMPONENT_TAG} Core Fee Policy Overlay`, function () {
       .openPosition(marketId, LOWER_TICK, UPPER_TICK, quantity, openMaxCost);
 
     const proceeds = await core.calculateDecreaseProceeds(nextId, quantity);
-    const expectedCloseFee = (proceeds * feeBps) / 10_000n;
+    const expectedCloseFee = (proceeds * feeBps) / BPS_DENOMINATOR;
     const recipientBefore = await paymentToken.balanceOf(charlie.address);
 
     await expect(core.connect(alice).closePosition(nextId, 0))
