@@ -55,6 +55,7 @@
   "error ResidualQuantity(uint256)",
   "error SafeERC20FailedOperation(address)",
   "error SettlementFinalizeWindowClosed(uint64,uint64)",
+  "error SettlementOracleCandidateMissing()",
   "error SettlementOracleSignatureInvalid(address)",
   "error SettlementTooEarly(uint64,uint64)",
   "error SumAfterZero()",

@@ -239,6 +239,78 @@ contract CLMSRMarketManager is
         );
     }
 
+    function finalizeSettlement(uint256 marketId, bool markFailed)
+        external
+        onlyDelegated
+        whenNotPaused
+    {
+        require(_marketExists(marketId), CE.MarketNotFound(marketId));
+        ICLMSRMarketCore.Market storage market = markets[marketId];
+        SettlementOracleState storage state = settlementOracleState[marketId];
+
+        require(!market.settled, CE.MarketAlreadySettled(marketId));
+
+        uint64 gate = market.settlementTimestamp == 0 ? market.endTimestamp : market.settlementTimestamp;
+        uint64 nowTs = uint64(block.timestamp);
+
+        require(
+            nowTs >= gate + SETTLEMENT_SUBMIT_WINDOW,
+            CE.SettlementTooEarly(gate + SETTLEMENT_SUBMIT_WINDOW, nowTs)
+        );
+        require(
+            nowTs < gate + SETTLEMENT_FINALIZE_DEADLINE,
+            CE.SettlementFinalizeWindowClosed(gate + SETTLEMENT_FINALIZE_DEADLINE, nowTs)
+        );
+
+        if (markFailed) {
+            state.candidateValue = 0;
+            state.candidatePriceTimestamp = 0;
+
+            emit MarketSettlementFinalized(
+                marketId,
+                true,
+                0,
+                0,
+                0,
+                nowTs
+            );
+            return;
+        }
+
+        require(state.candidatePriceTimestamp != 0, CE.SettlementOracleCandidateMissing());
+
+        int256 settlementValue = state.candidateValue;
+        int256 settlementTick = settlementValue / 1_000_000;
+
+        require(
+            settlementTick >= market.minTick &&
+                settlementTick <= market.maxTick,
+            CE.InvalidTick(settlementTick, market.minTick, market.maxTick)
+        );
+
+        market.settled = true;
+        market.settlementValue = settlementValue;
+        market.settlementTick = settlementTick;
+        market.isActive = false;
+
+        market.positionEventsCursor = 0;
+        market.positionEventsEmitted = false;
+
+        emit MarketSettled(marketId, settlementTick);
+        emit MarketSettlementValueSubmitted(marketId, settlementValue);
+        emit MarketSettlementFinalized(
+            marketId,
+            false,
+            settlementValue,
+            settlementTick,
+            state.candidatePriceTimestamp,
+            nowTs
+        );
+
+        state.candidateValue = 0;
+        state.candidatePriceTimestamp = 0;
+    }
+
     function setSettlementOracleSigner(address newSigner)
         external
         onlyOwner
