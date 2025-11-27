@@ -49,11 +49,17 @@ describe(`${COMPONENT_TAG} CLMSRMarketCoreStorage - Storage layout`, function ()
     expect(candidateTimestampType).to.match(/^t_uint64$/);
   });
 
-  it("shrinks the gap after inserting the settlement oracle mapping", function () {
+  it("exposes signer slot and shrinks the gap after inserting new fields", function () {
+    const signerEntry = layout.storage.find(
+      (slot: any) => slot.label === "settlementOracleSigner"
+    );
+    expect(signerEntry, "settlementOracleSigner not found").to.exist;
+    expect(signerEntry.type).to.equal("t_address");
+
     const gapEntry = layout.storage.find((slot: any) => slot.label === "__gap");
     expect(gapEntry, "__gap slot missing").to.exist;
 
     const match = /t_array\(t_uint256\)(\d+)_storage/.exec(gapEntry.type);
-    expect(match?.[1]).to.equal("44");
+    expect(match?.[1]).to.equal("43");
   });
 });

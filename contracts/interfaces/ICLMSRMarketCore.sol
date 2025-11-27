@@ -295,6 +295,8 @@ interface ICLMSRMarketCore {
 
     function setFeeRecipient(address newRecipient) external;
 
+    function setSettlementOracleSigner(address newSigner) external;
+
     function getMarketFeePolicy(uint256 marketId) external view returns (address);
 
     function getFeeRecipient() external view returns (address);

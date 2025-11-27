@@ -206,6 +206,12 @@ contract CLMSRMarketCore is
         feeRecipient = newRecipient;
     }
 
+    /// @notice Sets the trusted settlement oracle signer address
+    function setSettlementOracleSigner(address newSigner) external override onlyOwner {
+        newSigner;
+        _delegateToManager();
+    }
+
     /// @notice Returns the configured fee policy address for a specific market
     function getMarketFeePolicy(uint256 marketId)
         external

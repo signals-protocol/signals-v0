@@ -25,6 +25,7 @@ abstract contract CLMSRMarketCoreStorage {
     }
 
     mapping(uint256 => SettlementOracleState) internal settlementOracleState;
+    address public settlementOracleSigner;
 
-    uint256[44] internal __gap;
+    uint256[43] internal __gap;
 }

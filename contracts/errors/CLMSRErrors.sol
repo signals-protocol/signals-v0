@@ -13,6 +13,7 @@ interface CLMSRErrors {
     error MarketAlreadyExists(uint256 marketId);
     error SettlementTooEarly(uint64 requiredTimestamp, uint64 currentTimestamp);
     error SettlementFinalizeWindowClosed(uint64 requiredTimestamp, uint64 currentTimestamp);
+    error SettlementOracleSignatureInvalid(address signer);
 
     /* ───────────────────── Trade params ─────────────────────── */
     error InvalidTick(int256 tick, int256 minTick, int256 maxTick);
