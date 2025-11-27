@@ -55,6 +55,7 @@ contract CLMSRMarketCore is
     /// @notice Maximum liquidity parameter (alpha)
     uint256 public constant MAX_LIQUIDITY_PARAMETER = 1e23; // 100000 
     
+    uint64 public constant SETTLEMENT_FINALIZE_DEADLINE = 15 minutes;
     
     /// @notice Maximum safe input for PRB-Math exp() function
     uint256 private constant MAX_EXP_INPUT_WAD = 1_000_000_000_000_000_000; // 1.0 * 1e18
@@ -775,6 +776,10 @@ contract CLMSRMarketCore is
         
         Market memory market = markets[position.marketId];
         require(market.settled, CE.MarketNotSettled(position.marketId));
+
+        uint64 T = market.settlementTimestamp == 0 ? market.endTimestamp : market.settlementTimestamp;
+        uint64 claimOpen = T + SETTLEMENT_FINALIZE_DEADLINE;
+        require(block.timestamp >= claimOpen, CE.SettlementTooEarly(claimOpen, uint64(block.timestamp)));
         
         // Calculate payout and emit PositionSettled once if not already
         payout = _calculateClaimAmount(positionId);
