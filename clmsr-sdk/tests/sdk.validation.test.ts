@@ -409,50 +409,31 @@ describe("CLMSR SDK - 검증 경계", () => {
     ).toThrow(/Inverse factor out of bounds/i);
   });
 
-  test("calculateQuantityFromProceeds는 formattedQuantity가 기존 수량을 넘으면 클램프한다", () => {
-    jest.spyOn(sdk, "calculateDecreaseProceeds").mockReturnValueOnce({
-      proceeds: MathUtils.toMicroUSDC("1000"),
-      averagePrice: new Big(0),
-      feeAmount: MathUtils.formatUSDC(new Big(0)),
-      feeRate: new Big(0),
-      feeInfo: { policy: FeePolicyKind.Null },
-    } as any);
+  test("calculateQuantityFromProceeds는 결과 수량이 포지션 수량을 넘지 않는다", () => {
+    const position = {
+      lowerTick: 0,
+      upperTick: 1,
+      quantity: MathUtils.toMicroUSDC("5"),
+    };
 
-    const originalWDiv = MathUtils.wDiv;
-    let wDivCalls = 0;
-    jest.spyOn(MathUtils, "wDiv").mockImplementation((a: any, b: any) => {
-      wDivCalls += 1;
-      if (wDivCalls === 1) {
-        const sumBefore = distribution.totalSum;
-        const affected = distribution.binFactors[0];
-        const unaffected = sumBefore.minus(affected);
-        return unaffected.plus(MathUtils.WAD.div(10));
-      }
-      return originalWDiv(a, b);
-    });
-
-    const originalFormatUSDC = MathUtils.formatUSDC;
-    let callCount = 0;
-    jest.spyOn(MathUtils, "formatUSDC").mockImplementation((value: any) => {
-      callCount += 1;
-      if (callCount === 1) {
-        return MathUtils.toMicroUSDC("1000");
-      }
-      return originalFormatUSDC(value);
-    });
+    const maxProceeds = sdk.calculateDecreaseProceeds(
+      position,
+      position.quantity,
+      distribution,
+      market
+    ).proceeds;
 
     const result = sdk.calculateQuantityFromProceeds(
-      {
-        lowerTick: 0,
-        upperTick: 1,
-        quantity: MathUtils.toMicroUSDC("5"),
-      },
-      MathUtils.toMicroUSDC("1"),
+      position,
+      maxProceeds,
       distribution,
       market
     );
 
-    expect(result.quantity.toString()).toBe(MathUtils.toMicroUSDC("5").toString());
+    expect(result.quantity.lte(position.quantity)).toBe(true);
+    const diff = position.quantity.minus(result.quantity).abs();
+    const tolerance = new Big(1000); // 0.001 USDC in micro units
+    expect(diff.lte(tolerance)).toBe(true);
   });
 
   test("calculateQuantityFromProceeds는 검증 단계에서 _calcSellProceeds 실패 시 경고를 출력한다", () => {

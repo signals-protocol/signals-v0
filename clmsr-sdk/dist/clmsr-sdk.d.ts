@@ -40,24 +40,26 @@ export declare class CLMSRSDK {
      */
     calculateSellProceeds(position: Position, sellQuantity: Quantity, distribution: MarketDistribution, market: Market): DecreaseProceedsResult;
     /**
-     * 주어진 비용으로 살 수 있는 수량 계산 (역산)
+     * 주어진 총 지출(수수료 포함)으로 살 수 있는 수량 계산 (역산)
      * @param lowerTick Lower tick bound (inclusive)
      * @param upperTick Upper tick bound (exclusive)
-     * @param cost 목표 비용 (6 decimals)
+     * @param cost 총 지출 한도 (수수료 포함, 6 decimals)
      * @param distribution Current market distribution
      * @param market Market parameters
-     * @returns 구매 가능한 수량
+     * @returns 구매 가능한 수량과 순수 베팅 비용
      */
-    calculateQuantityFromCost(lowerTick: Tick, upperTick: Tick, cost: USDCAmount, distribution: MarketDistribution, market: Market): QuantityFromCostResult;
+    calculateQuantityFromCost(lowerTick: Tick, upperTick: Tick, cost: USDCAmount, distribution: MarketDistribution, market: Market, includeFees?: boolean): QuantityFromCostResult;
+    private _calculateQuantityFromNetCost;
+    private _computeTotalSpendWithFees;
     /**
-     * 주어진 목표 수익(proceeds)으로 필요한 매도 수량 역산
+     * 주어진 목표 수익(수수료 반영)으로 필요한 매도 수량 역산
      * @param position 보유 포지션 정보
-     * @param targetProceeds 목표 수익 (6 decimals)
+     * @param targetProceeds 수수료 제외 후 실제로 받고 싶은 금액 (6 decimals)
      * @param distribution Current market distribution
      * @param market Market parameters
-     * @returns 매도해야 할 수량과 검증된 실제 수익
+     * @returns 매도해야 할 수량과 검증된 실제 수익(수수료 제외 전 기준)
      */
-    calculateQuantityFromProceeds(position: Position, targetProceeds: USDCAmount, distribution: MarketDistribution, market: Market): QuantityFromProceedsResult;
+    calculateQuantityFromProceeds(position: Position, targetProceeds: USDCAmount, distribution: MarketDistribution, market: Market, includeFees?: boolean): QuantityFromProceedsResult;
     /**
      * 시장별 최대 수량 한계 검증 (컨트랙트와 동일한 제한)
      * @param quantity 검증할 수량 (6 decimals)
@@ -75,7 +77,9 @@ export declare class CLMSRSDK {
      * @param market Market parameters
      * @returns 매도 수익
      */
+    private _calculateQuantityFromBaseProceeds;
     private _calcSellProceeds;
+    private _computeNetProceedsAfterFees;
     private computeFeeOverlay;
     private validateTickRange;
     private getAffectedSum;

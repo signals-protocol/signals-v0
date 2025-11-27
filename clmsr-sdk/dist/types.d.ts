@@ -131,11 +131,17 @@ export interface ClaimResult {
 export interface QuantityFromCostResult {
     quantity: Quantity;
     actualCost: USDCAmount;
+    feeAmount: USDCAmount;
+    feeRate: Big;
+    feeInfo: FeeInfo;
 }
 /** calculateQuantityFromProceeds 결과 (매도용 역함수) */
 export interface QuantityFromProceedsResult {
     quantity: Quantity;
     actualProceeds: USDCAmount;
+    feeAmount: USDCAmount;
+    feeRate: Big;
+    feeInfo: FeeInfo;
 }
 export declare class ValidationError extends Error {
     constructor(message: string);

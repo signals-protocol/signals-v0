@@ -9,8 +9,9 @@ import {
 } from "../src/types";
 import { toWAD, toMicroUSDC } from "../src/index";
 import Big from "big.js";
+import * as FeeModule from "../src/fees";
 
-describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
+describe("CLMSR SDK - LMSR Mathematical Properties Tests", () => {
   let sdk: CLMSRSDK;
   let market: Market;
   let distribution: MarketDistribution;
@@ -436,7 +437,8 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
 
       // 🎯 역함수 정확도: 10% 이내 오차 (개선된 기준)
       // Number 캐스팅 제거하고 Big 연산 사용
-      const error = forwardResult.cost.minus(targetCost).abs();
+      const forwardTotal = forwardResult.cost.plus(forwardResult.feeAmount);
+      const error = forwardTotal.minus(targetCost).abs();
       const percentError = error.div(targetCost).mul(100);
       expect(percentError.lt(10)).toBe(true); // 50% → 10%로 개선
     });
@@ -855,6 +857,416 @@ describe("CLMSR SDK - LMSR 수학적 특성 테스트", () => {
       expect(result.proceeds.minus(result.feeAmount).toString()).toBe(
         result.proceeds.minus(expectedFee).toString()
       );
+    });
+
+    test("calculateQuantityFromCost 역산은 총 지출 한도에서 수수료를 고려한다", () => {
+      const range = { lower: 115000, upper: 125000 };
+      const marketWithFee = {
+        ...market,
+        feePolicyDescriptor: feeDescriptor,
+      };
+
+      const targetSpend = toMicroUSDC("110"); // 총 110 SUSD 지출 (1.5% 수수료 포함)
+
+      const inverseResult = sdk.calculateQuantityFromCost(
+        range.lower,
+        range.upper,
+        targetSpend,
+        distribution,
+        marketWithFee
+      );
+
+      const forwardResult = sdk.calculateOpenCost(
+        range.lower,
+        range.upper,
+        inverseResult.quantity,
+        distribution,
+        marketWithFee
+      );
+
+      const totalSpend = forwardResult.cost.plus(forwardResult.feeAmount);
+      const diff = totalSpend.minus(targetSpend).abs();
+
+      // 1 micro USDC 이내 오차 허용
+      expect(diff.lte(new Big(1))).toBe(true);
+      expect(forwardResult.feeAmount.gt(0)).toBe(true);
+      expect(inverseResult.actualCost.lt(targetSpend)).toBe(true);
+    });
+
+    test("calculateQuantityFromCost는 includeFees=false면 순수 비용 기준으로 동작한다", () => {
+      const range = { lower: 115000, upper: 125000 };
+      const marketWithFee = {
+        ...market,
+        feePolicyDescriptor: feeDescriptor,
+      };
+
+      const targetCost = toMicroUSDC("80");
+
+      const inverseResult = sdk.calculateQuantityFromCost(
+        range.lower,
+        range.upper,
+        targetCost,
+        distribution,
+        marketWithFee,
+        false
+      );
+
+      const forwardResult = sdk.calculateOpenCost(
+        range.lower,
+        range.upper,
+        inverseResult.quantity,
+        distribution,
+        marketWithFee
+      );
+
+      expect(inverseResult.actualCost.toString()).toBe(targetCost.toString());
+      expect(forwardResult.cost.toString()).toBe(targetCost.toString());
+      expect(forwardResult.feeAmount.gt(0)).toBe(true);
+      expect(
+        forwardResult.cost.plus(forwardResult.feeAmount).gt(targetCost)
+      ).toBe(true);
+    });
+
+    test("calculateQuantityFromProceeds 역산은 목표 순수 수익을 맞춘다", () => {
+      const range = { lower: 115000, upper: 125000 };
+      const marketWithFee = {
+        ...market,
+        feePolicyDescriptor: feeDescriptor,
+      };
+
+      const position = {
+        lowerTick: range.lower,
+        upperTick: range.upper,
+        quantity: toMicroUSDC("120"),
+      };
+
+      const maxNetResult = sdk.calculateDecreaseProceeds(
+        position,
+        position.quantity,
+        distribution,
+        marketWithFee
+      );
+      const maxNet = maxNetResult.proceeds.minus(maxNetResult.feeAmount);
+      const targetNet = MathUtils.formatUSDC(maxNet.div(2));
+
+      const inverseResult = sdk.calculateQuantityFromProceeds(
+        position,
+        targetNet,
+        distribution,
+        marketWithFee
+      );
+
+      const forwardResult = sdk.calculateDecreaseProceeds(
+        position,
+        inverseResult.quantity,
+        distribution,
+        marketWithFee
+      );
+
+      const netProceeds = forwardResult.proceeds.minus(forwardResult.feeAmount);
+      const diff = netProceeds.minus(targetNet).abs();
+
+      expect(diff.lte(new Big(1))).toBe(true);
+      expect(forwardResult.feeAmount.gt(0)).toBe(true);
+      expect(forwardResult.feeInfo.policy).toBe(FeePolicyKind.Percentage);
+      expect(inverseResult.actualProceeds.toString()).toBe(
+        forwardResult.proceeds.toString()
+      );
+    });
+
+    test("calculateQuantityFromProceeds는 includeFees=false면 총 수익 기준으로 역산한다", () => {
+      const range = { lower: 115000, upper: 125000 };
+      const marketWithFee = {
+        ...market,
+        feePolicyDescriptor: feeDescriptor,
+      };
+
+      const position = {
+        lowerTick: range.lower,
+        upperTick: range.upper,
+        quantity: toMicroUSDC("120"),
+      };
+
+      const maxBase = sdk.calculateDecreaseProceeds(
+        position,
+        position.quantity,
+        distribution,
+        marketWithFee
+      ).proceeds;
+      const targetBase = MathUtils.formatUSDC(maxBase.div(2));
+
+      const inverseResult = sdk.calculateQuantityFromProceeds(
+        position,
+        targetBase,
+        distribution,
+        marketWithFee,
+        false
+      );
+
+      const forwardResult = sdk.calculateDecreaseProceeds(
+        position,
+        inverseResult.quantity,
+        distribution,
+        marketWithFee
+      );
+
+      const baseDiff = forwardResult.proceeds.minus(targetBase).abs();
+      expect(baseDiff.lte(new Big(1))).toBe(true);
+      expect(forwardResult.feeAmount.gt(0)).toBe(true);
+      expect(
+        forwardResult.proceeds.minus(forwardResult.feeAmount).lt(targetBase)
+      ).toBe(true);
+      expect(inverseResult.actualProceeds.toString()).toBe(
+        forwardResult.proceeds.toString()
+      );
+    });
+
+    test("calculateQuantityFromCost는 수수료 기본요금이 목표보다 크면 ValidationError", () => {
+      const range = { lower: 115000, upper: 125000 };
+      const descriptor = "flat-fee-policy";
+      const marketWithFlatFee = {
+        ...market,
+        feePolicyDescriptor: descriptor,
+      };
+
+      const originalResolve = FeeModule.resolveFeePolicyWithMetadata;
+      const resolveSpy = jest
+        .spyOn(FeeModule, "resolveFeePolicyWithMetadata")
+        .mockImplementation((input: any) => {
+          if (input === descriptor) {
+            return {
+              policy: {
+                quote: (params: any) => 200_000000n,
+                name: "FlatFeePolicy",
+              },
+            };
+          }
+          return originalResolve(input as any);
+        });
+
+      try {
+        expect(() =>
+          sdk.calculateQuantityFromCost(
+            range.lower,
+            range.upper,
+            toMicroUSDC("150"),
+            distribution,
+            marketWithFlatFee,
+            true
+          )
+        ).toThrow("Target cost is below the minimum spend achievable after fees");
+      } finally {
+        resolveSpy.mockRestore();
+      }
+    });
+
+    test("calculateQuantityFromProceeds는 includeFees=false에서 최대 base 수익을 초과하면 ValidationError", () => {
+      const range = { lower: 115000, upper: 125000 };
+      const marketWithFee = {
+        ...market,
+        feePolicyDescriptor: feeDescriptor,
+      };
+
+      const position = {
+        lowerTick: range.lower,
+        upperTick: range.upper,
+        quantity: toMicroUSDC("120"),
+      };
+
+      const maxBaseProceeds = sdk.calculateDecreaseProceeds(
+        position,
+        position.quantity,
+        distribution,
+        marketWithFee
+      ).proceeds;
+
+      expect(() =>
+        sdk.calculateQuantityFromProceeds(
+          position,
+          maxBaseProceeds.plus(1),
+          distribution,
+          marketWithFee,
+          false
+        )
+      ).toThrow("Target proceeds exceed the maximum proceeds available for this position");
+    });
+
+    test("calculateQuantityFromProceeds는 네트 수익이 도달 불가능하면 ValidationError", () => {
+      const range = { lower: 115000, upper: 125000 };
+      const descriptor = "confiscatory-fee";
+      const marketWithCustomFee = {
+        ...market,
+        feePolicyDescriptor: descriptor,
+      };
+
+      const originalResolve = FeeModule.resolveFeePolicyWithMetadata;
+      const resolveSpy = jest
+        .spyOn(FeeModule, "resolveFeePolicyWithMetadata")
+        .mockImplementation((input: any) => {
+          if (input === descriptor) {
+            return {
+              policy: {
+                quote: (params: any) => {
+                  const base = params?.proceeds6 ?? params?.cost6 ?? 0n;
+                  return BigInt(base) + 100_000000n;
+                },
+                name: "ConfiscatoryFee",
+              },
+            };
+          }
+          return originalResolve(input as any);
+        });
+
+      try {
+        const position = {
+          lowerTick: range.lower,
+          upperTick: range.upper,
+          quantity: toMicroUSDC("80"),
+        };
+
+        expect(() =>
+          sdk.calculateQuantityFromProceeds(
+            position,
+            toMicroUSDC("10"),
+            distribution,
+            marketWithCustomFee,
+            true
+          )
+        ).toThrow("Target proceeds exceed the maximum net proceeds available for this position");
+      } finally {
+        resolveSpy.mockRestore();
+      }
+    });
+
+    test("calculateQuantityFromCost는 커스텀 수수료 정책에서도 총 지출 한도를 맞춘다", () => {
+      const range = { lower: 115000, upper: 125000 };
+      const descriptor = "custom-linear-fee";
+      const marketWithCustomFee = {
+        ...market,
+        feePolicyDescriptor: descriptor,
+      };
+      const originalResolve = FeeModule.resolveFeePolicyWithMetadata;
+      const resolveSpy = jest
+        .spyOn(FeeModule, "resolveFeePolicyWithMetadata")
+        .mockImplementation((input: any) => {
+          if (input === descriptor) {
+            return {
+              policy: {
+                quote: ({
+                  baseAmount6,
+                  quantity6,
+                }: {
+                  baseAmount6: bigint;
+                  quantity6: bigint;
+                }) => baseAmount6 / 10n + quantity6 / 20n,
+                name: "LinearFeePolicy",
+              },
+            };
+          }
+          return originalResolve(input as any);
+        });
+
+      try {
+        const targetSpend = toMicroUSDC("90");
+        const inverseResult = sdk.calculateQuantityFromCost(
+          range.lower,
+          range.upper,
+          targetSpend,
+          distribution,
+          marketWithCustomFee
+        );
+
+        const forwardResult = sdk.calculateOpenCost(
+          range.lower,
+          range.upper,
+          inverseResult.quantity,
+          distribution,
+          marketWithCustomFee
+        );
+
+        const totalSpend = forwardResult.cost.plus(forwardResult.feeAmount);
+        const diff = totalSpend.minus(targetSpend).abs();
+
+        expect(diff.lte(new Big(1))).toBe(true);
+        expect(forwardResult.feeInfo.policy).toBe(FeePolicyKind.Custom);
+        expect(forwardResult.feeAmount.gt(0)).toBe(true);
+      } finally {
+        resolveSpy.mockRestore();
+      }
+    });
+
+    test("calculateQuantityFromProceeds는 커스텀 수수료 정책에서도 목표 순수 수익을 맞춘다", () => {
+      const range = { lower: 115000, upper: 125000 };
+      const descriptor = "custom-linear-fee-sell";
+      const marketWithCustomFee = {
+        ...market,
+        feePolicyDescriptor: descriptor,
+      };
+      const originalResolve = FeeModule.resolveFeePolicyWithMetadata;
+      const resolveSpy = jest
+        .spyOn(FeeModule, "resolveFeePolicyWithMetadata")
+        .mockImplementation((input: any) => {
+          if (input === descriptor) {
+            return {
+              policy: {
+                quote: ({
+                  baseAmount6,
+                  quantity6,
+                }: {
+                  baseAmount6: bigint;
+                  quantity6: bigint;
+                }) => baseAmount6 / 8n + quantity6 / 25n,
+                name: "LinearSellFee",
+              },
+            };
+          }
+          return originalResolve(input as any);
+        });
+
+      try {
+        const position = {
+          lowerTick: range.lower,
+          upperTick: range.upper,
+          quantity: toMicroUSDC("150"),
+        };
+
+        const maxNetResult = sdk.calculateDecreaseProceeds(
+          position,
+          position.quantity,
+          distribution,
+          marketWithCustomFee
+        );
+        const maxNet = maxNetResult.proceeds.minus(maxNetResult.feeAmount);
+        const targetNet = MathUtils.formatUSDC(maxNet.div(2));
+
+        const inverseResult = sdk.calculateQuantityFromProceeds(
+          position,
+          targetNet,
+          distribution,
+          marketWithCustomFee
+        );
+
+        const forwardResult = sdk.calculateDecreaseProceeds(
+          position,
+          inverseResult.quantity,
+          distribution,
+          marketWithCustomFee
+        );
+
+        const netProceeds = forwardResult.proceeds.minus(
+          forwardResult.feeAmount
+        );
+        const diff = netProceeds.minus(targetNet).abs();
+
+        expect(diff.lte(new Big(1))).toBe(true);
+        expect(forwardResult.feeInfo.policy).toBe(FeePolicyKind.Custom);
+        expect(forwardResult.feeAmount.gt(0)).toBe(true);
+        expect(inverseResult.actualProceeds.toString()).toBe(
+          forwardResult.proceeds.toString()
+        );
+      } finally {
+        resolveSpy.mockRestore();
+      }
     });
 
     test("calculateOpenCost leaves fee undefined when descriptor omitted", () => {

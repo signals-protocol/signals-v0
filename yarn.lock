@@ -1958,12 +1958,13 @@
   dependencies:
     "@types/node" "*"
 
-"@whworjs7946/clmsr-v0@^1.10.0":
-  version "1.10.0"
-  resolved "https://registry.yarnpkg.com/@whworjs7946/clmsr-v0/-/clmsr-v0-1.10.0.tgz#e7e100e8cf3f35a2652d31fc9ac046f3b069bdf5"
-  integrity sha512-yCQTkFV9aoneUuF3/MlL3dUspoQHLmFQtUUZTJUytyALZ89tX14Z81n6GU0uAbxwMOwmXbH0UkCHzkhM5Fg40Q==
+"@whworjs7946/clmsr-v0@^1.12.0":
+  version "1.13.0"
+  resolved "https://registry.yarnpkg.com/@whworjs7946/clmsr-v0/-/clmsr-v0-1.13.0.tgz#f96e768a472402557d3d3db8ba98e1165d6e1b99"
+  integrity sha512-ZKVSzERuvBciuAvm8cAwpgP/ntOdYttigh8NVAtrVGNbKd/G5+9h2p57r+Mdc+3vFVt2Gd5nWnuxQdjcBz7wRg==
   dependencies:
     big.js "^6.2.1"
+    ethers "^6.14.3"
 
 abbrev@1:
   version "1.1.1"

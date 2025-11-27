@@ -90,7 +90,7 @@
     "@openzeppelin/contracts-upgradeable": "^5.4.0",
     "@openzeppelin/hardhat-upgrades": "^3.9.1",
     "@prb/math": "^4.1.0",
-    "@whworjs7946/clmsr-v0": "^1.10.0",
+    "@whworjs7946/clmsr-v0": "^1.12.0",
     "axios": "^1.10.0"
   }
 }

@@ -124,7 +124,7 @@ try {
 ### 3. Inverse Function Calculation
 
 ```typescript
-// Calculate how much can be bet with target cost of 300 USDC
+// Calculate how much can be bet when willing to spend up to 300 USDC (total including fees)
 const targetCost = toUSDC("300");
 const inverseBuy = sdk.calculateQuantityFromCost(
   115000,
@@ -135,9 +135,11 @@ const inverseBuy = sdk.calculateQuantityFromCost(
 );
 
 console.log(`Buy quantity: ${inverseBuy.quantity.toString()}`);
-console.log(`Actual cost: ${inverseBuy.actualCost.toString()}`);
+console.log(
+  `Actual base cost (excl. fee): ${inverseBuy.actualCost.toString()}`
+);
 
-// Calculate how much must be sold to realize 180 USDC proceeds
+// Calculate how much must be sold to receive 180 USDC after paying fees
 const position = {
   lowerTick: 115000,
   upperTick: 125000,
@@ -153,7 +155,9 @@ const inverseSell = sdk.calculateQuantityFromProceeds(
 );
 
 console.log(`Sell quantity: ${inverseSell.quantity.toString()}`);
-console.log(`Actual proceeds: ${inverseSell.actualProceeds.toString()}`);
+console.log(
+  `Actual base proceeds (before fee): ${inverseSell.actualProceeds.toString()}`
+);
 ```
 
 ### 4. Overlay fee helpers (pure functions)
@@ -317,9 +321,14 @@ calculateQuantityFromCost(
   upperTick: number,
   targetCost: USDCAmount,
   distribution: MarketDistribution,
-  market: Market
+  market: Market,
+  includeFees?: boolean
 ): QuantityFromCostResult
 ```
+
+- `targetCost` is the **total spending limit including fees**.
+- `includeFees` set to `false` calculates based on pure cost excluding fees (default `true`).
+- The returned `actualCost` is the pure betting cost (excluding fees), and calling `calculateOpenCost` with `quantity` should result in `actualCost + feeAmount` being close to `targetCost` within the same range.
 
 #### calculateQuantityFromProceeds()
 
@@ -330,9 +339,14 @@ calculateQuantityFromProceeds(
   position: Position,
   targetProceeds: USDCAmount,
   distribution: MarketDistribution,
-  market: Market
+  market: Market,
+  includeFees?: boolean
 ): QuantityFromProceedsResult
 ```
+
+- `targetProceeds` is the **actual amount you want to receive after fees**.
+- `includeFees` set to `false` calculates based on base proceeds excluding fees (default `true`).
+- The returned `actualProceeds` is the pre-fee base proceeds, and calling `calculateDecreaseProceeds` with the same quantity should result in `actualProceeds - feeAmount` being close to `targetProceeds`.
 
 #### calculateClaim()
 

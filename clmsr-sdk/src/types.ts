@@ -219,12 +219,28 @@ export interface ClaimResult {
 export interface QuantityFromCostResult {
   quantity: Quantity;
   actualCost: USDCAmount;
+  feeAmount: USDCAmount; // 수수료 금액
+  feeRate: Big; // 수수료율
+  feeInfo: FeeInfo; // 수수료 정책 정보
 }
 
 /** calculateQuantityFromProceeds 결과 (매도용 역함수) */
 export interface QuantityFromProceedsResult {
   quantity: Quantity; // 매도할 수량 (양수)
-  actualProceeds: USDCAmount; // 실제 받을 수익
+  actualProceeds: USDCAmount; // 수수료 차감 전 기준(base proceeds)
+  feeAmount: USDCAmount; // 수수료 금액
+  feeRate: Big; // 수수료율
+  feeInfo: FeeInfo; // 수수료 정책 정보
+}
+
+/** calculatePositionValue 결과 (포지션 현재 가치 계산) */
+export interface PositionValueResult {
+  currentValue: USDCAmount; // 현재 포지션 가치 (매도 시 받을 수 있는 금액, 수수료 제외)
+  unrealizedPnL: USDCAmount; // 미실현 손익 (currentValue - totalCost)
+  averagePrice: USDCAmount; // 현재 평균 가격
+  feeAmount: USDCAmount; // 매도 시 수수료
+  feeRate: Big; // 수수료율
+  feeInfo: FeeInfo; // 수수료 정책 정보
 }
 
 // ============================================================================

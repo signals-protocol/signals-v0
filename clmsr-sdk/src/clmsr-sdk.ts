@@ -10,6 +10,7 @@ import {
   ClaimResult,
   QuantityFromCostResult,
   QuantityFromProceedsResult,
+  PositionValueResult,
   WADAmount,
   USDCAmount,
   Quantity,
@@ -36,6 +37,9 @@ export { toWAD, toMicroUSDC } from "./utils/math";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const ZERO_CONTEXT: Bytes32Like = `0x${"00".repeat(32)}` as Bytes32Like;
+
+const INVERSE_SPEND_TOLERANCE = new Big(1); // 1 micro USDC tolerance
+const MAX_INVERSE_ITERATIONS = 64;
 
 function bigToBigInt(value: Big): bigint {
   const rounded = value.round(0, Big.roundDown);
@@ -260,6 +264,41 @@ export class CLMSRSDK {
     };
   }
 
+  /**
+   * 포지션의 현재 가치와 미실현 손익 계산
+   * @param position 포지션 정보
+   * @param totalCost 포지션의 총 비용 (OPEN + INCREASE 비용 합계)
+   * @param distribution Current market distribution
+   * @param market Market parameters
+   * @returns 포지션 현재 가치와 미실현 손익
+   */
+  calculatePositionValue(
+    position: Position,
+    totalCost: USDCAmount,
+    distribution: MarketDistribution,
+    market: Market
+  ): PositionValueResult {
+    // 포지션을 지금 닫았을 때 받을 수 있는 금액 계산
+    const closeResult = this.calculateCloseProceeds(
+      position,
+      distribution,
+      market
+    );
+
+    const normalizedTotalCost = MathUtils.formatUSDC(new Big(totalCost));
+    const currentValue = closeResult.proceeds;
+    const unrealizedPnL = currentValue.minus(normalizedTotalCost);
+
+    return {
+      currentValue,
+      unrealizedPnL,
+      averagePrice: closeResult.averagePrice,
+      feeAmount: closeResult.feeAmount,
+      feeRate: closeResult.feeRate,
+      feeInfo: closeResult.feeInfo,
+    };
+  }
+
   // ============================================================================
   // INVERSE FUNCTION (역함수: 돈 → 수량)
   // ============================================================================
@@ -300,13 +339,13 @@ export class CLMSRSDK {
   }
 
   /**
-   * 주어진 비용으로 살 수 있는 수량 계산 (역산)
+   * 주어진 총 지출(수수료 포함)으로 살 수 있는 수량 계산 (역산)
    * @param lowerTick Lower tick bound (inclusive)
    * @param upperTick Upper tick bound (exclusive)
-   * @param cost 목표 비용 (6 decimals)
+   * @param cost 총 지출 한도 (수수료 포함, 6 decimals)
    * @param distribution Current market distribution
    * @param market Market parameters
-   * @returns 구매 가능한 수량
+   * @returns 구매 가능한 수량과 순수 베팅 비용
    */
   // Tick boundary in absolute ticks; internally maps to inclusive bin indices [loBin, hiBin]
   calculateQuantityFromCost(
@@ -314,9 +353,207 @@ export class CLMSRSDK {
     upperTick: Tick,
     cost: USDCAmount,
     distribution: MarketDistribution,
+    market: Market,
+    includeFees: boolean = true
+  ): QuantityFromCostResult {
+    const targetSpend = MathUtils.formatUSDC(new Big(cost));
+
+    // 0 또는 음수 입력은 기존 로직과 동일하게 처리
+    if (targetSpend.lte(0)) {
+      return this._calculateQuantityFromNetCost(
+        lowerTick,
+        upperTick,
+        targetSpend,
+        distribution,
+        market
+      );
+    }
+
+    if (!includeFees) {
+      return this._calculateQuantityFromNetCost(
+        lowerTick,
+        upperTick,
+        targetSpend,
+        distribution,
+        market
+      );
+    }
+
+    const descriptor = market.feePolicyDescriptor?.trim();
+    if (!descriptor || descriptor.length === 0) {
+      return this._calculateQuantityFromNetCost(
+        lowerTick,
+        upperTick,
+        targetSpend,
+        distribution,
+        market
+      );
+    }
+
+    const resolvedPolicy = resolveFeePolicyWithMetadata(descriptor);
+    if (
+      resolvedPolicy.descriptor?.policy === "null" ||
+      resolvedPolicy.policy === NullFeePolicy
+    ) {
+      return this._calculateQuantityFromNetCost(
+        lowerTick,
+        upperTick,
+        targetSpend,
+        distribution,
+        market
+      );
+    }
+
+    const zeroBase = MathUtils.formatUSDC(new Big(0));
+    const minSpend = this._computeTotalSpendWithFees(
+      zeroBase,
+      zeroBase,
+      lowerTick,
+      upperTick,
+      descriptor
+    );
+
+    if (targetSpend.lt(minSpend)) {
+      throw new ValidationError(
+        "Target cost is below the minimum spend achievable after fees"
+      );
+    }
+
+    let low = new Big(0);
+    let high = new Big(targetSpend);
+
+    // 퍼센트 수수료의 경우 총액을 (1+rate)로 나눠 초기 추정치를 잡아 수렴 속도 개선
+    let initialGuess = new Big(targetSpend);
+    if (resolvedPolicy.descriptor?.policy === "percentage") {
+      const bps = new Big(resolvedPolicy.descriptor.bps!.toString());
+      const rate = bps.div(10_000);
+      const onePlusRate = new Big(1).plus(rate);
+      initialGuess = targetSpend.div(onePlusRate);
+    }
+
+    let netGuess = MathUtils.formatUSDC(initialGuess);
+    if (netGuess.lt(0)) {
+      netGuess = new Big(0);
+    }
+
+    let bestResult = this._calculateQuantityFromNetCost(
+      lowerTick,
+      upperTick,
+      netGuess,
+      distribution,
+      market
+    );
+    let bestDiff = this._computeTotalSpendWithFees(
+      bestResult.actualCost,
+      bestResult.quantity,
+      lowerTick,
+      upperTick,
+      descriptor
+    ).minus(targetSpend);
+
+    if (bestDiff.abs().lte(INVERSE_SPEND_TOLERANCE)) {
+      return bestResult;
+    }
+
+    if (bestDiff.gt(0)) {
+      high = new Big(netGuess);
+    } else {
+      low = new Big(netGuess);
+    }
+
+    for (let i = 0; i < MAX_INVERSE_ITERATIONS; i++) {
+      const mid = low.plus(high).div(2);
+      const midFormatted = MathUtils.formatUSDC(mid);
+      const lowFormatted = MathUtils.formatUSDC(low);
+      const highFormatted = MathUtils.formatUSDC(high);
+
+      // 수렴 조건: 더 이상 변화가 없거나 잔여 구간이 tolerance 이하
+      if (
+        midFormatted.eq(lowFormatted) ||
+        midFormatted.eq(highFormatted) ||
+        high.minus(low).abs().lte(INVERSE_SPEND_TOLERANCE)
+      ) {
+        const seen = new Set<string>();
+        [lowFormatted, highFormatted].forEach((boundary) => {
+          const key = boundary.toString();
+          if (seen.has(key)) {
+            return;
+          }
+          seen.add(key);
+
+          const boundaryCandidate = this._calculateQuantityFromNetCost(
+            lowerTick,
+            upperTick,
+            boundary,
+            distribution,
+            market
+          );
+          const boundaryTotal = this._computeTotalSpendWithFees(
+            boundaryCandidate.actualCost,
+            boundaryCandidate.quantity,
+            lowerTick,
+            upperTick,
+            descriptor
+          );
+          const boundaryDiff = boundaryTotal.minus(targetSpend);
+          if (boundaryDiff.abs().lt(bestDiff.abs())) {
+            bestResult = boundaryCandidate;
+            bestDiff = boundaryDiff;
+          }
+        });
+        break;
+      }
+
+      const candidate = this._calculateQuantityFromNetCost(
+        lowerTick,
+        upperTick,
+        MathUtils.formatUSDC(midFormatted),
+        distribution,
+        market
+      );
+      const totalSpend = this._computeTotalSpendWithFees(
+        candidate.actualCost,
+        candidate.quantity,
+        lowerTick,
+        upperTick,
+        descriptor
+      );
+      const diff = totalSpend.minus(targetSpend);
+
+      if (diff.abs().lt(bestDiff.abs())) {
+        bestResult = candidate;
+        bestDiff = diff;
+      }
+
+      if (diff.abs().lte(INVERSE_SPEND_TOLERANCE)) {
+        bestResult = candidate;
+        break;
+      }
+
+      if (diff.gt(0)) {
+        high = mid;
+      } else {
+        low = mid;
+      }
+    }
+
+    if (bestDiff.abs().gt(INVERSE_SPEND_TOLERANCE)) {
+      throw new ValidationError(
+        "Target cost cannot be achieved with current fee policy"
+      );
+    }
+
+    return bestResult;
+  }
+
+  private _calculateQuantityFromNetCost(
+    lowerTick: Tick,
+    upperTick: Tick,
+    netCost: USDCAmount,
+    distribution: MarketDistribution,
     market: Market
   ): QuantityFromCostResult {
-    const costWad = MathUtils.toWad(cost); // 6→18 dec 변환
+    const costWad = MathUtils.toWad(netCost); // 6→18 dec 변환
 
     // Convert from input
     const alpha = market.liquidityParameter;
@@ -375,32 +612,71 @@ export class CLMSRSDK {
     } catch (error) {
       // 매우 큰 수량이나 극단적인 경우에만 예외 처리
       // 입력 비용을 그대로 사용
-      actualCost = cost;
+      actualCost = netCost;
       console.warn(
         "calculateQuantityFromCost: verification failed, using target cost as approximation",
         error
       );
     }
 
+    // Calculate fee information for the final result
+    const formattedActualCost = MathUtils.formatUSDC(actualCost);
+    const formattedQuantity = MathUtils.formatUSDC(quantity);
+    
+    const feeOverlay = this.computeFeeOverlay(
+      "BUY",
+      formattedActualCost,
+      formattedQuantity,
+      lowerTick,
+      upperTick,
+      market.feePolicyDescriptor
+    );
+
     return {
-      quantity: MathUtils.formatUSDC(quantity),
-      actualCost: MathUtils.formatUSDC(actualCost),
+      quantity: formattedQuantity,
+      actualCost: formattedActualCost,
+      feeAmount: feeOverlay.amount,
+      feeRate: feeOverlay.rate,
+      feeInfo: feeOverlay.info,
     };
   }
 
+  private _computeTotalSpendWithFees(
+    baseAmount: USDCAmount,
+    quantity: USDCAmount,
+    lowerTick: Tick,
+    upperTick: Tick,
+    descriptor: string
+  ): USDCAmount {
+    const formattedBase = MathUtils.formatUSDC(baseAmount);
+    const formattedQuantity = MathUtils.formatUSDC(quantity);
+
+    const feeOverlay = this.computeFeeOverlay(
+      "BUY",
+      formattedBase,
+      formattedQuantity,
+      lowerTick,
+      upperTick,
+      descriptor
+    );
+
+    return MathUtils.formatUSDC(formattedBase.plus(feeOverlay.amount));
+  }
+
   /**
-   * 주어진 목표 수익(proceeds)으로 필요한 매도 수량 역산
+   * 주어진 목표 수익(수수료 반영)으로 필요한 매도 수량 역산
    * @param position 보유 포지션 정보
-   * @param targetProceeds 목표 수익 (6 decimals)
+   * @param targetProceeds 수수료 제외 후 실제로 받고 싶은 금액 (6 decimals)
    * @param distribution Current market distribution
    * @param market Market parameters
-   * @returns 매도해야 할 수량과 검증된 실제 수익
+   * @returns 매도해야 할 수량과 검증된 실제 수익(수수료 제외 전 기준)
    */
   calculateQuantityFromProceeds(
     position: Position,
     targetProceeds: USDCAmount,
     distribution: MarketDistribution,
-    market: Market
+    market: Market,
+    includeFees: boolean = true
   ): QuantityFromProceedsResult {
     this.validateTickRange(position.lowerTick, position.upperTick, market);
 
@@ -418,110 +694,208 @@ export class CLMSRSDK {
       throw new ValidationError("Target proceeds must be positive");
     }
 
-    // 최대 수익 한계 확인 (전체 매도)
-    const maxProceeds = this.calculateDecreaseProceeds(
+    const maxDecrease = this.calculateDecreaseProceeds(
       position,
       position.quantity,
       distribution,
       market
-    ).proceeds;
-
-    if (new Big(targetProceeds).gt(maxProceeds)) {
-      throw new ValidationError(
-        "Target proceeds exceed the maximum proceeds available for this position"
-      );
-    }
-
-    const alpha = market.liquidityParameter;
-    const proceedsWad = MathUtils.toWad(targetProceeds);
-
-    const sumBefore = distribution.totalSum;
-    const affectedSum = this.getAffectedSum(
-      position.lowerTick,
-      position.upperTick,
-      distribution,
-      market
     );
 
-    if (affectedSum.eq(0)) {
-      throw new CalculationError(
-        "Cannot calculate quantity from proceeds: affected sum is zero. This usually means the tick range is outside the market or the distribution data is empty."
-      );
-    }
+    const targetAmount = MathUtils.formatUSDC(new Big(targetProceeds));
+    const maxBaseProceeds = MathUtils.formatUSDC(maxDecrease.proceeds);
 
-    // sumAfter = sumBefore * exp(-targetProceeds/α)
-    const expProceeds = MathUtils.safeExp(proceedsWad, alpha);
-    const targetSumAfter = MathUtils.wDiv(sumBefore, expProceeds);
-
-    const unaffectedSum = sumBefore.minus(affectedSum);
-
-    if (targetSumAfter.lt(unaffectedSum)) {
-      throw new ValidationError(
-        "Target proceeds require selling more than the position holds"
-      );
-    }
-
-    const requiredAffectedSumAfter = targetSumAfter.minus(unaffectedSum);
-
-    if (requiredAffectedSumAfter.lte(0)) {
-      throw new ValidationError(
-        "Target proceeds would reduce the affected sum to zero or negative"
-      );
-    }
-
-    if (requiredAffectedSumAfter.gt(affectedSum)) {
-      throw new CalculationError(
-        "Target proceeds require increasing the affected sum, which is impossible for a sale"
-      );
-    }
-
-    const inverseFactor = MathUtils.wDiv(requiredAffectedSumAfter, affectedSum);
-
-    if (inverseFactor.lte(0) || inverseFactor.gt(MathUtils.WAD)) {
-      throw new CalculationError(
-        "Inverse factor out of bounds when calculating sell quantity"
-      );
-    }
-
-    // q = α * ln(1 / inverseFactor)
-    const factor = MathUtils.wDiv(MathUtils.WAD, inverseFactor);
-    const quantityWad = MathUtils.wMul(alpha, MathUtils.wLn(factor));
-
-    const quantityValue = MathUtils.wadToNumber(quantityWad);
-    const quantity = quantityValue.mul(MathUtils.USDC_PRECISION);
-
-    this._assertQuantityWithinLimit(quantity, alpha);
-
-    let formattedQuantity = MathUtils.formatUSDC(quantity);
-
-    if (formattedQuantity.gt(position.quantity)) {
-      formattedQuantity = MathUtils.formatUSDC(position.quantity);
-    }
-
-    let actualProceeds: Big;
-
-    try {
-      const verification = this._calcSellProceeds(
-        position.lowerTick,
-        position.upperTick,
-        formattedQuantity,
-        position.quantity,
+    if (!includeFees) {
+      if (targetAmount.gt(maxBaseProceeds)) {
+        throw new ValidationError(
+          "Target proceeds exceed the maximum proceeds available for this position"
+        );
+      }
+      return this._calculateQuantityFromBaseProceeds(
+        position,
+        targetAmount,
         distribution,
         market
       );
-      actualProceeds = verification.proceeds;
-    } catch (error) {
-      actualProceeds = targetProceeds;
-      console.warn(
-        "calculateQuantityFromProceeds: verification failed, using target proceeds as approximation",
-        error
+    }
+
+    const descriptor = market.feePolicyDescriptor?.trim();
+    const targetNetProceeds = targetAmount;
+
+    if (!descriptor || descriptor.length === 0) {
+      if (targetNetProceeds.gt(maxBaseProceeds)) {
+        throw new ValidationError(
+          "Target proceeds exceed the maximum proceeds available for this position"
+        );
+      }
+      return this._calculateQuantityFromBaseProceeds(
+        position,
+        targetNetProceeds,
+        distribution,
+        market
       );
     }
 
-    return {
-      quantity: formattedQuantity,
-      actualProceeds: MathUtils.formatUSDC(actualProceeds),
+    const maxNetProceeds = MathUtils.formatUSDC(
+      maxDecrease.proceeds.minus(maxDecrease.feeAmount)
+    );
+
+    if (targetNetProceeds.gt(maxNetProceeds)) {
+      throw new ValidationError(
+        "Target proceeds exceed the maximum net proceeds available for this position"
+      );
+    }
+
+    const resolvedPolicy = resolveFeePolicyWithMetadata(descriptor);
+    if (
+      resolvedPolicy.descriptor?.policy === "null" ||
+      resolvedPolicy.policy === NullFeePolicy
+    ) {
+      return this._calculateQuantityFromBaseProceeds(
+        position,
+        targetNetProceeds,
+        distribution,
+        market
+      );
+    }
+
+    let lowBound = new Big(targetNetProceeds);
+    let highBound = new Big(maxBaseProceeds);
+
+    if (lowBound.gt(highBound)) {
+      lowBound = new Big(highBound);
+    }
+
+    let initialGuess = new Big(targetNetProceeds);
+    const parsedDescriptor = resolvedPolicy.descriptor;
+
+    if (parsedDescriptor?.policy === "percentage") {
+      const bps = new Big(parsedDescriptor.bps!.toString());
+      const rate = bps.div(10_000);
+      const denominator = new Big(1).minus(rate);
+      if (denominator.gt(0)) {
+        const derived = targetNetProceeds.div(denominator);
+        if (derived.gt(initialGuess)) {
+          initialGuess = derived;
+        }
+      } else {
+        initialGuess = new Big(highBound);
+      }
+    }
+
+    if (initialGuess.gt(highBound)) {
+      initialGuess = new Big(highBound);
+    }
+    if (initialGuess.lt(lowBound)) {
+      initialGuess = new Big(lowBound);
+    }
+
+    let baseGuess = MathUtils.formatUSDC(initialGuess);
+
+    let bestResult = this._calculateQuantityFromBaseProceeds(
+      position,
+      baseGuess,
+      distribution,
+      market
+    );
+    let bestNet = this._computeNetProceedsAfterFees(
+      bestResult.actualProceeds,
+      bestResult.quantity,
+      position.lowerTick,
+      position.upperTick,
+      descriptor
+    );
+    let bestDiff = bestNet.minus(targetNetProceeds);
+
+    if (bestDiff.abs().lte(INVERSE_SPEND_TOLERANCE)) {
+      return bestResult;
+    }
+
+    const adjustBounds = (candidateBase: Big, diff: Big) => {
+      if (diff.gt(0)) {
+        highBound = candidateBase;
+      } else {
+        lowBound = candidateBase;
+      }
     };
+
+    adjustBounds(new Big(bestResult.actualProceeds), bestDiff);
+
+    for (let i = 0; i < MAX_INVERSE_ITERATIONS; i++) {
+      const mid = lowBound.plus(highBound).div(2);
+      const midFormatted = MathUtils.formatUSDC(mid);
+      const lowFormatted = MathUtils.formatUSDC(lowBound);
+      const highFormatted = MathUtils.formatUSDC(highBound);
+
+      if (
+        midFormatted.eq(lowFormatted) ||
+        midFormatted.eq(highFormatted) ||
+        highBound.minus(lowBound).abs().lte(INVERSE_SPEND_TOLERANCE)
+      ) {
+        const seen = new Set<string>();
+        [lowFormatted, highFormatted].forEach((boundary) => {
+          const key = boundary.toString();
+          if (seen.has(key)) {
+            return;
+          }
+          seen.add(key);
+
+          const boundaryCandidate = this._calculateQuantityFromBaseProceeds(
+            position,
+            boundary,
+            distribution,
+            market
+          );
+          const boundaryNet = this._computeNetProceedsAfterFees(
+            boundaryCandidate.actualProceeds,
+            boundaryCandidate.quantity,
+            position.lowerTick,
+            position.upperTick,
+            descriptor
+          );
+          const boundaryDiff = boundaryNet.minus(targetNetProceeds);
+          if (boundaryDiff.abs().lt(bestDiff.abs())) {
+            bestResult = boundaryCandidate;
+            bestDiff = boundaryDiff;
+          }
+        });
+        break;
+      }
+
+      const candidate = this._calculateQuantityFromBaseProceeds(
+        position,
+        MathUtils.formatUSDC(midFormatted),
+        distribution,
+        market
+      );
+      const candidateNet = this._computeNetProceedsAfterFees(
+        candidate.actualProceeds,
+        candidate.quantity,
+        position.lowerTick,
+        position.upperTick,
+        descriptor
+      );
+      const diff = candidateNet.minus(targetNetProceeds);
+
+      if (diff.abs().lt(bestDiff.abs())) {
+        bestResult = candidate;
+        bestDiff = diff;
+      }
+
+      if (diff.abs().lte(INVERSE_SPEND_TOLERANCE)) {
+        bestResult = candidate;
+        break;
+      }
+
+      adjustBounds(new Big(candidate.actualProceeds), diff);
+    }
+
+    if (bestDiff.abs().gt(INVERSE_SPEND_TOLERANCE)) {
+      throw new ValidationError(
+        "Target proceeds cannot be achieved with current fee policy"
+      );
+    }
+
+    return bestResult;
   }
 
   // ============================================================================
@@ -568,6 +942,115 @@ export class CLMSRSDK {
    * @returns 매도 수익
    */
   // Tick boundary in absolute ticks; internally maps to inclusive bin indices [loBin, hiBin]
+  private _calculateQuantityFromBaseProceeds(
+    position: Position,
+    baseProceeds: USDCAmount,
+    distribution: MarketDistribution,
+    market: Market
+  ): QuantityFromProceedsResult {
+    const alpha = market.liquidityParameter;
+    const proceedsWad = MathUtils.toWad(baseProceeds);
+
+    const sumBefore = distribution.totalSum;
+    const affectedSum = this.getAffectedSum(
+      position.lowerTick,
+      position.upperTick,
+      distribution,
+      market
+    );
+
+    if (affectedSum.eq(0)) {
+      throw new CalculationError(
+        "Cannot calculate quantity from proceeds: affected sum is zero. This usually means the tick range is outside the market or the distribution data is empty."
+      );
+    }
+
+    const expProceeds = MathUtils.safeExp(proceedsWad, alpha);
+    const targetSumAfter = MathUtils.wDiv(sumBefore, expProceeds);
+
+    const unaffectedSum = sumBefore.minus(affectedSum);
+
+    if (targetSumAfter.lt(unaffectedSum)) {
+      throw new ValidationError(
+        "Target proceeds require selling more than the position holds"
+      );
+    }
+
+    const requiredAffectedSumAfter = targetSumAfter.minus(unaffectedSum);
+
+    if (requiredAffectedSumAfter.lte(0)) {
+      throw new ValidationError(
+        "Target proceeds would reduce the affected sum to zero or negative"
+      );
+    }
+
+    if (requiredAffectedSumAfter.gt(affectedSum)) {
+      throw new CalculationError(
+        "Target proceeds require increasing the affected sum, which is impossible for a sale"
+      );
+    }
+
+    const inverseFactor = MathUtils.wDiv(requiredAffectedSumAfter, affectedSum);
+
+    if (inverseFactor.lte(0) || inverseFactor.gt(MathUtils.WAD)) {
+      throw new CalculationError(
+        "Inverse factor out of bounds when calculating sell quantity"
+      );
+    }
+
+    const factor = MathUtils.wDiv(MathUtils.WAD, inverseFactor);
+    const quantityWad = MathUtils.wMul(alpha, MathUtils.wLn(factor));
+
+    const quantityValue = MathUtils.wadToNumber(quantityWad);
+    const quantity = quantityValue.mul(MathUtils.USDC_PRECISION);
+
+    this._assertQuantityWithinLimit(quantity, alpha);
+
+    let formattedQuantity = MathUtils.formatUSDC(quantity);
+
+    if (formattedQuantity.gt(position.quantity)) {
+      formattedQuantity = MathUtils.formatUSDC(position.quantity);
+    }
+
+    let actualProceeds: Big;
+
+    try {
+      const verification = this._calcSellProceeds(
+        position.lowerTick,
+        position.upperTick,
+        formattedQuantity,
+        position.quantity,
+        distribution,
+        market
+      );
+      actualProceeds = verification.proceeds;
+    } catch (error) {
+      actualProceeds = baseProceeds;
+      console.warn(
+        "calculateQuantityFromProceeds: verification failed, using target proceeds as approximation",
+        error
+      );
+    }
+
+    // Calculate fee information
+    const feeOverlay = this.computeFeeOverlay(
+      "SELL",
+      actualProceeds,
+      formattedQuantity,
+      position.lowerTick,
+      position.upperTick,
+      market.feePolicyDescriptor
+    );
+
+    return {
+      quantity: formattedQuantity,
+      actualProceeds: MathUtils.formatUSDC(actualProceeds),
+      feeAmount: feeOverlay.amount,
+      feeRate: feeOverlay.rate,
+      feeInfo: feeOverlay.info,
+    };
+  }
+
   private _calcSellProceeds(
     lowerTick: Tick,
     upperTick: Tick,
@@ -630,6 +1113,28 @@ export class CLMSRSDK {
       proceeds: MathUtils.formatUSDC(proceeds),
       averagePrice: formattedAveragePrice,
     };
+  }
+
+  private _computeNetProceedsAfterFees(
+    baseProceeds: USDCAmount,
+    quantity: USDCAmount,
+    lowerTick: Tick,
+    upperTick: Tick,
+    descriptor: string
+  ): USDCAmount {
+    const formattedBase = MathUtils.formatUSDC(baseProceeds);
+    const formattedQuantity = MathUtils.formatUSDC(quantity);
+
+    const feeOverlay = this.computeFeeOverlay(
+      "SELL",
+      formattedBase,
+      formattedQuantity,
+      lowerTick,
+      upperTick,
+      descriptor
+    );
+
+    return MathUtils.formatUSDC(formattedBase.minus(feeOverlay.amount));
   }
 
   private computeFeeOverlay(
