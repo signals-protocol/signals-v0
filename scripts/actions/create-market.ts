@@ -31,6 +31,20 @@ export async function createMarketAction(
     throw new Error(`Core proxy not deployed in ${environment} environment`);
   }
 
+  // 수수료 정책 주소 가져오기 (activePolicy 또는 PercentFeePolicy100bps)
+  const feePolicyAddress =
+    addresses["FeePolicy:active"] ||
+    addresses["FeePolicy:PercentFeePolicy100bps"] ||
+    ethers.ZeroAddress;
+
+  if (feePolicyAddress === ethers.ZeroAddress) {
+    console.warn(
+      "⚠️  수수료 정책 주소를 찾을 수 없습니다. ZeroAddress를 사용합니다."
+    );
+  } else {
+    console.log("💰 사용할 수수료 정책:", feePolicyAddress);
+  }
+
   // ABI 가져오기 (하드햇에서만 가능) - 라이브러리 링킹 포함
   const coreArtifact = await hardhatEthers.getContractFactory(
     "CLMSRMarketCore",
@@ -50,8 +64,8 @@ export async function createMarketAction(
   );
 
   // BTC Daily 2025.09.29 마켓 파라미터 설정
-  const minTick = 100000;
-  const maxTick = 140000;
+  const minTick = 90000;
+  const maxTick = 110000;
   const tickSpacing = 100;
 
   // Bin 개수 계산: (maxTick - minTick) / tickSpacing
@@ -98,6 +112,7 @@ export async function createMarketAction(
     ethers.formatEther(liquidityParameter),
     "ETH"
   );
+  console.log("  - 수수료 정책:", feePolicyAddress);
 
   try {
     // 마켓 생성 (marketId 자동 생성)
@@ -109,7 +124,7 @@ export async function createMarketAction(
       endTimestamp,
       settlementTimestamp,
       liquidityParameter,
-      ethers.ZeroAddress
+      feePolicyAddress
     );
 
     console.log("\n⏳ 마켓 생성 트랜잭션 대기 중...");
