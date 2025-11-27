@@ -18,5 +18,13 @@ abstract contract CLMSRMarketCoreStorage {
     address public manager;
     ICLMSRFeePolicy public deprecatedFeePolicy;
     address public feeRecipient;
-    uint256[45] internal __gap;
+
+    struct SettlementOracleState {
+        int256 candidateValue;
+        uint64 candidatePriceTimestamp;
+    }
+
+    mapping(uint256 => SettlementOracleState) internal settlementOracleState;
+
+    uint256[44] internal __gap;
 }

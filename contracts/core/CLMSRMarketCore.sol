@@ -269,6 +269,28 @@ contract CLMSRMarketCore is
     }
 
     /// @inheritdoc ICLMSRMarketCore
+    function submitSettlement(
+        uint256 marketId,
+        int256 settlementValue,
+        uint64 priceTimestamp,
+        bytes calldata oracleData
+    ) external override whenNotPaused marketExists(marketId) {
+        (marketId, settlementValue, priceTimestamp, oracleData);
+        _delegateToManager();
+    }
+
+    /// @inheritdoc ICLMSRMarketCore
+    function finalizeSettlement(uint256 marketId, bool markFailed)
+        external
+        override
+        whenNotPaused
+        marketExists(marketId)
+    {
+        (marketId, markFailed);
+        _delegateToManager();
+    }
+
+    /// @inheritdoc ICLMSRMarketCore
     function reopenMarket(uint256 marketId) 
         external override onlyOwner marketExists(marketId) {
         marketId;
