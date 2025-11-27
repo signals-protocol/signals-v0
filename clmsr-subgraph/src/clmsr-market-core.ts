@@ -399,23 +399,16 @@ export function handleMarketActivationUpdated(
   stats.save();
 }
 
-export function handleMarketFeePolicySet(
-  event: MarketFeePolicySetEvent
-): void {
+export function handleMarketFeePolicySet(event: MarketFeePolicySetEvent): void {
   const marketId = buildMarketId(event.params.marketId);
   const market = loadMarketOrSkip(marketId, "handleMarketFeePolicySet");
   if (market == null) return;
   const newPolicy = event.params.newPolicy;
   market.feePolicyAddress = newPolicy;
 
+  // 성능 최적화: RPC 호출 제거 - descriptor는 필요시 클라이언트에서 조회
+  // RPC 호출은 인덱싱 속도를 크게 저하시킴
   market.feePolicyDescriptor = null;
-  if (!newPolicy.equals(Address.zero())) {
-    let policyContract = ICLMSRFeePolicy.bind(newPolicy);
-    let descriptorResult = policyContract.try_descriptor();
-    if (!descriptorResult.reverted) {
-      market.feePolicyDescriptor = descriptorResult.value;
-    }
-  }
 
   market.lastUpdated = event.block.timestamp;
   market.save();
@@ -632,9 +625,7 @@ export function handlePositionClosed(event: PositionClosedEvent): void {
   );
   if (userPosition == null) return;
   let closedQuantity = userPosition.currentQuantity;
-  let tradeRealizedPnL = event.params.proceeds.minus(
-    userPosition.currentCost
-  );
+  let tradeRealizedPnL = event.params.proceeds.minus(userPosition.currentCost);
 
   userPosition.currentQuantity = BigInt.fromI32(0);
   userPosition.totalQuantitySold =
@@ -649,7 +640,9 @@ export function handlePositionClosed(event: PositionClosedEvent): void {
   // totalCosts는 유지 (절대 변경 안 함)
   userPosition.currentCost = BigInt.fromI32(0); // 현재 포지션 비용 0으로 리셋
   // realizedPnL = totalProceeds - totalCosts
-  userPosition.realizedPnL = userPosition.totalProceeds.minus(userPosition.totalCosts);
+  userPosition.realizedPnL = userPosition.totalProceeds.minus(
+    userPosition.totalCosts
+  );
   userPosition.outcome = "CLOSED";
   userPosition.activityRemaining = BigInt.fromI32(0);
   userPosition.weightedEntryTime = BigInt.fromI32(0);

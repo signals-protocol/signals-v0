@@ -54,7 +54,7 @@ describe("CLMSR Market Core minimal tests", () => {
     assert.entityCount("MarketStats", 1);
   });
 
-  test("handleMarketFeePolicySet fetches descriptor and clears on zero policy", () => {
+  test("handleMarketFeePolicySet updates fee policy address", () => {
     clearStore();
 
     const marketId = BigInt.fromI32(2);
@@ -74,9 +74,6 @@ describe("CLMSR Market Core minimal tests", () => {
     const policy = Address.fromString(
       "0x00000000000000000000000000000000000000F1"
     );
-    createMockedFunction(policy, "descriptor", "descriptor():(string)").returns([
-      ethereum.Value.fromString("policy:mock:1"),
-    ]);
 
     handleMarketFeePolicySet(
       createMarketFeePolicySetEvent(
@@ -93,7 +90,8 @@ describe("CLMSR Market Core minimal tests", () => {
       "feePolicyAddress",
       "0x00000000000000000000000000000000000000f1"
     );
-    assert.fieldEquals("Market", "2", "feePolicyDescriptor", "policy:mock:1");
+    // 성능 최적화로 descriptor는 항상 null (RPC 호출 제거)
+    assert.fieldEquals("Market", "2", "feePolicyDescriptor", "null");
 
     handleMarketFeePolicySet(
       createMarketFeePolicySetEvent(
