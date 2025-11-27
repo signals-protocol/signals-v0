@@ -225,4 +225,35 @@ describe(`${INTEGRATION_TAG} finalizeSettlement windows and state`, function () 
     );
     expect(ethers.toBigInt(valueSlot)).to.equal(0n);
   });
+
+  it("allows owner fallback settleMarket after oracle failure", async function () {
+    const { core, marketId, settlementTime, alice, keeper } = await loadFixture(
+      fixture
+    );
+
+    const oracleValue = toSettlementValue(100210);
+    const priceTimestamp = settlementTime + 2;
+    await time.increaseTo(settlementTime + 1);
+    await core
+      .connect(alice)
+      .submitSettlement(
+        marketId,
+        oracleValue,
+        priceTimestamp,
+        await signPayload(keeper, marketId, oracleValue, priceTimestamp)
+      );
+
+    await time.increaseTo(settlementTime + SUBMIT_WINDOW + 1);
+    await core.connect(alice).finalizeSettlement(marketId, true);
+
+    // manual settle by owner after failure
+    const manualValue = toSettlementValue(100230);
+    await expect(
+      core.connect(keeper).settleMarket(marketId, manualValue)
+    ).to.emit(core, "MarketSettled");
+
+    const market = await core.getMarket(marketId);
+    expect(market.settled).to.equal(true);
+    expect(market.settlementValue).to.equal(manualValue);
+  });
 });
