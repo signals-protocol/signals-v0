@@ -227,6 +227,19 @@ export async function settleMarketAtTick(
   return core.connect(keeper).settleMarket(marketId, toSettlementValue(tick));
 }
 
+export async function advanceToClaimOpen(core: any, marketId: number) {
+  const market = await core.getMarket(marketId);
+  const T =
+    market.settlementTimestamp === 0n
+      ? market.endTimestamp
+      : market.settlementTimestamp;
+  const claimOpen = Number(T) + 15 * 60;
+  const latest = await time.latest();
+  if (latest < claimOpen) {
+    await time.increaseTo(claimOpen);
+  }
+}
+
 export async function settleMarketUsingRange(
   core: any,
   keeper: any,

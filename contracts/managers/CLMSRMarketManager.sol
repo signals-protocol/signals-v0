@@ -6,6 +6,8 @@ import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import "../core/storage/CLMSRMarketCoreStorage.sol";
 import "../interfaces/ICLMSRMarketCore.sol";
 import "../interfaces/ICLMSRPosition.sol";
@@ -23,9 +25,12 @@ contract CLMSRMarketManager is
     ReentrancyGuardUpgradeable,
     CLMSRMarketCoreStorage
 {
+    using MessageHashUtils for bytes32;
+
     uint32 private constant MAX_TICK_COUNT = 1_000_000;
     uint256 private constant MIN_LIQUIDITY_PARAMETER = 1e15;
     uint256 private constant MAX_LIQUIDITY_PARAMETER = 1e23;
+    string private constant ORACLE_MESSAGE_TAG = "CLMSR_SETTLEMENT";
 
     event MarketCreated(
         uint256 indexed marketId,
@@ -41,6 +46,24 @@ contract CLMSRMarketManager is
     event MarketSettled(uint256 indexed marketId, int256 settlementTick);
 
     event MarketSettlementValueSubmitted(uint256 indexed marketId, int256 settlementValue);
+
+    event MarketSettlementCandidateSubmitted(
+        uint256 indexed marketId,
+        int256 settlementValue,
+        int256 settlementTick,
+        uint64 priceTimestamp,
+        address indexed submitter,
+        bytes oracleData
+    );
+
+    event MarketSettlementFinalized(
+        uint256 indexed marketId,
+        bool isFailed,
+        int256 settlementValue,
+        int256 settlementTick,
+        uint64 priceTimestamp,
+        uint64 finalizedAt
+    );
 
     event MarketReopened(uint256 indexed marketId);
 
@@ -148,6 +171,152 @@ contract CLMSRMarketManager is
 
         emit MarketSettled(marketId, settlementTick);
         emit MarketSettlementValueSubmitted(marketId, settlementValue);
+    }
+
+    function submitSettlement(
+        uint256 marketId,
+        int256 settlementValue,
+        uint64 priceTimestamp,
+        bytes calldata oracleData
+    ) external onlyDelegated whenNotPaused {
+        require(_marketExists(marketId), CE.MarketNotFound(marketId));
+        ICLMSRMarketCore.Market storage market = markets[marketId];
+        SettlementOracleState storage state = settlementOracleState[marketId];
+
+        require(!market.settled, CE.MarketAlreadySettled(marketId));
+
+        uint64 gate = market.settlementTimestamp == 0 ? market.endTimestamp : market.settlementTimestamp;
+
+        require(block.timestamp >= gate, CE.SettlementTooEarly(gate, uint64(block.timestamp)));
+        require(
+            block.timestamp < gate + SETTLEMENT_SUBMIT_WINDOW,
+            CE.SettlementFinalizeWindowClosed(gate + SETTLEMENT_SUBMIT_WINDOW, uint64(block.timestamp))
+        );
+
+        int256 settlementTick = settlementValue / 1_000_000;
+        require(
+            settlementTick >= market.minTick &&
+                settlementTick <= market.maxTick,
+            CE.InvalidTick(settlementTick, market.minTick, market.maxTick)
+        );
+
+        address oracleSigner = settlementOracleSigner;
+        require(oracleSigner != address(0), CE.ZeroAddress());
+
+        bytes32 payloadHash = keccak256(
+            abi.encode(ORACLE_MESSAGE_TAG, marketId, settlementValue, priceTimestamp)
+        );
+        bytes32 digest = payloadHash.toEthSignedMessageHash();
+        address recovered = ECDSA.recover(digest, oracleData);
+        require(
+            recovered == oracleSigner,
+            CE.SettlementOracleSignatureInvalid(recovered)
+        );
+
+        uint64 target = gate;
+        uint64 existingTs = state.candidatePriceTimestamp;
+        if (existingTs == 0) {
+            state.candidateValue = settlementValue;
+            state.candidatePriceTimestamp = priceTimestamp;
+        } else {
+            uint64 oldDiff = existingTs > target ? existingTs - target : target - existingTs;
+            uint64 newDiff = priceTimestamp > target ? priceTimestamp - target : target - priceTimestamp;
+            if (newDiff < oldDiff || (newDiff == oldDiff && priceTimestamp < existingTs)) {
+                state.candidateValue = settlementValue;
+                state.candidatePriceTimestamp = priceTimestamp;
+            }
+        }
+
+        emit MarketSettlementCandidateSubmitted(
+            marketId,
+            settlementValue,
+            settlementTick,
+            priceTimestamp,
+            msg.sender,
+            oracleData
+        );
+    }
+
+    function finalizeSettlement(uint256 marketId, bool markFailed)
+        external
+        onlyDelegated
+        whenNotPaused
+    {
+        require(_marketExists(marketId), CE.MarketNotFound(marketId));
+        ICLMSRMarketCore.Market storage market = markets[marketId];
+        SettlementOracleState storage state = settlementOracleState[marketId];
+
+        require(!market.settled, CE.MarketAlreadySettled(marketId));
+
+        uint64 gate = market.settlementTimestamp == 0 ? market.endTimestamp : market.settlementTimestamp;
+        uint64 nowTs = uint64(block.timestamp);
+
+        require(
+            nowTs >= gate + SETTLEMENT_SUBMIT_WINDOW,
+            CE.SettlementTooEarly(gate + SETTLEMENT_SUBMIT_WINDOW, nowTs)
+        );
+        require(
+            nowTs < gate + SETTLEMENT_FINALIZE_DEADLINE,
+            CE.SettlementFinalizeWindowClosed(gate + SETTLEMENT_FINALIZE_DEADLINE, nowTs)
+        );
+
+        if (markFailed) {
+            require(msg.sender == owner(), CE.UnauthorizedCaller(msg.sender));
+            state.candidateValue = 0;
+            state.candidatePriceTimestamp = 0;
+
+            emit MarketSettlementFinalized(
+                marketId,
+                true,
+                0,
+                0,
+                0,
+                nowTs
+            );
+            return;
+        }
+
+        require(state.candidatePriceTimestamp != 0, CE.SettlementOracleCandidateMissing());
+
+        int256 settlementValue = state.candidateValue;
+        int256 settlementTick = settlementValue / 1_000_000;
+
+        require(
+            settlementTick >= market.minTick &&
+                settlementTick <= market.maxTick,
+            CE.InvalidTick(settlementTick, market.minTick, market.maxTick)
+        );
+
+        market.settled = true;
+        market.settlementValue = settlementValue;
+        market.settlementTick = settlementTick;
+        market.isActive = false;
+
+        market.positionEventsCursor = 0;
+        market.positionEventsEmitted = false;
+
+        emit MarketSettled(marketId, settlementTick);
+        emit MarketSettlementValueSubmitted(marketId, settlementValue);
+        emit MarketSettlementFinalized(
+            marketId,
+            false,
+            settlementValue,
+            settlementTick,
+            state.candidatePriceTimestamp,
+            nowTs
+        );
+
+        state.candidateValue = 0;
+        state.candidatePriceTimestamp = 0;
+    }
+
+    function setSettlementOracleSigner(address newSigner)
+        external
+        onlyOwner
+        onlyDelegated
+    {
+        require(newSigner != address(0), CE.ZeroAddress());
+        settlementOracleSigner = newSigner;
     }
 
     function reopenMarket(uint256 marketId)

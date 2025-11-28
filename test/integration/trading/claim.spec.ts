@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { createActiveMarketFixture, settleMarketUsingRange } from "../../helpers/fixtures/core";
+import { createActiveMarketFixture, settleMarketUsingRange, advanceToClaimOpen } from "../../helpers/fixtures/core";
 import { INTEGRATION_TAG } from "../../helpers/tags";
 import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 
@@ -32,6 +32,8 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
 
     // Settle market with winning tick
     await settleMarketUsingRange(core, keeper, marketId, 100490, 100500);
+    await advanceToClaimOpen(core, marketId);
+    await advanceToClaimOpen(core, marketId);
 
     // Claim position
     await expect(core.connect(alice).claimPayout(positionId)).to.emit(
@@ -65,6 +67,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
 
     // Settle market with winning tick outside position range
     await settleMarketUsingRange(core, keeper, marketId, 100490, 100500);
+    await advanceToClaimOpen(core, marketId);
 
     // Claim should emit event with zero payout
     await expect(core.connect(alice).claimPayout(positionId))
@@ -127,8 +130,25 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     const positions = await mockPosition.getPositionsByOwner(alice.address);
     const positionId = positions[0];
 
-    // Settle market
+    // Settle market and advance to claim window
     await settleMarketUsingRange(core, keeper, marketId, 100490, 100500);
+    const market = await core.getMarket(marketId);
+    const claimOpen =
+      Number(
+        market.settlementTimestamp === 0n
+          ? market.endTimestamp
+          : market.settlementTimestamp
+      ) + 15 * 60;
+    await time.increaseTo(claimOpen + 1);
+    await advanceToClaimOpen(core, marketId);
+    await time.increase(15 * 60 + 1);
+    await advanceToClaimOpen(core, marketId);
+    await time.increase(15 * 60 + 1);
+    await advanceToClaimOpen(core, marketId);
+    await advanceToClaimOpen(core, marketId);
+    await advanceToClaimOpen(core, marketId);
+    await advanceToClaimOpen(core, marketId);
+    await advanceToClaimOpen(core, marketId);
 
     // First claim should succeed
     await core.connect(alice).claimPayout(positionId);
@@ -159,6 +179,14 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
 
     // Settle market
     await settleMarketUsingRange(core, keeper, marketId, 100490, 100500);
+    await advanceToClaimOpen(core, marketId);
+    await time.increase(15 * 60 + 1);
+    await advanceToClaimOpen(core, marketId);
+    await time.increase(15 * 60 + 1);
+    await advanceToClaimOpen(core, marketId);
+    await advanceToClaimOpen(core, marketId);
+    await advanceToClaimOpen(core, marketId);
+    await advanceToClaimOpen(core, marketId);
 
     const payout = await core.calculateClaimAmount(positionId);
     expect(payout).to.be.gt(0);
@@ -188,6 +216,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
 
     // Settle market
     await settleMarketUsingRange(core, keeper, marketId, 100490, 100500);
+    await advanceToClaimOpen(core, marketId);
 
     const payout = await core.calculateClaimAmount(positionId);
     expect(payout).to.be.gt(0);
@@ -231,6 +260,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
     const bobPositions = await mockPosition.getPositionsByOwner(bob.address);
 
     // Both should be able to claim
+    await time.increase(3600);
     await expect(core.connect(alice).claimPayout(alicePositions[0])).to.not.be
       .reverted;
 
@@ -258,6 +288,8 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
 
     // Settle market
     await settleMarketUsingRange(core, keeper, marketId, 100490, 100500);
+    await advanceToClaimOpen(core, marketId);
+    await time.increase(15 * 60 + 1);
 
     // Claim should emit PositionClaimed event
     await expect(core.connect(alice).claimPayout(positionId))
@@ -286,6 +318,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
 
     // Settle market with winning tick
     await settleMarketUsingRange(core, keeper, marketId, 100490, 100500);
+    await advanceToClaimOpen(core, marketId);
 
     // First claim should succeed
     await expect(core.connect(alice).claimPayout(positionId)).to.not.be
@@ -318,6 +351,7 @@ describe(`${INTEGRATION_TAG} Position Claiming`, function () {
 
     // Settle market with losing tick (outside position range)
     await settleMarketUsingRange(core, keeper, marketId, 100790, 100800);
+    await advanceToClaimOpen(core, marketId);
 
     // Claim should succeed with zero payout
     await expect(core.connect(alice).claimPayout(positionId))

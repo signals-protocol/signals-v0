@@ -8,6 +8,7 @@ import {
   unitFixture,
   INITIAL_SUPPLY,
   settleMarketUsingRange,
+  advanceToClaimOpen,
 } from "../helpers/fixtures/core";
 
 describe(`${SECURITY_TAG} CLMSRMarketCore - Security`, function () {
@@ -213,6 +214,7 @@ describe(`${SECURITY_TAG} CLMSRMarketCore - Security`, function () {
     const positionId = Number(positions[positions.length - 1]);
 
     await settleMarketUsingRange(core, keeper, marketId, 100480, 100500);
+    await advanceToClaimOpen(core, marketId);
 
     await reentrantPosition
       .connect(deployer)
@@ -246,6 +248,7 @@ describe(`${SECURITY_TAG} CLMSRMarketCore - Security`, function () {
     const positionId = Number(positions[positions.length - 1]);
 
     await settleMarketUsingRange(core, keeper, marketId, 100490, 100500);
+    await advanceToClaimOpen(core, marketId);
 
     await reentrantPosition
       .connect(deployer)

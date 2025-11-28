@@ -55,7 +55,6 @@ contract CLMSRMarketCore is
     /// @notice Maximum liquidity parameter (alpha)
     uint256 public constant MAX_LIQUIDITY_PARAMETER = 1e23; // 100000 
     
-    
     /// @notice Maximum safe input for PRB-Math exp() function
     uint256 private constant MAX_EXP_INPUT_WAD = 1_000_000_000_000_000_000; // 1.0 * 1e18
     
@@ -206,6 +205,12 @@ contract CLMSRMarketCore is
         feeRecipient = newRecipient;
     }
 
+    /// @notice Sets the trusted settlement oracle signer address
+    function setSettlementOracleSigner(address newSigner) external override onlyOwner {
+        newSigner;
+        _delegateToManager();
+    }
+
     /// @notice Returns the configured fee policy address for a specific market
     function getMarketFeePolicy(uint256 marketId)
         external
@@ -265,6 +270,28 @@ contract CLMSRMarketCore is
     function settleMarket(uint256 marketId, int256 settlementValue) 
         external override onlyOwner marketExists(marketId) {
         (marketId, settlementValue);
+        _delegateToManager();
+    }
+
+    /// @inheritdoc ICLMSRMarketCore
+    function submitSettlement(
+        uint256 marketId,
+        int256 settlementValue,
+        uint64 priceTimestamp,
+        bytes calldata oracleData
+    ) external override whenNotPaused marketExists(marketId) {
+        (marketId, settlementValue, priceTimestamp, oracleData);
+        _delegateToManager();
+    }
+
+    /// @inheritdoc ICLMSRMarketCore
+    function finalizeSettlement(uint256 marketId, bool markFailed)
+        external
+        override
+        whenNotPaused
+        marketExists(marketId)
+    {
+        (marketId, markFailed);
         _delegateToManager();
     }
 
@@ -747,6 +774,10 @@ contract CLMSRMarketCore is
         
         Market memory market = markets[position.marketId];
         require(market.settled, CE.MarketNotSettled(position.marketId));
+
+        uint64 T = market.settlementTimestamp == 0 ? market.endTimestamp : market.settlementTimestamp;
+        uint64 claimOpen = T + SETTLEMENT_FINALIZE_DEADLINE;
+        require(block.timestamp >= claimOpen, CE.SettlementTooEarly(claimOpen, uint64(block.timestamp)));
         
         // Calculate payout and emit PositionSettled once if not already
         payout = _calculateClaimAmount(positionId);

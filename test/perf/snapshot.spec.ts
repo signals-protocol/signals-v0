@@ -5,6 +5,7 @@ import {
   coreFixture,
   setupActiveMarket,
   settleMarketAtTick,
+  advanceToClaimOpen,
 } from "../helpers/fixtures/core";
 import { PERF_TAG } from "../helpers/tags";
 
@@ -281,6 +282,7 @@ describeMaybe(`${PERF_TAG} Gas Snapshots - Performance Regression Tests`, functi
       // Settle market
       await time.increaseTo(endTime + 1);
       await settleMarketAtTick(core, keeper, marketId, 100350);
+      await advanceToClaimOpen(core, marketId);
 
       const tx = await core.connect(alice).claimPayout(positionId);
 

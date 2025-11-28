@@ -64,6 +64,24 @@ interface ICLMSRMarketCore {
         int256 settlementTick
     );
 
+    event MarketSettlementCandidateSubmitted(
+        uint256 indexed marketId,
+        int256 settlementValue,
+        int256 settlementTick,
+        uint64 priceTimestamp,
+        address indexed submitter,
+        bytes oracleData
+    );
+
+    event MarketSettlementFinalized(
+        uint256 indexed marketId,
+        bool isFailed,
+        int256 settlementValue,
+        int256 settlementTick,
+        uint64 priceTimestamp,
+        uint64 finalizedAt
+    );
+
     event MarketSettlementValueSubmitted(
         uint256 indexed marketId,
         int256 settlementValue
@@ -227,6 +245,17 @@ interface ICLMSRMarketCore {
     /// @param settlementValue Exact winning settlement value with 6 decimals
     function settleMarket(uint256 marketId, int256 settlementValue) external;
 
+    /// @notice Submit oracle settlement candidate during submit window
+    function submitSettlement(
+        uint256 marketId,
+        int256 settlementValue,
+        uint64 priceTimestamp,
+        bytes calldata oracleData
+    ) external;
+
+    /// @notice Finalize settlement (confirm/fail) during finalize window
+    function finalizeSettlement(uint256 marketId, bool markFailed) external;
+
     /// @notice Toggle market active status
     /// @param marketId Market identifier
     /// @param active Target activation state
@@ -265,6 +294,8 @@ interface ICLMSRMarketCore {
     function setMarketFeePolicy(uint256 marketId, address newPolicy) external;
 
     function setFeeRecipient(address newRecipient) external;
+
+    function setSettlementOracleSigner(address newSigner) external;
 
     function getMarketFeePolicy(uint256 marketId) external view returns (address);
 
