@@ -9,12 +9,14 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+const isCoverage = process.env.COVERAGE === "1";
+
 const config: HardhatUserConfig = {
   solidity: {
     version: "0.8.30",
     settings: {
       viaIR: true,
-      evmVersion: "prague",
+      evmVersion: isCoverage ? "paris" : "prague",
       optimizer: {
         enabled: true,
         runs: 200,

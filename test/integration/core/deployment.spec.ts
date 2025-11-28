@@ -294,6 +294,10 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Deployment & Configuration`, functi
 
   describe("Gas and Performance", function () {
     it("Should deploy within gas limits", async function () {
+      if (process.env.COVERAGE) {
+        this.skip();
+      }
+
       const { core } = await loadFixture(createActiveMarketFixture);
 
       const deploymentTx = core.deploymentTransaction();

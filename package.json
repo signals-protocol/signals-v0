@@ -52,7 +52,7 @@
     "repair:citrea:dev": "MANIFEST_DEFAULT_DIR=.openzeppelin/dev COMMAND=repair-manifest:citrea:dev npx hardhat run scripts/dispatcher.ts --network citrea-dev",
     "repair:citrea:prod": "MANIFEST_DEFAULT_DIR=.openzeppelin/prod COMMAND=repair-manifest:citrea:prod npx hardhat run scripts/dispatcher.ts --network citrea-prod",
     "test:full:localhost": "npx hardhat run scripts/full-test-localhost.ts --network localhost",
-    "coverage": "COVERAGE=1 npx hardhat coverage",
+    "coverage": "NODE_OPTIONS=--max-old-space-size=8192 COVERAGE=1 npx hardhat coverage",
     "coverage:check": "node scripts/check-coverage.mjs",
     "test:fast": "npx hardhat test",
     "test:replay": "node scripts/test-replay.js",
@@ -90,6 +90,7 @@
     "@openzeppelin/contracts-upgradeable": "^5.4.0",
     "@openzeppelin/hardhat-upgrades": "^3.9.1",
     "@prb/math": "^4.1.0",
+    "@redstone-finance/sdk": "^0.9.0",
     "@whworjs7946/clmsr-v0": "^1.12.0",
     "axios": "^1.10.0"
   }
