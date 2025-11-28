@@ -5,6 +5,7 @@ import {
   coreFixture,
   setupHighLiquidityMarket,
   settleMarketAtTick,
+  advanceToClaimOpen,
 } from "../../helpers/fixtures/core";
 import { E2E_TAG } from "../../helpers/tags";
 
@@ -592,6 +593,7 @@ describeMaybe(`${E2E_TAG} High Liquidity Market Scenarios`, function () {
       const market = await core.getMarket(marketId);
       await time.increaseTo(Number(market.endTimestamp) + 1);
       await settleMarketAtTick(core, keeper, marketId, 100495); // 실제 틱값 사용 중간 틱
+      await advanceToClaimOpen(core, marketId);
 
       // Mass claiming
       let totalClaimGas = 0n;

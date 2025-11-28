@@ -116,4 +116,32 @@ describe(`${INTEGRATION_TAG} claim gating after settlement`, function () {
       "PositionClaimed"
     );
   });
+
+  it("enforces claim gate after manual settleMarket", async function () {
+    const { core, marketId, settlementTime, keeper, alice } =
+      await loadFixture(fixture);
+
+    // manual settle by owner (keeper)
+    await time.increaseTo(settlementTime + 1);
+    await core.connect(keeper).settleMarket(marketId, toSettlementValue(100010));
+
+    const market = await core.getMarket(marketId);
+    const claimOpen =
+      Number(
+        market.settlementTimestamp === 0n
+          ? market.endTimestamp
+          : market.settlementTimestamp
+      ) + FINALIZE_DEADLINE;
+
+    await time.setNextBlockTimestamp(claimOpen - 100);
+    await expect(core.connect(alice).claimPayout(1))
+      .to.be.revertedWithCustomError(core, "SettlementTooEarly")
+      .withArgs(BigInt(claimOpen), anyValue);
+
+    await time.setNextBlockTimestamp(claimOpen + 1);
+    await expect(core.connect(alice).claimPayout(1)).to.emit(
+      core,
+      "PositionClaimed"
+    );
+  });
 });

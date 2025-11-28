@@ -14,6 +14,8 @@ const SUBMIT_WINDOW = 10 * 60; // 10 minutes
 const FINALIZE_DEADLINE = 15 * 60; // 15 minutes
 const ORACLE_MESSAGE_TAG = "CLMSR_SETTLEMENT";
 const ORACLE_STATE_SLOT = 9; // settlementOracleState mapping slot index
+const MIN_TICK = 100000;
+const MAX_TICK = 100500;
 
 describe(`${INTEGRATION_TAG} finalizeSettlement windows and state`, function () {
   async function fixture() {
@@ -27,8 +29,8 @@ describe(`${INTEGRATION_TAG} finalizeSettlement windows and state`, function () 
     const settlementTime = now + 100;
 
     const marketId = await createMarketWithConfig(coreTyped, keeper, {
-      minTick: 100000,
-      maxTick: 100500,
+      minTick: MIN_TICK,
+      maxTick: MAX_TICK,
       tickSpacing: 10,
       startTime,
       endTime,
@@ -68,6 +70,21 @@ describe(`${INTEGRATION_TAG} finalizeSettlement windows and state`, function () 
         )
       )
     );
+  }
+
+  async function setCandidateRaw(core: any, marketId: number, value: bigint, ts: number) {
+    const base = mappingSlot(marketId);
+    const coreAddress = await core.getAddress();
+    await ethers.provider.send("hardhat_setStorageAt", [
+      coreAddress,
+      ethers.toBeHex(base, 32),
+      ethers.toBeHex(value, 32),
+    ]);
+    await ethers.provider.send("hardhat_setStorageAt", [
+      coreAddress,
+      ethers.toBeHex(base + 1n, 32),
+      ethers.toBeHex(BigInt(ts), 32),
+    ]);
   }
 
   it("reverts finalizeSettlement before T+10", async function () {
@@ -280,5 +297,21 @@ describe(`${INTEGRATION_TAG} finalizeSettlement windows and state`, function () 
     await expect(
       core.connect(alice).finalizeSettlement(marketId, true)
     ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
+  });
+
+  it("reverts finalizeSettlement if candidate tick is out of bounds", async function () {
+    const { core, marketId, settlementTime, keeper } = await loadFixture(
+      fixture
+    );
+
+    await time.increaseTo(settlementTime + SUBMIT_WINDOW + 1);
+
+    // Inject invalid candidate directly (tick below min)
+    const badValue = toSettlementValue(MIN_TICK - 1000);
+    await setCandidateRaw(core, marketId, badValue, settlementTime + 2);
+
+    await expect(
+      core.connect(keeper).finalizeSettlement(marketId, false)
+    ).to.be.revertedWithCustomError(core, "InvalidTick");
   });
 });

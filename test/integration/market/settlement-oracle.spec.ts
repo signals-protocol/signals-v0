@@ -12,6 +12,8 @@ import type { CLMSRMarketCore } from "../../../typechain-types";
 
 const SUBMIT_WINDOW = 10 * 60; // 10 minutes
 const ORACLE_STATE_SLOT = 9; // storage slot index for settlementOracleState mapping
+const MIN_TICK = 100000;
+const MAX_TICK = 100500;
 
 function mappingSlot(marketId: number | bigint) {
   const abi = ethers.AbiCoder.defaultAbiCoder();
@@ -50,8 +52,8 @@ describe(`${INTEGRATION_TAG} Settlement oracle submission`, function () {
     const settlementTime = now + 100;
 
     const marketId = await createMarketWithConfig(core, keeper, {
-      minTick: 100000,
-      maxTick: 100500,
+      minTick: MIN_TICK,
+      maxTick: MAX_TICK,
       tickSpacing: 10,
       startTime,
       endTime,
@@ -86,6 +88,22 @@ describe(`${INTEGRATION_TAG} Settlement oracle submission`, function () {
     )
       .to.be.revertedWithCustomError(core, "SettlementTooEarly")
       .withArgs(BigInt(settlementTime), anyValue);
+  });
+
+  it("rejects setSettlementOracleSigner from non-owner", async function () {
+    const { core, alice } = await loadFixture(fixture);
+
+    await expect(
+      core.connect(alice).setSettlementOracleSigner(alice.address)
+    ).to.be.revertedWithCustomError(core, "OwnableUnauthorizedAccount");
+  });
+
+  it("rejects zero address oracle signer", async function () {
+    const { core, keeper } = await loadFixture(fixture);
+
+    await expect(
+      core.connect(keeper).setSettlementOracleSigner(ethers.ZeroAddress)
+    ).to.be.revertedWithCustomError(core, "ZeroAddress");
   });
 
   it("reverts submitSettlement after submit window closes", async function () {
@@ -151,6 +169,33 @@ describe(`${INTEGRATION_TAG} Settlement oracle submission`, function () {
     const candidate = await readCandidateState(coreAddress, marketId);
     expect(candidate.candidatePriceTimestamp).to.equal(closeTimestamp);
     expect(candidate.candidateValue).to.equal(toSettlementValue(100250));
+  });
+
+  it("reverts submitSettlement when tick is out of market bounds", async function () {
+    const { core, marketId, settlementTime, alice, keeper } = await loadFixture(
+      fixture
+    );
+    await time.increaseTo(settlementTime + 1);
+
+    const outOfRangeValue = toSettlementValue(MIN_TICK - 1000);
+    const hash = ethers.keccak256(
+      ethers.AbiCoder.defaultAbiCoder().encode(
+        ["string", "uint256", "int256", "uint64"],
+        ["CLMSR_SETTLEMENT", marketId, outOfRangeValue, settlementTime + 2]
+      )
+    );
+    const sig = await keeper.signMessage(ethers.getBytes(hash));
+
+    await expect(
+      core
+        .connect(alice)
+        .submitSettlement(
+          marketId,
+          outOfRangeValue,
+          settlementTime + 2,
+          sig
+        )
+    ).to.be.revertedWithCustomError(core, "InvalidTick");
   });
 
   it("prefers earlier timestamp when distance is tied", async function () {

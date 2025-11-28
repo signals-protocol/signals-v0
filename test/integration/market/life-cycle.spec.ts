@@ -7,6 +7,7 @@ import {
   settleMarketAtTick,
   toSettlementValue,
   setMarketActivation,
+  advanceToClaimOpen,
 } from "../../helpers/fixtures/core";
 import { INTEGRATION_TAG } from "../../helpers/tags";
 
@@ -157,6 +158,7 @@ describe(`${INTEGRATION_TAG} Market Lifecycle`, function () {
 
     await time.increaseTo(endTime + SETTLEMENT_OFFSET + 1);
     await settleMarketAtTick(core, keeper, marketId, 100500);
+    await advanceToClaimOpen(core, marketId);
 
     await expect(core.connect(alice).claimPayout(positionId)).to.emit(
       core,
