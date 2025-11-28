@@ -210,7 +210,7 @@ describe(`${INTEGRATION_TAG} finalizeSettlement windows and state`, function () 
 
     await time.increaseTo(settlementTime + SUBMIT_WINDOW + 2);
 
-    await expect(core.connect(alice).finalizeSettlement(marketId, true))
+    await expect(core.connect(keeper).finalizeSettlement(marketId, true))
       .to.emit(core, "MarketSettlementFinalized")
       .withArgs(marketId, true, 0, 0, 0, anyValue);
 
@@ -244,7 +244,7 @@ describe(`${INTEGRATION_TAG} finalizeSettlement windows and state`, function () 
       );
 
     await time.increaseTo(settlementTime + SUBMIT_WINDOW + 1);
-    await core.connect(alice).finalizeSettlement(marketId, true);
+    await core.connect(keeper).finalizeSettlement(marketId, true);
 
     // manual settle by owner after failure
     const manualValue = toSettlementValue(100230);
@@ -255,5 +255,30 @@ describe(`${INTEGRATION_TAG} finalizeSettlement windows and state`, function () 
     const market = await core.getMarket(marketId);
     expect(market.settled).to.equal(true);
     expect(market.settlementValue).to.equal(manualValue);
+  });
+
+  it("requires owner to markFailed in finalize", async function () {
+    const { core, marketId, settlementTime, alice, keeper } = await loadFixture(
+      fixture
+    );
+
+    const settlementValue = toSettlementValue(100220);
+    const priceTimestamp = settlementTime + 2;
+
+    await time.increaseTo(settlementTime + 1);
+    await core
+      .connect(alice)
+      .submitSettlement(
+        marketId,
+        settlementValue,
+        priceTimestamp,
+        await signPayload(keeper, marketId, settlementValue, priceTimestamp)
+      );
+
+    await time.increaseTo(settlementTime + SUBMIT_WINDOW + 1);
+
+    await expect(
+      core.connect(alice).finalizeSettlement(marketId, true)
+    ).to.be.revertedWithCustomError(core, "UnauthorizedCaller");
   });
 });

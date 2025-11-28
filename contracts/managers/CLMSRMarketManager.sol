@@ -30,8 +30,6 @@ contract CLMSRMarketManager is
     uint32 private constant MAX_TICK_COUNT = 1_000_000;
     uint256 private constant MIN_LIQUIDITY_PARAMETER = 1e15;
     uint256 private constant MAX_LIQUIDITY_PARAMETER = 1e23;
-    uint64 public constant SETTLEMENT_SUBMIT_WINDOW = 10 minutes;
-    uint64 public constant SETTLEMENT_FINALIZE_DEADLINE = 15 minutes;
     string private constant ORACLE_MESSAGE_TAG = "CLMSR_SETTLEMENT";
 
     event MarketCreated(
@@ -223,7 +221,7 @@ contract CLMSRMarketManager is
         } else {
             uint64 oldDiff = existingTs > target ? existingTs - target : target - existingTs;
             uint64 newDiff = priceTimestamp > target ? priceTimestamp - target : target - priceTimestamp;
-            if (newDiff < oldDiff) {
+            if (newDiff < oldDiff || (newDiff == oldDiff && priceTimestamp < existingTs)) {
                 state.candidateValue = settlementValue;
                 state.candidatePriceTimestamp = priceTimestamp;
             }
@@ -263,6 +261,7 @@ contract CLMSRMarketManager is
         );
 
         if (markFailed) {
+            require(msg.sender == owner(), CE.UnauthorizedCaller(msg.sender));
             state.candidateValue = 0;
             state.candidatePriceTimestamp = 0;
 

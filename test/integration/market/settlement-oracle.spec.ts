@@ -153,6 +153,50 @@ describe(`${INTEGRATION_TAG} Settlement oracle submission`, function () {
     expect(candidate.candidateValue).to.equal(toSettlementValue(100250));
   });
 
+  it("prefers earlier timestamp when distance is tied", async function () {
+    const { core, marketId, settlementTime, alice, keeper } = await loadFixture(
+      fixture
+    );
+    const coreAddress = await core.getAddress();
+
+    await time.increaseTo(settlementTime + 1);
+
+    const afterTimestamp = settlementTime + 5; // +5
+    const beforeTimestamp = settlementTime - 5; // -5 (tie, earlier should win)
+
+    const signPayload = async (value: bigint, ts: number) => {
+      const hash = ethers.keccak256(
+        ethers.AbiCoder.defaultAbiCoder().encode(
+          ["string", "uint256", "int256", "uint64"],
+          ["CLMSR_SETTLEMENT", marketId, value, ts]
+        )
+      );
+      return keeper.signMessage(ethers.getBytes(hash));
+    };
+
+    await core
+      .connect(alice)
+      .submitSettlement(
+        marketId,
+        toSettlementValue(100300),
+        afterTimestamp,
+        await signPayload(toSettlementValue(100300), afterTimestamp)
+      );
+
+    await core
+      .connect(alice)
+      .submitSettlement(
+        marketId,
+        toSettlementValue(100310),
+        beforeTimestamp,
+        await signPayload(toSettlementValue(100310), beforeTimestamp)
+      );
+
+    const candidate = await readCandidateState(coreAddress, marketId);
+    expect(candidate.candidatePriceTimestamp).to.equal(beforeTimestamp);
+    expect(candidate.candidateValue).to.equal(toSettlementValue(100310));
+  });
+
   it("accepts only oracle-signed payloads", async function () {
     const { core, marketId, settlementTime, alice, keeper } = await loadFixture(
       fixture

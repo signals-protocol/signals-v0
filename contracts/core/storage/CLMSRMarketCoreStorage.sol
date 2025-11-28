@@ -9,6 +9,9 @@ import {LazyMulSegmentTree} from "../../libraries/LazyMulSegmentTree.sol";
 
 /// @dev 공유 스토리지 레이아웃: Core와 Manager가 동일 순서로 상속해야 슬롯이 일치한다.
 abstract contract CLMSRMarketCoreStorage {
+    uint64 internal constant SETTLEMENT_SUBMIT_WINDOW = 10 minutes;
+    uint64 internal constant SETTLEMENT_FINALIZE_DEADLINE = 15 minutes;
+
     IERC20 public paymentToken;
     ICLMSRPosition public positionContract;
     mapping(uint256 => ICLMSRMarketCore.Market) public markets;

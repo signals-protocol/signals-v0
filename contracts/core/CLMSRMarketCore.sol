@@ -55,8 +55,6 @@ contract CLMSRMarketCore is
     /// @notice Maximum liquidity parameter (alpha)
     uint256 public constant MAX_LIQUIDITY_PARAMETER = 1e23; // 100000 
     
-    uint64 public constant SETTLEMENT_FINALIZE_DEADLINE = 15 minutes;
-    
     /// @notice Maximum safe input for PRB-Math exp() function
     uint256 private constant MAX_EXP_INPUT_WAD = 1_000_000_000_000_000_000; // 1.0 * 1e18
     
