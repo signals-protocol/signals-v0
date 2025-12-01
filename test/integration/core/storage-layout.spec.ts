@@ -51,9 +51,9 @@ describe(`${COMPONENT_TAG} CLMSRMarketCoreStorage - Storage layout`, function ()
 
   it("exposes signer slot and shrinks the gap after inserting new fields", function () {
     const signerEntry = layout.storage.find(
-      (slot: any) => slot.label === "settlementOracleSigner"
+      (slot: any) => slot.label === "deprecatedSettlementOracleSigner"
     );
-    expect(signerEntry, "settlementOracleSigner not found").to.exist;
+    expect(signerEntry, "deprecatedSettlementOracleSigner not found").to.exist;
     expect(signerEntry.type).to.equal("t_address");
 
     const gapEntry = layout.storage.find((slot: any) => slot.label === "__gap");

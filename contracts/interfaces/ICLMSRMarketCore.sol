@@ -247,10 +247,7 @@ interface ICLMSRMarketCore {
 
     /// @notice Submit oracle settlement candidate during submit window
     function submitSettlement(
-        uint256 marketId,
-        int256 settlementValue,
-        uint64 priceTimestamp,
-        bytes calldata oracleData
+        uint256 marketId
     ) external;
 
     /// @notice Finalize settlement (confirm/fail) during finalize window
@@ -294,8 +291,6 @@ interface ICLMSRMarketCore {
     function setMarketFeePolicy(uint256 marketId, address newPolicy) external;
 
     function setFeeRecipient(address newRecipient) external;
-
-    function setSettlementOracleSigner(address newSigner) external;
 
     function getMarketFeePolicy(uint256 marketId) external view returns (address);
 

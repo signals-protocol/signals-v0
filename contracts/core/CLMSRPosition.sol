@@ -54,7 +54,7 @@ contract CLMSRPosition is
     
     /// @notice Restricts access to core contract only
     modifier onlyCore() {
-        require(msg.sender == core, CE.UnauthorizedCaller(msg.sender));
+        if (!(msg.sender == core)) { revert CE.UnauthorizedCaller(msg.sender); }
         _;
     }
 
@@ -79,7 +79,7 @@ contract CLMSRPosition is
     /// @notice Update core contract address (only owner)
     /// @param _newCore New core contract address
     function updateCore(address _newCore) external onlyOwner {
-        require(_newCore != address(0), CE.ZeroAddress());
+        if (!(_newCore != address(0))) { revert CE.ZeroAddress(); }
         core = _newCore;
     }
 
@@ -91,7 +91,7 @@ contract CLMSRPosition is
     /// @param tokenId Position token ID
     /// @return URI string with base64-encoded JSON metadata
     function tokenURI(uint256 tokenId) public view override(ERC721Upgradeable) returns (string memory) {
-        require(_exists(tokenId), CE.PositionNotFound(tokenId));
+        if (!(_exists(tokenId))) { revert CE.PositionNotFound(tokenId); }
         
         ICLMSRPosition.Position memory position = _positions[tokenId];
         
@@ -127,8 +127,8 @@ contract CLMSRPosition is
         int256 upperTick,
         uint128 quantity
     ) external onlyCore returns (uint256 positionId) {
-        require(to != address(0), CE.ZeroAddress());
-        require(quantity != 0, CE.InvalidQuantity(quantity));
+        if (!(to != address(0))) { revert CE.ZeroAddress(); }
+        if (!(quantity != 0)) { revert CE.InvalidQuantity(quantity); }
         
         positionId = _nextId++;
         
@@ -153,8 +153,8 @@ contract CLMSRPosition is
 
     /// @inheritdoc ICLMSRPosition
     function updateQuantity(uint256 positionId, uint128 newQuantity) external onlyCore {
-        require(_exists(positionId), CE.PositionNotFound(positionId));
-        require(newQuantity != 0, CE.InvalidQuantity(newQuantity));
+        if (!(_exists(positionId))) { revert CE.PositionNotFound(positionId); }
+        if (!(newQuantity != 0)) { revert CE.InvalidQuantity(newQuantity); }
         
         uint128 oldQuantity = _positions[positionId].quantity;
         _positions[positionId].quantity = newQuantity;
@@ -164,7 +164,7 @@ contract CLMSRPosition is
 
     /// @inheritdoc ICLMSRPosition
     function burn(uint256 positionId) external onlyCore {
-        require(_exists(positionId), CE.PositionNotFound(positionId));
+        if (!(_exists(positionId))) { revert CE.PositionNotFound(positionId); }
         
         address owner = ownerOf(positionId);
         uint256 marketId = _positions[positionId].marketId;
@@ -197,7 +197,7 @@ contract CLMSRPosition is
     
     /// @inheritdoc ICLMSRPosition
     function getPosition(uint256 positionId) external view returns (ICLMSRPosition.Position memory data) {
-        require(_exists(positionId), CE.PositionNotFound(positionId));
+        if (!(_exists(positionId))) { revert CE.PositionNotFound(positionId); }
         return _positions[positionId];
     }
 

@@ -363,7 +363,7 @@ export async function unitFixture() {
   await lazyMulSegmentTree.waitForDeployment();
 
   const CLMSRMarketManagerFactory = await ethers.getContractFactory(
-    "CLMSRMarketManager",
+    "CLMSRMarketManagerTest",
     {
       libraries: {
         LazyMulSegmentTree: await lazyMulSegmentTree.getAddress(),

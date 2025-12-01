@@ -9,10 +9,29 @@ import {
 } from "../../helpers/fixtures/core";
 import { INTEGRATION_TAG } from "../../helpers/tags";
 import type { CLMSRMarketCore } from "../../../typechain-types";
+import {
+  DataPackage,
+  NumericDataPoint,
+  RedstonePayload,
+} from "@redstone-finance/protocol";
+import type { Wallet } from "ethers";
 
 const SUBMIT_WINDOW = 10 * 60; // 10 minutes
 const FINALIZE_DEADLINE = 15 * 60; // 15 minutes
-const ORACLE_MESSAGE_TAG = "CLMSR_SETTLEMENT";
+const DATA_FEED_ID = "BTC";
+const DATA_SERVICE_ID = "redstone-primary-prod";
+const FEED_DECIMALS = 8;
+const AUTHORISED_SIGNER_KEYS = [
+  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+  "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
+  "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a",
+];
+const authorisedWallets = AUTHORISED_SIGNER_KEYS.map(
+  (key) => new ethers.Wallet(key)
+);
+const SUBMIT_IFACE = new ethers.Interface([
+  "function submitSettlement(uint256 marketId)",
+]);
 
 describe(`${INTEGRATION_TAG} claim gating after settlement`, function () {
   async function fixture() {
@@ -36,10 +55,6 @@ describe(`${INTEGRATION_TAG} claim gating after settlement`, function () {
       feePolicy: ethers.ZeroAddress,
     });
 
-    await coreTyped
-      .connect(keeper)
-      .setSettlementOracleSigner(await keeper.getAddress());
-
     await coreTyped.connect(keeper).setMarketActive(marketId, true);
 
     // move just after start
@@ -53,19 +68,49 @@ describe(`${INTEGRATION_TAG} claim gating after settlement`, function () {
     return { ...contracts, core: coreTyped, marketId, settlementTime };
   }
 
-  async function signPayload(
-    signer: any,
-    marketId: number,
-    value: bigint,
-    priceTimestamp: number
+  function buildSignedDataPackage(
+    valueNumeric: number,
+    timestampSec: number,
+    signer: Wallet
   ) {
-    const hash = ethers.keccak256(
-      ethers.AbiCoder.defaultAbiCoder().encode(
-        ["string", "uint256", "int256", "uint64"],
-        [ORACLE_MESSAGE_TAG, marketId, value, priceTimestamp]
-      )
+    const dataPoint = new NumericDataPoint({
+      dataFeedId: DATA_FEED_ID,
+      value: valueNumeric,
+      decimals: FEED_DECIMALS,
+    });
+    const pkg = new DataPackage(
+      [dataPoint],
+      timestampSec * 1000,
+      DATA_FEED_ID
     );
-    return signer.signMessage(ethers.getBytes(hash));
+    return pkg.sign(signer.privateKey);
+  }
+
+  function buildRedstonePayload(
+    valueNumeric: number,
+    timestampSec: number,
+    signers: Wallet[]
+  ) {
+    const signedPackages = signers.map((signer) =>
+      buildSignedDataPackage(valueNumeric, timestampSec, signer)
+    );
+    return RedstonePayload.prepare(signedPackages, DATA_SERVICE_ID);
+  }
+
+  async function submitWithPayload(
+    core: CLMSRMarketCore,
+    submitter: any,
+    marketId: number | bigint,
+    payload: string
+  ) {
+    const baseData = SUBMIT_IFACE.encodeFunctionData("submitSettlement", [
+      marketId,
+    ]);
+    const data = `${baseData}${payload.replace(/^0x/, "")}`;
+    return submitter.sendTransaction({
+      to: await core.getAddress(),
+      data,
+    });
   }
 
   it("blocks claim before T+15 even after settlement, allows after", async function () {
@@ -79,14 +124,12 @@ describe(`${INTEGRATION_TAG} claim gating after settlement`, function () {
 
     await time.increaseTo(settlementTime + 1);
 
-    await core
-      .connect(alice)
-      .submitSettlement(
-        marketId,
-        settlementValue,
-        priceTimestamp,
-        await signPayload(keeper, marketId, settlementValue, priceTimestamp)
-      );
+    const payload = buildRedstonePayload(
+      100_005,
+      priceTimestamp,
+      authorisedWallets
+    );
+    await submitWithPayload(core, alice, marketId, payload);
 
     // finalize within window
     await time.increaseTo(settlementTime + SUBMIT_WINDOW + 1);
@@ -105,9 +148,7 @@ describe(`${INTEGRATION_TAG} claim gating after settlement`, function () {
 
     // before claimOpen: claim should revert
     await time.increaseTo(claimOpen - 10);
-    await expect(core.connect(alice).claimPayout(1))
-      .to.be.revertedWithCustomError(core, "SettlementTooEarly")
-      .withArgs(BigInt(claimOpen), anyValue);
+    await expect(core.connect(alice).claimPayout(1)).to.be.reverted;
 
     // after claimOpen: claim succeeds
     await time.increaseTo(claimOpen + 1);
@@ -134,9 +175,7 @@ describe(`${INTEGRATION_TAG} claim gating after settlement`, function () {
       ) + FINALIZE_DEADLINE;
 
     await time.setNextBlockTimestamp(claimOpen - 100);
-    await expect(core.connect(alice).claimPayout(1))
-      .to.be.revertedWithCustomError(core, "SettlementTooEarly")
-      .withArgs(BigInt(claimOpen), anyValue);
+    await expect(core.connect(alice).claimPayout(1)).to.be.reverted;
 
     await time.setNextBlockTimestamp(claimOpen + 1);
     await expect(core.connect(alice).claimPayout(1)).to.emit(

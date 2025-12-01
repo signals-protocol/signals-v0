@@ -9,13 +9,33 @@ import {
 } from "../../helpers/fixtures/core";
 import { INTEGRATION_TAG } from "../../helpers/tags";
 import type { CLMSRMarketCore } from "../../../typechain-types";
+import {
+  DataPackage,
+  NumericDataPoint,
+  RedstonePayload,
+} from "@redstone-finance/protocol";
+import type { Wallet } from "ethers";
 
 const SUBMIT_WINDOW = 10 * 60; // 10 minutes
 const FINALIZE_DEADLINE = 15 * 60; // 15 minutes
-const ORACLE_MESSAGE_TAG = "CLMSR_SETTLEMENT";
 const ORACLE_STATE_SLOT = 9; // settlementOracleState mapping slot index
 const MIN_TICK = 100000;
 const MAX_TICK = 100500;
+const DATA_FEED_ID = "BTC";
+const DATA_SERVICE_ID = "redstone-primary-prod";
+const FEED_DECIMALS = 8;
+
+const AUTHORISED_SIGNER_KEYS = [
+  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", // hardhat default #0
+  "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d", // hardhat default #1
+  "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a", // hardhat default #2
+];
+const authorisedWallets = AUTHORISED_SIGNER_KEYS.map(
+  (key) => new ethers.Wallet(key)
+);
+const SUBMIT_IFACE = new ethers.Interface([
+  "function submitSettlement(uint256 marketId)",
+]);
 
 describe(`${INTEGRATION_TAG} finalizeSettlement windows and state`, function () {
   async function fixture() {
@@ -39,26 +59,7 @@ describe(`${INTEGRATION_TAG} finalizeSettlement windows and state`, function () 
       feePolicy: ethers.ZeroAddress,
     });
 
-    await coreTyped
-      .connect(keeper)
-      .setSettlementOracleSigner(await keeper.getAddress());
-
     return { ...contracts, core: coreTyped, marketId, settlementTime, keeper };
-  }
-
-  async function signPayload(
-    signer: any,
-    marketId: number,
-    value: bigint,
-    priceTimestamp: number
-  ) {
-    const hash = ethers.keccak256(
-      ethers.AbiCoder.defaultAbiCoder().encode(
-        ["string", "uint256", "int256", "uint64"],
-        [ORACLE_MESSAGE_TAG, marketId, value, priceTimestamp]
-      )
-    );
-    return signer.signMessage(ethers.getBytes(hash));
   }
 
   function mappingSlot(marketId: number | bigint) {
@@ -87,6 +88,51 @@ describe(`${INTEGRATION_TAG} finalizeSettlement windows and state`, function () 
     ]);
   }
 
+  function buildSignedDataPackage(
+    valueWithDecimals: number,
+    timestampSec: number,
+    signer: Wallet
+  ) {
+    const dataPoint = new NumericDataPoint({
+      dataFeedId: DATA_FEED_ID,
+      value: valueWithDecimals,
+      decimals: FEED_DECIMALS,
+    });
+    const pkg = new DataPackage(
+      [dataPoint],
+      timestampSec * 1000,
+      DATA_FEED_ID
+    );
+    return pkg.sign(signer.privateKey);
+  }
+
+  function buildRedstonePayload(
+    valueNumeric: number,
+    timestampSec: number,
+    signers: Wallet[]
+  ) {
+    const signedPackages = signers.map((signer) =>
+      buildSignedDataPackage(valueNumeric, timestampSec, signer)
+    );
+    return RedstonePayload.prepare(signedPackages, DATA_SERVICE_ID);
+  }
+
+  async function submitWithPayload(
+    core: CLMSRMarketCore,
+    submitter: any,
+    marketId: number | bigint,
+    payload: string
+  ) {
+    const baseData = SUBMIT_IFACE.encodeFunctionData("submitSettlement", [
+      marketId,
+    ]);
+    const data = `${baseData}${payload.replace(/^0x/, "")}`;
+    return submitter.sendTransaction({
+      to: await core.getAddress(),
+      data,
+    });
+  }
+
   it("reverts finalizeSettlement before T+10", async function () {
     const { core, marketId, settlementTime, alice, keeper } = await loadFixture(
       fixture
@@ -96,19 +142,12 @@ describe(`${INTEGRATION_TAG} finalizeSettlement windows and state`, function () 
 
     // submit once so candidate exists
     const priceTimestamp = settlementTime + 1;
-    await core
-      .connect(alice)
-      .submitSettlement(
-        marketId,
-        toSettlementValue(100200),
-        priceTimestamp,
-        await signPayload(
-          keeper,
-          marketId,
-          toSettlementValue(100200),
-          priceTimestamp
-        )
-      );
+    const payload = buildRedstonePayload(
+      100_200, // tick encoded with 8 decimals inside payload
+      priceTimestamp,
+      authorisedWallets
+    );
+    await submitWithPayload(core, alice, marketId, payload);
 
     await expect(core.connect(alice).finalizeSettlement(marketId, false))
       .to.be.revertedWithCustomError(core, "SettlementTooEarly")
@@ -123,19 +162,12 @@ describe(`${INTEGRATION_TAG} finalizeSettlement windows and state`, function () 
     await time.increaseTo(settlementTime + 1);
 
     const priceTimestamp = settlementTime + 2;
-    await core
-      .connect(alice)
-      .submitSettlement(
-        marketId,
-        toSettlementValue(100200),
-        priceTimestamp,
-        await signPayload(
-          keeper,
-          marketId,
-          toSettlementValue(100200),
-          priceTimestamp
-        )
-      );
+    const payload = buildRedstonePayload(
+      100_200,
+      priceTimestamp,
+      authorisedWallets
+    );
+    await submitWithPayload(core, alice, marketId, payload);
 
     await time.increaseTo(settlementTime + FINALIZE_DEADLINE + 1);
 
@@ -166,14 +198,12 @@ describe(`${INTEGRATION_TAG} finalizeSettlement windows and state`, function () 
 
     await time.increaseTo(settlementTime + 1);
 
-    await core
-      .connect(alice)
-      .submitSettlement(
-        marketId,
-        settlementValue,
-        priceTimestamp,
-        await signPayload(keeper, marketId, settlementValue, priceTimestamp)
-      );
+    const payload = buildRedstonePayload(
+      100_250,
+      priceTimestamp,
+      authorisedWallets
+    );
+    await submitWithPayload(core, alice, marketId, payload);
 
     await time.increaseTo(settlementTime + SUBMIT_WINDOW + 1);
 
@@ -216,14 +246,12 @@ describe(`${INTEGRATION_TAG} finalizeSettlement windows and state`, function () 
     const priceTimestamp = settlementTime + 4;
 
     await time.increaseTo(settlementTime + 1);
-    await core
-      .connect(alice)
-      .submitSettlement(
-        marketId,
-        settlementValue,
-        priceTimestamp,
-        await signPayload(keeper, marketId, settlementValue, priceTimestamp)
-      );
+    const payload = buildRedstonePayload(
+      100_210,
+      priceTimestamp,
+      authorisedWallets
+    );
+    await submitWithPayload(core, alice, marketId, payload);
 
     await time.increaseTo(settlementTime + SUBMIT_WINDOW + 2);
 
@@ -251,14 +279,12 @@ describe(`${INTEGRATION_TAG} finalizeSettlement windows and state`, function () 
     const oracleValue = toSettlementValue(100210);
     const priceTimestamp = settlementTime + 2;
     await time.increaseTo(settlementTime + 1);
-    await core
-      .connect(alice)
-      .submitSettlement(
-        marketId,
-        oracleValue,
-        priceTimestamp,
-        await signPayload(keeper, marketId, oracleValue, priceTimestamp)
-      );
+    const payload = buildRedstonePayload(
+      100_210,
+      priceTimestamp,
+      authorisedWallets
+    );
+    await submitWithPayload(core, alice, marketId, payload);
 
     await time.increaseTo(settlementTime + SUBMIT_WINDOW + 1);
     await core.connect(keeper).finalizeSettlement(marketId, true);
@@ -283,14 +309,12 @@ describe(`${INTEGRATION_TAG} finalizeSettlement windows and state`, function () 
     const priceTimestamp = settlementTime + 2;
 
     await time.increaseTo(settlementTime + 1);
-    await core
-      .connect(alice)
-      .submitSettlement(
-        marketId,
-        settlementValue,
-        priceTimestamp,
-        await signPayload(keeper, marketId, settlementValue, priceTimestamp)
-      );
+    const payload = buildRedstonePayload(
+      100_220,
+      priceTimestamp,
+      authorisedWallets
+    );
+    await submitWithPayload(core, alice, marketId, payload);
 
     await time.increaseTo(settlementTime + SUBMIT_WINDOW + 1);
 

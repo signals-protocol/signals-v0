@@ -13,8 +13,27 @@ import {
 } from "../../helpers/fixtures/core";
 import { INTEGRATION_TAG } from "../../helpers/tags";
 import type { CLMSRMarketCore } from "../../../typechain-types";
+import {
+  DataPackage,
+  NumericDataPoint,
+  RedstonePayload,
+} from "@redstone-finance/protocol";
+import type { Wallet } from "ethers";
 
-const ORACLE_MESSAGE_TAG = "CLMSR_SETTLEMENT";
+const DATA_FEED_ID = "BTC";
+const DATA_SERVICE_ID = "redstone-primary-prod";
+const FEED_DECIMALS = 8;
+const AUTHORISED_SIGNER_KEYS = [
+  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+  "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
+  "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a",
+];
+const authorisedWallets = AUTHORISED_SIGNER_KEYS.map(
+  (key) => new ethers.Wallet(key)
+);
+const SUBMIT_IFACE = new ethers.Interface([
+  "function submitSettlement(uint256 marketId)",
+]);
 
 describe(`${INTEGRATION_TAG} Settlement pause behavior`, function () {
   async function fixture() {
@@ -38,26 +57,52 @@ describe(`${INTEGRATION_TAG} Settlement pause behavior`, function () {
       feePolicy: ethers.ZeroAddress,
     });
 
-    await coreTyped
-      .connect(keeper)
-      .setSettlementOracleSigner(await keeper.getAddress());
-
     return { ...contracts, core: coreTyped, marketId, settlementTime, keeper, alice };
   }
 
-  async function signPayload(
-    signer: any,
-    marketId: number,
-    value: bigint,
-    priceTimestamp: number
+  function buildSignedDataPackage(
+    valueNumeric: number,
+    timestampSec: number,
+    signer: Wallet
   ) {
-    const hash = ethers.keccak256(
-      ethers.AbiCoder.defaultAbiCoder().encode(
-        ["string", "uint256", "int256", "uint64"],
-        [ORACLE_MESSAGE_TAG, marketId, value, priceTimestamp]
-      )
+    const dataPoint = new NumericDataPoint({
+      dataFeedId: DATA_FEED_ID,
+      value: valueNumeric,
+      decimals: FEED_DECIMALS,
+    });
+    const pkg = new DataPackage(
+      [dataPoint],
+      timestampSec * 1000,
+      DATA_FEED_ID
     );
-    return signer.signMessage(ethers.getBytes(hash));
+    return pkg.sign(signer.privateKey);
+  }
+
+  function buildRedstonePayload(
+    valueNumeric: number,
+    timestampSec: number,
+    signers: Wallet[]
+  ) {
+    const signedPackages = signers.map((signer) =>
+      buildSignedDataPackage(valueNumeric, timestampSec, signer)
+    );
+    return RedstonePayload.prepare(signedPackages, DATA_SERVICE_ID);
+  }
+
+  async function submitWithPayload(
+    core: CLMSRMarketCore,
+    submitter: any,
+    marketId: number | bigint,
+    payload: string
+  ) {
+    const baseData = SUBMIT_IFACE.encodeFunctionData("submitSettlement", [
+      marketId,
+    ]);
+    const data = `${baseData}${payload.replace(/^0x/, "")}`;
+    return submitter.sendTransaction({
+      to: await core.getAddress(),
+      data,
+    });
   }
 
   it("submitSettlement is blocked when paused", async function () {
@@ -71,12 +116,7 @@ describe(`${INTEGRATION_TAG} Settlement pause behavior`, function () {
     await expect(
       core
         .connect(alice)
-        .submitSettlement(
-          marketId,
-          toSettlementValue(100200),
-          settlementTime + 2,
-          await signPayload(keeper, marketId, toSettlementValue(100200), settlementTime + 2)
-        )
+        .submitSettlement(marketId)
     ).to.be.revertedWithCustomError(core, "EnforcedPause");
   });
 
@@ -85,14 +125,12 @@ describe(`${INTEGRATION_TAG} Settlement pause behavior`, function () {
       await loadFixture(fixture);
 
     await time.increaseTo(settlementTime + 1);
-    await core
-      .connect(alice)
-      .submitSettlement(
-        marketId,
-        toSettlementValue(100200),
-        settlementTime + 2,
-        await signPayload(keeper, marketId, toSettlementValue(100200), settlementTime + 2)
-      );
+    const payload = buildRedstonePayload(
+      100_200,
+      settlementTime + 2,
+      authorisedWallets
+    );
+    await submitWithPayload(core, alice, marketId, payload);
 
     await core.connect(keeper).pause("pause for test");
     await time.increaseTo(settlementTime + 11 * 60); // within finalize window
@@ -107,14 +145,12 @@ describe(`${INTEGRATION_TAG} Settlement pause behavior`, function () {
       await loadFixture(fixture);
 
     await time.increaseTo(settlementTime + 1);
-    await core
-      .connect(alice)
-      .submitSettlement(
-        marketId,
-        toSettlementValue(100200),
-        settlementTime + 2,
-        await signPayload(keeper, marketId, toSettlementValue(100200), settlementTime + 2)
-      );
+    const payload = buildRedstonePayload(
+      100_200,
+      settlementTime + 2,
+      authorisedWallets
+    );
+    await submitWithPayload(core, alice, marketId, payload);
     await time.increaseTo(settlementTime + 11 * 60);
     await core.connect(alice).finalizeSettlement(marketId, false);
 

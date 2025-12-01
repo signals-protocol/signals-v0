@@ -6,14 +6,13 @@ import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import "../core/storage/CLMSRMarketCoreStorage.sol";
 import "../interfaces/ICLMSRMarketCore.sol";
 import "../interfaces/ICLMSRPosition.sol";
 import {LazyMulSegmentTree} from "../libraries/LazyMulSegmentTree.sol";
 import "../errors/CLMSRErrors.sol";
 import {CLMSRErrors as CE} from "../errors/CLMSRErrors.sol";
+import "@redstone-finance/evm-connector/contracts/data-services/PrimaryProdDataServiceConsumerBase.sol";
 
 /// @notice 라이프사이클 전용 매니저 - Core로부터 delegatecall로 호출되어 동일 스토리지를 조작한다.
 contract CLMSRMarketManager is
@@ -23,14 +22,14 @@ contract CLMSRMarketManager is
     UUPSUpgradeable,
     PausableUpgradeable,
     ReentrancyGuardUpgradeable,
+    PrimaryProdDataServiceConsumerBase,
     CLMSRMarketCoreStorage
 {
-    using MessageHashUtils for bytes32;
-
     uint32 private constant MAX_TICK_COUNT = 1_000_000;
     uint256 private constant MIN_LIQUIDITY_PARAMETER = 1e15;
     uint256 private constant MAX_LIQUIDITY_PARAMETER = 1e23;
-    string private constant ORACLE_MESSAGE_TAG = "CLMSR_SETTLEMENT";
+    bytes32 private constant REDSTONE_DATA_FEED_ID = bytes32("BTC");
+    uint8 private constant REDSTONE_FEED_DECIMALS = 8;
 
     event MarketCreated(
         uint256 indexed marketId,
@@ -145,21 +144,18 @@ contract CLMSRMarketManager is
         onlyOwner
         onlyDelegated
     {
-        require(_marketExists(marketId), CE.MarketNotFound(marketId));
+        if (!(_marketExists(marketId))) { revert CE.MarketNotFound(marketId); }
         ICLMSRMarketCore.Market storage market = markets[marketId];
 
-        require(!market.settled, CE.MarketAlreadySettled(marketId));
+        if (!(!market.settled)) { revert CE.MarketAlreadySettled(marketId); }
 
         uint64 gate = market.settlementTimestamp == 0 ? market.endTimestamp : market.settlementTimestamp;
-        require(block.timestamp >= gate, CE.SettlementTooEarly(gate, uint64(block.timestamp)));
+        if (!(block.timestamp >= gate)) { revert CE.SettlementTooEarly(gate, uint64(block.timestamp)); }
 
         int256 settlementTick = settlementValue / 1_000_000;
 
-        require(
-            settlementTick >= market.minTick &&
-                settlementTick <= market.maxTick,
-            CE.InvalidTick(settlementTick, market.minTick, market.maxTick)
-        );
+        if (!(settlementTick >= market.minTick &&
+                settlementTick <= market.maxTick)) { revert CE.InvalidTick(settlementTick, market.minTick, market.maxTick); }
 
         market.settled = true;
         market.settlementValue = settlementValue;
@@ -174,44 +170,28 @@ contract CLMSRMarketManager is
     }
 
     function submitSettlement(
-        uint256 marketId,
-        int256 settlementValue,
-        uint64 priceTimestamp,
-        bytes calldata oracleData
+        uint256 marketId
     ) external onlyDelegated whenNotPaused {
-        require(_marketExists(marketId), CE.MarketNotFound(marketId));
+        if (!(_marketExists(marketId))) { revert CE.MarketNotFound(marketId); }
         ICLMSRMarketCore.Market storage market = markets[marketId];
         SettlementOracleState storage state = settlementOracleState[marketId];
 
-        require(!market.settled, CE.MarketAlreadySettled(marketId));
+        if (!(!market.settled)) { revert CE.MarketAlreadySettled(marketId); }
 
         uint64 gate = market.settlementTimestamp == 0 ? market.endTimestamp : market.settlementTimestamp;
+        uint64 nowTs = uint64(block.timestamp);
 
-        require(block.timestamp >= gate, CE.SettlementTooEarly(gate, uint64(block.timestamp)));
-        require(
-            block.timestamp < gate + SETTLEMENT_SUBMIT_WINDOW,
-            CE.SettlementFinalizeWindowClosed(gate + SETTLEMENT_SUBMIT_WINDOW, uint64(block.timestamp))
-        );
+        if (!(nowTs >= gate)) { revert CE.SettlementTooEarly(gate, nowTs); }
+        if (!(nowTs < gate + SETTLEMENT_SUBMIT_WINDOW)) { revert CE.SettlementFinalizeWindowClosed(gate + SETTLEMENT_SUBMIT_WINDOW, nowTs); }
 
+        // Validate signatures and extract single price/timestamp from payload
+        uint256 price = getOracleNumericValueFromTxMsg(REDSTONE_DATA_FEED_ID);
+        uint256 timestampMs = extractTimestampsAndAssertAllAreEqual();
+        uint64 priceTimestamp = uint64(timestampMs / 1000);
+        int256 settlementValue = _convertPriceToSettlementValue(price);
         int256 settlementTick = settlementValue / 1_000_000;
-        require(
-            settlementTick >= market.minTick &&
-                settlementTick <= market.maxTick,
-            CE.InvalidTick(settlementTick, market.minTick, market.maxTick)
-        );
-
-        address oracleSigner = settlementOracleSigner;
-        require(oracleSigner != address(0), CE.ZeroAddress());
-
-        bytes32 payloadHash = keccak256(
-            abi.encode(ORACLE_MESSAGE_TAG, marketId, settlementValue, priceTimestamp)
-        );
-        bytes32 digest = payloadHash.toEthSignedMessageHash();
-        address recovered = ECDSA.recover(digest, oracleData);
-        require(
-            recovered == oracleSigner,
-            CE.SettlementOracleSignatureInvalid(recovered)
-        );
+        if (!(settlementTick >= market.minTick &&
+            settlementTick <= market.maxTick)) { revert CE.InvalidTick(settlementTick, market.minTick, market.maxTick); }
 
         uint64 target = gate;
         uint64 existingTs = state.candidatePriceTimestamp;
@@ -233,7 +213,7 @@ contract CLMSRMarketManager is
             settlementTick,
             priceTimestamp,
             msg.sender,
-            oracleData
+            ""
         );
     }
 
@@ -242,26 +222,20 @@ contract CLMSRMarketManager is
         onlyDelegated
         whenNotPaused
     {
-        require(_marketExists(marketId), CE.MarketNotFound(marketId));
+        if (!(_marketExists(marketId))) { revert CE.MarketNotFound(marketId); }
         ICLMSRMarketCore.Market storage market = markets[marketId];
         SettlementOracleState storage state = settlementOracleState[marketId];
 
-        require(!market.settled, CE.MarketAlreadySettled(marketId));
+        if (!(!market.settled)) { revert CE.MarketAlreadySettled(marketId); }
 
         uint64 gate = market.settlementTimestamp == 0 ? market.endTimestamp : market.settlementTimestamp;
         uint64 nowTs = uint64(block.timestamp);
 
-        require(
-            nowTs >= gate + SETTLEMENT_SUBMIT_WINDOW,
-            CE.SettlementTooEarly(gate + SETTLEMENT_SUBMIT_WINDOW, nowTs)
-        );
-        require(
-            nowTs < gate + SETTLEMENT_FINALIZE_DEADLINE,
-            CE.SettlementFinalizeWindowClosed(gate + SETTLEMENT_FINALIZE_DEADLINE, nowTs)
-        );
+        if (!(nowTs >= gate + SETTLEMENT_SUBMIT_WINDOW)) { revert CE.SettlementTooEarly(gate + SETTLEMENT_SUBMIT_WINDOW, nowTs); }
+        if (!(nowTs < gate + SETTLEMENT_FINALIZE_DEADLINE)) { revert CE.SettlementFinalizeWindowClosed(gate + SETTLEMENT_FINALIZE_DEADLINE, nowTs); }
 
         if (markFailed) {
-            require(msg.sender == owner(), CE.UnauthorizedCaller(msg.sender));
+            if (!(msg.sender == owner())) { revert CE.UnauthorizedCaller(msg.sender); }
             state.candidateValue = 0;
             state.candidatePriceTimestamp = 0;
 
@@ -276,16 +250,13 @@ contract CLMSRMarketManager is
             return;
         }
 
-        require(state.candidatePriceTimestamp != 0, CE.SettlementOracleCandidateMissing());
+        if (!(state.candidatePriceTimestamp != 0)) { revert CE.SettlementOracleCandidateMissing(); }
 
         int256 settlementValue = state.candidateValue;
         int256 settlementTick = settlementValue / 1_000_000;
 
-        require(
-            settlementTick >= market.minTick &&
-                settlementTick <= market.maxTick,
-            CE.InvalidTick(settlementTick, market.minTick, market.maxTick)
-        );
+        if (!(settlementTick >= market.minTick &&
+                settlementTick <= market.maxTick)) { revert CE.InvalidTick(settlementTick, market.minTick, market.maxTick); }
 
         market.settled = true;
         market.settlementValue = settlementValue;
@@ -310,24 +281,15 @@ contract CLMSRMarketManager is
         state.candidatePriceTimestamp = 0;
     }
 
-    function setSettlementOracleSigner(address newSigner)
-        external
-        onlyOwner
-        onlyDelegated
-    {
-        require(newSigner != address(0), CE.ZeroAddress());
-        settlementOracleSigner = newSigner;
-    }
-
     function reopenMarket(uint256 marketId)
         external
         onlyOwner
         onlyDelegated
     {
-        require(_marketExists(marketId), CE.MarketNotFound(marketId));
+        if (!(_marketExists(marketId))) { revert CE.MarketNotFound(marketId); }
         ICLMSRMarketCore.Market storage market = markets[marketId];
 
-        require(market.settled, CE.MarketNotSettled(marketId));
+        if (!(market.settled)) { revert CE.MarketNotSettled(marketId); }
 
         market.settled = false;
         market.settlementValue = 0;
@@ -346,13 +308,13 @@ contract CLMSRMarketManager is
         uint64 newEndTimestamp,
         uint64 newSettlementTimestamp
     ) external onlyOwner onlyDelegated {
-        require(_marketExists(marketId), CE.MarketNotFound(marketId));
+        if (!(_marketExists(marketId))) { revert CE.MarketNotFound(marketId); }
         ICLMSRMarketCore.Market storage market = markets[marketId];
 
-        require(!market.settled, CE.MarketAlreadySettled(marketId));
+        if (!(!market.settled)) { revert CE.MarketAlreadySettled(marketId); }
 
-        require(newStartTimestamp < newEndTimestamp, CE.InvalidTimeRange());
-        require(newEndTimestamp < newSettlementTimestamp, CE.InvalidTimeRange());
+        if (!(newStartTimestamp < newEndTimestamp)) { revert CE.InvalidTimeRange(); }
+        if (!(newEndTimestamp < newSettlementTimestamp)) { revert CE.InvalidTimeRange(); }
 
         market.startTimestamp = newStartTimestamp;
         market.endTimestamp = newEndTimestamp;
@@ -367,11 +329,11 @@ contract CLMSRMarketManager is
         onlyOwner
         onlyDelegated
     {
-        require(_marketExists(marketId), CE.MarketNotFound(marketId));
+        if (!(_marketExists(marketId))) { revert CE.MarketNotFound(marketId); }
         ICLMSRMarketCore.Market storage m = markets[marketId];
-        require(m.settled, CE.MarketNotSettled(marketId));
+        if (!(m.settled)) { revert CE.MarketNotSettled(marketId); }
         if (m.positionEventsEmitted) return;
-        require(limit > 0, CE.ZeroLimit());
+        if (!(limit > 0)) { revert CE.ZeroLimit(); }
 
         uint256 len = positionContract.getMarketTokenLength(marketId);
         uint256 cursor = uint256(m.positionEventsCursor);
@@ -412,10 +374,10 @@ contract CLMSRMarketManager is
         whenNotPaused
         onlyDelegated
     {
-        require(_marketExists(marketId), CE.MarketNotFound(marketId));
+        if (!(_marketExists(marketId))) { revert CE.MarketNotFound(marketId); }
         ICLMSRMarketCore.Market storage market = markets[marketId];
 
-        require(!market.settled, CE.MarketAlreadySettled(marketId));
+        if (!(!market.settled)) { revert CE.MarketAlreadySettled(marketId); }
 
         if (market.isActive == active) {
             return;
@@ -431,7 +393,7 @@ contract CLMSRMarketManager is
         whenNotPaused
         onlyDelegated
     {
-        require(_marketExists(marketId), CE.MarketNotFound(marketId));
+        if (!(_marketExists(marketId))) { revert CE.MarketNotFound(marketId); }
         if (newPolicy != address(0) && newPolicy.code.length == 0) {
             revert CE.InvalidFeePolicy(newPolicy);
         }
@@ -446,6 +408,13 @@ contract CLMSRMarketManager is
         emit MarketFeePolicySet(marketId, oldPolicy, newPolicy);
     }
 
+    function _convertPriceToSettlementValue(uint256 price) internal pure returns (int256) {
+        uint256 scaleDivisor = 10 ** uint256(REDSTONE_FEED_DECIMALS - 6);
+        uint256 scaled = price / scaleDivisor;
+        require(scaled <= uint256(type(int256).max), "PriceOverflow");
+        return int256(scaled);
+    }
+
     function _createMarketInternal(
         ICLMSRMarketCore.MarketCreationParams memory params,
         bool activate
@@ -453,29 +422,23 @@ contract CLMSRMarketManager is
         marketId = _nextMarketId;
         _nextMarketId++;
 
-        require(!_marketExists(marketId), CE.MarketAlreadyExists(marketId));
+        if (!(!_marketExists(marketId))) { revert CE.MarketAlreadyExists(marketId); }
 
         _validateMarketParameters(params.minTick, params.maxTick, params.tickSpacing);
 
-        require(params.startTimestamp < params.endTimestamp, CE.InvalidTimeRange());
-        require(params.endTimestamp < params.settlementTimestamp, CE.InvalidTimeRange());
+        if (!(params.startTimestamp < params.endTimestamp)) { revert CE.InvalidTimeRange(); }
+        if (!(params.endTimestamp < params.settlementTimestamp)) { revert CE.InvalidTimeRange(); }
 
-        require(
-            params.liquidityParameter >= MIN_LIQUIDITY_PARAMETER &&
-                params.liquidityParameter <= MAX_LIQUIDITY_PARAMETER,
-            CE.InvalidLiquidityParameter()
-        );
+        if (!(params.liquidityParameter >= MIN_LIQUIDITY_PARAMETER &&
+                params.liquidityParameter <= MAX_LIQUIDITY_PARAMETER)) { revert CE.InvalidLiquidityParameter(); }
 
         if (params.feePolicy != address(0)) {
-            require(params.feePolicy.code.length > 0, CE.InvalidFeePolicy(params.feePolicy));
+            if (!(params.feePolicy.code.length > 0)) { revert CE.InvalidFeePolicy(params.feePolicy); }
         }
 
         numBins = _calculateNumBins(params.minTick, params.maxTick, params.tickSpacing);
 
-        require(
-            numBins != 0 && numBins <= MAX_TICK_COUNT,
-            CE.BinCountExceedsLimit(numBins, MAX_TICK_COUNT)
-        );
+        if (!(numBins != 0 && numBins <= MAX_TICK_COUNT)) { revert CE.BinCountExceedsLimit(numBins, MAX_TICK_COUNT); }
 
         markets[marketId] = ICLMSRMarketCore.Market({
             isActive: activate,
@@ -522,15 +485,15 @@ contract CLMSRMarketManager is
     }
 
     function _validateMarketParameters(int256 minTick, int256 maxTick, int256 tickSpacing) internal pure {
-        require(minTick < maxTick, CE.InvalidMarketParameters(minTick, maxTick, tickSpacing));
-        require(tickSpacing > 0, CE.InvalidMarketParameters(minTick, maxTick, tickSpacing));
-        require((maxTick - minTick) % tickSpacing == 0, CE.InvalidMarketParameters(minTick, maxTick, tickSpacing));
+        if (!(minTick < maxTick)) { revert CE.InvalidMarketParameters(minTick, maxTick, tickSpacing); }
+        if (!(tickSpacing > 0)) { revert CE.InvalidMarketParameters(minTick, maxTick, tickSpacing); }
+        if (!((maxTick - minTick) % tickSpacing == 0)) { revert CE.InvalidMarketParameters(minTick, maxTick, tickSpacing); }
     }
 
     function _calculateNumBins(int256 minTick, int256 maxTick, int256 tickSpacing) internal pure returns (uint32) {
         int256 range = maxTick - minTick;
         int256 ranges = range / tickSpacing;
-        require(ranges > 0 && ranges <= int256(uint256(MAX_TICK_COUNT)), CE.InvalidRangeCount(ranges, MAX_TICK_COUNT));
+        if (!(ranges > 0 && ranges <= int256(uint256(MAX_TICK_COUNT)))) { revert CE.InvalidRangeCount(ranges, MAX_TICK_COUNT); }
         return uint32(uint256(ranges));
     }
 }

@@ -17,6 +17,7 @@ import {FixedPointMathU} from "../libraries/FixedPointMath.sol";
 import "../errors/CLMSRErrors.sol";
 import {CLMSRErrors as CE} from "../errors/CLMSRErrors.sol";
 import "./storage/CLMSRMarketCoreStorage.sol";
+import "@redstone-finance/evm-connector/contracts/core/RedstoneConstants.sol";
 
 /// @title CLMSRMarketCore  
 /// @notice Core implementation for CLMSR Daily-Market System
@@ -29,7 +30,8 @@ contract CLMSRMarketCore is
     UUPSUpgradeable,
     PausableUpgradeable,
     ReentrancyGuardUpgradeable,
-    CLMSRMarketCoreStorage
+    CLMSRMarketCoreStorage,
+    RedstoneConstants
 {
     using SafeERC20 for IERC20;
     using {
@@ -136,7 +138,7 @@ contract CLMSRMarketCore is
     
     /// @notice Market must exist
     modifier marketExists(uint256 marketId) {
-        require(_marketExists(marketId), CE.MarketNotFound(marketId));
+        if (!(_marketExists(marketId))) { revert CE.MarketNotFound(marketId); }
         _;
     }
 
@@ -151,11 +153,8 @@ contract CLMSRMarketCore is
         address _paymentToken,
         address _positionContract
     ) external initializer {
-        require(
-            _paymentToken != address(0) &&
-                _positionContract != address(0),
-            CE.ZeroAddress()
-        );
+        if (!(_paymentToken != address(0) &&
+                _positionContract != address(0))) { revert CE.ZeroAddress(); }
         
         __Ownable_init(msg.sender);
         __UUPSUpgradeable_init();
@@ -163,7 +162,7 @@ contract CLMSRMarketCore is
         __ReentrancyGuard_init();
         
         uint8 tokenDecimals = IERC20Metadata(_paymentToken).decimals();
-        require(tokenDecimals == 6, CE.InvalidTokenDecimals(tokenDecimals, 6));
+        if (!(tokenDecimals == 6)) { revert CE.InvalidTokenDecimals(tokenDecimals, 6); }
 
         paymentToken = IERC20(_paymentToken);
         positionContract = ICLMSRPosition(_positionContract);    
@@ -180,7 +179,7 @@ contract CLMSRMarketCore is
 
     /// @notice 라이프사이클 위임 대상 매니저를 설정한다.
     function setManager(address newManager) external onlyOwner {
-        require(newManager != address(0), CE.ZeroAddress());
+        if (!(newManager != address(0))) { revert CE.ZeroAddress(); }
         require(newManager.code.length > 0, "ManagerNoCode");
 
         emit ManagerUpdated(manager, newManager);
@@ -203,12 +202,6 @@ contract CLMSRMarketCore is
     function setFeeRecipient(address newRecipient) external override onlyOwner {
         emit FeeRecipientUpdated(feeRecipient, newRecipient);
         feeRecipient = newRecipient;
-    }
-
-    /// @notice Sets the trusted settlement oracle signer address
-    function setSettlementOracleSigner(address newSigner) external override onlyOwner {
-        newSigner;
-        _delegateToManager();
     }
 
     /// @notice Returns the configured fee policy address for a specific market
@@ -275,12 +268,9 @@ contract CLMSRMarketCore is
 
     /// @inheritdoc ICLMSRMarketCore
     function submitSettlement(
-        uint256 marketId,
-        int256 settlementValue,
-        uint64 priceTimestamp,
-        bytes calldata oracleData
+        uint256 marketId
     ) external override whenNotPaused marketExists(marketId) {
-        (marketId, settlementValue, priceTimestamp, oracleData);
+        (marketId);
         _delegateToManager();
     }
 
@@ -349,7 +339,7 @@ contract CLMSRMarketCore is
         /// @inheritdoc ICLMSRMarketCore
     function getMarket(uint256 marketId) 
         external view override returns (Market memory market) {
-        require(_marketExists(marketId), CE.MarketNotFound(marketId));
+        if (!(_marketExists(marketId))) { revert CE.MarketNotFound(marketId); }
         return markets[marketId];
     }
 
@@ -361,7 +351,7 @@ contract CLMSRMarketCore is
         uint128 quantity,
         uint256 cost
     ) external view override returns (uint256) {
-        require(_marketExists(marketId), CE.MarketNotFound(marketId));
+        if (!(_marketExists(marketId))) { revert CE.MarketNotFound(marketId); }
         return _quoteFee(true, msg.sender, marketId, lowerTick, upperTick, quantity, cost);
     }
 
@@ -401,7 +391,7 @@ contract CLMSRMarketCore is
         _validateTick(lo, market);
         _validateTick(hi, market);
         
-        require(lo <= hi, CE.InvalidTickRange(lo, hi));
+        if (!(lo <= hi)) { revert CE.InvalidTickRange(lo, hi); }
         
         (uint32 loBin, uint32 hiBin) = _rangeToBins(lo, hi, market);
 
@@ -425,7 +415,7 @@ contract CLMSRMarketCore is
         _validateTick(lo, market);
         _validateTick(hi, market);
         
-        require(lo <= hi, CE.InvalidTickRange(lo, hi));
+        if (!(lo <= hi)) { revert CE.InvalidTickRange(lo, hi); }
 
         (uint32 loBin, uint32 hiBin) = _rangeToBins(lo, hi, market);
 
@@ -448,7 +438,7 @@ contract CLMSRMarketCore is
         _validateTick(lo, market);
         _validateTick(hi, market);
         
-        require(lo <= hi, CE.InvalidTickRange(lo, hi));
+        if (!(lo <= hi)) { revert CE.InvalidTickRange(lo, hi); }
 
         (uint32 loBin, uint32 hiBin) = _rangeToBins(lo, hi, market);
 
@@ -465,8 +455,8 @@ contract CLMSRMarketCore is
         bytes32 context
     ) external override onlyOwner whenNotPaused marketExists(marketId) {
         uint256 length = lowers.length;
-        require(length == uppers.length && length == factors.length, CE.ArrayLengthMismatch());
-        require(length != 0, CE.ArrayLengthMismatch());
+        if (!(length == uppers.length && length == factors.length)) { revert CE.ArrayLengthMismatch(); }
+        if (!(length != 0)) { revert CE.ArrayLengthMismatch(); }
 
         Market memory market = markets[marketId];
 
@@ -477,7 +467,7 @@ contract CLMSRMarketCore is
 
             _validateTick(lo, market);
             _validateTick(hi, market);
-            require(lo <= hi, CE.InvalidTickRange(lo, hi));
+            if (!(lo <= hi)) { revert CE.InvalidTickRange(lo, hi); }
 
             (uint32 loBin, uint32 hiBin) = _rangeToBins(lo, hi, market);
             LazyMulSegmentTree.applyRangeFactor(marketTrees[marketId], loBin, hiBin, factor);
@@ -531,33 +521,30 @@ contract CLMSRMarketCore is
         uint256 maxCost
     ) external override whenNotPaused nonReentrant returns (uint256 positionId) {
         // Validate parameters
-        require(quantity != 0, CE.InvalidQuantity(quantity));
+        if (!(quantity != 0)) { revert CE.InvalidQuantity(quantity); }
         
         Market storage market = markets[marketId];
-        require(_marketExists(marketId), CE.MarketNotFound(marketId));
+        if (!(_marketExists(marketId))) { revert CE.MarketNotFound(marketId); }
         
-        require(market.isActive, CE.MarketNotActive());
+        if (!(market.isActive)) { revert CE.MarketNotActive(); }
         
         // Validate market timing
-        require(block.timestamp >= market.startTimestamp, CE.MarketNotStarted());
+        if (!(block.timestamp >= market.startTimestamp)) { revert CE.MarketNotStarted(); }
         
-        require(block.timestamp <= market.endTimestamp, CE.MarketExpired());
+        if (!(block.timestamp <= market.endTimestamp)) { revert CE.MarketExpired(); }
         
         // Validate ticks are within market bounds and follow spacing
         _validateTick(lowerTick, market);
         _validateTick(upperTick, market);
         
-        require(lowerTick <= upperTick, CE.InvalidTickRange(lowerTick, upperTick));
+        if (!(lowerTick <= upperTick)) { revert CE.InvalidTickRange(lowerTick, upperTick); }
         
         // 🚨 NO POINT BETTING: Reject same tick betting
-        require(lowerTick != upperTick, CE.InvalidTickRange(lowerTick, upperTick));
+        if (!(lowerTick != upperTick)) { revert CE.InvalidTickRange(lowerTick, upperTick); }
         
         // ✅ RANGE BETTING: Allow any valid range (single or multiple intervals)
         // Must be aligned to tick spacing
-        require(
-            (upperTick - lowerTick) % market.tickSpacing == 0,
-            CE.InvalidTickRange(lowerTick, upperTick)
-        );
+        if (!((upperTick - lowerTick) % market.tickSpacing == 0)) { revert CE.InvalidTickRange(lowerTick, upperTick); }
         
         // Calculate trade cost and convert to 6-decimal with round-up to prevent zero-cost attacks
         uint256 costWad = _calcCostInWad(marketId, lowerTick, upperTick, quantity);
@@ -565,7 +552,7 @@ contract CLMSRMarketCore is
 
         uint256 fee6 = _quoteFee(true, msg.sender, marketId, lowerTick, upperTick, quantity, cost6);
         uint256 totalCost = cost6 + fee6;
-        require(totalCost <= maxCost, CE.CostExceedsMaximum(totalCost, maxCost));
+        if (!(totalCost <= maxCost)) { revert CE.CostExceedsMaximum(totalCost, maxCost); }
 
         // Transfer payment from caller (msg.sender)
         _pullUSDC(msg.sender, cost6);
@@ -616,14 +603,14 @@ contract CLMSRMarketCore is
         uint128 additionalQuantity,
         uint256 maxCost
     ) external override whenNotPaused nonReentrant returns (uint128 newQuantity) {
-        require(additionalQuantity != 0, CE.InvalidQuantity(additionalQuantity));
+        if (!(additionalQuantity != 0)) { revert CE.InvalidQuantity(additionalQuantity); }
         
         // Get position data and validate market
         ICLMSRPosition.Position memory position = positionContract.getPosition(positionId);
         address trader = positionContract.ownerOf(positionId);
         
         // Verify caller owns the position
-        require(trader == msg.sender, CE.UnauthorizedCaller(msg.sender));
+        if (!(trader == msg.sender)) { revert CE.UnauthorizedCaller(msg.sender); }
         
         _validateActiveMarket(position.marketId);
         Market storage market = markets[position.marketId];
@@ -647,7 +634,7 @@ contract CLMSRMarketCore is
             cost6
         );
         uint256 totalCost = cost6 + fee6;
-        require(totalCost <= maxCost, CE.CostExceedsMaximum(totalCost, maxCost));
+        if (!(totalCost <= maxCost)) { revert CE.CostExceedsMaximum(totalCost, maxCost); }
         
         // Transfer payment from caller
         _pullUSDC(msg.sender, cost6);
@@ -685,19 +672,19 @@ contract CLMSRMarketCore is
         uint128 sellQuantity,
         uint256 minProceeds
     ) external override whenNotPaused nonReentrant returns (uint128 newQuantity, uint256 proceeds) {
-        require(sellQuantity != 0, CE.InvalidQuantity(sellQuantity));
+        if (!(sellQuantity != 0)) { revert CE.InvalidQuantity(sellQuantity); }
         
         // Get position data and validate market
         ICLMSRPosition.Position memory position = positionContract.getPosition(positionId);
         address trader = positionContract.ownerOf(positionId);
         
         // Verify caller owns the position
-        require(trader == msg.sender, CE.UnauthorizedCaller(msg.sender));
+        if (!(trader == msg.sender)) { revert CE.UnauthorizedCaller(msg.sender); }
         
         _validateActiveMarket(position.marketId);
         Market storage market = markets[position.marketId];
         
-        require(sellQuantity <= position.quantity, CE.InsufficientPositionQuantity(sellQuantity, position.quantity));
+        if (!(sellQuantity <= position.quantity)) { revert CE.InsufficientPositionQuantity(sellQuantity, position.quantity); }
         
         // Calculate proceeds with round-up for fair treatment
         uint256 proceedsWad = _calculateSellProceeds(
@@ -723,7 +710,7 @@ contract CLMSRMarketCore is
         }
         uint256 netProceeds = baseProceeds - fee6;
         
-        require(netProceeds >= minProceeds, CE.ProceedsBelowMinimum(netProceeds, minProceeds));
+        if (!(netProceeds >= minProceeds)) { revert CE.ProceedsBelowMinimum(netProceeds, minProceeds); }
         
         // Update market state
         uint256 sellDeltaWad = uint256(sellQuantity).toWad();
@@ -770,14 +757,14 @@ contract CLMSRMarketCore is
         address trader = positionContract.ownerOf(positionId);
         
         // Verify caller owns the position
-        require(trader == msg.sender, CE.UnauthorizedCaller(msg.sender));
+        if (!(trader == msg.sender)) { revert CE.UnauthorizedCaller(msg.sender); }
         
         Market memory market = markets[position.marketId];
-        require(market.settled, CE.MarketNotSettled(position.marketId));
+        if (!(market.settled)) { revert CE.MarketNotSettled(position.marketId); }
 
         uint64 T = market.settlementTimestamp == 0 ? market.endTimestamp : market.settlementTimestamp;
         uint64 claimOpen = T + SETTLEMENT_FINALIZE_DEADLINE;
-        require(block.timestamp >= claimOpen, CE.SettlementTooEarly(claimOpen, uint64(block.timestamp)));
+        if (!(block.timestamp >= claimOpen)) { revert CE.SettlementTooEarly(claimOpen, uint64(block.timestamp)); }
         
         // Calculate payout and emit PositionSettled once if not already
         payout = _calculateClaimAmount(positionId);
@@ -806,7 +793,7 @@ contract CLMSRMarketCore is
         address trader = positionContract.ownerOf(positionId);
 
         // Verify caller owns the position
-        require(trader == msg.sender, CE.UnauthorizedCaller(msg.sender));
+        if (!(trader == msg.sender)) { revert CE.UnauthorizedCaller(msg.sender); }
 
         _validateActiveMarket(position.marketId);
         Market storage market = markets[position.marketId];
@@ -836,7 +823,7 @@ contract CLMSRMarketCore is
         }
         uint256 netProceeds = baseProceeds - fee6;
 
-        require(netProceeds >= minProceeds, CE.ProceedsBelowMinimum(netProceeds, minProceeds));
+        if (!(netProceeds >= minProceeds)) { revert CE.ProceedsBelowMinimum(netProceeds, minProceeds); }
 
         // Update market state (selling entire position)
         _applyFactorChunked(
@@ -885,23 +872,20 @@ contract CLMSRMarketCore is
         int256 upperTick,
         uint128 quantity
     ) external view override marketExists(marketId) returns (uint256 cost) {
-        require(quantity != 0, CE.InvalidQuantity(quantity));
+        if (!(quantity != 0)) { revert CE.InvalidQuantity(quantity); }
         
         Market memory market = markets[marketId];
         _validateTick(lowerTick, market);
         _validateTick(upperTick, market);
         
-        require(lowerTick <= upperTick, CE.InvalidTickRange(lowerTick, upperTick));
+        if (!(lowerTick <= upperTick)) { revert CE.InvalidTickRange(lowerTick, upperTick); }
         
         // 🚨 NO POINT BETTING: Reject same tick betting
-        require(lowerTick != upperTick, CE.InvalidTickRange(lowerTick, upperTick));
+        if (!(lowerTick != upperTick)) { revert CE.InvalidTickRange(lowerTick, upperTick); }
         
         // ✅ RANGE BETTING: Allow any valid range (single or multiple intervals)
         // Must be aligned to tick spacing
-        require(
-            (upperTick - lowerTick) % market.tickSpacing == 0,
-            CE.InvalidTickRange(lowerTick, upperTick)
-        );
+        if (!((upperTick - lowerTick) % market.tickSpacing == 0)) { revert CE.InvalidTickRange(lowerTick, upperTick); }
         
         // Convert quantity to WAD for internal calculation
         uint256 quantityWad = uint256(quantity).toWad();
@@ -980,17 +964,14 @@ contract CLMSRMarketCore is
         _validateTick(lowerTick, market);
         _validateTick(upperTick, market);
         
-        require(lowerTick <= upperTick, CE.InvalidTickRange(lowerTick, upperTick));
+        if (!(lowerTick <= upperTick)) { revert CE.InvalidTickRange(lowerTick, upperTick); }
         
         // 🚨 NO POINT BETTING: Reject same tick betting
-        require(lowerTick != upperTick, CE.InvalidTickRange(lowerTick, upperTick));
+        if (!(lowerTick != upperTick)) { revert CE.InvalidTickRange(lowerTick, upperTick); }
         
         // ✅ RANGE BETTING: Allow any valid range (single or multiple intervals)
         // Must be aligned to tick spacing
-        require(
-            (upperTick - lowerTick) % market.tickSpacing == 0,
-            CE.InvalidTickRange(lowerTick, upperTick)
-        );
+        if (!((upperTick - lowerTick) % market.tickSpacing == 0)) { revert CE.InvalidTickRange(lowerTick, upperTick); }
         
         // Convert cost to WAD for internal calculation
         uint256 costWad = uint256(cost).toWad();
@@ -1000,7 +981,7 @@ contract CLMSRMarketCore is
         uint256 quantityValue = _roundCredit(quantityWad);
         
         // Ensure result fits in uint128
-        require(quantityValue <= type(uint128).max, CE.QuantityOverflow());
+        if (!(quantityValue <= type(uint128).max)) { revert CE.QuantityOverflow(); }
         
         return uint128(quantityValue);
     }
@@ -1027,15 +1008,12 @@ contract CLMSRMarketCore is
     /// @param maxTick Maximum tick value
     /// @param tickSpacing Tick spacing
     function _validateMarketParameters(int256 minTick, int256 maxTick, int256 tickSpacing) internal pure {
-        require(minTick < maxTick, CE.InvalidMarketParameters(minTick, maxTick, tickSpacing));
+        if (!(minTick < maxTick)) { revert CE.InvalidMarketParameters(minTick, maxTick, tickSpacing); }
 
-        require(tickSpacing > 0, CE.InvalidMarketParameters(minTick, maxTick, tickSpacing));
+        if (!(tickSpacing > 0)) { revert CE.InvalidMarketParameters(minTick, maxTick, tickSpacing); }
 
         // Check that the range is divisible by tickSpacing
-        require(
-            (maxTick - minTick) % tickSpacing == 0,
-            CE.InvalidMarketParameters(minTick, maxTick, tickSpacing)
-        );
+        if (!((maxTick - minTick) % tickSpacing == 0)) { revert CE.InvalidMarketParameters(minTick, maxTick, tickSpacing); }
     }
 
     /// @notice Calculate number of tick ranges for a market
@@ -1046,7 +1024,7 @@ contract CLMSRMarketCore is
     function _calculateNumBins(int256 minTick, int256 maxTick, int256 tickSpacing) internal pure returns (uint32) {
         int256 range = maxTick - minTick;
         int256 ranges = range / tickSpacing; // No +1 for ranges
-        require(ranges > 0 && ranges <= int256(uint256(MAX_TICK_COUNT)), CE.InvalidRangeCount(ranges, MAX_TICK_COUNT));
+        if (!(ranges > 0 && ranges <= int256(uint256(MAX_TICK_COUNT)))) { revert CE.InvalidRangeCount(ranges, MAX_TICK_COUNT); }
         return uint32(uint256(ranges));
     }
 
@@ -1054,15 +1032,9 @@ contract CLMSRMarketCore is
     /// @param tick Tick to validate
     /// @param market Market data
     function _validateTick(int256 tick, Market memory market) internal pure {
-        require(
-            tick >= market.minTick && tick <= market.maxTick,
-            CE.InvalidTick(tick, market.minTick, market.maxTick)
-        );
+        if (!(tick >= market.minTick && tick <= market.maxTick)) { revert CE.InvalidTick(tick, market.minTick, market.maxTick); }
 
-        require(
-            (tick - market.minTick) % market.tickSpacing == 0,
-            CE.InvalidTickSpacing(tick, market.tickSpacing)
-        );
+        if (!((tick - market.minTick) % market.tickSpacing == 0)) { revert CE.InvalidTickSpacing(tick, market.tickSpacing); }
     }
 
     /// @notice Convert tick range to segment tree bin
@@ -1072,13 +1044,10 @@ contract CLMSRMarketCore is
     /// @return bin Segment tree bin (0-based)
     function _rangeToBin(int256 lowerTick, int256 upperTick, Market memory market) internal pure returns (uint32) {
         // Validate range format
-        require(
-            upperTick == lowerTick + market.tickSpacing,
-            CE.InvalidTickRange(lowerTick, upperTick)
-        );
+        if (!(upperTick == lowerTick + market.tickSpacing)) { revert CE.InvalidTickRange(lowerTick, upperTick); }
 
         int256 binInt = (lowerTick - market.minTick) / market.tickSpacing;
-        require(binInt >= 0 && binInt < int256(uint256(market.numBins)), CE.RangeBinOutOfBounds(binInt, market.numBins));
+        if (!(binInt >= 0 && binInt < int256(uint256(market.numBins)))) { revert CE.RangeBinOutOfBounds(binInt, market.numBins); }
         return uint32(uint256(binInt));
     }
 
@@ -1088,7 +1057,7 @@ contract CLMSRMarketCore is
     /// @return lowerTick Lower bound of range (inclusive)
     /// @return upperTick Upper bound of range (exclusive)
     function _binToRange(uint32 bin, Market memory market) internal pure returns (int256 lowerTick, int256 upperTick) {
-        require(bin < market.numBins, CE.BinOutOfBounds(bin, market.numBins));
+        if (!(bin < market.numBins)) { revert CE.BinOutOfBounds(bin, market.numBins); }
         lowerTick = market.minTick + int256(uint256(bin)) * market.tickSpacing;
         upperTick = lowerTick + market.tickSpacing;
     }
@@ -1099,19 +1068,13 @@ contract CLMSRMarketCore is
     /// @param market Market data
     function _validateRange(int256 lowerTick, int256 upperTick, Market memory market) internal pure {
         // Range must be exactly one tick spacing
-        require(
-            upperTick == lowerTick + market.tickSpacing,
-            CE.InvalidTickRange(lowerTick, upperTick)
-        );
+        if (!(upperTick == lowerTick + market.tickSpacing)) { revert CE.InvalidTickRange(lowerTick, upperTick); }
 
         // Lower tick must be valid and aligned
         _validateTick(lowerTick, market);
 
         // Upper tick must be within bounds (but can equal maxTick for last range)
-        require(
-            upperTick <= market.maxTick,
-            CE.InvalidTick(upperTick, market.minTick, market.maxTick)
-        );
+        if (!(upperTick <= market.maxTick)) { revert CE.InvalidTick(upperTick, market.minTick, market.maxTick); }
     }
 
     /// @notice Convert betting range to segment tree bins
@@ -1128,8 +1091,8 @@ contract CLMSRMarketCore is
         loBin = uint32(uint256((lowerTick - market.minTick) / market.tickSpacing));
         hiBin = uint32(uint256((upperTick - market.minTick) / market.tickSpacing - 1));
 
-        require(loBin < market.numBins && hiBin < market.numBins, CE.RangeBinsOutOfBounds(loBin, hiBin, market.numBins));
-        require(loBin <= hiBin, CE.InvalidRangeBins(loBin, hiBin));
+        if (!(loBin < market.numBins && hiBin < market.numBins)) { revert CE.RangeBinsOutOfBounds(loBin, hiBin, market.numBins); }
+        if (!(loBin <= hiBin)) { revert CE.InvalidRangeBins(loBin, hiBin); }
     }
 
     // ----------------------------------------
@@ -1145,7 +1108,7 @@ contract CLMSRMarketCore is
     function _pullUSDC(address from, uint256 amt6) internal {
         if (amt6 > 0) {
             uint256 balance = paymentToken.balanceOf(from);
-            require(balance >= amt6, CE.InsufficientBalance(from, amt6, balance));
+            if (!(balance >= amt6)) { revert CE.InsufficientBalance(from, amt6, balance); }
             paymentToken.safeTransferFrom(from, address(this), amt6);
         }
     }
@@ -1212,9 +1175,9 @@ contract CLMSRMarketCore is
         uint256 affectedSum = LazyMulSegmentTree.getRangeSum(marketTrees[marketId], loBin, hiBin);
         
         // Ensure tree is properly initialized
-        require(sumBefore != 0, CE.TreeNotInitialized());
+        if (!(sumBefore != 0)) { revert CE.TreeNotInitialized(); }
 
-        require(affectedSum != 0, CE.AffectedSumZero());
+        if (!(affectedSum != 0)) { revert CE.AffectedSumZero(); }
         
         // Direct mathematical inverse:
         // From: C = α * ln(sumAfter / sumBefore)
@@ -1260,12 +1223,12 @@ contract CLMSRMarketCore is
             uint256 affectedSum = LazyMulSegmentTree.getRangeSum(marketTrees[marketId], loBin, hiBin);
             
             // Ensure tree is properly initialized
-            require(sumBefore != 0, CE.TreeNotInitialized());
+            if (!(sumBefore != 0)) { revert CE.TreeNotInitialized(); }
             
             // Calculate required number of chunks and prevent gas DoS
             uint256 requiredChunks = (totalQuantity + maxSafeQuantityPerChunk - 1) / maxSafeQuantityPerChunk;
             
-            require(requiredChunks <= MAX_CHUNKS_PER_TX, CE.ChunkLimitExceeded(requiredChunks, MAX_CHUNKS_PER_TX));
+            if (!(requiredChunks <= MAX_CHUNKS_PER_TX)) { revert CE.ChunkLimitExceeded(requiredChunks, MAX_CHUNKS_PER_TX); }
             
             // Chunk-split with cumulative state tracking
             uint256 cumulativeCostWad = 0;
@@ -1306,23 +1269,20 @@ contract CLMSRMarketCore is
                 uint256 newAffectedSum;
                 
                 // Additional safety check: verify multiplication won't overflow in wMul
-                require(
-                    currentAffectedSum == 0 ||
-                        factor <= type(uint256).max / currentAffectedSum,
-                    CE.MathMulOverflow()
-                );
+                if (!(currentAffectedSum == 0 ||
+                        factor <= type(uint256).max / currentAffectedSum)) { revert CE.MathMulOverflow(); }
                 
                 newAffectedSum = currentAffectedSum.wMulNearest(factor);
                 uint256 sumAfter = currentSumBefore - currentAffectedSum + newAffectedSum;
                 
                 // Calculate cost for this chunk: α * ln(sumAfter / sumBefore)
-                require(sumAfter > currentSumBefore, CE.NonIncreasingSum(currentSumBefore, sumAfter));
+                if (!(sumAfter > currentSumBefore)) { revert CE.NonIncreasingSum(currentSumBefore, sumAfter); }
                 uint256 ratio = sumAfter.wDivUp(currentSumBefore);
                 uint256 chunkCost = alpha.wMul(ratio.wLn());
                 cumulativeCostWad += chunkCost;
 
                 // Ensure we make progress to prevent infinite loops
-                require(chunkQuantity != 0, CE.NoChunkProgress());
+                if (!(chunkQuantity != 0)) { revert CE.NoChunkProgress(); }
 
                 // Update state for next chunk
                 currentSumBefore = sumAfter;
@@ -1332,7 +1292,7 @@ contract CLMSRMarketCore is
             }
             
             // Additional safety check
-            require(remainingQuantity == 0, CE.ResidualQuantity(remainingQuantity));
+            if (!(remainingQuantity == 0)) { revert CE.ResidualQuantity(remainingQuantity); }
 
             return cumulativeCostWad;
         }
@@ -1359,7 +1319,7 @@ contract CLMSRMarketCore is
         uint256 affectedSum = LazyMulSegmentTree.getRangeSum(marketTrees[marketId], loBin, hiBin);
         
         // Ensure tree is properly initialized
-        require(sumBefore != 0, CE.TreeNotInitialized());
+        if (!(sumBefore != 0)) { revert CE.TreeNotInitialized(); }
         
         // ✨ Check for overflow before multiplication - fallback to chunked mode if needed
         if (affectedSum > type(uint256).max / factor) {
@@ -1405,12 +1365,12 @@ contract CLMSRMarketCore is
             uint256 affectedSum = LazyMulSegmentTree.getRangeSum(marketTrees[marketId], loBin, hiBin);
             
             // Ensure tree is properly initialized
-            require(sumBefore != 0, CE.TreeNotInitialized());
+            if (!(sumBefore != 0)) { revert CE.TreeNotInitialized(); }
 
             // Calculate required number of chunks and prevent gas DoS
             uint256 requiredChunks = (totalQuantity + maxSafeQuantityPerChunk - 1) / maxSafeQuantityPerChunk;
 
-            require(requiredChunks <= MAX_CHUNKS_PER_TX, CE.ChunkLimitExceeded(requiredChunks, MAX_CHUNKS_PER_TX));
+            if (!(requiredChunks <= MAX_CHUNKS_PER_TX)) { revert CE.ChunkLimitExceeded(requiredChunks, MAX_CHUNKS_PER_TX); }
             
             // Chunk-split with cumulative state tracking
             uint256 cumulativeProceedsWad = 0;
@@ -1455,17 +1415,14 @@ contract CLMSRMarketCore is
                 uint256 newAffectedSum;
                 
                 // Additional safety check: verify multiplication won't overflow in wMul
-                require(
-                    currentAffectedSum == 0 ||
-                        inverseFactor <= type(uint256).max / currentAffectedSum,
-                    CE.MathMulOverflow()
-                );
+                if (!(currentAffectedSum == 0 ||
+                        inverseFactor <= type(uint256).max / currentAffectedSum)) { revert CE.MathMulOverflow(); }
                 
                 newAffectedSum = currentAffectedSum.wMulNearest(inverseFactor);
                 uint256 sumAfter = currentSumBefore - currentAffectedSum + newAffectedSum;
                 
                 // Safety check: ensure sumAfter > 0 to prevent division by zero
-                require(sumAfter != 0, CE.SumAfterZero());
+                if (!(sumAfter != 0)) { revert CE.SumAfterZero(); }
                 
                 // Calculate proceeds for this chunk: α * ln(sumBefore / sumAfter)
                 if (currentSumBefore > sumAfter) {
@@ -1475,7 +1432,7 @@ contract CLMSRMarketCore is
                 }
 
                 // Ensure we make progress to prevent infinite loops
-                require(chunkQuantity != 0, CE.NoChunkProgress());
+                if (!(chunkQuantity != 0)) { revert CE.NoChunkProgress(); }
 
                 // Update state for next chunk
                 currentSumBefore = sumAfter;
@@ -1485,7 +1442,7 @@ contract CLMSRMarketCore is
             }
             
             // Additional safety check
-            require(remainingQuantity == 0, CE.ResidualQuantity(remainingQuantity));
+            if (!(remainingQuantity == 0)) { revert CE.ResidualQuantity(remainingQuantity); }
 
             return cumulativeProceedsWad;
         }
@@ -1521,7 +1478,7 @@ contract CLMSRMarketCore is
         uint256 sumAfter = sumBefore - affectedSum + affectedSum.wMulNearest(inverseFactor);
         
         // Safety check: ensure sumAfter > 0 to prevent division by zero
-        require(sumAfter != 0, CE.SumAfterZero());
+        if (!(sumAfter != 0)) { revert CE.SumAfterZero(); }
         
         // CLMSR proceeds formula: α * ln(sumBefore / sumAfter)
         if (sumBefore <= sumAfter) {
@@ -1631,11 +1588,8 @@ contract CLMSRMarketCore is
             }
             
             // Verify factor is within safe bounds
-            require(
-                factor >= LazyMulSegmentTree.MIN_FACTOR &&
-                    factor <= LazyMulSegmentTree.MAX_FACTOR,
-                CE.FactorOutOfBounds()
-            );
+            if (!(factor >= LazyMulSegmentTree.MIN_FACTOR &&
+                    factor <= LazyMulSegmentTree.MAX_FACTOR)) { revert CE.FactorOutOfBounds(); }
             
             LazyMulSegmentTree.applyRangeFactor(marketTrees[marketId], loBin, hiBin, factor);
             // Use original tick values for event
@@ -1644,10 +1598,7 @@ contract CLMSRMarketCore is
             // Calculate required number of chunks and prevent gas DoS
             uint256 requiredChunks = (quantity + maxSafeQuantityPerChunk - 1) / maxSafeQuantityPerChunk;
             
-            require(
-                requiredChunks <= MAX_CHUNKS_PER_TX,
-                CE.ChunkLimitExceeded(requiredChunks, MAX_CHUNKS_PER_TX)
-            );
+            if (!(requiredChunks <= MAX_CHUNKS_PER_TX)) { revert CE.ChunkLimitExceeded(requiredChunks, MAX_CHUNKS_PER_TX); }
             
             // Split into chunks with gas-efficient batch processing
             uint256 remainingQuantity = quantity;
@@ -1666,11 +1617,8 @@ contract CLMSRMarketCore is
                 }
 
                 // Verify factor is within safe bounds for each chunk
-                require(
-                    factor >= LazyMulSegmentTree.MIN_FACTOR &&
-                        factor <= LazyMulSegmentTree.MAX_FACTOR,
-                    CE.FactorOutOfBounds()
-                );
+                if (!(factor >= LazyMulSegmentTree.MIN_FACTOR &&
+                        factor <= LazyMulSegmentTree.MAX_FACTOR)) { revert CE.FactorOutOfBounds(); }
 
                 LazyMulSegmentTree.applyRangeFactor(marketTrees[marketId], loBin, hiBin, factor);
                 // Use original tick values for event
@@ -1681,19 +1629,19 @@ contract CLMSRMarketCore is
             }
             
             // Additional safety check
-            require(remainingQuantity == 0, CE.IncompleteChunkProcessing());
+            if (!(remainingQuantity == 0)) { revert CE.IncompleteChunkProcessing(); }
         }
     }
 
     /// @notice Internal function to validate market is active and timing is correct
     function _validateActiveMarket(uint256 marketId) internal view {
         Market storage market = markets[marketId];
-        require(market.isActive, CE.MarketNotActive());
+        if (!(market.isActive)) { revert CE.MarketNotActive(); }
         
         // Validate market timing
-        require(block.timestamp >= market.startTimestamp, CE.MarketNotStarted());
+        if (!(block.timestamp >= market.startTimestamp)) { revert CE.MarketNotStarted(); }
         
-        require(block.timestamp <= market.endTimestamp, CE.MarketExpired());
+        if (!(block.timestamp <= market.endTimestamp)) { revert CE.MarketExpired(); }
     }
     
 } 

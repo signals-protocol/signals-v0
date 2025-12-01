@@ -1,6 +1,10 @@
 import { ethers } from "hardhat";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
-import { getSignersForDataServiceId, requestDataPackages } from "@redstone-finance/sdk";
+import {
+  getSignersForDataServiceId,
+  requestDataPackages,
+} from "@redstone-finance/sdk";
+import { WrapperBuilder } from "@redstone-finance/evm-connector";
 
 import {
   advanceToClaimOpen,
@@ -10,7 +14,6 @@ import {
   toSettlementValue,
 } from "../test/helpers/fixtures/core";
 
-const ORACLE_TAG = "CLMSR_SETTLEMENT";
 const DATA_SERVICE_SYMBOL = process.env.REDSTONE_SYMBOL || "BTC"; // 기본 BTC
 const WINDOW_PADDING = 30; // seconds to move past gates when using increaseTo
 const DATA_SERVICE_ID =
@@ -77,27 +80,9 @@ async function fetchHistoricalSample(
   return { price, timestampSec: tsSec, diff: Math.abs(tsSec - targetTs) };
 }
 
-async function signSettlementPayload(
-  signer: any,
-  marketId: number,
-  settlementValue: bigint,
-  priceTimestamp: number
-) {
-  const hash = ethers.keccak256(
-    ethers.AbiCoder.defaultAbiCoder().encode(
-      ["string", "uint256", "int256", "uint64"],
-      [ORACLE_TAG, marketId, settlementValue, priceTimestamp]
-    )
-  );
-  return signer.signMessage(ethers.getBytes(hash));
-}
-
 async function main() {
   console.log("Setting up core + markets with RedStone price feed…");
   const { core, keeper, alice, paymentToken } = await coreFixture();
-  const signerAddr = await keeper.getAddress();
-
-  await core.connect(keeper).setSettlementOracleSigner(signerAddr);
 
   const nearest = await fetchHistoricalSample(
     DATA_SERVICE_SYMBOL,
@@ -159,15 +144,14 @@ async function main() {
   // Submit settlement during [T, T+10m)
   await increaseIfNeeded(settlementTime + WINDOW_PADDING);
   const settlementValue = toSettlementValue(tick);
-  const sig = await signSettlementPayload(
-    keeper,
-    marketId,
-    settlementValue,
-    nearest.timestampSec
-  );
-  await core
-    .connect(alice)
-    .submitSettlement(marketId, settlementValue, nearest.timestampSec, sig);
+  const authorisedSigners = await getSignersForDataServiceId(DATA_SERVICE_ID);
+  const wrappedCore = WrapperBuilder.wrap(core.connect(alice)).usingDataService({
+    dataServiceId: DATA_SERVICE_ID,
+    dataPackagesIds: [DATA_SERVICE_SYMBOL],
+    authorizedSigners,
+    uniqueSignersCount: 2,
+  });
+  await wrappedCore.submitSettlement(marketId);
 
   // Finalize during [T+10m, T+15m)
   await increaseIfNeeded(settlementTime + 11 * 60);
@@ -197,21 +181,8 @@ async function main() {
     feePolicy: ethers.ZeroAddress,
   });
   await setMarketActivation(core, keeper, oracleOnlyId, true);
-  const oracleSig = await signSettlementPayload(
-    keeper,
-    oracleOnlyId,
-    settlementValue,
-    nearest.timestampSec
-  );
   await increaseIfNeeded(oracleOnlySettlement + WINDOW_PADDING);
-  await core
-    .connect(alice)
-    .submitSettlement(
-      oracleOnlyId,
-      settlementValue,
-      nearest.timestampSec,
-      oracleSig
-    );
+  await wrappedCore.submitSettlement(oracleOnlyId);
   await increaseIfNeeded(oracleOnlySettlement + 11 * 60);
   await core.connect(keeper).finalizeSettlement(oracleOnlyId, false);
   console.log(

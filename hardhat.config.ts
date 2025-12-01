@@ -13,17 +13,75 @@ const isCoverage = process.env.COVERAGE === "1";
 
 const config: HardhatUserConfig = {
   solidity: {
-    version: "0.8.30",
-    settings: {
-      viaIR: true,
-      evmVersion: isCoverage ? "paris" : "prague",
-      optimizer: {
-        enabled: true,
-        runs: 200,
+    // 기본 설정 (테스트/기타 컨트랙트)
+    compilers: [
+      {
+        version: "0.8.30",
+        settings: {
+          viaIR: true,
+          evmVersion: "paris",
+          optimizer: {
+            enabled: true,
+            runs: 200,
+          },
+          metadata: {
+            bytecodeHash: "none", // Remove metadata hash to save additional bytes
+            useLiteralContent: true,
+          },
+        },
       },
-      metadata: {
-        bytecodeHash: "none", // Remove metadata hash to save additional bytes
-        useLiteralContent: true,
+    ],
+    // 코어만 코드 사이즈 우선 설정으로 별도 컴파일
+    overrides: {
+      "contracts/core/CLMSRMarketCore.sol": {
+        version: "0.8.30",
+        settings: {
+          viaIR: true,
+          evmVersion: "paris",
+          optimizer: {
+            enabled: true,
+            runs: 0, // 사이즈 우선 (인라이닝 최소화)
+          },
+          debug: {
+            revertStrings: "strip",
+          },
+          metadata: {
+            bytecodeHash: "none",
+            useLiteralContent: false,
+          },
+        },
+      },
+      // 세그먼트 트리는 IR 경로 유지 (stack too deep 방지)
+      "contracts/libraries/LazyMulSegmentTree.sol": {
+        version: "0.8.30",
+        settings: {
+          viaIR: true,
+          evmVersion: "paris",
+          optimizer: {
+            enabled: true,
+            runs: 200,
+          },
+          metadata: {
+            bytecodeHash: "none",
+            useLiteralContent: true,
+          },
+        },
+      },
+      "contracts/managers/CLMSRMarketManager.sol": {
+        version: "0.8.30",
+        settings: {
+          viaIR: true,
+          evmVersion: "paris",
+          optimizer: {
+            enabled: true,
+            runs: 200,
+            // Keep default optimizer details
+          },
+          metadata: {
+            bytecodeHash: "none",
+            useLiteralContent: true,
+          },
+        },
       },
     },
   },

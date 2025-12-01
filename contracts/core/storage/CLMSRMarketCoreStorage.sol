@@ -19,7 +19,7 @@ abstract contract CLMSRMarketCoreStorage {
     uint256 public _nextMarketId;
     mapping(uint256 => bool) public positionSettledEmitted;
     address public manager;
-    ICLMSRFeePolicy public deprecatedFeePolicy;
+    ICLMSRFeePolicy public deprecatedFeePolicy; // deprecated
     address public feeRecipient;
 
     struct SettlementOracleState {
@@ -28,7 +28,8 @@ abstract contract CLMSRMarketCoreStorage {
     }
 
     mapping(uint256 => SettlementOracleState) internal settlementOracleState;
-    address public settlementOracleSigner;
+    // DEPRECATED: legacy EOA-based settlement signer (slot kept for storage compatibility)
+    address public deprecatedSettlementOracleSigner;
 
     uint256[43] internal __gap;
 }
