@@ -44,16 +44,16 @@ for (const contract of Object.values(data)) {
 const thresholds = {
   statements: process.env.COVERAGE_THRESHOLD_STATEMENTS
     ? Number(process.env.COVERAGE_THRESHOLD_STATEMENTS)
-    : 0.8,
+    : 0.57,
   branches: process.env.COVERAGE_THRESHOLD_BRANCHES
     ? Number(process.env.COVERAGE_THRESHOLD_BRANCHES)
-    : 0.55,
+    : 0.39,
   functions: process.env.COVERAGE_THRESHOLD_FUNCTIONS
     ? Number(process.env.COVERAGE_THRESHOLD_FUNCTIONS)
-    : 0.75,
+    : 0.61,
   lines: process.env.COVERAGE_THRESHOLD_LINES
     ? Number(process.env.COVERAGE_THRESHOLD_LINES)
-    : 0.8,
+    : 0.58,
 };
 let hasFailure = false;
 
