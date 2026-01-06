@@ -51,9 +51,9 @@ library LazyMulSegmentTree {
     /// @param tree Tree storage reference
     /// @param treeSize Number of leaves in the tree
     function init(Tree storage tree, uint32 treeSize) external {
-        require(treeSize != 0, CE.TreeSizeZero());
-        require(tree.size == 0, CE.TreeAlreadyInitialized());
-        require(treeSize <= type(uint32).max / 2, CE.TreeSizeTooLarge());
+        if (!(treeSize != 0)) { revert CE.TreeSizeZero(); }
+        if (!(tree.size == 0)) { revert CE.TreeAlreadyInitialized(); }
+        if (!(treeSize <= type(uint32).max / 2)) { revert CE.TreeSizeTooLarge(); }
         
         tree.size = treeSize;
         tree.nextIndex = 0; // Start from 0
@@ -67,13 +67,10 @@ library LazyMulSegmentTree {
     /// @param hi Bin index upper bound (inclusive)
     /// @param factor Multiplication factor in WAD format
     function applyRangeFactor(Tree storage tree, uint32 lo, uint32 hi, uint256 factor) external {
-        require(tree.size != 0, CE.TreeNotInitialized());
-        require(lo <= hi, CE.InvalidRange(lo, hi));
-        require(hi < tree.size, CE.IndexOutOfBounds(hi, tree.size));
-        require(
-            factor >= MIN_FACTOR && factor <= MAX_FACTOR,
-            CE.InvalidFactor(factor)
-        );
+        if (!(tree.size != 0)) { revert CE.TreeNotInitialized(); }
+        if (!(lo <= hi)) { revert CE.InvalidRange(lo, hi); }
+        if (!(hi < tree.size)) { revert CE.IndexOutOfBounds(hi, tree.size); }
+        if (!(factor >= MIN_FACTOR && factor <= MAX_FACTOR)) { revert CE.InvalidFactor(factor); }
         
         _applyFactorRecursive(tree, tree.root, 0, tree.size - 1, lo, hi, factor);
     
@@ -89,9 +86,9 @@ library LazyMulSegmentTree {
         view
         returns (uint256 sum) 
     {
-        require(tree.size != 0, CE.TreeNotInitialized());
-        require(lo <= hi, CE.InvalidRange(lo, hi));
-        require(hi < tree.size, CE.IndexOutOfBounds(hi, tree.size));
+        if (!(tree.size != 0)) { revert CE.TreeNotInitialized(); }
+        if (!(lo <= hi)) { revert CE.InvalidRange(lo, hi); }
+        if (!(hi < tree.size)) { revert CE.IndexOutOfBounds(hi, tree.size); }
         
         return _sumRangeWithAccFactor(tree, tree.root, 0, tree.size - 1, lo, hi, ONE_WAD);
     }
@@ -105,9 +102,9 @@ library LazyMulSegmentTree {
         external
         returns (uint256 sum)
     {
-        require(tree.size != 0, CE.TreeNotInitialized());
-        require(lo <= hi, CE.InvalidRange(lo, hi));
-        require(hi < tree.size, CE.IndexOutOfBounds(hi, tree.size));
+        if (!(tree.size != 0)) { revert CE.TreeNotInitialized(); }
+        if (!(lo <= hi)) { revert CE.InvalidRange(lo, hi); }
+        if (!(hi < tree.size)) { revert CE.IndexOutOfBounds(hi, tree.size); }
         
         sum = _queryRecursive(tree, tree.root, 0, tree.size - 1, lo, hi);
         
@@ -190,7 +187,7 @@ library LazyMulSegmentTree {
         uint256 priorPending = uint256(node.pendingFactor);
         uint256 newPendingFactor = _combineFactors(priorPending, factor);
 
-        require(newPendingFactor <= type(uint192).max, CE.LazyFactorOverflow());
+        if (!(newPendingFactor <= type(uint192).max)) { revert CE.LazyFactorOverflow(); }
         node.pendingFactor = uint192(newPendingFactor);
         
         // Update cached root sum if this is root
@@ -228,26 +225,7 @@ library LazyMulSegmentTree {
             _applyFactorToNode(tree, left, pendingFactorVal);
             _applyFactorToNode(tree, right, pendingFactorVal);
 
-            uint256 combined = tree.nodes[left].sum + tree.nodes[right].sum;
-            uint256 target = node.sum;
-
-            if (combined != target) {
-                if (combined < target) {
-                    tree.nodes[right].sum += target - combined;
-                } else {
-                    uint256 surplus = combined - target;
-                    uint256 rightSum = tree.nodes[right].sum;
-                    if (surplus <= rightSum) {
-                        tree.nodes[right].sum = rightSum - surplus;
-                    } else {
-                        uint256 remaining = surplus - rightSum;
-                        tree.nodes[right].sum = 0;
-                        uint256 leftSum = tree.nodes[left].sum;
-                        require(remaining <= leftSum, CE.MathMulOverflow());
-                        tree.nodes[left].sum = leftSum - remaining;
-                    }
-                }
-            }
+            _rebalanceChildren(tree, left, right, node.sum);
             
             // Update packed children
             node.childPtr = _packChildPtr(left, right);
@@ -257,6 +235,34 @@ library LazyMulSegmentTree {
                 tree.cachedRootSum = node.sum;
             }
         }
+    }
+    
+    function _rebalanceChildren(
+        Tree storage tree,
+        uint32 left,
+        uint32 right,
+        uint256 target
+    ) private {
+        uint256 combined = tree.nodes[left].sum + tree.nodes[right].sum;
+        if (combined == target) return;
+
+        if (combined < target) {
+            tree.nodes[right].sum += target - combined;
+            return;
+        }
+
+        uint256 surplus = combined - target;
+        uint256 rightSum = tree.nodes[right].sum;
+        if (surplus <= rightSum) {
+            tree.nodes[right].sum = rightSum - surplus;
+            return;
+        }
+
+        uint256 remaining = surplus - rightSum;
+        tree.nodes[right].sum = 0;
+        uint256 leftSum = tree.nodes[left].sum;
+        if (!(remaining <= leftSum)) { revert CE.MathMulOverflow(); }
+        tree.nodes[left].sum = leftSum - remaining;
     }
     
     /// @notice Pull values up from children
@@ -333,7 +339,7 @@ library LazyMulSegmentTree {
                 _pushPendingFactor(tree, nodeIndex, l, r);
                 node.pendingFactor = uint192(ONE_WAD);
             } else {
-                require(newPendingFactor <= type(uint192).max, CE.LazyFactorOverflow());
+                if (!(newPendingFactor <= type(uint192).max)) { revert CE.LazyFactorOverflow(); }
                 node.pendingFactor = uint192(newPendingFactor);
             }
             
@@ -478,8 +484,8 @@ library LazyMulSegmentTree {
 
 
     function seedWithFactors(Tree storage tree, uint256[] memory factors) internal {
-        require(tree.size != 0, CE.TreeNotInitialized());
-        require(factors.length == tree.size, CE.ArrayLengthMismatch());
+        if (!(tree.size != 0)) { revert CE.TreeNotInitialized(); }
+        if (!(factors.length == tree.size)) { revert CE.ArrayLengthMismatch(); }
 
         tree.nextIndex = 0;
         tree.root = 0;

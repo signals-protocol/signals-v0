@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { createActiveMarketFixture, settleMarketUsingRange } from "../../helpers/fixtures/core";
+import { createActiveMarketFixture, settleMarketUsingRange, advanceToClaimOpen } from "../../helpers/fixtures/core";
 import { INTEGRATION_TAG } from "../../helpers/tags";
 
 describe(`${INTEGRATION_TAG} Position Closing`, function () {
@@ -123,6 +123,7 @@ describe(`${INTEGRATION_TAG} Position Closing`, function () {
     const market = await core.getMarket(marketId);
     await time.increaseTo(Number(market.endTimestamp) + 1);
     await settleMarketUsingRange(core, keeper, marketId, 100490, 100500); // Settle using midpoint tick
+    await advanceToClaimOpen(core, marketId);
 
     const balanceBefore = await paymentToken.balanceOf(alice.address);
 

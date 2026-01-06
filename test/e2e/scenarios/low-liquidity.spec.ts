@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
-import { coreFixture, setupCustomMarket, settleMarketAtTick } from "../../helpers/fixtures/core";
+import { coreFixture, setupCustomMarket, settleMarketAtTick, advanceToClaimOpen } from "../../helpers/fixtures/core";
 import { E2E_TAG } from "../../helpers/tags";
 
 const describeMaybe = process.env.COVERAGE ? describe.skip : describe;
@@ -205,6 +205,7 @@ describeMaybe(`${E2E_TAG} Low Liquidity Market Scenarios`, function () {
 
       await time.increase(7 * 24 * 60 * 60 + 3600);
       await settleMarketAtTick(core, keeper, marketId, SETTLEMENT_TICK);
+      await advanceToClaimOpen(core, marketId);
 
       const market = await core.getMarket(marketId);
       expect(market.settled).to.be.true;

@@ -5,6 +5,7 @@ import {
   createActiveMarketFixture,
   settleMarketAtTick,
   increaseToSafe,
+  advanceToClaimOpen,
 } from "../../helpers/fixtures/core";
 import { COMPONENT_TAG } from "../../helpers/tags";
 
@@ -421,6 +422,7 @@ describe(`${COMPONENT_TAG} CLMSRMarketCore - Events`, function () {
       // Fast forward past market end and settle
       await increaseToSafe(endTime + 1);
       await settleMarketAtTick(core, keeper, marketId, 100150);
+      await advanceToClaimOpen(core, marketId);
 
       // Claim the position
       await expect(core.connect(alice).claimPayout(positionId))

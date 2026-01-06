@@ -8,6 +8,7 @@ import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
 import {
   coreFixture,
   createMarketWithId,
+  advanceToClaimOpen,
   setMarketActivation,
   toSettlementValue,
 } from "../../helpers/fixtures/core";
@@ -342,6 +343,7 @@ describeMaybe(`${INTEGRATION_TAG} ${REPLAY_TAG} Market64 Regression`, function (
     await consumeReceipt(
       core.connect(keeper).settleMarket(marketId, settlementValue)
     );
+    await advanceToClaimOpen(core, marketId);
 
     for (const trade of settleTrades) {
       const localId = datasetPositionToLocalId.get(trade.positionId);

@@ -8,7 +8,8 @@ import { OpenZeppelinManifestManager } from "../manage-manifest";
 const TX_DELAY_MS = Number(process.env.TX_DELAY_MS ?? "10000");
 
 // RPC URL (환경변수 또는 기본 Citrea public RPC)
-const PINNED_RPC_URL = process.env.CITREA_RPC_URL || "https://rpc.testnet.citrea.xyz";
+const PINNED_RPC_URL =
+  process.env.CITREA_RPC_URL || "https://rpc.testnet.citrea.xyz";
 
 const pinnedProvider = new ethers.JsonRpcProvider(PINNED_RPC_URL);
 
@@ -327,10 +328,7 @@ export async function upgradeAction(environment: Environment): Promise<void> {
     newFixedPointMathUAddress
   );
   addresses.FixedPointMathU = newFixedPointMathUAddress;
-  console.log(
-    "✅ New FixedPointMathU deployed:",
-    newFixedPointMathUAddress
-  );
+  console.log("✅ New FixedPointMathU deployed:", newFixedPointMathUAddress);
 
   if (!addresses.CLMSRMarketCoreProxy) {
     throw new Error(`Core proxy not deployed in ${environment} environment`);
@@ -651,6 +649,7 @@ export async function upgradeAction(environment: Environment): Promise<void> {
             kind: "uups",
             redeployImplementation: "always",
             unsafeAllow: ["external-library-linking", "delegatecall"],
+            unsafeSkipStorageCheck: true, // allow slot rename (legacy signer)
             txOverrides: await safeTxOptsPinned(pinnedProvider),
           }
         );

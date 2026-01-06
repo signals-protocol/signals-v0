@@ -9,6 +9,7 @@
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",
+    "postinstall": "patch-package",
     "deploy:localhost": "COMMAND=deploy:localhost npx hardhat run scripts/dispatcher.ts --network localhost",
     "upgrade:localhost": "COMMAND=upgrade:localhost npx hardhat run scripts/dispatcher.ts --network localhost",
     "upgrade:citrea:dev": "MANIFEST_DEFAULT_DIR=.openzeppelin/dev COMMAND=upgrade:citrea:dev npx hardhat run scripts/dispatcher.ts --network citrea-dev",
@@ -52,7 +53,7 @@
     "repair:citrea:dev": "MANIFEST_DEFAULT_DIR=.openzeppelin/dev COMMAND=repair-manifest:citrea:dev npx hardhat run scripts/dispatcher.ts --network citrea-dev",
     "repair:citrea:prod": "MANIFEST_DEFAULT_DIR=.openzeppelin/prod COMMAND=repair-manifest:citrea:prod npx hardhat run scripts/dispatcher.ts --network citrea-prod",
     "test:full:localhost": "npx hardhat run scripts/full-test-localhost.ts --network localhost",
-    "coverage": "COVERAGE=1 npx hardhat coverage",
+    "coverage": "NODE_OPTIONS=--max-old-space-size=8192 COVERAGE=1 npx hardhat coverage",
     "coverage:check": "node scripts/check-coverage.mjs",
     "test:fast": "npx hardhat test",
     "test:replay": "node scripts/test-replay.js",
@@ -79,6 +80,7 @@
     "hardhat": "^2.24.1",
     "hardhat-gas-reporter": "^2.3.0",
     "hardhat-tracer": "^3.2.1",
+    "patch-package": "^8.0.1",
     "solidity-coverage": "^0.8.16",
     "solidity-docgen": "^0.6.0-beta.36",
     "ts-node": "^10.9.2",
@@ -90,6 +92,8 @@
     "@openzeppelin/contracts-upgradeable": "^5.4.0",
     "@openzeppelin/hardhat-upgrades": "^3.9.1",
     "@prb/math": "^4.1.0",
+    "@redstone-finance/evm-connector": "^0.9.0",
+    "@redstone-finance/sdk": "^0.9.0",
     "@whworjs7946/clmsr-v0": "^1.12.0",
     "axios": "^1.10.0"
   }

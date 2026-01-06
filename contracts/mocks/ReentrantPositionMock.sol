@@ -37,17 +37,17 @@ contract ReentrantPositionMock is ERC721Enumerable, Ownable, ICLMSRPosition {
     }
 
     modifier onlyCore() {
-        require(msg.sender == core, CE.UnauthorizedCaller(msg.sender));
+        if (!(msg.sender == core)) { revert CE.UnauthorizedCaller(msg.sender); }
         _;
     }
 
     function setCore(address newCore) external onlyOwner {
-        require(newCore != address(0), CE.ZeroAddress());
+        if (!(newCore != address(0))) { revert CE.ZeroAddress(); }
         core = newCore;
     }
 
     function updateCore(address newCore) external onlyOwner {
-        require(newCore != address(0), CE.ZeroAddress());
+        if (!(newCore != address(0))) { revert CE.ZeroAddress(); }
         core = newCore;
     }
 
@@ -84,8 +84,8 @@ contract ReentrantPositionMock is ERC721Enumerable, Ownable, ICLMSRPosition {
         int256 upperTick,
         uint128 quantity
     ) external onlyCore returns (uint256 positionId) {
-        require(trader != address(0), CE.ZeroAddress());
-        require(quantity != 0, CE.InvalidQuantity(quantity));
+        if (!(trader != address(0))) { revert CE.ZeroAddress(); }
+        if (!(quantity != 0)) { revert CE.InvalidQuantity(quantity); }
 
         positionId = _nextId++;
 
@@ -107,8 +107,8 @@ contract ReentrantPositionMock is ERC721Enumerable, Ownable, ICLMSRPosition {
     }
 
     function updateQuantity(uint256 positionId, uint128 newQuantity) public onlyCore {
-        require(_positionExists(positionId), CE.PositionNotFound(positionId));
-        require(newQuantity != 0, CE.InvalidQuantity(newQuantity));
+        if (!(_positionExists(positionId))) { revert CE.PositionNotFound(positionId); }
+        if (!(newQuantity != 0)) { revert CE.InvalidQuantity(newQuantity); }
 
         if (attackMode == AttackMode.Decrease) {
             attackMode = AttackMode.None;
@@ -128,7 +128,7 @@ contract ReentrantPositionMock is ERC721Enumerable, Ownable, ICLMSRPosition {
     }
 
     function burn(uint256 positionId) public onlyCore {
-        require(_positionExists(positionId), CE.PositionNotFound(positionId));
+        if (!(_positionExists(positionId))) { revert CE.PositionNotFound(positionId); }
 
         address owner = ownerOf(positionId);
         uint256 marketId = _positionMarket[positionId];
@@ -168,7 +168,7 @@ contract ReentrantPositionMock is ERC721Enumerable, Ownable, ICLMSRPosition {
     }
 
     function getPosition(uint256 positionId) external view returns (Position memory data) {
-        require(_positionExists(positionId), CE.PositionNotFound(positionId));
+        if (!(_positionExists(positionId))) { revert CE.PositionNotFound(positionId); }
         data = _positions[positionId];
     }
 

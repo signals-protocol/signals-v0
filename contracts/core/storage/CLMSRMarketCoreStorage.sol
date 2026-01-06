@@ -9,6 +9,9 @@ import {LazyMulSegmentTree} from "../../libraries/LazyMulSegmentTree.sol";
 
 /// @dev 공유 스토리지 레이아웃: Core와 Manager가 동일 순서로 상속해야 슬롯이 일치한다.
 abstract contract CLMSRMarketCoreStorage {
+    uint64 internal constant SETTLEMENT_SUBMIT_WINDOW = 10 minutes;
+    uint64 internal constant SETTLEMENT_FINALIZE_DEADLINE = 15 minutes;
+
     IERC20 public paymentToken;
     ICLMSRPosition public positionContract;
     mapping(uint256 => ICLMSRMarketCore.Market) public markets;
@@ -16,7 +19,17 @@ abstract contract CLMSRMarketCoreStorage {
     uint256 public _nextMarketId;
     mapping(uint256 => bool) public positionSettledEmitted;
     address public manager;
-    ICLMSRFeePolicy public deprecatedFeePolicy;
+    ICLMSRFeePolicy public _deprecatedFeePolicy; // deprecated
     address public feeRecipient;
-    uint256[45] internal __gap;
+
+    struct SettlementOracleState {
+        int256 candidateValue;
+        uint64 candidatePriceTimestamp;
+    }
+
+    mapping(uint256 => SettlementOracleState) internal settlementOracleState;
+    /// @dev legacy EOA-based settlement signer (kept for storage compatibility, do not use)
+    address public _deprecatedSettlementOracleSigner;
+
+    uint256[43] internal __gap;
 }

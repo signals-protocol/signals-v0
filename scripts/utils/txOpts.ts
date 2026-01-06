@@ -22,7 +22,7 @@ export async function safeTxOpts(
     maxPriorityFeePerGas: bump(
       fee.maxPriorityFeePerGas ?? ethers.parseUnits("1", "gwei")
     ),
-    gasLimit: 6000000, // Increased for new LazyMulSegmentTree features
+    gasLimit: 10_000_000, // Headroom for heavy upgrades without breaching block limit
   };
 }
 

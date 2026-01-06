@@ -6,6 +6,7 @@ const describeMaybe = process.env.COVERAGE ? describe.skip : describe;
 import {
   createActiveMarketFixture,
   settleMarketAtTick,
+  advanceToClaimOpen,
 } from "../../helpers/fixtures/core";
 
 describeMaybe(`${E2E_TAG} Normal Market Lifecycle`, function () {
@@ -177,6 +178,7 @@ describeMaybe(`${E2E_TAG} Normal Market Lifecycle`, function () {
       // Phase 7: Settlement
       const settlementTick = 100495; // Midpoint around Charlie's position
       await settleMarketAtTick(core, keeper, marketId, settlementTick);
+      await advanceToClaimOpen(core, marketId);
 
       // Phase 8: Claims phase
       // Bob should win since his range included tick 100500
@@ -256,6 +258,7 @@ describeMaybe(`${E2E_TAG} Normal Market Lifecycle`, function () {
 
       await time.increaseTo(endTime + 1);
       await settleMarketAtTick(core, keeper, marketId, 100490);
+      await advanceToClaimOpen(core, marketId);
 
       // Alice should be able to claim her winnings
       const positions = await mockPosition.getPositionsByOwner(alice.address);
